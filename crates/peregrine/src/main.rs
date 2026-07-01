@@ -550,9 +550,13 @@ fn init_logging() {
 
     let file_layer = tracing_subscriber::fmt::layer().with_writer(non_blocking);
 
+    // 默认 info 级别；用户可通过 RUST_LOG=debug 环境变量提高级别。
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
     tracing_subscriber::registry()
         .with(fmt_layer)
         .with(file_layer)
-        .with(tracing_subscriber::EnvFilter::from_default_env())
+        .with(filter)
         .init();
 }

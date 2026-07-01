@@ -83,15 +83,13 @@ impl Renderer {
                 size.height.max(1),
             )
             .expect("default surface config");
-        // Windows 下 Overlay 需要逐像素透明：DWM 对 Bgra8UnormSrgb + PreMultiplied
-        // 的合成支持最好，因此保留默认的 SRGB 格式，只切换 alpha 模式。
+        // Windows 下 Overlay 改用颜色键透明（黑色=透明）：wgpu 的 alpha 合成与
+        // DWM 配合不稳定，SetLayeredWindowAttributes + LWA_COLORKEY 更可靠。
         // 非 Windows 平台维持原先把格式切到 Bgra8Unorm 的行为。
         #[cfg(not(target_os = "windows"))]
         {
             surface_config.format = wgpu::TextureFormat::Bgra8Unorm;
         }
-        // Windows 下优先选支持透明合成的 alpha 模式（PreMultiplied，其次 PostMultiplied），
-        // DWM 才会按 alpha 把非准心区域透出；找不到透明模式则回退 Opaque 并告警。
         surface_config.alpha_mode = pick_alpha_mode(&surface, &adapter);
         surface.configure(&device, &surface_config);
         tracing::info!(
@@ -229,11 +227,13 @@ impl Renderer {
                         view: &view,
                         resolve_target: None,
                         ops: wgpu::Operations {
+                            // Windows 颜色键透明要求背景为纯黑（RGB 0,0,0），
+                            // alpha 可为 0；DWM 会把黑色区域完全透出。
                             load: wgpu::LoadOp::Clear(wgpu::Color {
                                 r: 0.0,
                                 g: 0.0,
                                 b: 0.0,
-                                a: 0.0,
+                                a: 1.0,
                             }),
                             store: wgpu::StoreOp::Store,
                         },
@@ -262,21 +262,12 @@ impl Renderer {
         ui_state: &mut super::settings_ui::SettingsUi,
         config: &peregrine_config::ConfigSnapshot,
     ) -> super::settings_ui::SettingsResponse {
-        eprintln!("[render_settings] begin");
-        // 让 egui-winit 自己根据窗口 scale factor 计算 pixels_per_point，
-        // 避免手动 set_pixels_per_point 与 native_pixels_per_point 叠加导致缩放翻倍。
         let raw_input = self.egui_state.take_egui_input(&self.window);
         let full_output = self.egui_state.egui_ctx().run(raw_input, |ctx| {
             ui_state.ui(ctx, config)
         });
         self.egui_state
             .handle_platform_output(&self.window, full_output.platform_output);
-        eprintln!(
-            "[render_settings] shapes: {}, textures delta set: {}, free: {}",
-            full_output.shapes.len(),
-            full_output.textures_delta.set.len(),
-            full_output.textures_delta.free.len()
-        );
 
         let output = self.surface.get_current_texture().expect("surface texture");
         let view = output
@@ -767,30 +758,10 @@ fn draw_overlay_gap_border_frame(
     );
 }
 
-/// 选择 surface 的 alpha 合成模式（Windows）。
+/// 选择 surface 的 alpha 合成模式。
 ///
-/// Overlay 需要逐像素透明：优先选支持透明的 `PreMultiplied`，其次 `PostMultiplied`；
-/// 若都不支持则回退 `Opaque`（此时 Overlay 无法透明，仅告警）。
-#[cfg(target_os = "windows")]
-fn pick_alpha_mode(
-    surface: &wgpu::Surface<'static>,
-    adapter: &wgpu::Adapter,
-) -> wgpu::CompositeAlphaMode {
-    let modes = surface.get_capabilities(adapter).alpha_modes;
-    if modes.contains(&wgpu::CompositeAlphaMode::PreMultiplied) {
-        wgpu::CompositeAlphaMode::PreMultiplied
-    } else if modes.contains(&wgpu::CompositeAlphaMode::PostMultiplied) {
-        wgpu::CompositeAlphaMode::PostMultiplied
-    } else {
-        tracing::warn!("surface 不支持透明 alpha 模式，Overlay 将保持不透明");
-        wgpu::CompositeAlphaMode::Opaque
-    }
-}
-
-/// 选择 surface 的 alpha 合成模式（非 Windows）。
-///
-/// 维持原有不透明行为。
-#[cfg(not(target_os = "windows"))]
+/// 当前 Windows 已改回颜色键透明，surface 保持 Opaque 即可。
+/// 保留该函数以备后续需要重新启用逐像素 alpha。
 fn pick_alpha_mode(
     _surface: &wgpu::Surface<'static>,
     _adapter: &wgpu::Adapter,

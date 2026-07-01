@@ -1,7 +1,7 @@
 //! Windows 平台 Overlay 覆盖层辅助函数。
 //!
 //! 通过 `windows-rs` 调用 Win32 API，将 `winit` 创建的普通窗口改造为：
-//! - 透明（窗口以 `with_transparent(true)` 创建，配合 wgpu 逐像素 alpha 合成）
+//! - 透明（`WS_EX_LAYERED` + `SetLayeredWindowAttributes`，纯黑色作为透明色）
 //! - 置顶（`WS_EX_TOPMOST`）
 //! - 鼠标穿透（`WS_EX_TRANSPARENT`）
 //! - 不获取焦点（`WS_EX_NOACTIVATE`）
@@ -13,16 +13,16 @@
 use std::time::Duration;
 use tokio::sync::oneshot;
 use windows::Win32::Foundation::{
-    BOOL, GetLastError, HWND, LPARAM, POINT, RECT, SetLastError, WIN32_ERROR,
+    BOOL, COLORREF, GetLastError, HWND, LPARAM, POINT, RECT, SetLastError, WIN32_ERROR,
 };
 use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetWindowLongPtrW, GetWindowRect,
     GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, IsWindowVisible,
-    SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_NOOWNERZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow, WINDOW_LONG_PTR_INDEX,
-    WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU,
-    WS_THICKFRAME,
+    LWA_COLORKEY, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOOWNERZORDER, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    WINDOW_LONG_PTR_INDEX, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU, WS_THICKFRAME,
 };
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::Window;
@@ -82,16 +82,20 @@ fn set_window_long(hwnd: HWND, index: WINDOW_LONG_PTR_INDEX, value: isize) -> Re
 /// 将 `winit` 窗口改造为透明置顶穿透的 Overlay 窗口。
 ///
 /// 具体行为：
-/// - 扩展样式增加 `WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE |
-///   WS_EX_TOOLWINDOW`。
+/// - 扩展样式增加 `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST |
+///   WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`。
 /// - 移除 `WS_CAPTION | WS_THICKFRAME | WS_SYSMENU` 等边框样式。
-/// - 透明依赖窗口创建时传入的 `with_transparent(true)` 与 wgpu 的 alpha 合成，
-///   渲染时把准心外区域清为 (0,0,0,0)，DWM 就会把它逐像素透出。
+/// - 使用 `SetLayeredWindowAttributes` 将纯黑色（`RGB 0,0,0`）设为透明色。
+///
+/// # 注意
+///
+/// 调用方需要保证渲染时把准心外区域清为纯黑，颜色键透明才会生效。
 pub fn setup_overlay_window(window: &Window) -> Result<()> {
     let hwnd = hwnd_from_window(window)?;
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
         let new_ex_style = ex_style
+            | WS_EX_LAYERED.0
             | WS_EX_TRANSPARENT.0
             | WS_EX_TOPMOST.0
             | WS_EX_NOACTIVATE.0
@@ -111,6 +115,8 @@ pub fn setup_overlay_window(window: &Window) -> Result<()> {
             0,
             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
         )?;
+
+        SetLayeredWindowAttributes(hwnd, COLORREF(0), 0, LWA_COLORKEY)?;
     }
     Ok(())
 }
@@ -118,8 +124,8 @@ pub fn setup_overlay_window(window: &Window) -> Result<()> {
 /// 将 Overlay 窗口恢复为普通窗口样式，用于进入设置界面时撤销覆盖层效果。
 ///
 /// 具体行为：
-/// - 移除 `WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE |
-///   WS_EX_TOOLWINDOW`。
+/// - 移除 `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST |
+///   WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`。
 /// - 恢复 `WS_CAPTION | WS_THICKFRAME | WS_SYSMENU` 边框样式。
 /// - 取消置顶。
 pub fn restore_normal_window(window: &Window) -> Result<()> {
@@ -127,7 +133,8 @@ pub fn restore_normal_window(window: &Window) -> Result<()> {
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
         let new_ex_style = ex_style
-            & !(WS_EX_TRANSPARENT.0
+            & !(WS_EX_LAYERED.0
+                | WS_EX_TRANSPARENT.0
                 | WS_EX_TOPMOST.0
                 | WS_EX_NOACTIVATE.0
                 | WS_EX_TOOLWINDOW.0);
@@ -230,6 +237,8 @@ pub fn list_window_entries() -> Vec<WindowEntry> {
     unsafe {
         let _ = EnumWindows(Some(enum_window_proc), LPARAM(&mut state as *mut _ as isize));
     }
+    let titles: Vec<String> = state.entries.iter().map(|e| e.title.clone()).collect();
+    tracing::info!(count = state.entries.len(), ?titles, "enumerated windows");
     state.entries
 }
 
@@ -241,14 +250,19 @@ pub fn list_window_entries() -> Vec<WindowEntry> {
 /// - 找不到 `current`：返回列表第一个，避免目标窗口标题变化后按钮彻底失效。
 pub fn next_window_entry(current: &str) -> Option<WindowEntry> {
     let entries = list_window_entries();
+    tracing::info!(current, count = entries.len(), "select next window");
     if entries.is_empty() {
         return None;
     }
-    entries
+    let result = entries
         .iter()
         .position(|e| e.title == current)
         .map(|idx| entries[(idx + 1) % entries.len()].clone())
-        .or_else(|| entries.first().cloned())
+        .or_else(|| entries.first().cloned());
+    if let Some(ref e) = result {
+        tracing::info!(next = %e.title, "selected next window");
+    }
+    result
 }
 
 /// 返回 `current` 标题在窗口列表中的下一个窗口标题（循环）。
@@ -354,6 +368,13 @@ pub async fn follow_target_window(
                     if !rect_eq(&rect, &last_rect) {
                         let width = rect.right - rect.left;
                         let height = rect.bottom - rect.top;
+                        tracing::debug!(
+                            left = rect.left,
+                            top = rect.top,
+                            width,
+                            height,
+                            "follow target window"
+                        );
                         SetWindowPos(
                             overlay.0,
                             HWND_TOPMOST,

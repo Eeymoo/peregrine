@@ -22,6 +22,8 @@ pub struct SettingsResponse {
     pub changed: bool,
     /// 修改后的配置副本。
     pub config: ConfigSnapshot,
+    /// 用户是否点击了"开始覆盖"按钮，请求切换到 Overlay 模式。
+    pub start_overlay: bool,
 }
 
 impl Default for SettingsResponse {
@@ -29,6 +31,7 @@ impl Default for SettingsResponse {
         Self {
             changed: false,
             config: ConfigSnapshot::new(AppConfig::default_config()),
+            start_overlay: false,
         }
     }
 }
@@ -50,6 +53,7 @@ impl SettingsUi {
     ) {
         let original = (**config).clone();
         let mut new_config = (**config).clone();
+        let mut start_overlay = false;
         let profile = new_config
             .active_profile_mut()
             .expect("active profile exists");
@@ -219,6 +223,10 @@ impl SettingsUi {
                     if let Some(next) = crate::platform::windows::next_window_title(&profile.target_window) {
                         profile.target_window = next;
                     }
+                    #[cfg(not(target_os = "windows"))]
+                    {
+                        profile.target_window = "选择窗口仅在 Windows 可用".to_string();
+                    }
                 }
                 if !profile.target_window.is_empty() {
                     ui.label(format!(
@@ -228,7 +236,11 @@ impl SettingsUi {
                 }
 
                 ui.separator();
-                ui.label("按 Tab 切换回覆盖层");
+                ui.label("提示：按 Tab 或点击下方按钮切换");
+                ui.add_space(4.0);
+                if ui.button("▶ 开始覆盖").clicked() {
+                    start_overlay = true;
+                }
             });
 
         // 左侧：演示窗口。
@@ -242,6 +254,7 @@ impl SettingsUi {
         self.response = SettingsResponse {
             changed,
             config: ConfigSnapshot::new(new_config),
+            start_overlay,
         };
     }
 

@@ -253,6 +253,7 @@ impl App {
                     return;
                 }
             };
+            tracing::info!(title = %title, "starting overlay follower");
             let target = match platform::windows::find_target_window(&title) {
                 Ok(t) => platform::windows::SendHwnd(t),
                 Err(e) => {
@@ -260,6 +261,7 @@ impl App {
                     return;
                 }
             };
+            tracing::info!("target window found, following");
             if let Err(e) = platform::windows::follow_target_window(overlay, target, rx).await {
                 tracing::debug!("overlay follower ended: {}", e);
             }
@@ -384,6 +386,8 @@ impl ApplicationHandler<UserEvent> for App {
                 if self.hidden {
                     return;
                 }
+                // 标记是否需要切换到 Overlay 模式（由设置面板按钮触发）。
+                let mut switch_to_overlay = false;
                 // 根据模式绘制覆盖层或设置界面。
                 if let Some(renderer) = self.renderer.as_mut() {
                     let rt = tokio::runtime::Handle::current();
@@ -420,12 +424,20 @@ impl ApplicationHandler<UserEvent> for App {
                                     }
                                 });
                             }
+                            // 用户点击"开始覆盖"按钮时，标记稍后切换。
+                            if response.start_overlay {
+                                switch_to_overlay = true;
+                            }
                         }
                     }
                     // 请求持续重绘，保证 UI 响应。
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
+                }
+                // 在 renderer 借用结束后再切换模式，避免借用冲突。
+                if switch_to_overlay {
+                    self.toggle_mode();
                 }
             }
             _ => {}
@@ -459,7 +471,9 @@ impl ApplicationHandler<UserEvent> for App {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    // 初始化日志：同时输出到控制台（debug 时）和写入到 %APPDATA%/Peregrine/peregrine.log，
+    // 便于 release 版无控制台时排查「选择窗口」、透明合成等问题。
+    init_logging();
 
     let storage = ConfigStorage::with_default_path().expect("config storage path");
     let config = storage
@@ -481,4 +495,41 @@ async fn main() {
 
     let mut app = App::new(storage, notifier);
     event_loop.run_app(&mut app).expect("run event loop");
+}
+
+/// 初始化 tracing 日志：控制台 + 滚动文件。
+///
+/// 日志写入 `%APPDATA%/Peregrine/peregrine.log`（Windows）或对应平台配置目录，
+/// 方便 release 版无控制台时排查「选择窗口」与透明渲染问题。
+fn init_logging() {
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+
+    let fmt_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
+
+    let log_path = peregrine_config::ConfigStorage::with_default_path()
+        .ok()
+        .map(|s| s.path().with_file_name("peregrine.log"))
+        .unwrap_or_else(|| std::path::PathBuf::from("peregrine.log"));
+
+    if let Some(parent) = log_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    // 每天滚动一个日志文件，保留最近 7 天。
+    let file_appender = tracing_appender::rolling::daily(
+        log_path.parent().unwrap_or_else(|| std::path::Path::new(".")),
+        log_path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("peregrine.log")),
+    );
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    // 保持 _guard 存活到进程结束，避免日志刷新线程提前退出。
+    Box::leak(Box::new(_guard));
+
+    let file_layer = tracing_subscriber::fmt::layer().with_writer(non_blocking);
+
+    tracing_subscriber::registry()
+        .with(fmt_layer)
+        .with(file_layer)
+        .with(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
 }

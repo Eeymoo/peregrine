@@ -21,7 +21,8 @@ pollster = { workspace = true }
 tray-icon = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
 thiserror = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]

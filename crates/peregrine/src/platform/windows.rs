@@ -1,13 +1,13 @@
 //! Windows 平台 Overlay 覆盖层辅助函数。
 //!
 //! 通过 `windows-rs` 调用 Win32 API，将 `winit` 创建的普通窗口改造为：
-//! - 透明（`WS_EX_LAYERED` + `SetLayeredWindowAttributes`，纯黑色作为透明色）
+//! - 透明（`WS_EX_LAYERED` + `SetLayeredWindowAttributes`，`RGB(1,0,0)` 极深红作为透明色键）
 //! - 置顶（`WS_EX_TOPMOST`）
 //! - 鼠标穿透（`WS_EX_TRANSPARENT`）
 //! - 不获取焦点（`WS_EX_NOACTIVATE`）
 //! - 不在任务栏显示按钮（`WS_EX_TOOLWINDOW`）
 //!
-//! 同时提供顶层窗口枚举、目标游戏窗口查找、矩形计算、以及 16ms 轮询跟随逻辑。
+//! 同时提供顶层窗口枚举、目标游戏窗口查找（模糊匹配）、矩形计算、以及 16ms 轮询跟随逻辑。
 //! 本模块所有公开函数均返回 [`Result`] 或不 panic。
 
 use std::time::Duration;
@@ -79,17 +79,24 @@ fn set_window_long(hwnd: HWND, index: WINDOW_LONG_PTR_INDEX, value: isize) -> Re
     Ok(())
 }
 
+/// 颜色键透明使用的色值：`RGB(1,0,0)`（极深红，人眼几乎不可见）。
+///
+/// 不使用纯黑 `RGB(0,0,0)`，以免用户把准心颜色设为黑色时也被透明掉。
+/// 这个色值在实际渲染中只会出现在 Overlay 清屏背景上。
+pub const COLORKEY_RGB: u32 = 0x00000001;
+
 /// 将 `winit` 窗口改造为透明置顶穿透的 Overlay 窗口。
 ///
 /// 具体行为：
 /// - 扩展样式增加 `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST |
 ///   WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`。
 /// - 移除 `WS_CAPTION | WS_THICKFRAME | WS_SYSMENU` 等边框样式。
-/// - 使用 `SetLayeredWindowAttributes` 将纯黑色（`RGB 0,0,0`）设为透明色。
+/// - 使用 `SetLayeredWindowAttributes` 将 `RGB(1,0,0)`（极深红）设为透明色键。
 ///
 /// # 注意
 ///
-/// 调用方需要保证渲染时把准心外区域清为纯黑，颜色键透明才会生效。
+/// 调用方需要保证渲染时把准心外区域清为同样的 `RGB(1,0,0)`，颜色键透明才会生效。
+/// 渲染器的 `render_overlay` 清屏色必须与此处一致。
 pub fn setup_overlay_window(window: &Window) -> Result<()> {
     let hwnd = hwnd_from_window(window)?;
     unsafe {
@@ -116,7 +123,8 @@ pub fn setup_overlay_window(window: &Window) -> Result<()> {
             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
         )?;
 
-        SetLayeredWindowAttributes(hwnd, COLORREF(0), 0, LWA_COLORKEY)?;
+        // 使用极深红 RGB(1,0,0) 作为颜色键，避免纯黑准心被透明。
+        SetLayeredWindowAttributes(hwnd, COLORREF(COLORKEY_RGB), 0, LWA_COLORKEY)?;
     }
     Ok(())
 }
@@ -159,7 +167,9 @@ pub fn restore_normal_window(window: &Window) -> Result<()> {
 
 /// 根据窗口标题查找目标游戏窗口。
 ///
-/// 使用与「选择窗口」按钮相同的枚举逻辑，保证选中后能再次定位到同一窗口。
+/// 匹配规则：窗口标题**包含**给定的标题字符串即视为匹配。
+/// 这样可以兼容游戏窗口标题中带动态后缀的情况（如 "GameName - Chapter 2"）。
+/// 若有多个匹配项，返回第一个。
 ///
 /// # 错误
 ///
@@ -168,7 +178,7 @@ pub fn find_target_window(title: &str) -> Result<HWND> {
     let entries = list_window_entries();
     entries
         .into_iter()
-        .find(|e| e.title == title)
+        .find(|e| e.title.contains(title) || title.contains(&e.title))
         .map(|e| e.hwnd)
         .ok_or_else(|| OverlayError::TargetNotFound(title.to_string()))
 }

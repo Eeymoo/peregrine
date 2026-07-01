@@ -227,10 +227,11 @@ impl Renderer {
                         view: &view,
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            // Windows 颜色键透明要求背景为纯黑（RGB 0,0,0），
-                            // alpha 可为 0；DWM 会把黑色区域完全透出。
+                            // Windows 颜色键透明：清屏色必须与 SetLayeredWindowAttributes
+                            // 设定的色键一致（RGB(1,0,0) ≈ 极深红）。
+                            // 使用非纯黑是为了避免用户把准心颜色设为黑色时也被透明。
                             load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.0,
+                                r: (1.0 / 255.0),
                                 g: 0.0,
                                 b: 0.0,
                                 a: 1.0,

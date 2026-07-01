@@ -136,17 +136,30 @@ impl App {
             if let Some(window) = self.window.clone() {
                 match self.mode {
                     AppMode::Overlay => {
+                        // 切换到 Overlay 前先隐藏窗口，避免设置分层属性期间
+                        // 显示设置面板内容造成的闪烁。
+                        window.set_visible(false);
                         if let Err(e) = platform::windows::setup_overlay_window(&window) {
                             tracing::error!("setup overlay window failed: {}", e);
+                            // 设置失败也要重新显示窗口，否则用户看不到任何东西。
+                            window.set_visible(true);
                         } else {
+                            // 先请求重绘，让 Overlay 清屏色（颜色键）生效后再显示。
+                            window.request_redraw();
+                            window.set_visible(true);
                             self.start_overlay_follower();
                         }
                     }
                     AppMode::Settings => {
                         self.stop_overlay_follower();
+                        // 切回设置时也先隐藏，恢复窗口样式后再显示。
+                        window.set_visible(false);
                         if let Err(e) = platform::windows::restore_normal_window(&window) {
                             tracing::error!("restore normal window failed: {}", e);
                         }
+                        window.request_redraw();
+                        window.set_visible(true);
+                        window.focus_window();
                     }
                 }
                 window.request_redraw();

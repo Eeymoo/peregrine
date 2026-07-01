@@ -248,8 +248,13 @@ impl SettingsUi {
                 ui.separator();
                 ui.label("提示：按 Tab 或点击下方按钮切换");
                 ui.add_space(4.0);
-                if ui.button("▶ 开始覆盖").clicked() {
-                    start_overlay = true;
+                // 未选窗口时提示用户，不进入覆盖模式。
+                if display_target.is_empty() {
+                    ui.label(egui::RichText::new("⚠ 请先点击「选择窗口」选择目标").color(egui::Color32::from_rgb(200, 100, 50)));
+                } else {
+                    if ui.button("▶ 开始覆盖").clicked() {
+                        start_overlay = true;
+                    }
                 }
             });
 

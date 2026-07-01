@@ -155,7 +155,8 @@ impl Renderer {
 
     /// 渲染覆盖层（准心）。
     ///
-    /// 清屏为透明，并根据当前 Profile 的 crosshair 配置绘制辅助贴图。
+    /// 清屏为颜色键色（RGB(1,0,0) 极深红），并根据当前 Profile 的 crosshair 配置
+    /// 绘制辅助贴图。颜色键区域会被 DWM 透明化，只留下准心图形。
     pub fn render_overlay(&mut self,
     ) {
         let output = self.surface.get_current_texture().expect("surface texture");

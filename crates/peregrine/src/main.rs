@@ -157,6 +157,8 @@ impl App {
                         if let Err(e) = platform::windows::restore_normal_window(&window) {
                             tracing::error!("restore normal window failed: {}", e);
                         }
+                        // 恢复默认设置窗口尺寸。
+                        let _ = window.request_inner_size(winit::dpi::LogicalSize::new(960.0, 560.0));
                         window.request_redraw();
                         window.set_visible(true);
                         window.focus_window();
@@ -225,6 +227,8 @@ impl App {
                     tracing::error!("restore normal window failed: {}", e);
                 }
             }
+            // 恢复默认设置窗口尺寸，避免残留 Overlay 跟随时的大小。
+            let _ = window.request_inner_size(winit::dpi::LogicalSize::new(960.0, 560.0));
             window.set_visible(true);
             window.focus_window();
             window.request_redraw();
@@ -247,6 +251,8 @@ impl App {
     /// 启动 Overlay 跟随任务。
     ///
     /// 若已配置目标窗口标题，则查找该窗口并在后台任务中以 16ms 周期同步 Overlay 位置。
+    ///
+    /// 注意：HWND 必须在主线程获取（winit 限制），然后以 `SendHwnd` 传入异步任务。
     fn start_overlay_follower(&mut self) {
         if self.target_window_title.is_empty() {
             return;
@@ -254,28 +260,35 @@ impl App {
         let Some(window) = self.window.clone() else {
             return;
         };
+
+        // 在主线程获取 HWND，避免 winit 跨线程访问报错。
+        let overlay_hwnd = match platform::windows::hwnd_from_window(&window) {
+            Ok(h) => platform::windows::SendHwnd(h),
+            Err(e) => {
+                tracing::error!("failed to get overlay hwnd: {}", e);
+                return;
+            }
+        };
+
+        // 同样在主线程查找目标窗口 HWND。
         let title = self.target_window_title.clone();
+        let target_hwnd = match platform::windows::find_target_window(&title) {
+            Ok(t) => platform::windows::SendHwnd(t),
+            Err(e) => {
+                tracing::error!("failed to find target window '{}': {}", title, e);
+                return;
+            }
+        };
+
+        tracing::info!(title = %title, "starting overlay follower");
+
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.overlay_follower_stop = Some(tx);
 
         tokio::spawn(async move {
-            let overlay = match platform::windows::hwnd_from_window(&window) {
-                Ok(h) => platform::windows::SendHwnd(h),
-                Err(e) => {
-                    tracing::error!("failed to get overlay hwnd: {}", e);
-                    return;
-                }
-            };
-            tracing::info!(title = %title, "starting overlay follower");
-            let target = match platform::windows::find_target_window(&title) {
-                Ok(t) => platform::windows::SendHwnd(t),
-                Err(e) => {
-                    tracing::error!("failed to find target window '{}': {}", title, e);
-                    return;
-                }
-            };
-            tracing::info!("target window found, following");
-            if let Err(e) = platform::windows::follow_target_window(overlay, target, rx).await {
+            if let Err(e) =
+                platform::windows::follow_target_window(overlay_hwnd, target_hwnd, rx).await
+            {
                 tracing::debug!("overlay follower ended: {}", e);
             }
         });
@@ -306,11 +319,8 @@ impl ApplicationHandler<UserEvent> for App {
                 .with_title("Peregrine")
                 .with_window_icon(Some(icon::window_icon()))
                 .with_inner_size(winit::dpi::LogicalSize::new(960.0, 560.0));
-            // Windows 下启用逐像素透明，供 Overlay 模式把准心以外区域渲染为透明。
-            #[cfg(target_os = "windows")]
-            {
-                attributes = attributes.with_transparent(true);
-            }
+            // 注意：不使用 with_transparent(true)，因为 Windows Overlay 透明
+            // 通过 LWA_COLORKEY 颜色键实现，与 wgpu 的 alpha 透明无关。
             let window = Arc::new(
                 event_loop
                     .create_window(attributes)

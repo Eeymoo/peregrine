@@ -51,7 +51,8 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      # Linux 上 winit / wgpu 依赖的 X11 / Wayland 系统库。
+      # Linux 上 winit / wgpu / tray-icon 依赖的系统库
+      # （X11 / Wayland、GTK3、libxdo、appindicator）。
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -62,7 +63,10 @@ jobs:
             libx11-dev \
             libxrandr-dev \
             libxcursor-dev \
-            libxi-dev
+            libxi-dev \
+            libgtk-3-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev
 
       - name: Build release binary
         run: cargo build --release --locked -p peregrine --target ${{ matrix.target }}

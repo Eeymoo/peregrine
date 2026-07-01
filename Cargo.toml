@@ -25,6 +25,7 @@ egui = "0.31"
 egui-wgpu = "0.31"
 egui-winit = "0.31"
 pollster = "0.4"
+tray-icon = "0.24"
 
 [profile.dev]
 opt-level = 1

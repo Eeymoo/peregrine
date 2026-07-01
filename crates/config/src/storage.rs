@@ -54,7 +54,9 @@ impl ConfigStorage {
 
     /// 从磁盘读取配置；若文件不存在则创建默认配置并写入。
     ///
-    /// 写入默认配置前会先校验其合法性。
+    /// 若现有配置文件无法解析或校验失败（通常是版本不兼容或被手动改坏），
+    /// 不再直接报错，而是**备份损坏文件**后回退到默认配置并重新写入，
+    /// 保证程序始终能启动。写入默认配置前会先校验其合法性。
     pub async fn load_or_create_default(&self) -> crate::Result<AppConfig> {
         if !self.config_path.exists() {
             let default = AppConfig::default_config();
@@ -62,7 +64,39 @@ impl ConfigStorage {
             self.save(&default).await?;
             return Ok(default);
         }
-        self.load().await
+        match self.load().await {
+            Ok(config) => Ok(config),
+            Err(e) => {
+                tracing::warn!(
+                    "配置文件不兼容或已损坏，将备份原文件并重置为默认配置: {}",
+                    e
+                );
+                self.backup_broken_config().await;
+                let default = AppConfig::default_config();
+                default.validate()?;
+                self.save(&default).await?;
+                Ok(default)
+            }
+        }
+    }
+
+    /// 把无法解析的配置文件重命名为 `<name>.bak`，尽力而为，失败仅告警。
+    ///
+    /// 采用重命名而非删除，避免丢失用户既有配置，便于事后人工恢复。
+    async fn backup_broken_config(&self) {
+        let mut backup = self.config_path.clone();
+        let file_name = backup
+            .file_name()
+            .map(|n| n.to_os_string())
+            .unwrap_or_default();
+        let mut backup_name = file_name;
+        backup_name.push(".bak");
+        backup.set_file_name(backup_name);
+
+        match tokio::fs::rename(&self.config_path, &backup).await {
+            Ok(()) => tracing::warn!("已将损坏的配置文件备份到 {}", backup.display()),
+            Err(e) => tracing::warn!("备份损坏的配置文件失败: {}", e),
+        }
     }
 
     /// 从磁盘读取配置。
@@ -158,5 +192,32 @@ mod tests {
         cfg.active_profile_mut().unwrap().crosshair.opacity = 2.0;
         assert!(storage.save(&cfg).await.is_err());
         assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn load_or_create_default_recovers_from_incompatible_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        let storage = ConfigStorage::new(&path);
+
+        // 写入一份无法解析的配置（含未知枚举变体 corner_only，且缺少必填字段），
+        // 模拟版本不兼容 / 损坏的旧配置文件。
+        tokio::fs::write(
+            &path,
+            r#"{"active_profile":"default","profiles":{"default":{"crosshair":{"style":"border_frame","border_frame_style":"corner_only"}}}}"#,
+        )
+        .await
+        .unwrap();
+
+        // 不再报错：应回退到默认配置并把损坏文件备份为 .bak。
+        let cfg = storage.load_or_create_default().await.unwrap();
+        assert_eq!(cfg.active_profile, "default");
+        // 备份文件已生成。
+        let backup = dir.path().join("config.json.bak");
+        assert!(backup.exists(), "损坏的配置应被备份为 .bak");
+        // 新的默认配置已写回，且可以正常再次加载。
+        assert!(path.exists());
+        let reloaded = storage.load().await.unwrap();
+        assert_eq!(reloaded.active_profile, "default");
     }
 }

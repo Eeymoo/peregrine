@@ -741,7 +741,7 @@ fn draw_gap_border_frame(
     // 下边。
     ui.painter().rect_filled(
         egui::Rect::from_min_max(
-            egui::pos2(rect.min.x, bottom_y - thickness /  thickness / 2.0),
+            egui::pos2(rect.min.x, bottom_y - thickness / 2.0),
             egui::pos2(rect.center().x - half_gap_w, bottom_y + thickness / 2.0),
         ),
         egui::CornerRadius::ZERO,

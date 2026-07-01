@@ -83,14 +83,23 @@ impl Renderer {
                 size.height.max(1),
             )
             .expect("default surface config");
-        // 在 macOS 上默认格式通常是 Bgra8UnormSrgb；egui-wgpu 更偏好线性格式，
-        // 显式切换到 Bgra8Unorm 以统一渲染管线颜色空间。
-        surface_config.format = wgpu::TextureFormat::Bgra8Unorm;
-        // Windows 下 Overlay 需要逐像素透明：优先选支持透明合成的 alpha 模式
-        // （PreMultiplied，其次 PostMultiplied），DWM 才会按 alpha 把非准心区域透出。
-        // 找不到透明模式，或非 Windows 平台，则维持 Opaque（原有行为）。
+        // Windows 下 Overlay 需要逐像素透明：DWM 对 Bgra8UnormSrgb + PreMultiplied
+        // 的合成支持最好，因此保留默认的 SRGB 格式，只切换 alpha 模式。
+        // 非 Windows 平台维持原先把格式切到 Bgra8Unorm 的行为。
+        #[cfg(not(target_os = "windows"))]
+        {
+            surface_config.format = wgpu::TextureFormat::Bgra8Unorm;
+        }
+        // Windows 下优先选支持透明合成的 alpha 模式（PreMultiplied，其次 PostMultiplied），
+        // DWM 才会按 alpha 把非准心区域透出；找不到透明模式则回退 Opaque 并告警。
         surface_config.alpha_mode = pick_alpha_mode(&surface, &adapter);
         surface.configure(&device, &surface_config);
+        tracing::info!(
+            "surface configured: format={:?}, alpha_mode={:?}, size={:?}",
+            surface_config.format,
+            surface_config.alpha_mode,
+            size
+        );
 
         let egui_context = egui::Context::default();
         // 使用浅色主题作为默认视觉风格。

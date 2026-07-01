@@ -54,6 +54,16 @@ impl SettingsUi {
         let original = (**config).clone();
         let mut new_config = (**config).clone();
         let mut start_overlay = false;
+
+        // 先把当前 target_window 取出来，供「选择窗口」按钮使用，
+        // 避免在闭包内与 crosshair 的可变借用产生交叉借用。
+        let current_target_window = new_config
+            .active_profile()
+            .map(|p| p.target_window.clone())
+            .unwrap_or_default();
+        // 按钮点击后写入的新标题，闭包结束后写回 profile。
+        let mut new_target_window: Option<String> = None;
+
         let profile = new_config
             .active_profile_mut()
             .expect("active profile exists");
@@ -220,19 +230,19 @@ impl SettingsUi {
                 // 选择窗口按钮：Windows 下枚举顶层窗口并循环选中下一个。
                 if ui.button("选择窗口").clicked() {
                     #[cfg(target_os = "windows")]
-                    if let Some(next) = crate::platform::windows::next_window_title(&profile.target_window) {
-                        profile.target_window = next;
+                    if let Some(next) = crate::platform::windows::next_window_title(&current_target_window) {
+                        new_target_window = Some(next);
                     }
                     #[cfg(not(target_os = "windows"))]
                     {
-                        profile.target_window = "选择窗口仅在 Windows 可用".to_string();
+                        new_target_window = Some("选择窗口仅在 Windows 可用".to_string());
                     }
                 }
-                if !profile.target_window.is_empty() {
-                    ui.label(format!(
-                        "目标窗口：{}",
-                        profile.target_window
-                    ));
+                let display_target = new_target_window
+                    .as_deref()
+                    .unwrap_or(&current_target_window);
+                if !display_target.is_empty() {
+                    ui.label(format!("目标窗口：{}", display_target));
                 }
 
                 ui.separator();
@@ -249,6 +259,13 @@ impl SettingsUi {
             draw_checkerboard_background(ui, rect);
             draw_preview_shape(ui, rect, crosshair);
         });
+
+        // 闭包结束后，把「选择窗口」按钮的选择结果写回 profile。
+        if let Some(tw) = new_target_window {
+            if let Some(profile) = new_config.active_profile_mut() {
+                profile.target_window = tw;
+            }
+        }
 
         let changed = new_config != original;
         self.response = SettingsResponse {

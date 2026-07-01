@@ -83,13 +83,11 @@ impl Renderer {
                 size.height.max(1),
             )
             .expect("default surface config");
-        // Windows 下 Overlay 改用颜色键透明（黑色=透明）：wgpu 的 alpha 合成与
-        // DWM 配合不稳定，SetLayeredWindowAttributes + LWA_COLORKEY 更可靠。
-        // 非 Windows 平台维持原先把格式切到 Bgra8Unorm 的行为。
-        #[cfg(not(target_os = "windows"))]
-        {
-            surface_config.format = wgpu::TextureFormat::Bgra8Unorm;
-        }
+        // 强制使用 Bgra8Unorm（非 sRGB），保证清屏像素值精确匹配
+        // SetLayeredWindowAttributes 设置的颜色键（RGB(1,0,0)）。
+        // sRGB 格式会做 gamma 校正，导致实际像素值与颜色键不匹配，
+        // DWM 无法识别透明区域，窗口就会显示为不透明的普通窗口。
+        surface_config.format = wgpu::TextureFormat::Bgra8Unorm;
         surface_config.alpha_mode = pick_alpha_mode(&surface, &adapter);
         surface.configure(&device, &surface_config);
         tracing::info!(

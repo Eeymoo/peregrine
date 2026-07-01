@@ -86,14 +86,17 @@ impl Renderer {
         // 在 macOS 上默认格式通常是 Bgra8UnormSrgb；egui-wgpu 更偏好线性格式，
         // 显式切换到 Bgra8Unorm 以统一渲染管线颜色空间。
         surface_config.format = wgpu::TextureFormat::Bgra8Unorm;
-        surface_config.alpha_mode = wgpu::CompositeAlphaMode::Opaque;
+        // Windows 下 Overlay 需要逐像素透明：优先选支持透明合成的 alpha 模式
+        // （PreMultiplied，其次 PostMultiplied），DWM 才会按 alpha 把非准心区域透出。
+        // 找不到透明模式，或非 Windows 平台，则维持 Opaque（原有行为）。
+        surface_config.alpha_mode = pick_alpha_mode(&surface, &adapter);
         surface.configure(&device, &surface_config);
 
         let egui_context = egui::Context::default();
         // 使用浅色主题作为默认视觉风格。
         egui_context.set_visuals(egui::Visuals::light());
         // 加载系统中文字体，避免 egui 默认字体缺少中文字形而显示方块。
-        // 优先尝试 Hiragino Sans GB（macOS 自带），失败则回退到 Arial Unicode。
+        // Windows 优先尝试微软雅黑（msyh），失败再回退其它候选字体。
         load_system_font(&egui_context);
 
         let egui_state = State::new(
@@ -755,11 +758,48 @@ fn draw_overlay_gap_border_frame(
     );
 }
 
-/// 尝试从常见 macOS 系统字体路径加载中文字体并注册到 egui。
+/// 选择 surface 的 alpha 合成模式（Windows）。
+///
+/// Overlay 需要逐像素透明：优先选支持透明的 `PreMultiplied`，其次 `PostMultiplied`；
+/// 若都不支持则回退 `Opaque`（此时 Overlay 无法透明，仅告警）。
+#[cfg(target_os = "windows")]
+fn pick_alpha_mode(
+    surface: &wgpu::Surface<'static>,
+    adapter: &wgpu::Adapter,
+) -> wgpu::CompositeAlphaMode {
+    let modes = surface.get_capabilities(adapter).alpha_modes;
+    if modes.contains(&wgpu::CompositeAlphaMode::PreMultiplied) {
+        wgpu::CompositeAlphaMode::PreMultiplied
+    } else if modes.contains(&wgpu::CompositeAlphaMode::PostMultiplied) {
+        wgpu::CompositeAlphaMode::PostMultiplied
+    } else {
+        tracing::warn!("surface 不支持透明 alpha 模式，Overlay 将保持不透明");
+        wgpu::CompositeAlphaMode::Opaque
+    }
+}
+
+/// 选择 surface 的 alpha 合成模式（非 Windows）。
+///
+/// 维持原有不透明行为。
+#[cfg(not(target_os = "windows"))]
+fn pick_alpha_mode(
+    _surface: &wgpu::Surface<'static>,
+    _adapter: &wgpu::Adapter,
+) -> wgpu::CompositeAlphaMode {
+    wgpu::CompositeAlphaMode::Opaque
+}
+
+/// 尝试从常见系统字体路径加载中文字体并注册到 egui（Windows 优先，兼顾 macOS）。
 ///
 /// 若所有候选字体均不可用，仅打印警告，仍使用 egui 默认字体（英文/ASCII 可正常显示）。
 fn load_system_font(ctx: &egui::Context) {
     const CANDIDATES: &[&str] = &[
+        // Windows 中文字体（打包目标平台，优先尝试）。
+        "C:\\Windows\\Fonts\\msyh.ttc",
+        "C:\\Windows\\Fonts\\msyh.ttf",
+        "C:\\Windows\\Fonts\\simhei.ttf",
+        "C:\\Windows\\Fonts\\simsun.ttc",
+        // macOS 中文字体（保留作无害兜底）。
         "/System/Library/Fonts/Hiragino Sans GB.ttc",
         "/Library/Fonts/Arial Unicode.ttf",
         "/System/Library/Fonts/PingFang.ttc",

@@ -1,27 +1,27 @@
 //! Windows 平台 Overlay 覆盖层辅助函数。
 //!
 //! 通过 `windows-rs` 调用 Win32 API，将 `winit` 创建的普通窗口改造为：
-//! - 透明（`WS_EX_LAYERED` + `LWA_COLORKEY`，纯黑色作为透明色）
+//! - 透明（窗口以 `with_transparent(true)` 创建，配合 wgpu 逐像素 alpha 合成）
 //! - 置顶（`WS_EX_TOPMOST`）
 //! - 鼠标穿透（`WS_EX_TRANSPARENT`）
 //! - 不获取焦点（`WS_EX_NOACTIVATE`）
 //! - 不在任务栏显示按钮（`WS_EX_TOOLWINDOW`）
 //!
-//! 同时提供目标游戏窗口查找、矩形计算、以及 16ms 轮询跟随逻辑。
-//! 本模块所有公开函数均返回 [`Result`]，不会 panic。
+//! 同时提供顶层窗口枚举、目标游戏窗口查找、矩形计算、以及 16ms 轮询跟随逻辑。
+//! 本模块所有公开函数均返回 [`Result`] 或不 panic。
 
 use std::time::Duration;
 use tokio::sync::oneshot;
 use windows::Win32::Foundation::{
-    COLORREF, GetLastError, HWND, POINT, RECT, SetLastError, WIN32_ERROR,
+    BOOL, GetLastError, HWND, LPARAM, POINT, RECT, SetLastError, WIN32_ERROR,
 };
 use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::UI::WindowsAndMessaging::{
-    FindWindowW, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetWindowLongPtrW, GetWindowRect,
-    HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, LWA_COLORKEY, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SetLayeredWindowAttributes,
-    SetWindowLongPtrW, SetWindowPos, ShowWindow, WINDOW_LONG_PTR_INDEX, WS_CAPTION, WS_EX_LAYERED,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU,
+    EnumWindows, FindWindowW, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetWindowLongPtrW,
+    GetWindowRect, GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic,
+    IsWindowVisible, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOOWNERZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow, WINDOW_LONG_PTR_INDEX,
+    WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU,
     WS_THICKFRAME,
 };
 use windows::core::PCWSTR;
@@ -83,21 +83,16 @@ fn set_window_long(hwnd: HWND, index: WINDOW_LONG_PTR_INDEX, value: isize) -> Re
 /// 将 `winit` 窗口改造为透明置顶穿透的 Overlay 窗口。
 ///
 /// 具体行为：
-/// - 扩展样式增加 `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST |
-///   WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`。
+/// - 扩展样式增加 `WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE |
+///   WS_EX_TOOLWINDOW`。
 /// - 移除 `WS_CAPTION | WS_THICKFRAME | WS_SYSMENU` 等边框样式。
-/// - 使用 `SetLayeredWindowAttributes` 将纯黑色（`RGB 0,0,0`）设为透明色。
-///
-/// # 注意
-///
-/// 本函数仅修改 Win32 样式；调用方仍需保证渲染时背景为黑色，
-/// 透明色才会生效。
+/// - 透明依赖窗口创建时传入的 `with_transparent(true)` 与 wgpu 的 alpha 合成，
+///   渲染时把准心外区域清为 (0,0,0,0)，DWM 就会把它逐像素透出。
 pub fn setup_overlay_window(window: &Window) -> Result<()> {
     let hwnd = hwnd_from_window(window)?;
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
         let new_ex_style = ex_style
-            | WS_EX_LAYERED.0
             | WS_EX_TRANSPARENT.0
             | WS_EX_TOPMOST.0
             | WS_EX_NOACTIVATE.0
@@ -117,8 +112,6 @@ pub fn setup_overlay_window(window: &Window) -> Result<()> {
             0,
             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
         )?;
-
-        SetLayeredWindowAttributes(hwnd, COLORREF(0), 0, LWA_COLORKEY)?;
     }
     Ok(())
 }
@@ -126,8 +119,8 @@ pub fn setup_overlay_window(window: &Window) -> Result<()> {
 /// 将 Overlay 窗口恢复为普通窗口样式，用于进入设置界面时撤销覆盖层效果。
 ///
 /// 具体行为：
-/// - 移除 `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST |
-///   WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`。
+/// - 移除 `WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE |
+///   WS_EX_TOOLWINDOW`。
 /// - 恢复 `WS_CAPTION | WS_THICKFRAME | WS_SYSMENU` 边框样式。
 /// - 取消置顶。
 pub fn restore_normal_window(window: &Window) -> Result<()> {
@@ -135,8 +128,7 @@ pub fn restore_normal_window(window: &Window) -> Result<()> {
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
         let new_ex_style = ex_style
-            & !(WS_EX_LAYERED.0
-                | WS_EX_TRANSPARENT.0
+            & !(WS_EX_TRANSPARENT.0
                 | WS_EX_TOPMOST.0
                 | WS_EX_NOACTIVATE.0
                 | WS_EX_TOOLWINDOW.0);
@@ -173,6 +165,82 @@ pub fn find_target_window(title: &str) -> Result<HWND> {
             .map_err(|_| OverlayError::TargetNotFound(title.to_string()))?;
         Ok(hwnd)
     }
+}
+
+/// 枚举当前可见且有标题的顶层窗口，返回标题列表（不包括自身 Peregrine）。
+///
+/// 用于「选择窗口」按钮循环切换目标窗口。
+unsafe extern "system" fn enum_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let state = lparam.0 as *mut EnumWindowsState;
+    if state.is_null() {
+        return BOOL(1);
+    }
+
+    // 跳过不可见窗口。
+    let visible = unsafe { IsWindowVisible(hwnd).as_bool() };
+    if !visible {
+        return BOOL(1);
+    }
+
+    // 跳过自身窗口。
+    let len = unsafe { GetWindowTextLengthW(hwnd) as usize };
+    if len == 0 {
+        return BOOL(1);
+    }
+    let mut buf = vec![0u16; len + 1];
+    let got = unsafe { GetWindowTextW(hwnd, &mut buf) as usize };
+    if got == 0 {
+        return BOOL(1);
+    }
+    let title = String::from_utf16_lossy(&buf[..got.min(len)]);
+
+    unsafe {
+        let self_title = (*state).self_title.clone();
+        if title == self_title {
+            return BOOL(1);
+        }
+        (*state).titles.push(title);
+    }
+    BOOL(1)
+}
+
+#[derive(Debug, Default)]
+struct EnumWindowsState {
+    /// 自身窗口标题，用于排除。
+    self_title: String,
+    /// 收集到的顶层窗口标题。
+    titles: Vec<String>,
+}
+
+/// 枚举当前可见的顶层窗口标题（排除 Peregrine 自身与空标题）。
+///
+/// 返回按 `EnumWindows` 遍历顺序的标题列表。
+pub fn list_windows() -> Vec<String> {
+    let mut state = EnumWindowsState {
+        self_title: "Peregrine".to_string(),
+        titles: Vec::new(),
+    };
+    unsafe {
+        let _ = EnumWindows(Some(enum_window_proc), LPARAM(&mut state as *mut _ as isize));
+    }
+    state.titles
+}
+
+/// 返回 `current` 标题在窗口列表中的下一个窗口标题（循环）。
+///
+/// 如果 `current` 不在列表中，或者列表非空，则返回列表第一个元素；
+/// 列表为空时返回 `None`。
+pub fn next_window_title(current: &str) -> Option<String> {
+    let titles = list_windows();
+    if titles.is_empty() {
+        return None;
+    }
+    titles
+        .iter()
+        .position(|t| t == current)
+        .and_then(|idx| titles.get(idx + 1))
+        .cloned()
+        .or_else(|| titles.first().cloned())
 }
 
 /// 判断两个 [`RECT`] 是否相等。

@@ -213,10 +213,12 @@ impl SettingsUi {
                     }
                 }
 
-                // 选择窗口按钮（当前仅占位，不实际调用平台 API）。
+                // 选择窗口按钮：Windows 下枚举顶层窗口并循环选中下一个。
                 if ui.button("选择窗口").clicked() {
-                    profile.target_window =
-                        "selected-window-placeholder".to_string();
+                    #[cfg(target_os = "windows")]
+                    if let Some(next) = crate::platform::windows::next_window_title(&profile.target_window) {
+                        profile.target_window = next;
+                    }
                 }
                 if !profile.target_window.is_empty() {
                     ui.label(format!(

@@ -4,6 +4,10 @@
 //! 渲染 egui 设置面板。Settings Mode 通过热键切换，可修改辅助贴图类型/颜色/不透明度，
 //! 并通过 `peregrine_config` 持久化与广播。
 
+// release 版 Windows 使用 GUI 子系统，避免打包后的 exe 启动时弹出黑色控制台窗口。
+// 仅在 release 生效，debug 仍保留控制台以查看 tracing 日志；在非 Windows 平台为 no-op。
+#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+
 mod icon;
 mod platform;
 mod renderer;
@@ -282,14 +286,19 @@ impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // 首次恢复时创建窗口与渲染器。
         if self.window.is_none() {
+            #[allow(unused_mut)]
+            let mut attributes = Window::default_attributes()
+                .with_title("Peregrine")
+                .with_window_icon(Some(icon::window_icon()))
+                .with_inner_size(winit::dpi::LogicalSize::new(960.0, 560.0));
+            // Windows 下启用逐像素透明，供 Overlay 模式把准心以外区域渲染为透明。
+            #[cfg(target_os = "windows")]
+            {
+                attributes = attributes.with_transparent(true);
+            }
             let window = Arc::new(
                 event_loop
-                    .create_window(
-                        Window::default_attributes()
-                            .with_title("Peregrine")
-                            .with_window_icon(Some(icon::window_icon()))
-                            .with_inner_size(winit::dpi::LogicalSize::new(960.0, 560.0)),
-                    )
+                    .create_window(attributes)
                     .expect("create window"),
             );
             let renderer = pollster::block_on(renderer::Renderer::new(

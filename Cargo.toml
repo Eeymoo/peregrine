@@ -28,4 +28,18 @@ pollster = "0.4"
 tray-icon = "0.24"
 
 [profile.dev]
+# debug 构建保留 opt-level=1，平衡图形栈调试运行速度与编译速度。
 opt-level = 1
+
+[profile.release]
+# 最高级别优化，同时启用链接时优化以减小程序体积并提升运行性能。
+opt-level = "z"
+lto = true
+codegen-units = 1
+# 剥离调试符号，显著减小 release 二进制体积。
+strip = true
+# 全局通用 panic 处理（不展开栈），进一步减小体积。
+panic = "abort"
+# 关闭整数溢出检查（release 中默认开启），换取一点运行时性能；
+# 如果项目对安全性要求更高，可删除此项。
+overflow-checks = false

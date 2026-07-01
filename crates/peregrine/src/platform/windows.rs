@@ -18,7 +18,7 @@ use windows::Win32::Foundation::{
 use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetWindowLongPtrW, GetWindowRect,
-    GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, IsWindowVisible,
+    GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, IsWindow, IsWindowVisible,
     LWA_COLORKEY, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
     SWP_NOOWNERZORDER, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow,
     WINDOW_LONG_PTR_INDEX, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
@@ -129,13 +129,11 @@ pub fn setup_overlay_window(window: &Window) -> Result<()> {
     Ok(())
 }
 
-/// 将 Overlay 窗口恢复为普通窗口样式，用于进入设置界面时撤销覆盖层效果。
+/// 将 Overlay 窗口恢复为普通窗口样式。
 ///
-/// 具体行为：
-/// - 移除 `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST |
-///   WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`。
-/// - 恢复 `WS_CAPTION | WS_THICKFRAME | WS_SYSMENU` 边框样式。
-/// - 取消置顶。
+/// 双窗口架构下 Overlay 窗口独立创建和销毁，不再需要恢复样式，
+/// 保留此函数供后续可能的使用场景。
+#[allow(dead_code)]
 pub fn restore_normal_window(window: &Window) -> Result<()> {
     let hwnd = hwnd_from_window(window)?;
     unsafe {
@@ -366,6 +364,13 @@ pub async fn follow_target_window(
             _ = &mut stop_rx => return Err(OverlayError::Cancelled),
             _ = interval.tick() => {
                 unsafe {
+                    // 目标窗口已销毁/关闭：结束跟随。
+                    if !IsWindow(target.0).as_bool() {
+                        tracing::info!("target window no longer exists, ending follow");
+                        ShowWindow(overlay.0, SW_HIDE).ok()?;
+                        return Err(OverlayError::Cancelled);
+                    }
+
                     if IsIconic(target.0).as_bool() {
                         if visible {
                             ShowWindow(overlay.0, SW_HIDE).ok()?;

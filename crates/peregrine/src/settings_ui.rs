@@ -13,6 +13,8 @@ use peregrine_config::{
 pub struct SettingsUi {
     /// 最近一次帧的用户操作结果。
     response: SettingsResponse,
+    /// Overlay 是否正在运行（由 main.rs 每帧同步，控制按钮文字）。
+    pub overlay_active: bool,
 }
 
 /// UI 一帧的返回值。
@@ -22,8 +24,10 @@ pub struct SettingsResponse {
     pub changed: bool,
     /// 修改后的配置副本。
     pub config: ConfigSnapshot,
-    /// 用户是否点击了"开始覆盖"按钮，请求切换到 Overlay 模式。
+    /// 用户是否点击了"开始覆盖"按钮，请求创建 Overlay。
     pub start_overlay: bool,
+    /// 用户是否点击了"停止覆盖"按钮，请求销毁 Overlay。
+    pub stop_overlay: bool,
 }
 
 impl Default for SettingsResponse {
@@ -32,6 +36,7 @@ impl Default for SettingsResponse {
             changed: false,
             config: ConfigSnapshot::new(AppConfig::default_config()),
             start_overlay: false,
+            stop_overlay: false,
         }
     }
 }
@@ -54,6 +59,8 @@ impl SettingsUi {
         let original = (**config).clone();
         let mut new_config = (**config).clone();
         let mut start_overlay = false;
+        let mut stop_overlay = false;
+        let overlay_active = self.overlay_active;
 
         // 先把当前 target_window 取出来，供「选择窗口」按钮使用，
         // 避免在闭包内与 crosshair 的可变借用产生交叉借用。
@@ -243,11 +250,12 @@ impl SettingsUi {
                 }
 
                 ui.separator();
-                ui.label("提示：按 Tab 或点击下方按钮切换");
                 ui.add_space(4.0);
-                // 未选窗口时提示用户，不进入覆盖模式。
-                if display_target.is_empty() {
-                    ui.label(egui::RichText::new("⚠ 请先点击「选择窗口」选择目标").color(egui::Color32::from_rgb(200, 100, 50)));
+                // 根据状态显示「开始覆盖」或「停止覆盖」。
+                if overlay_active {
+                    if ui.button("■ 停止覆盖").clicked() {
+                        stop_overlay = true;
+                    }
                 } else {
                     if ui.button("▶ 开始覆盖").clicked() {
                         start_overlay = true;
@@ -274,6 +282,7 @@ impl SettingsUi {
             changed,
             config: ConfigSnapshot::new(new_config),
             start_overlay,
+            stop_overlay,
         };
     }
 

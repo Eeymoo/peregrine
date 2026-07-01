@@ -1,6 +1,6 @@
 name: Release
 
-# 在推送形如 v* 的标签时触发。
+# 在推送形如 v* 的标签时触发，仅构建并发布 Windows (x86_64) 产物。
 #   - 带预发布后缀的标签（如 v0.0.0-alpha.0）→ 打包为「测试包」，发布为 GitHub Pre-release。
 #   - 纯版本号标签（如 v0.0.0）→ 打包为「正式版本」，发布为正式 Release。
 # 判定依据为 SemVer 规范：版本号中带 `-` 的即为预发布版本。
@@ -18,25 +18,16 @@ env:
   BIN_NAME: peregrine
 
 jobs:
-  # 跨平台构建 release 产物。
+  # 构建 Windows release 产物（仅发布 Windows 平台）。
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
-      # 单个平台失败不影响其余平台继续构建。
       fail-fast: false
       matrix:
         include:
-          # macOS 为主要目标平台，同时覆盖 Apple Silicon 与 Intel。
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          # Windows / Linux 走条件编译兼容路径。
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,39 +42,8 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      # Linux 上 winit / wgpu / tray-icon 依赖的系统库
-      # （X11 / Wayland、GTK3、libxdo、appindicator）。
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libxkbcommon-dev \
-            libwayland-dev \
-            libx11-dev \
-            libxrandr-dev \
-            libxcursor-dev \
-            libxi-dev \
-            libgtk-3-dev \
-            libxdo-dev \
-            libayatana-appindicator3-dev
-
       - name: Build release binary
         run: cargo build --release --locked -p peregrine --target ${{ matrix.target }}
-
-      # Unix（macOS / Linux）打包为 tar.gz。
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          staging="${BIN_NAME}-${GITHUB_REF_NAME}-${{ matrix.target }}"
-          mkdir -p "$staging"
-          cp "target/${{ matrix.target }}/release/${BIN_NAME}" "$staging/"
-          # README / LICENSE 若存在则一并打包，缺失时忽略。
-          cp README.md "$staging/" 2>/dev/null || true
-          cp LICENSE "$staging/" 2>/dev/null || true
-          tar czvf "${staging}.tar.gz" "$staging"
-          echo "ASSET=${staging}.tar.gz" >> "$GITHUB_ENV"
 
       # Windows 打包为 zip。
       - name: Package (Windows)
@@ -105,7 +65,7 @@ jobs:
           path: ${{ env.ASSET }}
           if-no-files-found: error
 
-  # 汇总所有平台产物并创建 GitHub Release。
+  # 汇总 Windows 产物并创建 GitHub Release。
   release:
     name: Publish release
     needs: build
@@ -142,4 +102,4 @@ jobs:
           body: |
             Peregrine ${{ github.ref_name }} — ${{ steps.meta.outputs.channel }}
 
-            自动构建产物：macOS (aarch64 / x86_64)、Windows (x86_64)、Linux (x86_64)。
+            自动构建产物：Windows (x86_64)。

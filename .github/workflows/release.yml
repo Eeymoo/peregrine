@@ -1,0 +1,141 @@
+name: Release
+
+# 在推送形如 v* 的标签时触发。
+#   - 带预发布后缀的标签（如 v0.0.0-alpha.0）→ 打包为「测试包」，发布为 GitHub Pre-release。
+#   - 纯版本号标签（如 v0.0.0）→ 打包为「正式版本」，发布为正式 Release。
+# 判定依据为 SemVer 规范：版本号中带 `-` 的即为预发布版本。
+on:
+  push:
+    tags:
+      - "v*"
+
+# 创建 Release 与上传产物需要写入仓库内容的权限。
+permissions:
+  contents: write
+
+env:
+  # 二进制包名（与 crates/peregrine 中的 [[bin]] name 保持一致）。
+  BIN_NAME: peregrine
+
+jobs:
+  # 跨平台构建 release 产物。
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # 单个平台失败不影响其余平台继续构建。
+      fail-fast: false
+      matrix:
+        include:
+          # macOS 为主要目标平台，同时覆盖 Apple Silicon 与 Intel。
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          # Windows / Linux 走条件编译兼容路径。
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # Linux 上 winit / wgpu 依赖的 X11 / Wayland 系统库。
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libx11-dev \
+            libxrandr-dev \
+            libxcursor-dev \
+            libxi-dev
+
+      - name: Build release binary
+        run: cargo build --release --locked -p peregrine --target ${{ matrix.target }}
+
+      # Unix（macOS / Linux）打包为 tar.gz。
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          staging="${BIN_NAME}-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "$staging"
+          cp "target/${{ matrix.target }}/release/${BIN_NAME}" "$staging/"
+          # README / LICENSE 若存在则一并打包，缺失时忽略。
+          cp README.md "$staging/" 2>/dev/null || true
+          cp LICENSE "$staging/" 2>/dev/null || true
+          tar czvf "${staging}.tar.gz" "$staging"
+          echo "ASSET=${staging}.tar.gz" >> "$GITHUB_ENV"
+
+      # Windows 打包为 zip。
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $staging = "$env:BIN_NAME-$env:GITHUB_REF_NAME-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/$env:BIN_NAME.exe" $staging
+          if (Test-Path README.md) { Copy-Item README.md $staging }
+          if (Test-Path LICENSE)   { Copy-Item LICENSE   $staging }
+          Compress-Archive -Path $staging -DestinationPath "$staging.zip"
+          "ASSET=$staging.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+
+  # 汇总所有平台产物并创建 GitHub Release。
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # 根据标签是否包含 `-` 判定预发布：v0.0.0-alpha.0 → true；v0.0.0 → false。
+      - name: Resolve release type
+        id: meta
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "channel=测试包 (Pre-release)" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "channel=正式版本 (Release)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          files: dist/*
+          fail_on_unmatched_files: true
+          body: |
+            Peregrine ${{ github.ref_name }} — ${{ steps.meta.outputs.channel }}
+
+            自动构建产物：macOS (aarch64 / x86_64)、Windows (x86_64)、Linux (x86_64)。

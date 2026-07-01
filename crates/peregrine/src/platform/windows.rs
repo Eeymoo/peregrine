@@ -17,14 +17,13 @@ use windows::Win32::Foundation::{
 };
 use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, FindWindowW, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetWindowLongPtrW,
-    GetWindowRect, GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic,
-    IsWindowVisible, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    EnumWindows, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetWindowLongPtrW, GetWindowRect,
+    GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, IsWindowVisible,
+    SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
     SWP_NOOWNERZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow, WINDOW_LONG_PTR_INDEX,
     WS_CAPTION, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU,
     WS_THICKFRAME,
 };
-use windows::core::PCWSTR;
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::Window;
 
@@ -153,23 +152,32 @@ pub fn restore_normal_window(window: &Window) -> Result<()> {
 
 /// 根据窗口标题查找目标游戏窗口。
 ///
-/// 标题使用 UTF-16 编码传递给 `FindWindowW`。
+/// 使用与「选择窗口」按钮相同的枚举逻辑，保证选中后能再次定位到同一窗口。
 ///
 /// # 错误
 ///
 /// 找不到匹配窗口时返回 [`OverlayError::TargetNotFound`]。
 pub fn find_target_window(title: &str) -> Result<HWND> {
-    let wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
-    unsafe {
-        let hwnd = FindWindowW(PCWSTR::null(), PCWSTR(wide.as_ptr()))
-            .map_err(|_| OverlayError::TargetNotFound(title.to_string()))?;
-        Ok(hwnd)
-    }
+    let entries = list_window_entries();
+    entries
+        .into_iter()
+        .find(|e| e.title == title)
+        .map(|e| e.hwnd)
+        .ok_or_else(|| OverlayError::TargetNotFound(title.to_string()))
 }
 
-/// 枚举当前可见且有标题的顶层窗口，返回标题列表（不包括自身 Peregrine）。
+/// 一个可见顶层窗口的句柄与标题。
+#[derive(Debug, Clone)]
+pub struct WindowEntry {
+    /// 窗口句柄。
+    pub hwnd: HWND,
+    /// 窗口标题。
+    pub title: String,
+}
+
+/// 枚举当前可见且有标题的顶层窗口（排除自身 Peregrine 与空标题）。
 ///
-/// 用于「选择窗口」按钮循环切换目标窗口。
+/// 用于「选择窗口」按钮循环切换目标窗口，以及按标题查找 HWND。
 unsafe extern "system" fn enum_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let state = lparam.0 as *mut EnumWindowsState;
     if state.is_null() {
@@ -195,11 +203,10 @@ unsafe extern "system" fn enum_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let title = String::from_utf16_lossy(&buf[..got.min(len)]);
 
     unsafe {
-        let self_title = (*state).self_title.clone();
-        if title == self_title {
+        if title == (*state).self_title {
             return BOOL(1);
         }
-        (*state).titles.push(title);
+        (*state).entries.push(WindowEntry { hwnd, title });
     }
     BOOL(1)
 }
@@ -208,42 +215,48 @@ unsafe extern "system" fn enum_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
 struct EnumWindowsState {
     /// 自身窗口标题，用于排除。
     self_title: String,
-    /// 收集到的顶层窗口标题。
-    titles: Vec<String>,
+    /// 收集到的顶层窗口。
+    entries: Vec<WindowEntry>,
 }
 
-/// 枚举当前可见的顶层窗口标题（排除 Peregrine 自身与空标题）。
+/// 枚举当前可见的顶层窗口（排除 Peregrine 自身与空标题）。
 ///
-/// 返回按 `EnumWindows` 遍历顺序的标题列表。
-pub fn list_windows() -> Vec<String> {
+/// 返回按 `EnumWindows` 遍历顺序的窗口列表。
+pub fn list_window_entries() -> Vec<WindowEntry> {
     let mut state = EnumWindowsState {
         self_title: "Peregrine".to_string(),
-        titles: Vec::new(),
+        entries: Vec::new(),
     };
     unsafe {
         let _ = EnumWindows(Some(enum_window_proc), LPARAM(&mut state as *mut _ as isize));
     }
-    state.titles
+    state.entries
+}
+
+/// 返回 `current` 标题在窗口列表中的下一个窗口信息（循环）。
+///
+/// 逻辑：
+/// - 列表为空：返回 `None`。
+/// - 能找到 `current`：返回它的下一个；若已是最后一个则回到第一个。
+/// - 找不到 `current`：返回列表第一个，避免目标窗口标题变化后按钮彻底失效。
+pub fn next_window_entry(current: &str) -> Option<WindowEntry> {
+    let entries = list_window_entries();
+    if entries.is_empty() {
+        return None;
+    }
+    entries
+        .iter()
+        .position(|e| e.title == current)
+        .map(|idx| entries[(idx + 1) % entries.len()].clone())
+        .or_else(|| entries.first().cloned())
 }
 
 /// 返回 `current` 标题在窗口列表中的下一个窗口标题（循环）。
 ///
-/// 如果 `current` 不在列表中，或者列表非空，则返回列表第一个元素；
-/// 列表为空时返回 `None`。
+/// 等价于 [`next_window_entry`] 只取标题，供 UI 层使用。
 pub fn next_window_title(current: &str) -> Option<String> {
-    let titles = list_windows();
-    if titles.is_empty() {
-        return None;
-    }
-    titles
-        .iter()
-        .position(|t| t == current)
-        .and_then(|idx| titles.get(idx + 1))
-        .cloned()
-        .or_else(|| titles.first().cloned())
+    next_window_entry(current).map(|e| e.title)
 }
-
-/// 判断两个 [`RECT`] 是否相等。
 #[inline]
 fn rect_eq(a: &RECT, b: &RECT) -> bool {
     a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom

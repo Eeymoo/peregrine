@@ -5,6 +5,7 @@
 //! 并通过 `peregrine_config` 持久化与广播。
 
 mod icon;
+mod platform;
 mod renderer;
 mod settings_ui;
 
@@ -62,11 +63,23 @@ struct App {
     menu_settings_id: Option<MenuId>,
     /// "退出" 菜单项 id。
     menu_quit_id: Option<MenuId>,
+    /// Windows 平台：Overlay 跟随任务的取消发送端。
+    #[cfg(target_os = "windows")]
+    overlay_follower_stop: Option<tokio::sync::oneshot::Sender<()>>,
+    /// Windows 平台：目标游戏窗口标题，用于查找并跟随。
+    #[cfg(target_os = "windows")]
+    target_window_title: String,
 }
 
 impl App {
     fn new(storage: ConfigStorage, notifier: ConfigNotifier) -> Self {
         let snapshot = notifier.subscribe().borrow().clone();
+        #[cfg(target_os = "windows")]
+        let target_window_title = snapshot
+            .active_profile()
+            .map(|p| p.target_window.clone())
+            .unwrap_or_default();
+
         Self {
             mode: AppMode::Settings,
             window: None,
@@ -80,6 +93,10 @@ impl App {
             tray_icon: None,
             menu_settings_id: None,
             menu_quit_id: None,
+            #[cfg(target_os = "windows")]
+            overlay_follower_stop: None,
+            #[cfg(target_os = "windows")]
+            target_window_title,
         }
     }
 
@@ -109,6 +126,28 @@ impl App {
             AppMode::Overlay => AppMode::Settings,
             AppMode::Settings => AppMode::Overlay,
         };
+
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(window) = self.window.clone() {
+                match self.mode {
+                    AppMode::Overlay => {
+                        if let Err(e) = platform::windows::setup_overlay_window(&window) {
+                            tracing::error!("setup overlay window failed: {}", e);
+                        } else {
+                            self.start_overlay_follower();
+                        }
+                    }
+                    AppMode::Settings => {
+                        self.stop_overlay_follower();
+                        if let Err(e) = platform::windows::restore_normal_window(&window) {
+                            tracing::error!("restore normal window failed: {}", e);
+                        }
+                    }
+                }
+                window.request_redraw();
+            }
+        }
     }
 
     /// 把 UI 中的修改写回磁盘并广播。
@@ -144,11 +183,31 @@ impl App {
             .expect("build tray icon")
     }
 
+    /// 真正退出程序：停止 watcher、移除状态栏图标并退出事件循环。
+    fn shutdown(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some(tx) = self.watcher_stop.take() {
+            let _ = tx.send(());
+        }
+        #[cfg(target_os = "windows")]
+        self.stop_overlay_follower();
+        // 主动释放托盘图标，确保其从状态栏移除。
+        self.tray_icon = None;
+        event_loop.exit();
+    }
+
     /// 从状态栏恢复：显示窗口并切到设置模式。
     fn show_settings(&mut self) {
         self.mode = AppMode::Settings;
         self.hidden = false;
+        #[cfg(target_os = "windows")]
+        self.stop_overlay_follower();
         if let Some(window) = &self.window {
+            #[cfg(target_os = "windows")]
+            {
+                if let Err(e) = platform::windows::restore_normal_window(window) {
+                    tracing::error!("restore normal window failed: {}", e);
+                }
+            }
             window.set_visible(true);
             window.focus_window();
             window.request_redraw();
@@ -158,19 +217,56 @@ impl App {
     /// 收起到状态栏：隐藏窗口但保持程序在后台运行。
     fn hide_to_tray(&mut self) {
         self.hidden = true;
+        #[cfg(target_os = "windows")]
+        self.stop_overlay_follower();
         if let Some(window) = &self.window {
             window.set_visible(false);
         }
     }
+}
 
-    /// 真正退出程序：停止 watcher、移除状态栏图标并退出事件循环。
-    fn shutdown(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(tx) = self.watcher_stop.take() {
+#[cfg(target_os = "windows")]
+impl App {
+    /// 启动 Overlay 跟随任务。
+    ///
+    /// 若已配置目标窗口标题，则查找该窗口并在后台任务中以 16ms 周期同步 Overlay 位置。
+    fn start_overlay_follower(&mut self) {
+        if self.target_window_title.is_empty() {
+            return;
+        }
+        let Some(window) = self.window.clone() else {
+            return;
+        };
+        let title = self.target_window_title.clone();
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.overlay_follower_stop = Some(tx);
+
+        tokio::spawn(async move {
+            let overlay = match platform::windows::hwnd_from_window(&window) {
+                Ok(h) => platform::windows::SendHwnd(h),
+                Err(e) => {
+                    tracing::error!("failed to get overlay hwnd: {}", e);
+                    return;
+                }
+            };
+            let target = match platform::windows::find_target_window(&title) {
+                Ok(t) => platform::windows::SendHwnd(t),
+                Err(e) => {
+                    tracing::error!("failed to find target window '{}': {}", title, e);
+                    return;
+                }
+            };
+            if let Err(e) = platform::windows::follow_target_window(overlay, target, rx).await {
+                tracing::debug!("overlay follower ended: {}", e);
+            }
+        });
+    }
+
+    /// 停止 Overlay 跟随任务。
+    fn stop_overlay_follower(&mut self) {
+        if let Some(tx) = self.overlay_follower_stop.take() {
             let _ = tx.send(());
         }
-        // 主动释放托盘图标，确保其从状态栏移除。
-        self.tray_icon = None;
-        event_loop.exit();
     }
 }
 
@@ -268,6 +364,12 @@ impl ApplicationHandler<UserEvent> for App {
                     _ => {}
                 }
             }
+            WindowEvent::Resized(size) => {
+                // Overlay 跟随目标窗口大小时会触发此事件，同步到 wgpu 表面。
+                if let Some(renderer) = self.renderer.as_mut() {
+                    renderer.resize(size);
+                }
+            }
             WindowEvent::RedrawRequested => {
                 // 已收起到状态栏时不渲染，避免向隐藏窗口提交绘制。
                 if self.hidden {
@@ -288,6 +390,14 @@ impl ApplicationHandler<UserEvent> for App {
                             );
                             if response.changed {
                                 *self.config.lock().expect("config lock") = response.config.clone();
+                                #[cfg(target_os = "windows")]
+                                {
+                                    self.target_window_title = response
+                                        .config
+                                        .active_profile()
+                                        .map(|p| p.target_window.clone())
+                                        .unwrap_or_default();
+                                }
                                 let storage = self.storage.clone();
                                 let notifier = self.notifier.clone();
                                 let new_config = response.config.clone();

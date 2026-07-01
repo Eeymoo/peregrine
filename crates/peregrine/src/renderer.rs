@@ -131,6 +131,18 @@ impl Renderer {
         let _ = self.egui_state.on_window_event(&self.window, event);
     }
 
+    /// 在窗口大小变化时重新配置表面。
+    ///
+    /// Overlay 跟随目标窗口大小时会被调用，避免表面尺寸与窗口不一致。
+    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        if new_size.width == 0 || new_size.height == 0 {
+            return;
+        }
+        self.surface_config.width = new_size.width;
+        self.surface_config.height = new_size.height;
+        self.surface.configure(&self.device, &self.surface_config);
+    }
+
     /// 渲染覆盖层（准心）。
     ///
     /// 清屏为透明，并根据当前 Profile 的 crosshair 配置绘制辅助贴图。

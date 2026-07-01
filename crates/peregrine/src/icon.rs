@@ -97,10 +97,7 @@ pub fn tray_icon() -> tray_icon::Icon {
     tray_icon::Icon::from_rgba(rgba, w, h).expect("build tray icon from rgba")
 }
 
-/// 构造窗口图标（64×64）。
-///
-/// 在 Windows / Linux 上作为窗口/任务栏图标生效；macOS 会忽略窗口图标，
-/// 其 Dock 图标由应用包（.icns）决定，后续打包时再处理。
+/// 构造窗口图标（64×64），作为窗口标题栏与任务栏图标生效。
 pub fn window_icon() -> winit::window::Icon {
     let (rgba, w, h) = placeholder_rgba(64);
     winit::window::Icon::from_rgba(rgba, w, h).expect("build window icon from rgba")

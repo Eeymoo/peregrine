@@ -1,12 +1,14 @@
 //! Peregrine 主程序入口。
 //!
-//! 当前实现是一个最小可运行的骨架：创建窗口、初始化 wgpu、在同一个 wgpu 实例中
-//! 渲染 egui 设置面板。Settings Mode 通过热键切换，可修改辅助贴图类型/颜色/不透明度，
-//! 并通过 `peregrine_config` 持久化与广播。
+//! 创建窗口、初始化 wgpu、在同一个 wgpu 实例中渲染 egui 设置面板与覆盖层。
+//! Settings 模式可修改辅助贴图类型/颜色/不透明度，Overlay 模式把准心绘制为
+//! 透明置顶穿透窗口，跟随目标游戏窗口位置。
+//!
+//! 仅支持 Windows 平台。
 
-// release 版 Windows 使用 GUI 子系统，避免打包后的 exe 启动时弹出黑色控制台窗口。
-// 仅在 release 生效，debug 仍保留控制台以查看 tracing 日志；在非 Windows 平台为 no-op。
-#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+// release 版使用 GUI 子系统，避免打包后的 exe 启动时弹出黑色控制台窗口。
+// debug 仍保留控制台以查看 tracing 日志。
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod icon;
 mod platform;
@@ -67,18 +69,15 @@ struct App {
     menu_settings_id: Option<MenuId>,
     /// "退出" 菜单项 id。
     menu_quit_id: Option<MenuId>,
-    /// Windows 平台：Overlay 跟随任务的取消发送端。
-    #[cfg(target_os = "windows")]
+    /// Overlay 跟随任务的取消发送端。
     overlay_follower_stop: Option<tokio::sync::oneshot::Sender<()>>,
-    /// Windows 平台：目标游戏窗口标题，用于查找并跟随。
-    #[cfg(target_os = "windows")]
+    /// 目标游戏窗口标题，用于查找并跟随。
     target_window_title: String,
 }
 
 impl App {
     fn new(storage: ConfigStorage, notifier: ConfigNotifier) -> Self {
         let snapshot = notifier.subscribe().borrow().clone();
-        #[cfg(target_os = "windows")]
         let target_window_title = snapshot
             .active_profile()
             .map(|p| p.target_window.clone())
@@ -97,9 +96,7 @@ impl App {
             tray_icon: None,
             menu_settings_id: None,
             menu_quit_id: None,
-            #[cfg(target_os = "windows")]
             overlay_follower_stop: None,
-            #[cfg(target_os = "windows")]
             target_window_title,
         }
     }
@@ -131,41 +128,39 @@ impl App {
             AppMode::Settings => AppMode::Overlay,
         };
 
-        #[cfg(target_os = "windows")]
-        {
-            if let Some(window) = self.window.clone() {
-                match self.mode {
-                    AppMode::Overlay => {
-                        // 切换到 Overlay 前先隐藏窗口，避免设置分层属性期间
-                        // 显示设置面板内容造成的闪烁。
-                        window.set_visible(false);
-                        if let Err(e) = platform::windows::setup_overlay_window(&window) {
-                            tracing::error!("setup overlay window failed: {}", e);
-                            // 设置失败也要重新显示窗口，否则用户看不到任何东西。
-                            window.set_visible(true);
-                        } else {
-                            // 先请求重绘，让 Overlay 清屏色（颜色键）生效后再显示。
-                            window.request_redraw();
-                            window.set_visible(true);
-                            self.start_overlay_follower();
-                        }
-                    }
-                    AppMode::Settings => {
-                        self.stop_overlay_follower();
-                        // 切回设置时也先隐藏，恢复窗口样式后再显示。
-                        window.set_visible(false);
-                        if let Err(e) = platform::windows::restore_normal_window(&window) {
-                            tracing::error!("restore normal window failed: {}", e);
-                        }
-                        // 恢复默认设置窗口尺寸。
-                        let _ = window.request_inner_size(winit::dpi::LogicalSize::new(960.0, 560.0));
+        if let Some(window) = self.window.clone() {
+            match self.mode {
+                AppMode::Overlay => {
+                    // 切换到 Overlay 前先隐藏窗口，避免设置分层属性期间
+                    // 显示设置面板内容造成的闪烁。
+                    window.set_visible(false);
+                    if let Err(e) = platform::windows::setup_overlay_window(&window) {
+                        tracing::error!("setup overlay window failed: {}", e);
+                        // 设置失败也要重新显示窗口，否则用户看不到任何东西。
+                        window.set_visible(true);
+                    } else {
+                        // 先请求重绘，让 Overlay 清屏色（颜色键）生效后再显示。
                         window.request_redraw();
                         window.set_visible(true);
-                        window.focus_window();
+                        self.start_overlay_follower();
                     }
                 }
-                window.request_redraw();
+                AppMode::Settings => {
+                    self.stop_overlay_follower();
+                    // 切回设置时也先隐藏，恢复窗口样式后再显示。
+                    window.set_visible(false);
+                    if let Err(e) = platform::windows::restore_normal_window(&window) {
+                        tracing::error!("restore normal window failed: {}", e);
+                    }
+                    // 恢复默认设置窗口尺寸。
+                    let _ = window
+                        .request_inner_size(winit::dpi::LogicalSize::new(960.0, 560.0));
+                    window.request_redraw();
+                    window.set_visible(true);
+                    window.focus_window();
+                }
             }
+            window.request_redraw();
         }
     }
 
@@ -173,7 +168,8 @@ impl App {
     ///
     /// 当前由渲染循环内联调用，保留此辅助方法供后续重构使用。
     #[allow(dead_code)]
-    async fn save_config(&self,
+    async fn save_config(
+        &self,
         config: peregrine_config::ConfigSnapshot,
     ) -> peregrine_config::Result<()> {
         self.storage.save(&config).await?;
@@ -191,7 +187,8 @@ impl App {
         self.menu_quit_id = Some(quit_item.id().clone());
 
         let menu = Menu::new();
-        menu.append(&settings_item).expect("append settings menu item");
+        menu.append(&settings_item)
+            .expect("append settings menu item");
         menu.append(&quit_item).expect("append quit menu item");
 
         tray_icon::TrayIconBuilder::new()
@@ -207,7 +204,6 @@ impl App {
         if let Some(tx) = self.watcher_stop.take() {
             let _ = tx.send(());
         }
-        #[cfg(target_os = "windows")]
         self.stop_overlay_follower();
         // 主动释放托盘图标，确保其从状态栏移除。
         self.tray_icon = None;
@@ -218,14 +214,10 @@ impl App {
     fn show_settings(&mut self) {
         self.mode = AppMode::Settings;
         self.hidden = false;
-        #[cfg(target_os = "windows")]
         self.stop_overlay_follower();
         if let Some(window) = &self.window {
-            #[cfg(target_os = "windows")]
-            {
-                if let Err(e) = platform::windows::restore_normal_window(window) {
-                    tracing::error!("restore normal window failed: {}", e);
-                }
+            if let Err(e) = platform::windows::restore_normal_window(window) {
+                tracing::error!("restore normal window failed: {}", e);
             }
             // 恢复默认设置窗口尺寸，避免残留 Overlay 跟随时的大小。
             let _ = window.request_inner_size(winit::dpi::LogicalSize::new(960.0, 560.0));
@@ -238,16 +230,12 @@ impl App {
     /// 收起到状态栏：隐藏窗口但保持程序在后台运行。
     fn hide_to_tray(&mut self) {
         self.hidden = true;
-        #[cfg(target_os = "windows")]
         self.stop_overlay_follower();
         if let Some(window) = &self.window {
             window.set_visible(false);
         }
     }
-}
 
-#[cfg(target_os = "windows")]
-impl App {
     /// 启动 Overlay 跟随任务。
     ///
     /// 若已配置目标窗口标题，则查找该窗口并在后台任务中以 16ms 周期同步 Overlay 位置。
@@ -304,8 +292,7 @@ impl App {
 
 impl ApplicationHandler<UserEvent> for App {
     fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
-        // 状态栏图标必须在事件循环启动后（StartCause::Init）、于主线程创建，
-        // 这是 tray-icon 在 winit（尤其 macOS）下要求的最早时机。
+        // 状态栏图标必须在事件循环启动后（StartCause::Init）、于主线程创建。
         if cause == StartCause::Init && self.tray_icon.is_none() {
             self.tray_icon = Some(self.build_tray());
         }
@@ -314,13 +301,10 @@ impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // 首次恢复时创建窗口与渲染器。
         if self.window.is_none() {
-            #[allow(unused_mut)]
-            let mut attributes = Window::default_attributes()
+            let attributes = Window::default_attributes()
                 .with_title("Peregrine")
                 .with_window_icon(Some(icon::window_icon()))
                 .with_inner_size(winit::dpi::LogicalSize::new(960.0, 560.0));
-            // 注意：不使用 with_transparent(true)，因为 Windows Overlay 透明
-            // 通过 LWA_COLORKEY 颜色键实现，与 wgpu 的 alpha 透明无关。
             let window = Arc::new(
                 event_loop
                     .create_window(attributes)
@@ -390,8 +374,7 @@ impl ApplicationHandler<UserEvent> for App {
                             self.hide_to_tray();
                         }
                     }
-                    // 按 Tab 在 覆盖层 / 设置 之间切换（F10 在 macOS 上可能被系统占用，
-                    // 数字键 1 容易与输入混淆）。
+                    // 按 Tab 在 覆盖层 / 设置 之间切换。
                     Key::Named(NamedKey::Tab) => {
                         self.toggle_mode();
                     }
@@ -425,15 +408,13 @@ impl ApplicationHandler<UserEvent> for App {
                                 &config,
                             );
                             if response.changed {
-                                *self.config.lock().expect("config lock") = response.config.clone();
-                                #[cfg(target_os = "windows")]
-                                {
-                                    self.target_window_title = response
-                                        .config
-                                        .active_profile()
-                                        .map(|p| p.target_window.clone())
-                                        .unwrap_or_default();
-                                }
+                                *self.config.lock().expect("config lock") =
+                                    response.config.clone();
+                                self.target_window_title = response
+                                    .config
+                                    .active_profile()
+                                    .map(|p| p.target_window.clone())
+                                    .unwrap_or_default();
                                 let storage = self.storage.clone();
                                 let notifier = self.notifier.clone();
                                 let new_config = response.config.clone();
@@ -479,9 +460,7 @@ impl ApplicationHandler<UserEvent> for App {
         }
     }
 
-    fn about_to_wait(&mut self,
-        _event_loop: &ActiveEventLoop,
-    ) {
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         // 收起到状态栏时进入空闲，等待状态栏菜单事件唤醒，避免持续重绘空转。
         if self.hidden {
             return;
@@ -522,7 +501,7 @@ async fn main() {
 
 /// 初始化 tracing 日志：控制台 + 滚动文件。
 ///
-/// 日志写入 `%APPDATA%/Peregrine/peregrine.log`（Windows）或对应平台配置目录，
+/// 日志写入 `%APPDATA%/Peregrine/peregrine.log`，
 /// 方便 release 版无控制台时排查「选择窗口」与透明渲染问题。
 fn init_logging() {
     use tracing_subscriber::layer::SubscriberExt;
@@ -539,10 +518,14 @@ fn init_logging() {
         let _ = std::fs::create_dir_all(parent);
     }
 
-    // 每天滚动一个日志文件，保留最近 7 天。
+    // 每天滚动一个日志文件。
     let file_appender = tracing_appender::rolling::daily(
-        log_path.parent().unwrap_or_else(|| std::path::Path::new(".")),
-        log_path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("peregrine.log")),
+        log_path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new(".")),
+        log_path
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("peregrine.log")),
     );
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
     // 保持 _guard 存活到进程结束，避免日志刷新线程提前退出。

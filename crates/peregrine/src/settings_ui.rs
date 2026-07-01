@@ -227,15 +227,12 @@ impl SettingsUi {
                     }
                 }
 
-                // 选择窗口按钮：Windows 下枚举顶层窗口并循环选中下一个。
+                // 选择窗口按钮：枚举顶层窗口并循环选中下一个。
                 if ui.button("选择窗口").clicked() {
-                    #[cfg(target_os = "windows")]
-                    if let Some(next) = crate::platform::windows::next_window_title(&current_target_window) {
-                        new_target_window = Some(next);
-                    }
-                    #[cfg(not(target_os = "windows"))]
+                    if let Some(next) =
+                        crate::platform::windows::next_window_title(&current_target_window)
                     {
-                        new_target_window = Some("选择窗口仅在 Windows 可用".to_string());
+                        new_target_window = Some(next);
                     }
                 }
                 let display_target = new_target_window

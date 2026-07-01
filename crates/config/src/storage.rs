@@ -130,27 +130,13 @@ impl ConfigStorage {
     }
 }
 
-// `dirs` 是一个小巧的跨平台目录库，没有依赖 winit/wgpu。
-#[allow(unused_imports)]
+// `dirs` 是一个小巧的目录查找模块。
 mod dirs {
     use std::path::PathBuf;
 
-    /// 返回 OS 标准用户配置目录。
+    /// 返回 Windows 用户配置目录（%APPDATA%）。
     pub fn config_dir() -> Option<PathBuf> {
-        #[cfg(target_os = "macos")]
-        {
-            let home = std::env::var_os("HOME")?;
-            Some(PathBuf::from(home).join("Library/Application Support"))
-        }
-        #[cfg(target_os = "windows")]
-        {
-            std::env::var_os("APPDATA").map(PathBuf::from)
-        }
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        {
-            let home = std::env::var_os("HOME")?;
-            Some(PathBuf::from(home).join(".config"))
-        }
+        std::env::var_os("APPDATA").map(PathBuf::from)
     }
 }
 

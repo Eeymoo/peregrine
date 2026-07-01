@@ -769,21 +769,16 @@ fn pick_alpha_mode(
     wgpu::CompositeAlphaMode::Opaque
 }
 
-/// 尝试从常见系统字体路径加载中文字体并注册到 egui（Windows 优先，兼顾 macOS）。
+/// 尝试从 Windows 系统字体路径加载中文字体并注册到 egui。
 ///
 /// 若所有候选字体均不可用，仅打印警告，仍使用 egui 默认字体（英文/ASCII 可正常显示）。
 fn load_system_font(ctx: &egui::Context) {
     const CANDIDATES: &[&str] = &[
-        // Windows 中文字体（打包目标平台，优先尝试）。
+        // Windows 中文字体。
         "C:\\Windows\\Fonts\\msyh.ttc",
         "C:\\Windows\\Fonts\\msyh.ttf",
         "C:\\Windows\\Fonts\\simhei.ttf",
         "C:\\Windows\\Fonts\\simsun.ttc",
-        // macOS 中文字体（保留作无害兜底）。
-        "/System/Library/Fonts/Hiragino Sans GB.ttc",
-        "/Library/Fonts/Arial Unicode.ttf",
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/Helvetica.ttc",
     ];
 
     for path in CANDIDATES {

@@ -135,12 +135,34 @@ impl Renderer {
         self.surface.configure(&self.device, &self.surface_config);
     }
 
+    /// 当 surface 获取纹理失败时，用当前窗口尺寸重新配置 surface。
+    ///
+    /// 常见于窗口刚创建、尺寸变为 0、或系统模式切换后，surface 进入过时状态。
+    fn reconfigure_surface_if_needed(&mut self) {
+        let size = self.window.inner_size();
+        if size.width == 0 || size.height == 0 {
+            return;
+        }
+        self.surface_config.width = size.width;
+        self.surface_config.height = size.height;
+        self.surface.configure(&self.device, &self.surface_config);
+    }
+
     /// 渲染覆盖层（准心）。
     ///
     /// 清屏为颜色键色（RGB(1,0,0) 极深红），并根据当前 Profile 的 crosshair 配置
     /// 绘制辅助贴图。颜色键区域会被 DWM 透明化，只留下准心图形。
     pub fn render_overlay(&mut self) {
-        let output = self.surface.get_current_texture().expect("surface texture");
+        let output = match self.surface.get_current_texture() {
+            Ok(t) => t,
+            Err(e) => {
+                // surface 暂时不可用（窗口大小为 0、刚创建、或模式切换），
+                // 重新配置 surface 并跳过本帧，不 panic。
+                tracing::debug!("overlay get_current_texture failed: {}", e);
+                self.reconfigure_surface_if_needed();
+                return;
+            }
+        };
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -251,7 +273,14 @@ impl Renderer {
         self.egui_state
             .handle_platform_output(&self.window, full_output.platform_output);
 
-        let output = self.surface.get_current_texture().expect("surface texture");
+        let output = match self.surface.get_current_texture() {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::debug!("settings get_current_texture failed: {}", e);
+                self.reconfigure_surface_if_needed();
+                return ui_state.take_response();
+            }
+        };
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());

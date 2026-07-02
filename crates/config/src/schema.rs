@@ -639,7 +639,7 @@ mod tests {
         ch.offset = 30.0;
         ch.thickness = 10.0;
         ch.border_inset = true;
-        let screen = (1920.0, 1080.0);
+        let _screen = (1920.0, 1080.0);
         // 内侧：矩形条中心在距边缘 offset 处。
         let top_y = ch.offset;
         let left_x = ch.offset;

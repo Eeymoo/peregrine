@@ -165,7 +165,9 @@ pub fn restore_normal_window(window: &Window) -> Result<()> {
 
 /// 根据窗口标题查找目标游戏窗口。
 ///
-/// 匹配规则：窗口标题**包含**给定的标题字符串即视为匹配。
+/// 匹配规则（按优先级）：
+/// 1. 标题完全相等。
+/// 2. 窗口标题**包含**给定的标题字符串。
 /// 这样可以兼容游戏窗口标题中带动态后缀的情况（如 "GameName - Chapter 2"）。
 /// 若有多个匹配项，返回第一个。
 ///
@@ -174,9 +176,14 @@ pub fn restore_normal_window(window: &Window) -> Result<()> {
 /// 找不到匹配窗口时返回 [`OverlayError::TargetNotFound`]。
 pub fn find_target_window(title: &str) -> Result<HWND> {
     let entries = list_window_entries();
+    // 优先精确匹配。
+    if let Some(e) = entries.iter().find(|e| e.title == title) {
+        return Ok(e.hwnd);
+    }
+    // 其次模糊匹配：窗口标题包含给定字符串。
     entries
         .into_iter()
-        .find(|e| e.title.contains(title) || title.contains(&e.title))
+        .find(|e| e.title.contains(title))
         .map(|e| e.hwnd)
         .ok_or_else(|| OverlayError::TargetNotFound(title.to_string()))
 }
@@ -382,7 +389,13 @@ pub async fn follow_target_window(
                         continue;
                     }
 
-                    let rect = get_target_rect(target.0)?;
+                    let rect = match get_target_rect(target.0) {
+                        Ok(r) => r,
+                        Err(e) => {
+                            tracing::debug!("get_target_rect failed, skipping: {}", e);
+                            continue;
+                        }
+                    };
                     if !rect_eq(&rect, &last_rect) {
                         let width = rect.right - rect.left;
                         let height = rect.bottom - rect.top;

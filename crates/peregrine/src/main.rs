@@ -113,6 +113,11 @@ impl App {
             return; // 已存在，不重复创建。
         }
 
+        if self.target_window_title.is_empty() {
+            tracing::warn!("cannot start overlay: no target window selected");
+            return;
+        }
+
         tracing::info!("creating overlay window");
 
         let attributes = Window::default_attributes()
@@ -134,6 +139,7 @@ impl App {
         {
             if let Err(e) = platform::windows::setup_overlay_window(&window) {
                 tracing::error!("setup overlay window failed: {}", e);
+                // 窗口已创建但设置失败，让它自然 drop 销毁。
                 return;
             }
         }
@@ -407,12 +413,15 @@ impl ApplicationHandler<UserEvent> for App {
                         self.settings_ui.overlay_active = self.overlay_active;
                         let response = renderer.render_settings(&mut self.settings_ui, &config);
                         if response.changed {
-                            *self.config.lock().expect("config lock") = response.config.clone();
-                            self.target_window_title = response
+                            let new_target = response
                                 .config
                                 .active_profile()
                                 .map(|p| p.target_window.clone())
                                 .unwrap_or_default();
+                            let target_changed = new_target != self.target_window_title;
+                            *self.config.lock().expect("config lock") =
+                                response.config.clone();
+                            self.target_window_title = new_target;
                             let storage = self.storage.clone();
                             let notifier = self.notifier.clone();
                             let new_config = response.config.clone();
@@ -425,6 +434,12 @@ impl ApplicationHandler<UserEvent> for App {
                                     tracing::error!("failed to notify config: {}", e);
                                 }
                             });
+                            // Overlay 运行中目标窗口变化：销毁旧 Overlay 并重建跟随新窗口。
+                            if target_changed && self.overlay_active {
+                                tracing::info!("target window changed, recreating overlay");
+                                self.destroy_overlay();
+                                self.create_overlay(event_loop);
+                            }
                         }
                         // 处理「开始覆盖」按钮。
                         if response.start_overlay {

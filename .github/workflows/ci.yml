@@ -37,7 +37,7 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # Linux 需要安装 GUI 依赖（wgpu / winit 编译需要）。
+      # Linux 需要安装 GUI 依赖（wgpu / winit / tray-icon 编译需要）。
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -45,7 +45,8 @@ jobs:
           sudo apt-get install -y \
             libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
             libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev \
-            libxi-dev libwayland-dev libxkbcommon-dev libegl-dev libasound2-dev
+            libxi-dev libwayland-dev libxkbcommon-dev libegl-dev libasound2-dev \
+            libglib2.0-dev libgtk-3-dev libgdk-pixbuf2.0-dev
 
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
@@ -79,7 +80,8 @@ jobs:
           sudo apt-get install -y \
             libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
             libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev \
-            libxi-dev libwayland-dev libxkbcommon-dev libegl-dev libasound2-dev
+            libxi-dev libwayland-dev libxkbcommon-dev libegl-dev libasound2-dev \
+            libglib2.0-dev libgtk-3-dev libgdk-pixbuf2.0-dev
 
       - name: Cargo fmt check
         run: cargo fmt --all -- --check

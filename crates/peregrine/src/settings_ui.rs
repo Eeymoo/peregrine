@@ -51,11 +51,7 @@ impl SettingsUi {
     ///
     /// 使用左右布局：左侧为演示窗口（占满剩余空间），右侧为配置项面板。
     /// 配置修改会反应在左侧实时预览中，并通过 [`SettingsResponse`] 通知调用方持久化。
-    pub fn ui(
-        &mut self,
-        ctx: &egui::Context,
-        config: &ConfigSnapshot,
-    ) {
+    pub fn ui(&mut self, ctx: &egui::Context, config: &ConfigSnapshot) {
         let original = (**config).clone();
         let mut new_config = (**config).clone();
         let mut start_overlay = false;
@@ -69,6 +65,8 @@ impl SettingsUi {
             .map(|p| p.target_window.clone())
             .unwrap_or_default();
         // 按钮点击后写入的新标题，闭包结束后写回 profile。
+        // Windows 下在闭包中赋值；非 Windows 下不修改，用 allow 消除警告。
+        #[allow(unused_mut)]
         let mut new_target_window: Option<String> = None;
 
         let profile = new_config
@@ -121,7 +119,9 @@ impl SettingsUi {
                     CrosshairStyle::ToiletPaper => {
                         ui.label("卫生纸尺寸");
                         ui.add(Slider::new(&mut crosshair.size, 10.0..=400.0).text("宽度"));
-                        ui.add(Slider::new(&mut crosshair.secondary_size, 10.0..=300.0).text("高度"));
+                        ui.add(
+                            Slider::new(&mut crosshair.secondary_size, 10.0..=300.0).text("高度"),
+                        );
                         ui.add(Slider::new(&mut crosshair.corner_radius, 0.0..=60.0).text("圆角"));
 
                         ui.horizontal(|ui| {
@@ -156,13 +156,23 @@ impl SettingsUi {
                     | CrosshairStyle::CornerDots8 => {
                         ui.label("定位球尺寸");
                         ui.add(Slider::new(&mut crosshair.offset, 0.0..=200.0).text("距边缘距离"));
-                        let radius_label = if crosshair.radius > 0.0 { "半径" } else { "半径（0=自动）" };
+                        let radius_label = if crosshair.radius > 0.0 {
+                            "半径"
+                        } else {
+                            "半径（0=自动）"
+                        };
                         ui.add(Slider::new(&mut crosshair.radius, 0.0..=80.0).text(radius_label));
-                        ui.add(Slider::new(&mut crosshair.thickness, 1.0..=20.0).text("线宽（自动半径时生效）"));
+                        ui.add(
+                            Slider::new(&mut crosshair.thickness, 1.0..=20.0)
+                                .text("线宽（自动半径时生效）"),
+                        );
                     }
                     CrosshairStyle::Ring => {
                         ui.label("中心环");
-                        ui.add(Slider::new(&mut crosshair.ring_radius_pct, 0.03..=0.08).text("半径占屏高比例"));
+                        ui.add(
+                            Slider::new(&mut crosshair.ring_radius_pct, 0.03..=0.08)
+                                .text("半径占屏高比例"),
+                        );
                         ui.add(Slider::new(&mut crosshair.thickness, 1.0..=3.0).text("线宽"));
                         ui.horizontal(|ui| {
                             ui.label("线型：");
@@ -183,10 +193,22 @@ impl SettingsUi {
                         ui.label("自定义定位球");
                         ui.add(Slider::new(&mut crosshair.radius, 4.0..=12.0).text("半径"));
                         ui.add(Slider::new(&mut crosshair.offset, 10.0..=200.0).text("距边缘距离"));
-                        ui.add(Slider::new(&mut crosshair.custom_orb_top_count, 1..=10).text("上边缘数量"));
-                        ui.add(Slider::new(&mut crosshair.custom_orb_bottom_count, 1..=10).text("下边缘数量"));
-                        ui.add(Slider::new(&mut crosshair.custom_orb_left_count, 1..=10).text("左边缘数量"));
-                        ui.add(Slider::new(&mut crosshair.custom_orb_right_count, 1..=10).text("右边缘数量"));
+                        ui.add(
+                            Slider::new(&mut crosshair.custom_orb_top_count, 1..=10)
+                                .text("上边缘数量"),
+                        );
+                        ui.add(
+                            Slider::new(&mut crosshair.custom_orb_bottom_count, 1..=10)
+                                .text("下边缘数量"),
+                        );
+                        ui.add(
+                            Slider::new(&mut crosshair.custom_orb_left_count, 1..=10)
+                                .text("左边缘数量"),
+                        );
+                        ui.add(
+                            Slider::new(&mut crosshair.custom_orb_right_count, 1..=10)
+                                .text("右边缘数量"),
+                        );
                         ui.horizontal(|ui| {
                             ui.label("启用：");
                             let mut top = crosshair.orb_positions.contains(OrbPosition::TOP);
@@ -198,28 +220,54 @@ impl SettingsUi {
                             ui.checkbox(&mut left, "左");
                             ui.checkbox(&mut right, "右");
                             crosshair.orb_positions = OrbPosition::empty();
-                            if top { crosshair.orb_positions.insert(OrbPosition::TOP); }
-                            if bottom { crosshair.orb_positions.insert(OrbPosition::BOTTOM); }
-                            if left { crosshair.orb_positions.insert(OrbPosition::LEFT); }
-                            if right { crosshair.orb_positions.insert(OrbPosition::RIGHT); }
+                            if top {
+                                crosshair.orb_positions.insert(OrbPosition::TOP);
+                            }
+                            if bottom {
+                                crosshair.orb_positions.insert(OrbPosition::BOTTOM);
+                            }
+                            if left {
+                                crosshair.orb_positions.insert(OrbPosition::LEFT);
+                            }
+                            if right {
+                                crosshair.orb_positions.insert(OrbPosition::RIGHT);
+                            }
                         });
                     }
                     CrosshairStyle::RandomOrb => {
                         ui.label("随机球");
-                        ui.add(Slider::new(&mut crosshair.random_orb_count, 1..=10).text("每边数量"));
-                        ui.add(Slider::new(&mut crosshair.random_orb_offset, 0.0..=300.0).text("距边缘距离"));
-                        ui.add(Slider::new(&mut crosshair.random_orb_jitter, 0.0..=200.0).text("位置扰动"));
-                        ui.add(Slider::new(&mut crosshair.random_radius_min, 4.0..=12.0).text("最小半径"));
-                        ui.add(Slider::new(&mut crosshair.random_radius_max, 4.0..=12.0).text("最大半径"));
+                        ui.add(
+                            Slider::new(&mut crosshair.random_orb_count, 1..=10).text("每边数量"),
+                        );
+                        ui.add(
+                            Slider::new(&mut crosshair.random_orb_offset, 0.0..=300.0)
+                                .text("距边缘距离"),
+                        );
+                        ui.add(
+                            Slider::new(&mut crosshair.random_orb_jitter, 0.0..=200.0)
+                                .text("位置扰动"),
+                        );
+                        ui.add(
+                            Slider::new(&mut crosshair.random_radius_min, 4.0..=12.0)
+                                .text("最小半径"),
+                        );
+                        ui.add(
+                            Slider::new(&mut crosshair.random_radius_max, 4.0..=12.0)
+                                .text("最大半径"),
+                        );
                     }
                     CrosshairStyle::BorderFrame => {
                         ui.label("边框");
-                        ui.add(Slider::new(&mut crosshair.thickness, 1.0..=20.0).text("矩形条高度"));
+                        ui.add(
+                            Slider::new(&mut crosshair.thickness, 1.0..=20.0).text("矩形条高度"),
+                        );
                         ui.add(Slider::new(&mut crosshair.offset, 0.0..=100.0).text("距边缘距离"));
                         ui.horizontal(|ui| {
                             ui.label("样式：");
                             ComboBox::from_id_salt("border_frame_style")
-                                .selected_text(border_frame_style_display_name(crosshair.border_frame_style))
+                                .selected_text(border_frame_style_display_name(
+                                    crosshair.border_frame_style,
+                                ))
                                 .show_ui(ui, |ui| {
                                     for style in all_border_frame_styles() {
                                         ui.selectable_value(
@@ -235,11 +283,20 @@ impl SettingsUi {
                 }
 
                 // 选择窗口按钮：枚举顶层窗口并循环选中下一个。
+                // 仅 Windows 平台支持窗口枚举。
                 if ui.button("选择窗口").clicked() {
-                    if let Some(next) =
-                        crate::platform::windows::next_window_title(&current_target_window)
+                    #[cfg(windows)]
                     {
-                        new_target_window = Some(next);
+                        if let Some(next) =
+                            crate::platform::windows::next_window_title(&current_target_window)
+                        {
+                            new_target_window = Some(next);
+                        }
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        let _ = &current_target_window;
+                        tracing::warn!("window selection is not supported on this platform");
                     }
                 }
                 let display_target = new_target_window
@@ -287,8 +344,7 @@ impl SettingsUi {
     }
 
     /// 取走本帧的响应。
-    pub fn take_response(&mut self,
-    ) -> SettingsResponse {
+    pub fn take_response(&mut self) -> SettingsResponse {
         std::mem::replace(&mut self.response, SettingsResponse::default())
     }
 }
@@ -376,7 +432,8 @@ fn border_frame_style_display_name(style: BorderFrameStyle) -> String {
 
 /// 在演示区域绘制差色网格背景，便于观察透明贴图效果。
 fn draw_checkerboard_background(ui: &mut egui::Ui, rect: egui::Rect) {
-    ui.painter().rect_filled(rect, egui::CornerRadius::ZERO, Color32::from_gray(30));
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::ZERO, Color32::from_gray(30));
 
     let cell_size = 20.0;
     let mut y = rect.min.y;
@@ -390,12 +447,11 @@ fn draw_checkerboard_background(ui: &mut egui::Ui, rect: egui::Rect) {
             } else {
                 Color32::from_gray(90)
             };
-            let cell_rect = egui::Rect::from_min_size(
-                egui::pos2(x, y),
-                Vec2::new(cell_size, cell_size),
-            )
-            .intersect(rect);
-            ui.painter().rect_filled(cell_rect, egui::CornerRadius::ZERO, color);
+            let cell_rect =
+                egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(cell_size, cell_size))
+                    .intersect(rect);
+            ui.painter()
+                .rect_filled(cell_rect, egui::CornerRadius::ZERO, color);
             x += cell_size;
             col += 1;
         }
@@ -434,10 +490,7 @@ fn draw_preview_shape(
                 Anchor::Right => egui::pos2(rect.max.x - width / 2.0 - margin, rect.center().y),
                 Anchor::Center => rect.center(),
             };
-            let shape_rect = egui::Rect::from_center_size(
-                center,
-                Vec2::new(width, height),
-            );
+            let shape_rect = egui::Rect::from_center_size(center, Vec2::new(width, height));
             ui.painter().rect_filled(
                 shape_rect,
                 CornerRadius::same(crosshair.corner_radius as u8),
@@ -465,8 +518,14 @@ fn draw_preview_shape(
                 egui::pos2(center.x, center.y + (arm + half_gap) / 2.0 + half_gap / 2.0),
                 Vec2::new(thickness, arm - half_gap),
             );
-            for rect in [horizontal_left, horizontal_right, vertical_top, vertical_bottom] {
-                ui.painter().rect_filled(rect, egui::CornerRadius::ZERO, color);
+            for rect in [
+                horizontal_left,
+                horizontal_right,
+                vertical_top,
+                vertical_bottom,
+            ] {
+                ui.painter()
+                    .rect_filled(rect, egui::CornerRadius::ZERO, color);
             }
         }
         CrosshairStyle::LargeCross => {
@@ -480,19 +539,21 @@ fn draw_preview_shape(
                 egui::pos2(center.x - thickness / 2.0, rect.min.y),
                 egui::pos2(center.x + thickness / 2.0, rect.max.y),
             );
-            ui.painter().rect_filled(horizontal, egui::CornerRadius::ZERO, color);
-            ui.painter().rect_filled(vertical, egui::CornerRadius::ZERO, color);
+            ui.painter()
+                .rect_filled(horizontal, egui::CornerRadius::ZERO, color);
+            ui.painter()
+                .rect_filled(vertical, egui::CornerRadius::ZERO, color);
         }
-        CrosshairStyle::CornerDots4
-        | CrosshairStyle::CornerDots6
-        | CrosshairStyle::CornerDots8 => {
+        CrosshairStyle::CornerDots4 | CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8 => {
             // 四角圆形。
             let configured_offset = if crosshair.offset > 0.0 {
                 crosshair.offset
             } else {
                 crosshair.size
             };
-            let offset = configured_offset.min(rect.width() / 4.0).min(rect.height() / 4.0);
+            let offset = configured_offset
+                .min(rect.width() / 4.0)
+                .min(rect.height() / 4.0);
             let radius = if crosshair.radius > 0.0 {
                 crosshair.radius
             } else {
@@ -512,13 +573,29 @@ fn draw_preview_shape(
                 crosshair.style,
                 CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8
             ) {
-                ui.painter().circle_filled(egui::pos2(center.x, rect.min.y + offset), radius, color);
-                ui.painter().circle_filled(egui::pos2(center.x, rect.max.y - offset), radius, color);
+                ui.painter().circle_filled(
+                    egui::pos2(center.x, rect.min.y + offset),
+                    radius,
+                    color,
+                );
+                ui.painter().circle_filled(
+                    egui::pos2(center.x, rect.max.y - offset),
+                    radius,
+                    color,
+                );
             }
             // 水平中心圆形。
             if matches!(crosshair.style, CrosshairStyle::CornerDots8) {
-                ui.painter().circle_filled(egui::pos2(rect.min.x + offset, center.y), radius, color);
-                ui.painter().circle_filled(egui::pos2(rect.max.x - offset, center.y), radius, color);
+                ui.painter().circle_filled(
+                    egui::pos2(rect.min.x + offset, center.y),
+                    radius,
+                    color,
+                );
+                ui.painter().circle_filled(
+                    egui::pos2(rect.max.x - offset, center.y),
+                    radius,
+                    color,
+                );
             }
         }
         CrosshairStyle::Ring => {
@@ -526,13 +603,15 @@ fn draw_preview_shape(
             let thickness = crosshair.thickness;
             match crosshair.ring_style {
                 RingStyle::Solid => {
-                    ui.painter().circle_stroke(center, radius, Stroke::new(thickness, color));
+                    ui.painter()
+                        .circle_stroke(center, radius, Stroke::new(thickness, color));
                 }
                 RingStyle::Dashed => {
                     draw_dashed_circle(ui, center, radius, thickness, color, 4.0, 4.0);
                 }
                 RingStyle::Double => {
-                    ui.painter().circle_stroke(center, radius - 2.0, Stroke::new(1.0, color));
+                    ui.painter()
+                        .circle_stroke(center, radius - 2.0, Stroke::new(1.0, color));
                     draw_dashed_circle(ui, center, radius + 2.0, 1.0, color, 4.0, 4.0);
                 }
             }
@@ -545,7 +624,8 @@ fn draw_preview_shape(
                     return;
                 }
                 if count == 1 {
-                    ui.painter().circle_filled(positions[positions.len() / 2], radius, color);
+                    ui.painter()
+                        .circle_filled(positions[positions.len() / 2], radius, color);
                     return;
                 }
                 let step = (positions.len() - 1) as f32 / (count + 1) as f32;
@@ -600,10 +680,13 @@ fn draw_preview_shape(
         }
         CrosshairStyle::RandomOrb => {
             // 使用配置值作为稳定种子，避免每帧闪烁。
-            let seed = (crosshair.random_orb_offset * 1000.0) as u64
-                + (crosshair.random_orb_jitter * 100.0) as u64
-                + (crosshair.random_radius_min * 10.0) as u64
-                + (crosshair.random_radius_max * 10.0) as u64;
+            // seed 包含所有影响生成结果的参数（含 count、位置），
+            // 任一参数变化都会产生不同的随机序列。
+            let seed = ((crosshair.random_orb_offset * 1000.0) as u64)
+                .wrapping_add((crosshair.random_orb_jitter * 100.0) as u64)
+                .wrapping_add((crosshair.random_radius_min * 10.0) as u64)
+                .wrapping_add((crosshair.random_radius_max * 10.0) as u64)
+                .wrapping_add(crosshair.random_orb_count as u64);
             let mut rng = SimpleRng::new(seed);
             let count = crosshair.random_orb_count as usize;
             let offset = crosshair.random_orb_offset;
@@ -611,35 +694,44 @@ fn draw_preview_shape(
             let min_r = crosshair.random_radius_min;
             let max_r = crosshair.random_radius_max;
 
-            let radius_for = |rng: &mut SimpleRng| -> f32 {
-                min_r + rng.next_f32() * (max_r - min_r)
-            };
-            let jitter_for = |rng: &mut SimpleRng| -> f32 {
-                (rng.next_f32() - 0.5) * 2.0 * jitter
-            };
+            let radius_for =
+                |rng: &mut SimpleRng| -> f32 { min_r + rng.next_f32() * (max_r - min_r) };
+            let jitter_for = |rng: &mut SimpleRng| -> f32 { (rng.next_f32() - 0.5) * 2.0 * jitter };
 
             for _ in 0..count {
                 let radius = radius_for(&mut rng);
                 let x = egui::lerp(rect.min.x..=rect.max.x, rng.next_f32());
-                let pos = egui::pos2(x + jitter_for(&mut rng), rect.min.y + offset + jitter_for(&mut rng));
+                let pos = egui::pos2(
+                    x + jitter_for(&mut rng),
+                    rect.min.y + offset + jitter_for(&mut rng),
+                );
                 ui.painter().circle_filled(pos, radius, color);
             }
             for _ in 0..count {
                 let radius = radius_for(&mut rng);
                 let x = egui::lerp(rect.min.x..=rect.max.x, rng.next_f32());
-                let pos = egui::pos2(x + jitter_for(&mut rng), rect.max.y - offset + jitter_for(&mut rng));
+                let pos = egui::pos2(
+                    x + jitter_for(&mut rng),
+                    rect.max.y - offset + jitter_for(&mut rng),
+                );
                 ui.painter().circle_filled(pos, radius, color);
             }
             for _ in 0..count {
                 let radius = radius_for(&mut rng);
                 let y = egui::lerp(rect.min.y..=rect.max.y, rng.next_f32());
-                let pos = egui::pos2(rect.min.x + offset + jitter_for(&mut rng), y + jitter_for(&mut rng));
+                let pos = egui::pos2(
+                    rect.min.x + offset + jitter_for(&mut rng),
+                    y + jitter_for(&mut rng),
+                );
                 ui.painter().circle_filled(pos, radius, color);
             }
             for _ in 0..count {
                 let radius = radius_for(&mut rng);
                 let y = egui::lerp(rect.min.y..=rect.max.y, rng.next_f32());
-                let pos = egui::pos2(rect.max.x - offset + jitter_for(&mut rng), y + jitter_for(&mut rng));
+                let pos = egui::pos2(
+                    rect.max.x - offset + jitter_for(&mut rng),
+                    y + jitter_for(&mut rng),
+                );
                 ui.painter().circle_filled(pos, radius, color);
             }
         }
@@ -654,10 +746,14 @@ fn draw_preview_shape(
 
             match crosshair.border_frame_style {
                 BorderFrameStyle::Solid => {
-                    draw_solid_border_frame(ui, rect, top_y, bottom_y, left_x, right_x, thickness, color);
+                    draw_solid_border_frame(
+                        ui, rect, top_y, bottom_y, left_x, right_x, thickness, color,
+                    );
                 }
                 BorderFrameStyle::Gap => {
-                    draw_gap_border_frame(ui, rect, top_y, bottom_y, left_x, right_x, thickness, color);
+                    draw_gap_border_frame(
+                        ui, rect, top_y, bottom_y, left_x, right_x, thickness, color,
+                    );
                 }
             }
         }
@@ -690,7 +786,8 @@ fn draw_dashed_circle(
             center.x + radius * end_angle.cos(),
             center.y + radius * end_angle.sin(),
         );
-        ui.painter().line_segment([start, end], Stroke::new(thickness, color));
+        ui.painter()
+            .line_segment([start, end], Stroke::new(thickness, color));
     }
 }
 
@@ -727,22 +824,34 @@ fn draw_solid_border_frame(
     color: Color32,
 ) {
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(rect.min.x, top_y - thickness / 2.0), egui::pos2(rect.max.x, top_y + thickness / 2.0)),
+        egui::Rect::from_min_max(
+            egui::pos2(rect.min.x, top_y - thickness / 2.0),
+            egui::pos2(rect.max.x, top_y + thickness / 2.0),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(rect.min.x, bottom_y - thickness / 2.0), egui::pos2(rect.max.x, bottom_y + thickness / 2.0)),
+        egui::Rect::from_min_max(
+            egui::pos2(rect.min.x, bottom_y - thickness / 2.0),
+            egui::pos2(rect.max.x, bottom_y + thickness / 2.0),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(left_x - thickness / 2.0, rect.min.y), egui::pos2(left_x + thickness / 2.0, rect.max.y)),
+        egui::Rect::from_min_max(
+            egui::pos2(left_x - thickness / 2.0, rect.min.y),
+            egui::pos2(left_x + thickness / 2.0, rect.max.y),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(right_x - thickness / 2.0, rect.min.y), egui::pos2(right_x + thickness / 2.0, rect.max.y)),
+        egui::Rect::from_min_max(
+            egui::pos2(right_x - thickness / 2.0, rect.min.y),
+            egui::pos2(right_x + thickness / 2.0, rect.max.y),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );

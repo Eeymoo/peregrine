@@ -6,10 +6,8 @@
 //! - 在 Overlay 模式下绘制准心，在 Settings 模式下绘制 egui 面板。
 
 use egui_wgpu::ScreenDescriptor;
-use peregrine_config::{
-    BorderFrameStyle, CrosshairStyle, OrbPosition, RingStyle,
-};
 use egui_winit::State;
+use peregrine_config::{BorderFrameStyle, CrosshairStyle, OrbPosition, RingStyle};
 use std::sync::{Arc, Mutex};
 use winit::event::WindowEvent;
 use winit::window::Window;
@@ -48,8 +46,7 @@ impl Renderer {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
             ..Default::default()
-        },
-        );
+        });
         let surface = instance
             .create_surface(window.clone())
             .expect("create surface");
@@ -58,8 +55,7 @@ impl Renderer {
                 power_preference: wgpu::PowerPreference::default(),
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
-            },
-            )
+            })
             .await
             .expect("request adapter");
         let (device, queue) = adapter
@@ -77,11 +73,7 @@ impl Renderer {
 
         let size = window.inner_size();
         let mut surface_config = surface
-            .get_default_config(
-                &adapter,
-                size.width.max(1),
-                size.height.max(1),
-            )
+            .get_default_config(&adapter, size.width.max(1), size.height.max(1))
             .expect("default surface config");
         // 强制使用 Bgra8Unorm（非 sRGB），保证清屏像素值精确匹配
         // SetLayeredWindowAttributes 设置的颜色键（RGB(1,0,0)）。
@@ -112,13 +104,7 @@ impl Renderer {
             None,
             None,
         );
-        let egui_renderer = egui_wgpu::Renderer::new(
-            &device,
-            surface_config.format,
-            None,
-            1,
-            true,
-        );
+        let egui_renderer = egui_wgpu::Renderer::new(&device, surface_config.format, None, 1, true);
 
         Self {
             device,
@@ -133,9 +119,7 @@ impl Renderer {
     }
 
     /// 处理窗口事件，主要用于 egui 输入。
-    pub fn handle_event(&mut self,
-        event: &WindowEvent,
-    ) {
+    pub fn handle_event(&mut self, event: &WindowEvent) {
         let _ = self.egui_state.on_window_event(&self.window, event);
     }
 
@@ -155,8 +139,7 @@ impl Renderer {
     ///
     /// 清屏为颜色键色（RGB(1,0,0) 极深红），并根据当前 Profile 的 crosshair 配置
     /// 绘制辅助贴图。颜色键区域会被 DWM 透明化，只留下准心图形。
-    pub fn render_overlay(&mut self,
-    ) {
+    pub fn render_overlay(&mut self) {
         let output = self.surface.get_current_texture().expect("surface texture");
         let view = output
             .texture
@@ -219,8 +202,7 @@ impl Renderer {
 
         {
             let mut render_pass = encoder
-                .begin_render_pass(
-                &wgpu::RenderPassDescriptor {
+                .begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("overlay-pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &view,
@@ -241,9 +223,8 @@ impl Renderer {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
-                },
-            )
-            .forget_lifetime();
+                })
+                .forget_lifetime();
             self.egui_renderer
                 .render(&mut render_pass, &tris, &screen_descriptor);
         }
@@ -263,9 +244,10 @@ impl Renderer {
         config: &peregrine_config::ConfigSnapshot,
     ) -> super::settings_ui::SettingsResponse {
         let raw_input = self.egui_state.take_egui_input(&self.window);
-        let full_output = self.egui_state.egui_ctx().run(raw_input, |ctx| {
-            ui_state.ui(ctx, config)
-        });
+        let full_output = self
+            .egui_state
+            .egui_ctx()
+            .run(raw_input, |ctx| ui_state.ui(ctx, config));
         self.egui_state
             .handle_platform_output(&self.window, full_output.platform_output);
 
@@ -291,11 +273,7 @@ impl Renderer {
             .tessellate(full_output.shapes, full_output.pixels_per_point);
         for (id, image_delta) in &full_output.textures_delta.set {
             self.egui_renderer
-                .update_texture(&self.device,
-                &self.queue,
-                *id,
-                image_delta,
-            );
+                .update_texture(&self.device, &self.queue, *id, image_delta);
         }
         self.egui_renderer.update_buffers(
             &self.device,
@@ -307,8 +285,7 @@ impl Renderer {
 
         {
             let mut render_pass = encoder
-                .begin_render_pass(
-                &wgpu::RenderPassDescriptor {
+                .begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("settings-pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &view,
@@ -326,9 +303,8 @@ impl Renderer {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
-                },
-            )
-            .forget_lifetime();
+                })
+                .forget_lifetime();
             self.egui_renderer
                 .render(&mut render_pass, &tris, &screen_descriptor);
         }
@@ -356,9 +332,7 @@ fn draw_overlay_shape(
 
     let _ = egui::CornerRadius::ZERO;
     let center = rect.center();
-    let color = settings_ui_color(&crosshair.color,
-        crosshair.opacity,
-    );
+    let color = settings_ui_color(&crosshair.color, crosshair.opacity);
 
     match crosshair.style {
         CrosshairStyle::ToiletPaper => {
@@ -407,8 +381,14 @@ fn draw_overlay_shape(
                 egui::pos2(center.x, center.y + (arm + half_gap) / 2.0 + half_gap / 2.0),
                 egui::vec2(thickness, arm - half_gap),
             );
-            for rect in [horizontal_left, horizontal_right, vertical_top, vertical_bottom] {
-                ui.painter().rect_filled(rect, egui::CornerRadius::ZERO, color);
+            for rect in [
+                horizontal_left,
+                horizontal_right,
+                vertical_top,
+                vertical_bottom,
+            ] {
+                ui.painter()
+                    .rect_filled(rect, egui::CornerRadius::ZERO, color);
             }
         }
         CrosshairStyle::LargeCross => {
@@ -421,18 +401,20 @@ fn draw_overlay_shape(
                 egui::pos2(center.x - thickness / 2.0, rect.min.y),
                 egui::pos2(center.x + thickness / 2.0, rect.max.y),
             );
-            ui.painter().rect_filled(horizontal, egui::CornerRadius::ZERO, color);
-            ui.painter().rect_filled(vertical, egui::CornerRadius::ZERO, color);
+            ui.painter()
+                .rect_filled(horizontal, egui::CornerRadius::ZERO, color);
+            ui.painter()
+                .rect_filled(vertical, egui::CornerRadius::ZERO, color);
         }
-        CrosshairStyle::CornerDots4
-        | CrosshairStyle::CornerDots6
-        | CrosshairStyle::CornerDots8 => {
+        CrosshairStyle::CornerDots4 | CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8 => {
             let configured_offset = if crosshair.offset > 0.0 {
                 crosshair.offset
             } else {
                 crosshair.size
             };
-            let offset = configured_offset.min(rect.width() / 4.0).min(rect.height() / 4.0);
+            let offset = configured_offset
+                .min(rect.width() / 4.0)
+                .min(rect.height() / 4.0);
             let radius = if crosshair.radius > 0.0 {
                 crosshair.radius
             } else {
@@ -451,12 +433,28 @@ fn draw_overlay_shape(
                 crosshair.style,
                 CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8
             ) {
-                ui.painter().circle_filled(egui::pos2(center.x, rect.min.y + offset), radius, color);
-                ui.painter().circle_filled(egui::pos2(center.x, rect.max.y - offset), radius, color);
+                ui.painter().circle_filled(
+                    egui::pos2(center.x, rect.min.y + offset),
+                    radius,
+                    color,
+                );
+                ui.painter().circle_filled(
+                    egui::pos2(center.x, rect.max.y - offset),
+                    radius,
+                    color,
+                );
             }
             if matches!(crosshair.style, CrosshairStyle::CornerDots8) {
-                ui.painter().circle_filled(egui::pos2(rect.min.x + offset, center.y), radius, color);
-                ui.painter().circle_filled(egui::pos2(rect.max.x - offset, center.y), radius, color);
+                ui.painter().circle_filled(
+                    egui::pos2(rect.min.x + offset, center.y),
+                    radius,
+                    color,
+                );
+                ui.painter().circle_filled(
+                    egui::pos2(rect.max.x - offset, center.y),
+                    radius,
+                    color,
+                );
             }
         }
         CrosshairStyle::Ring => {
@@ -464,13 +462,15 @@ fn draw_overlay_shape(
             let thickness = crosshair.thickness;
             match crosshair.ring_style {
                 RingStyle::Solid => {
-                    ui.painter().circle_stroke(center, radius, Stroke::new(thickness, color));
+                    ui.painter()
+                        .circle_stroke(center, radius, Stroke::new(thickness, color));
                 }
                 RingStyle::Dashed => {
                     draw_overlay_dashed_circle(ui, center, radius, thickness, color, 4.0, 4.0);
                 }
                 RingStyle::Double => {
-                    ui.painter().circle_stroke(center, radius - 2.0, Stroke::new(1.0, color));
+                    ui.painter()
+                        .circle_stroke(center, radius - 2.0, Stroke::new(1.0, color));
                     draw_overlay_dashed_circle(ui, center, radius + 2.0, 1.0, color, 4.0, 4.0);
                 }
             }
@@ -483,7 +483,8 @@ fn draw_overlay_shape(
                     return;
                 }
                 if count == 1 {
-                    ui.painter().circle_filled(positions[positions.len() / 2], radius, color);
+                    ui.painter()
+                        .circle_filled(positions[positions.len() / 2], radius, color);
                     return;
                 }
                 // 在两端各留 offset 边距后均匀分布。
@@ -538,10 +539,14 @@ fn draw_overlay_shape(
             }
         }
         CrosshairStyle::RandomOrb => {
-            let seed = (crosshair.random_orb_offset * 1000.0) as u64
-                + (crosshair.random_orb_jitter * 100.0) as u64
-                + (crosshair.random_radius_min * 10.0) as u64
-                + (crosshair.random_radius_max * 10.0) as u64;
+            // 使用配置值作为稳定种子，避免每帧闪烁。
+            // seed 包含所有影响生成结果的参数（含 count、位置），
+            // 任一参数变化都会产生不同的随机序列。
+            let seed = ((crosshair.random_orb_offset * 1000.0) as u64)
+                .wrapping_add((crosshair.random_orb_jitter * 100.0) as u64)
+                .wrapping_add((crosshair.random_radius_min * 10.0) as u64)
+                .wrapping_add((crosshair.random_radius_max * 10.0) as u64)
+                .wrapping_add(crosshair.random_orb_count as u64);
             let mut rng = SimpleRng::new(seed);
             let count = crosshair.random_orb_count as usize;
             let offset = crosshair.random_orb_offset;
@@ -549,35 +554,44 @@ fn draw_overlay_shape(
             let min_r = crosshair.random_radius_min;
             let max_r = crosshair.random_radius_max;
 
-            let radius_for = |rng: &mut SimpleRng| -> f32 {
-                min_r + rng.next_f32() * (max_r - min_r)
-            };
-            let jitter_for = |rng: &mut SimpleRng| -> f32 {
-                (rng.next_f32() - 0.5) * 2.0 * jitter
-            };
+            let radius_for =
+                |rng: &mut SimpleRng| -> f32 { min_r + rng.next_f32() * (max_r - min_r) };
+            let jitter_for = |rng: &mut SimpleRng| -> f32 { (rng.next_f32() - 0.5) * 2.0 * jitter };
 
             for _ in 0..count {
                 let radius = radius_for(&mut rng);
                 let x = egui::lerp(rect.min.x..=rect.max.x, rng.next_f32());
-                let pos = egui::pos2(x + jitter_for(&mut rng), rect.min.y + offset + jitter_for(&mut rng));
+                let pos = egui::pos2(
+                    x + jitter_for(&mut rng),
+                    rect.min.y + offset + jitter_for(&mut rng),
+                );
                 ui.painter().circle_filled(pos, radius, color);
             }
             for _ in 0..count {
                 let radius = radius_for(&mut rng);
                 let x = egui::lerp(rect.min.x..=rect.max.x, rng.next_f32());
-                let pos = egui::pos2(x + jitter_for(&mut rng), rect.max.y - offset + jitter_for(&mut rng));
+                let pos = egui::pos2(
+                    x + jitter_for(&mut rng),
+                    rect.max.y - offset + jitter_for(&mut rng),
+                );
                 ui.painter().circle_filled(pos, radius, color);
             }
             for _ in 0..count {
                 let radius = radius_for(&mut rng);
                 let y = egui::lerp(rect.min.y..=rect.max.y, rng.next_f32());
-                let pos = egui::pos2(rect.min.x + offset + jitter_for(&mut rng), y + jitter_for(&mut rng));
+                let pos = egui::pos2(
+                    rect.min.x + offset + jitter_for(&mut rng),
+                    y + jitter_for(&mut rng),
+                );
                 ui.painter().circle_filled(pos, radius, color);
             }
             for _ in 0..count {
                 let radius = radius_for(&mut rng);
                 let y = egui::lerp(rect.min.y..=rect.max.y, rng.next_f32());
-                let pos = egui::pos2(rect.max.x - offset + jitter_for(&mut rng), y + jitter_for(&mut rng));
+                let pos = egui::pos2(
+                    rect.max.x - offset + jitter_for(&mut rng),
+                    y + jitter_for(&mut rng),
+                );
                 ui.painter().circle_filled(pos, radius, color);
             }
         }
@@ -592,10 +606,14 @@ fn draw_overlay_shape(
 
             match crosshair.border_frame_style {
                 BorderFrameStyle::Solid => {
-                    draw_overlay_solid_border_frame(ui, rect, top_y, bottom_y, left_x, right_x, thickness, color);
+                    draw_overlay_solid_border_frame(
+                        ui, rect, top_y, bottom_y, left_x, right_x, thickness, color,
+                    );
                 }
                 BorderFrameStyle::Gap => {
-                    draw_overlay_gap_border_frame(ui, rect, top_y, bottom_y, left_x, right_x, thickness, color);
+                    draw_overlay_gap_border_frame(
+                        ui, rect, top_y, bottom_y, left_x, right_x, thickness, color,
+                    );
                 }
             }
         }
@@ -640,7 +658,8 @@ fn draw_overlay_dashed_circle(
             center.x + radius * end_angle.cos(),
             center.y + radius * end_angle.sin(),
         );
-        ui.painter().line_segment([start, end], Stroke::new(thickness, color));
+        ui.painter()
+            .line_segment([start, end], Stroke::new(thickness, color));
     }
 }
 
@@ -677,22 +696,34 @@ fn draw_overlay_solid_border_frame(
     color: Color32,
 ) {
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(rect.min.x, top_y - thickness / 2.0), egui::pos2(rect.max.x, top_y + thickness / 2.0)),
+        egui::Rect::from_min_max(
+            egui::pos2(rect.min.x, top_y - thickness / 2.0),
+            egui::pos2(rect.max.x, top_y + thickness / 2.0),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(rect.min.x, bottom_y - thickness / 2.0), egui::pos2(rect.max.x, bottom_y + thickness / 2.0)),
+        egui::Rect::from_min_max(
+            egui::pos2(rect.min.x, bottom_y - thickness / 2.0),
+            egui::pos2(rect.max.x, bottom_y + thickness / 2.0),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(left_x - thickness / 2.0, rect.min.y), egui::pos2(left_x + thickness / 2.0, rect.max.y)),
+        egui::Rect::from_min_max(
+            egui::pos2(left_x - thickness / 2.0, rect.min.y),
+            egui::pos2(left_x + thickness / 2.0, rect.max.y),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(right_x - thickness / 2.0, rect.min.y), egui::pos2(right_x + thickness / 2.0, rect.max.y)),
+        egui::Rect::from_min_max(
+            egui::pos2(right_x - thickness / 2.0, rect.min.y),
+            egui::pos2(right_x + thickness / 2.0, rect.max.y),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
@@ -714,45 +745,69 @@ fn draw_overlay_gap_border_frame(
     let half_gap_h = rect.height() * gap_pct / 2.0;
 
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(rect.min.x, top_y - thickness / 2.0), egui::pos2(rect.center().x - half_gap_w, top_y + thickness / 2.0)),
+        egui::Rect::from_min_max(
+            egui::pos2(rect.min.x, top_y - thickness / 2.0),
+            egui::pos2(rect.center().x - half_gap_w, top_y + thickness / 2.0),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(rect.center().x + half_gap_w, top_y - thickness / 2.0), egui::pos2(rect.max.x, top_y + thickness / 2.0)),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(rect.min.x, bottom_y - thickness / 2.0), egui::pos2(rect.center().x - half_gap_w, bottom_y + thickness / 2.0)),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(rect.center().x + half_gap_w, bottom_y - thickness / 2.0), egui::pos2(rect.max.x, bottom_y + thickness / 2.0)),
+        egui::Rect::from_min_max(
+            egui::pos2(rect.center().x + half_gap_w, top_y - thickness / 2.0),
+            egui::pos2(rect.max.x, top_y + thickness / 2.0),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
 
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(left_x - thickness / 2.0, rect.min.y), egui::pos2(left_x + thickness / 2.0, rect.center().y - half_gap_h)),
+        egui::Rect::from_min_max(
+            egui::pos2(rect.min.x, bottom_y - thickness / 2.0),
+            egui::pos2(rect.center().x - half_gap_w, bottom_y + thickness / 2.0),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(left_x - thickness / 2.0, rect.center().y + half_gap_h), egui::pos2(left_x + thickness / 2.0, rect.max.y)),
+        egui::Rect::from_min_max(
+            egui::pos2(rect.center().x + half_gap_w, bottom_y - thickness / 2.0),
+            egui::pos2(rect.max.x, bottom_y + thickness / 2.0),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
 
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(right_x - thickness / 2.0, rect.min.y), egui::pos2(right_x + thickness / 2.0, rect.center().y - half_gap_h)),
+        egui::Rect::from_min_max(
+            egui::pos2(left_x - thickness / 2.0, rect.min.y),
+            egui::pos2(left_x + thickness / 2.0, rect.center().y - half_gap_h),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
     ui.painter().rect_filled(
-        egui::Rect::from_min_max(egui::pos2(right_x - thickness / 2.0, rect.center().y + half_gap_h), egui::pos2(right_x + thickness / 2.0, rect.max.y)),
+        egui::Rect::from_min_max(
+            egui::pos2(left_x - thickness / 2.0, rect.center().y + half_gap_h),
+            egui::pos2(left_x + thickness / 2.0, rect.max.y),
+        ),
+        egui::CornerRadius::ZERO,
+        color,
+    );
+
+    ui.painter().rect_filled(
+        egui::Rect::from_min_max(
+            egui::pos2(right_x - thickness / 2.0, rect.min.y),
+            egui::pos2(right_x + thickness / 2.0, rect.center().y - half_gap_h),
+        ),
+        egui::CornerRadius::ZERO,
+        color,
+    );
+    ui.painter().rect_filled(
+        egui::Rect::from_min_max(
+            egui::pos2(right_x - thickness / 2.0, rect.center().y + half_gap_h),
+            egui::pos2(right_x + thickness / 2.0, rect.max.y),
+        ),
         egui::CornerRadius::ZERO,
         color,
     );
@@ -773,12 +828,29 @@ fn pick_alpha_mode(
 ///
 /// 若所有候选字体均不可用，仅打印警告，仍使用 egui 默认字体（英文/ASCII 可正常显示）。
 fn load_system_font(ctx: &egui::Context) {
+    // 按平台给出中文字体候选列表。
+    #[cfg(target_os = "windows")]
     const CANDIDATES: &[&str] = &[
-        // Windows 中文字体。
         "C:\\Windows\\Fonts\\msyh.ttc",
         "C:\\Windows\\Fonts\\msyh.ttf",
         "C:\\Windows\\Fonts\\simhei.ttf",
         "C:\\Windows\\Fonts\\simsun.ttc",
+    ];
+
+    #[cfg(target_os = "macos")]
+    const CANDIDATES: &[&str] = &[
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/STHeiti Light.ttc",
+        "/System/Library/Fonts/Hiragino Sans GB.ttc",
+        "/Library/Fonts/Arial Unicode.ttf",
+    ];
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    const CANDIDATES: &[&str] = &[
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        "/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc",
     ];
 
     for path in CANDIDATES {
@@ -787,9 +859,10 @@ fn load_system_font(ctx: &egui::Context) {
                 let mut fonts = egui::FontDefinitions::default();
                 // 将中文字体作为 Proportional 和 Monospace 的 fallback，
                 // 保留默认字体用于数字与 ASCII 字符。
-                fonts
-                    .font_data
-                    .insert("system_cjk".to_string(), egui::FontData::from_owned(bytes).into());
+                fonts.font_data.insert(
+                    "system_cjk".to_string(),
+                    egui::FontData::from_owned(bytes).into(),
+                );
                 fonts
                     .families
                     .entry(egui::FontFamily::Proportional)

@@ -74,7 +74,7 @@ cargo clippy
 - 目前**所有单元测试都在 `crates/config`** 中（`schema.rs` / `storage.rs` / `notifier.rs` / `watcher.rs`），`peregrine` 二进制 crate 暂无测试。
 - 涉及 tokio 的测试使用 `#[tokio::test]`；`watcher.rs` 的测试需要多线程运行时，标注为 `#[tokio::test(flavor = "multi_thread")]`。
 - `watcher` 测试依赖真实文件系统事件并有最长 5s 的超时等待，属于偏集成性质，偶发受环境影响。
-- 仓库无 CI 配置、无 `rust-toolchain` 文件；本地工具链已验证可用（rustc/cargo 1.96，edition 2024 需较新工具链）。
+- 仓库已配置 GitHub Actions CI（`.github/workflows/ci.yml`）：每次 push / PR 在 Windows、macOS、Linux 三平台运行 config 测试并 release 编译二进制 crate；另有 lint job 检查 `cargo fmt` 与 `cargo clippy`。发布流程（`.github/workflows/release.yml`）在推送 `v*` 标签时触发，构建 Windows x86_64 + macOS aarch64/x86_64 产物并创建 GitHub Release。本地工具链已验证可用（rustc/cargo 1.96，edition 2024 需较新工具链）。
 
 ## 运行期架构
 
@@ -122,12 +122,12 @@ cargo clippy
 - macOS 路径注意：`ConfigStorage::new` 会对父目录做 `canonicalize`，以兼容 `/var` → `/private/var` 等符号链接导致的 `notify` 路径不一致；改动路径逻辑时勿破坏此处理。
 - `renderer.rs::load_system_font` 会读取若干 macOS 系统字体路径以显示中文；找不到时仅告警并回退默认字体。修改字体候选列表时保留失败回退逻辑。
 
-### 已知局限（骨架阶段，改动相关代码时留意）
+### 已知局限（改动相关代码时留意）
 
-- 覆盖层窗口目前是普通窗口，尚未实现透明、置顶、鼠标穿透等真正的 overlay 特性；`Profile.target_window`（"选择窗口"按钮）与 `TriggerRule`（进程触发）均为**占位**，未接入平台 API。
-- `Renderer` 未处理窗口大小变化（`surface_config` 标为 `#[allow(dead_code)]`，无 resize 重配逻辑）。
-- `settings_ui.rs::draw_gap_border_frame` 中"下边"起点存在一处笔误 `bottom_y - thickness / thickness / 2.0`（应为 `thickness / 2.0`），仅影响预览显示；若在此处改动请一并修正。
-- `Crosshair::validate` 中随机球半径范围等校验存在重复判断（无害，可在重构时清理）。
+- 覆盖层的透明、置顶、鼠标穿透等真正的 overlay 特性**仅在 Windows 平台实现**（`platform/windows.rs` 通过 Win32 API `WS_EX_LAYERED` + 颜色键透明）。macOS / Linux 下 Overlay 窗口仅为普通无边框窗口，跟随逻辑也不可用。`Profile.target_window`（"选择窗口"按钮）仅在 Windows 可用；`TriggerRule`（进程触发）仍为**占位**，未接入平台 API。
+- `RandomOrb` 的 `LockOnStart` / `Reshuffle` 两种模式在当前渲染实现中行为相同——均每帧从配置参数派生种子重新生成。schema 中的 `random_orb_x/y` 持久化字段已定义但渲染层尚未消费，待后续接入。
+- `settings_ui.rs` 与 `renderer.rs` 中的预览绘制（`draw_preview_shape`）与覆盖层绘制（`draw_overlay_shape`）存在大量几何逻辑重复（包括 `SimpleRng`、虚线圆、边框绘制等辅助函数两套副本），后续应提取为公共模块。
+- 跨平台 CI（`.github/workflows/ci.yml`）覆盖 Windows / macOS / Linux 三平台编译与测试；发布（`release.yml`）覆盖 Windows x86_64 + macOS aarch64/x86_64。`windows` crate 与 `embed-resource` 通过 `[target.'cfg(windows)'.dependencies]` 声明，非 Windows target 不拉取。
 
 ## 关于工作目录的提醒
 

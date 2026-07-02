@@ -45,10 +45,7 @@ impl ConfigWatcher {
     }
 
     /// 监听循环核心逻辑。
-    async fn run(
-        self,
-        mut stop_signal: tokio::sync::oneshot::Receiver<()>,
-    ) -> crate::Result<()> {
+    async fn run(self, mut stop_signal: tokio::sync::oneshot::Receiver<()>) -> crate::Result<()> {
         let (tx, mut rx) = mpsc::channel::<notify::Result<Event>>(16);
         let config_path = self.storage.path().to_path_buf();
         let parent_dir = config_path
@@ -117,8 +114,7 @@ impl ConfigWatcher {
     }
 
     /// 重新加载配置并广播。
-    async fn reload_and_notify(&self,
-    ) {
+    async fn reload_and_notify(&self) {
         match self.storage.load().await {
             Ok(config) => {
                 if let Err(e) = self.notifier.update(config) {
@@ -139,7 +135,9 @@ fn is_config_event(event: &Event, config_path: &Path) -> bool {
     event.paths.iter().any(|p| p == config_path)
         && matches!(
             event.kind,
-            notify::EventKind::Modify(_) | notify::EventKind::Create(_) | notify::EventKind::Remove(_)
+            notify::EventKind::Modify(_)
+                | notify::EventKind::Create(_)
+                | notify::EventKind::Remove(_)
         )
 }
 
@@ -156,10 +154,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("config.json");
         let storage = ConfigStorage::new(&path);
-        storage
-            .save(&AppConfig::default_config())
-            .await
-            .unwrap();
+        storage.save(&AppConfig::default_config()).await.unwrap();
 
         let notifier = ConfigNotifier::new(AppConfig::default_config());
         let mut rx = notifier.subscribe();

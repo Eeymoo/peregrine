@@ -25,10 +25,12 @@ use winit::window::{Window, WindowId};
 
 /// 自定义事件：把状态栏菜单点击和 Overlay 跟随结束转发到 winit 事件循环。
 #[derive(Debug)]
+#[allow(dead_code)]
 enum UserEvent {
     /// 状态栏菜单项被点击。
     MenuEvent(MenuEvent),
     /// Overlay 跟随任务结束（目标窗口关闭或出错）。
+    /// 仅在 Windows 平台构造。
     OverlayFollowerEnded,
 }
 
@@ -105,6 +107,7 @@ impl App {
     ///
     /// Overlay 窗口是无边框的独立窗口，创建后立即设置 Win32 分层属性
     ///（透明穿透置顶），然后启动后台 16ms 轮询跟随目标窗口。
+    #[allow(unused_variables)]
     fn create_overlay(&mut self, event_loop: &ActiveEventLoop) {
         if self.overlay_window.is_some() {
             return; // 已存在，不重复创建。
@@ -126,22 +129,24 @@ impl App {
         };
 
         // 设置 Win32 分层属性：透明穿透置顶。
-        if let Err(e) = platform::windows::setup_overlay_window(&window) {
-            tracing::error!("setup overlay window failed: {}", e);
-            return;
+        // 非 Windows 平台跳过，Overlay 仅作为普通无边框窗口存在。
+        #[cfg(windows)]
+        {
+            if let Err(e) = platform::windows::setup_overlay_window(&window) {
+                tracing::error!("setup overlay window failed: {}", e);
+                return;
+            }
         }
 
         // 初始化 Overlay 的独立渲染器。
-        let renderer = pollster::block_on(renderer::Renderer::new(
-            window.clone(),
-            self.config.clone(),
-        ));
+        let renderer =
+            pollster::block_on(renderer::Renderer::new(window.clone(), self.config.clone()));
 
         self.overlay_window = Some(window.clone());
         self.overlay_renderer = Some(renderer);
         self.overlay_active = true;
 
-        // 启动跟随任务。
+        // 启动跟随任务（仅 Windows 有实际跟随逻辑）。
         self.start_overlay_follower();
         window.request_redraw();
     }
@@ -160,53 +165,65 @@ impl App {
     ///
     /// 在主线程获取 HWND（winit 限制），然后以 `SendHwnd` 传入异步任务。
     /// 目标窗口不存在时直接报错返回，不创建 Overlay。
+    ///
+    /// 非 Windows 平台为空实现，Overlay 不跟随目标窗口。
+    #[allow(unused_variables)]
     fn start_overlay_follower(&mut self) {
-        if self.target_window_title.is_empty() {
-            tracing::warn!("no target window selected, overlay will not follow");
-            return;
+        #[cfg(windows)]
+        {
+            if self.target_window_title.is_empty() {
+                tracing::warn!("no target window selected, overlay will not follow");
+                return;
+            }
+            let Some(overlay_window) = self.overlay_window.clone() else {
+                return;
+            };
+
+            // 在主线程获取 HWND，避免 winit 跨线程访问报错。
+            let overlay_hwnd = match platform::windows::hwnd_from_window(&overlay_window) {
+                Ok(h) => platform::windows::SendHwnd(h),
+                Err(e) => {
+                    tracing::error!("failed to get overlay hwnd: {}", e);
+                    return;
+                }
+            };
+
+            // 同样在主线程查找目标窗口 HWND。
+            let title = self.target_window_title.clone();
+            let target_hwnd = match platform::windows::find_target_window(&title) {
+                Ok(t) => platform::windows::SendHwnd(t),
+                Err(e) => {
+                    tracing::error!("failed to find target window '{}': {}", title, e);
+                    return;
+                }
+            };
+
+            tracing::info!(title = %title, "starting overlay follower");
+
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            self.overlay_follower_stop = Some(tx);
+
+            // 克隆 event proxy，跟随结束后通知主线程销毁 Overlay。
+            let proxy = self.event_proxy.clone();
+
+            tokio::spawn(async move {
+                if let Err(e) =
+                    platform::windows::follow_target_window(overlay_hwnd, target_hwnd, rx).await
+                {
+                    tracing::info!("overlay follower ended: {}", e);
+                }
+                // 通知主线程 Overlay 跟随已结束。
+                if let Some(proxy) = proxy {
+                    let _ = proxy.send_event(UserEvent::OverlayFollowerEnded);
+                }
+            });
         }
-        let Some(overlay_window) = self.overlay_window.clone() else {
-            return;
-        };
 
-        // 在主线程获取 HWND，避免 winit 跨线程访问报错。
-        let overlay_hwnd = match platform::windows::hwnd_from_window(&overlay_window) {
-            Ok(h) => platform::windows::SendHwnd(h),
-            Err(e) => {
-                tracing::error!("failed to get overlay hwnd: {}", e);
-                return;
-            }
-        };
-
-        // 同样在主线程查找目标窗口 HWND。
-        let title = self.target_window_title.clone();
-        let target_hwnd = match platform::windows::find_target_window(&title) {
-            Ok(t) => platform::windows::SendHwnd(t),
-            Err(e) => {
-                tracing::error!("failed to find target window '{}': {}", title, e);
-                return;
-            }
-        };
-
-        tracing::info!(title = %title, "starting overlay follower");
-
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        self.overlay_follower_stop = Some(tx);
-
-        // 克隆 event proxy，跟随结束后通知主线程销毁 Overlay。
-        let proxy = self.event_proxy.clone();
-
-        tokio::spawn(async move {
-            if let Err(e) =
-                platform::windows::follow_target_window(overlay_hwnd, target_hwnd, rx).await
-            {
-                tracing::info!("overlay follower ended: {}", e);
-            }
-            // 通知主线程 Overlay 跟随已结束。
-            if let Some(proxy) = proxy {
-                let _ = proxy.send_event(UserEvent::OverlayFollowerEnded);
-            }
-        });
+        // 非 Windows 平台：Overlay 跟随暂不支持。
+        #[cfg(not(windows))]
+        {
+            tracing::warn!("overlay window following is not supported on this platform");
+        }
     }
 
     /// 停止 Overlay 跟随任务。
@@ -284,10 +301,8 @@ impl ApplicationHandler<UserEvent> for App {
                     .create_window(attributes)
                     .expect("create settings window"),
             );
-            let renderer = pollster::block_on(renderer::Renderer::new(
-                window.clone(),
-                self.config.clone(),
-            ));
+            let renderer =
+                pollster::block_on(renderer::Renderer::new(window.clone(), self.config.clone()));
             self.settings_window = Some(window);
             self.settings_renderer = Some(renderer);
 
@@ -390,13 +405,9 @@ impl ApplicationHandler<UserEvent> for App {
                         let config = self.config.lock().expect("config lock").clone();
                         // 同步 overlay_active 状态到 UI。
                         self.settings_ui.overlay_active = self.overlay_active;
-                        let response = renderer.render_settings(
-                            &mut self.settings_ui,
-                            &config,
-                        );
+                        let response = renderer.render_settings(&mut self.settings_ui, &config);
                         if response.changed {
-                            *self.config.lock().expect("config lock") =
-                                response.config.clone();
+                            *self.config.lock().expect("config lock") = response.config.clone();
                             self.target_window_title = response
                                 .config
                                 .active_profile()

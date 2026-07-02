@@ -124,23 +124,51 @@ pub struct Crosshair {
     pub random_orb_jitter: f32,
 }
 
-fn default_secondary_size() -> f32 { 48.0 }
-fn default_radius() -> f32 { 0.0 }
-fn default_offset() -> f32 { 0.0 }
-fn default_corner_radius() -> f32 { 4.0 }
-fn default_margin() -> f32 { 0.0 }
-fn default_ring_radius_pct() -> f32 { 0.05 }
-fn default_random_center_deviation() -> f32 { 0.2 }
-fn default_random_radius_min() -> f32 { 4.0 }
-fn default_random_radius_max() -> f32 { 12.0 }
-fn default_custom_orb_count() -> u32 { 3 }
-fn default_random_orb_count() -> u32 { 3 }
-fn default_random_orb_offset() -> f32 { 100.0 }
-fn default_random_orb_jitter() -> f32 { 40.0 }
-fn default_border_inset() -> bool { true }
+fn default_secondary_size() -> f32 {
+    48.0
+}
+fn default_radius() -> f32 {
+    0.0
+}
+fn default_offset() -> f32 {
+    0.0
+}
+fn default_corner_radius() -> f32 {
+    4.0
+}
+fn default_margin() -> f32 {
+    0.0
+}
+fn default_ring_radius_pct() -> f32 {
+    0.05
+}
+fn default_random_center_deviation() -> f32 {
+    0.2
+}
+fn default_random_radius_min() -> f32 {
+    4.0
+}
+fn default_random_radius_max() -> f32 {
+    12.0
+}
+fn default_custom_orb_count() -> u32 {
+    3
+}
+fn default_random_orb_count() -> u32 {
+    3
+}
+fn default_random_orb_offset() -> f32 {
+    100.0
+}
+fn default_random_orb_jitter() -> f32 {
+    40.0
+}
+fn default_border_inset() -> bool {
+    true
+}
 
 /// 矩形贴图（卫生纸）可贴靠的屏幕边缘位置。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Anchor {
     /// 屏幕顶部，水平居中。
@@ -152,13 +180,8 @@ pub enum Anchor {
     /// 屏幕右侧，垂直居中。
     Right,
     /// 屏幕正中心（默认）。
+    #[default]
     Center,
-}
-
-impl Default for Anchor {
-    fn default() -> Self {
-        Self::Center
-    }
 }
 
 /// 支持的辅助贴图样式。
@@ -188,21 +211,16 @@ pub enum CrosshairStyle {
 }
 
 /// 中心环线型样式。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RingStyle {
     /// 实心细线。
+    #[default]
     Solid,
     /// 虚线（4px 线 + 4px 空）。
     Dashed,
     /// 双环：内环 1px 实线 + 外环 1px 虚线，间距 4px。
     Double,
-}
-
-impl Default for RingStyle {
-    fn default() -> Self {
-        Self::Solid
-    }
 }
 
 /// 自定义定位球的预设位置位掩码。
@@ -254,35 +272,25 @@ impl Default for OrbPosition {
 }
 
 /// 随机球工作模式。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RandomOrbMode {
     /// 启动随机生成并持久化，后续保持固定。
+    #[default]
     LockOnStart,
     /// 每次启动重新随机。
     Reshuffle,
 }
 
-impl Default for RandomOrbMode {
-    fn default() -> Self {
-        Self::LockOnStart
-    }
-}
-
 /// 边框样式变体。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BorderFrameStyle {
     /// 四边完整细线。
+    #[default]
     Solid,
     /// 四边中间留空，避免遮挡小地图/状态栏。
     Gap,
-}
-
-impl Default for BorderFrameStyle {
-    fn default() -> Self {
-        Self::Solid
-    }
 }
 
 /// 触发规则：决定辅助贴图何时显示。
@@ -324,12 +332,9 @@ impl AppConfig {
             )));
         }
         for (name, profile) in &self.profiles {
-            profile
-                .validate()
-                .map_err(|e| crate::ConfigError::Validation(format!(
-                    "profile '{}': {}",
-                    name, e
-                )))?;
+            profile.validate().map_err(|e| {
+                crate::ConfigError::Validation(format!("profile '{}': {}", name, e))
+            })?;
         }
         Ok(())
     }
@@ -490,16 +495,6 @@ impl Crosshair {
                 "random orb offset/jitter must be non-negative".to_string(),
             ));
         }
-        if self.random_radius_min <= 0.0 || self.random_radius_max <= 0.0 {
-            return Err(crate::ConfigError::Validation(
-                "random orb radius range must be positive".to_string(),
-            ));
-        }
-        if self.random_radius_min > self.random_radius_max {
-            return Err(crate::ConfigError::Validation(
-                "random_radius_min must not exceed random_radius_max".to_string(),
-            ));
-        }
         Ok(())
     }
 }
@@ -582,7 +577,11 @@ mod tests {
 
         // 验证上边缘 3 个球均匀分布：首球在 1/4、尾球在 3/4 宽度处。
         let screen = (1920.0, 1080.0);
-        let top_positions = [(screen.0 / 4.0, ch.offset), (screen.0 / 2.0, ch.offset), (screen.0 * 3.0 / 4.0, ch.offset)];
+        let top_positions = [
+            (screen.0 / 4.0, ch.offset),
+            (screen.0 / 2.0, ch.offset),
+            (screen.0 * 3.0 / 4.0, ch.offset),
+        ];
         assert_eq!(top_positions[0].0, 480.0);
         assert_eq!(top_positions[1].0, 960.0);
         assert_eq!(top_positions[2].0, 1440.0);

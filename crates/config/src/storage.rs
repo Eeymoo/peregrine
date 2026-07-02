@@ -24,9 +24,7 @@ impl ConfigStorage {
         let config_path = path
             .parent()
             .and_then(|p| p.canonicalize().ok())
-            .map(|canonical_parent| {
-                canonical_parent.join(path.file_name().unwrap_or_default())
-            })
+            .map(|canonical_parent| canonical_parent.join(path.file_name().unwrap_or_default()))
             .unwrap_or(path);
         Self { config_path }
     }
@@ -120,23 +118,48 @@ impl ConfigStorage {
 
         let content = serde_json::to_string_pretty(config)?;
         // 临时文件与目标文件放在同一目录，保证 rename 原子且跨文件系统可靠。
-        let temp_path = parent.join(format!(
-            ".config.tmp.{}",
-            std::process::id()
-        ));
+        let temp_path = parent.join(format!(".config.tmp.{}", std::process::id()));
         tokio::fs::write(&temp_path, content).await?;
         tokio::fs::rename(&temp_path, &self.config_path).await?;
         Ok(())
     }
 }
 
-// `dirs` 是一个小巧的目录查找模块。
+// `dirs` 是一个小巧的跨平台目录查找模块。
+//
+// 不依赖外部 `dirs` crate，自行实现以保持 config 库零平台依赖。
+// 与 OS 标准目录约定一致：
+// - macOS: `~/Library/Application Support`
+// - Windows: `%APPDATA%`（即 `Roaming`）
+// - Linux/其它: `$XDG_CONFIG_HOME`，回退到 `~/.config`
 mod dirs {
     use std::path::PathBuf;
 
-    /// 返回 Windows 用户配置目录（%APPDATA%）。
+    /// 返回平台标准的用户配置目录。
     pub fn config_dir() -> Option<PathBuf> {
-        std::env::var_os("APPDATA").map(PathBuf::from)
+        #[cfg(target_os = "windows")]
+        {
+            std::env::var_os("APPDATA").map(PathBuf::from)
+        }
+        #[cfg(target_os = "macos")]
+        {
+            Some(home_dir()?.join("Library").join("Application Support"))
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            // Linux / FreeBSD 等：遵循 XDG Base Directory。
+            if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+                Some(PathBuf::from(xdg))
+            } else {
+                home_dir()?.join(".config").into()
+            }
+        }
+    }
+
+    /// 获取用户 HOME 目录（macOS / Linux）。
+    #[cfg(not(target_os = "windows"))]
+    fn home_dir() -> Option<PathBuf> {
+        std::env::var_os("HOME").map(PathBuf::from)
     }
 }
 

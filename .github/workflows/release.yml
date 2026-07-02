@@ -1,6 +1,6 @@
 name: Release
 
-# 在推送形如 v* 的标签时触发，仅构建并发布 Windows (x86_64) 产物。
+# 在推送形如 v* 的标签时触发，构建 Windows + macOS 产物并发布。
 #   - 带预发布后缀的标签（如 v0.0.0-alpha.0）→ 打包为「测试包」，发布为 GitHub Pre-release。
 #   - 纯版本号标签（如 v0.0.0）→ 打包为「正式版本」，发布为正式 Release。
 # 判定依据为 SemVer 规范：版本号中带 `-` 的即为预发布版本。
@@ -18,7 +18,7 @@ env:
   BIN_NAME: peregrine
 
 jobs:
-  # 构建 Windows release 产物（仅发布 Windows 平台）。
+  # 构建 release 产物（Windows x86_64 + macOS aarch64 + macOS x86_64）。
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
@@ -28,6 +28,13 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            archive: zip
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            archive: tar.gz
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,6 +65,18 @@ jobs:
           Compress-Archive -Path $staging -DestinationPath "$staging.zip"
           "ASSET=$staging.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+      # macOS 打包为 tar.gz。
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          staging="${BIN_NAME}-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "$staging"
+          cp "target/${{ matrix.target }}/release/$BIN_NAME" "$staging/"
+          [ -f README.md ] && cp README.md "$staging/"
+          [ -f LICENSE ]   && cp LICENSE   "$staging/"
+          tar czf "$staging.tar.gz" "$staging"
+          echo "ASSET=$staging.tar.gz" >> "$GITHUB_ENV"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -65,7 +84,7 @@ jobs:
           path: ${{ env.ASSET }}
           if-no-files-found: error
 
-  # 汇总 Windows 产物并创建 GitHub Release。
+  # 汇总所有平台产物并创建 GitHub Release。
   release:
     name: Publish release
     needs: build
@@ -102,4 +121,7 @@ jobs:
           body: |
             Peregrine ${{ github.ref_name }} — ${{ steps.meta.outputs.channel }}
 
-            自动构建产物：Windows (x86_64)。
+            自动构建产物：
+            - Windows x86_64 (`.zip`)
+            - macOS Apple Silicon / aarch64 (`.tar.gz`)
+            - macOS Intel / x86_64 (`.tar.gz`)

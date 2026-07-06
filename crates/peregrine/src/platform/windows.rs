@@ -166,6 +166,21 @@ pub fn find_target_window(title: &str) -> Result<HWND> {
         .ok_or_else(|| OverlayError::TargetNotFound(title.to_string()))
 }
 
+/// 根据窗口标题查找目标游戏窗口的宽高比（width / height）。
+///
+/// 找不到窗口时返回 None。
+pub fn target_window_aspect(title: &str) -> Option<f32> {
+    let hwnd = find_target_window(title).ok()?;
+    let rect = get_target_rect(hwnd).ok()?;
+    let w = (rect.right - rect.left) as f32;
+    let h = (rect.bottom - rect.top) as f32;
+    if h > 0.0 {
+        Some(w / h)
+    } else {
+        None
+    }
+}
+
 /// 一个可见顶层窗口的句柄与标题。
 #[derive(Debug, Clone)]
 pub struct WindowEntry {

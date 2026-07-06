@@ -428,6 +428,14 @@ impl ApplicationHandler<UserEvent> for App {
                         let config = self.config.lock().expect("config lock").clone();
                         // 同步 overlay_active 状态到 UI。
                         self.settings_ui.overlay_active = self.overlay_active;
+                        // Overlay 运行时用实际窗口宽高比（更精确）。
+                        if let Some(w) = &self.overlay_window {
+                            let s = w.inner_size();
+                            if s.height > 0 {
+                                self.settings_ui.overlay_aspect_ratio =
+                                    Some(s.width as f32 / s.height as f32);
+                            }
+                        }
                         let response = renderer.render_settings(&mut self.settings_ui, &config);
                         if response.changed {
                             let new_target = response

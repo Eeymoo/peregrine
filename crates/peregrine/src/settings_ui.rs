@@ -15,9 +15,14 @@ pub struct SettingsUi {
     response: SettingsResponse,
     /// Overlay 是否正在运行（由 main.rs 每帧同步，控制按钮文字）。
     pub overlay_active: bool,
+    /// Overlay 窗口的宽高比（由 main.rs 每帧同步，None 时用默认 16:9）。
+    /// 预览区按此比例缩放，确保所见即所得。
+    pub overlay_aspect_ratio: Option<f32>,
     /// 缓存的窗口标题列表，避免每帧调用 EnumWindows。
     #[allow(dead_code)]
     cached_window_titles: Vec<String>,
+    /// 已查询过宽高比的目标窗口标题（避免重复查询）。
+    cached_aspect_for: String,
     /// 缓存的自定义图片纹理（路径变化时重新加载）。
     cached_image: Option<(String, std::sync::Arc<egui::TextureHandle>)>,
 }
@@ -79,6 +84,23 @@ impl SettingsUi {
             .active_profile()
             .map(|p| p.target_window.clone())
             .unwrap_or_default();
+
+        // 如果目标窗口存在且尚未查询过宽高比，查询一次。
+        #[cfg(windows)]
+        {
+            if !current_target_window.is_empty()
+                && self.cached_aspect_for != current_target_window
+            {
+                self.cached_aspect_for = current_target_window.clone();
+                self.overlay_aspect_ratio =
+                    crate::platform::windows::target_window_aspect(&current_target_window);
+                tracing::info!(
+                    target = %current_target_window,
+                    aspect = ?self.overlay_aspect_ratio,
+                    "initial aspect ratio query"
+                );
+            }
+        }
         // 按钮点击后写入的新标题，闭包结束后写回 profile。
         // Windows 下在闭包中赋值；非 Windows 下不修改，用 allow 消除警告。
         #[allow(unused_mut)]
@@ -337,17 +359,28 @@ impl SettingsUi {
                     ui.label("目标窗口：");
                     #[cfg(windows)]
                     {
+                        // 截断过长的窗口标题，最多显示 30 字符。
+                        fn truncate_title(s: &str) -> String {
+                            const MAX_LEN: usize = 30;
+                            if s.chars().count() > MAX_LEN {
+                                let truncated: String = s.chars().take(MAX_LEN).collect();
+                                format!("{}…", truncated)
+                            } else {
+                                s.to_string()
+                            }
+                        }
                         let selected_text = if current_target_window.is_empty() {
                             "（未选择）".to_string()
                         } else {
-                            current_target_window.clone()
+                            truncate_title(&current_target_window)
                         };
                         ComboBox::from_id_salt("target_window_select")
                             .selected_text(selected_text)
                             .show_ui(ui, |ui| {
                                 ui.selectable_value(&mut profile.target_window, String::new(), "（未选择）");
                                 for title in &self.cached_window_titles {
-                                    ui.selectable_value(&mut profile.target_window, title.clone(), title);
+                                    let display = truncate_title(title);
+                                    ui.selectable_value(&mut profile.target_window, title.clone(), display);
                                 }
                             });
                         if profile.target_window != current_target_window {
@@ -384,16 +417,37 @@ impl SettingsUi {
             });
 
         // 左侧：演示窗口。
+        // 预览区保持与实际 overlay（目标窗口）相同的长宽比，
+        // 这样预览中准心的位置/大小与最终 overlay 只是缩放关系。
         egui::CentralPanel::default().show(ctx, |ui| {
-            let rect = ui.available_rect_before_wrap();
-            draw_checkerboard_background(ui, rect);
-            draw_preview_shape(ui, rect, crosshair, ctx, &mut self.cached_image);
+            let avail = ui.available_rect_before_wrap();
+            // 使用 overlay 窗口的实际宽高比；未运行时默认 16:9。
+            let target_ratio = self.overlay_aspect_ratio.unwrap_or(16.0 / 9.0);
+            let avail_w = avail.width();
+            let avail_h = avail.height();
+            let avail_ratio = avail_w / avail_h;
+            // contain 缩放：在可用空间内放置最大的目标比例矩形。
+            let (pw, ph) = if avail_ratio > target_ratio {
+                (avail_h * target_ratio, avail_h)
+            } else {
+                (avail_w, avail_w / target_ratio)
+            };
+            let preview_rect = egui::Rect::from_center_size(avail.center(), egui::vec2(pw, ph));
+            draw_checkerboard_background(ui, preview_rect);
+            draw_preview_shape(ui, preview_rect, crosshair, ctx, &mut self.cached_image);
         });
 
         // 闭包结束后，把「选择窗口」按钮的选择结果写回 profile。
-        if let Some(tw) = new_target_window {
+        if let Some(tw) = &new_target_window {
             if let Some(profile) = new_config.active_profile_mut() {
-                profile.target_window = tw;
+                profile.target_window = tw.clone();
+            }
+            // 目标窗口变化时清除缓存，下一帧会重新查询宽高比。
+            if tw.is_empty() {
+                self.overlay_aspect_ratio = None;
+                self.cached_aspect_for.clear();
+            } else {
+                self.cached_aspect_for.clear();
             }
         }
 

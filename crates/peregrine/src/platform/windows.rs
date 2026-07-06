@@ -22,6 +22,31 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WINDOW_LONG_PTR_INDEX, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU, WS_THICKFRAME,
 };
+
+/// 在 32 位 Windows 上 `SetWindowLongPtrW` 实际是 `SetWindowLongW`，参数为 `i32`；
+/// 64 位上参数为 `isize`。本函数根据目标平台做统一转换，避免类型不匹配。
+unsafe fn set_window_long_ptr(hwnd: HWND, index: WINDOW_LONG_PTR_INDEX, value: isize) -> isize {
+    #[cfg(target_pointer_width = "64")]
+    {
+        unsafe { SetWindowLongPtrW(hwnd, index, value) }
+    }
+    #[cfg(target_pointer_width = "32")]
+    {
+        unsafe { SetWindowLongPtrW(hwnd, index, value as i32) as isize }
+    }
+}
+
+/// 同 [`set_window_long_ptr`]，用于读取窗口样式。
+unsafe fn get_window_long_ptr(hwnd: HWND, index: WINDOW_LONG_PTR_INDEX) -> isize {
+    #[cfg(target_pointer_width = "64")]
+    {
+        unsafe { GetWindowLongPtrW(hwnd, index) }
+    }
+    #[cfg(target_pointer_width = "32")]
+    {
+        unsafe { GetWindowLongPtrW(hwnd, index) as isize }
+    }
+}
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::Window;
 
@@ -70,7 +95,7 @@ pub fn hwnd_from_window(window: &Window) -> Result<HWND> {
 fn set_window_long(hwnd: HWND, index: WINDOW_LONG_PTR_INDEX, value: isize) -> Result<()> {
     unsafe {
         SetLastError(WIN32_ERROR(0));
-        if SetWindowLongPtrW(hwnd, index, value) == 0 {
+        if set_window_long_ptr(hwnd, index, value) == 0 {
             GetLastError().ok()?;
         }
     }
@@ -86,11 +111,11 @@ fn set_window_long(hwnd: HWND, index: WINDOW_LONG_PTR_INDEX, value: isize) -> Re
 pub fn setup_overlay_window(window: &Window) -> Result<()> {
     let hwnd = hwnd_from_window(window)?;
     unsafe {
-        let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+        let ex_style = get_window_long_ptr(hwnd, GWL_EXSTYLE) as u32;
         let new_ex_style = ex_style | WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0;
         set_window_long(hwnd, GWL_EXSTYLE, new_ex_style as isize)?;
 
-        let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
+        let style = get_window_long_ptr(hwnd, GWL_STYLE) as u32;
         let new_style = style & !(WS_CAPTION.0 | WS_THICKFRAME.0 | WS_SYSMENU.0);
         set_window_long(hwnd, GWL_STYLE, new_style as isize)?;
 
@@ -115,7 +140,7 @@ pub fn setup_overlay_window(window: &Window) -> Result<()> {
 pub fn restore_normal_window(window: &Window) -> Result<()> {
     let hwnd = hwnd_from_window(window)?;
     unsafe {
-        let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+        let ex_style = get_window_long_ptr(hwnd, GWL_EXSTYLE) as u32;
         let new_ex_style = ex_style
             & !(WS_EX_LAYERED.0
                 | WS_EX_TRANSPARENT.0
@@ -124,7 +149,7 @@ pub fn restore_normal_window(window: &Window) -> Result<()> {
                 | WS_EX_TOOLWINDOW.0);
         set_window_long(hwnd, GWL_EXSTYLE, new_ex_style as isize)?;
 
-        let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
+        let style = get_window_long_ptr(hwnd, GWL_STYLE) as u32;
         let new_style = style | WS_CAPTION.0 | WS_THICKFRAME.0 | WS_SYSMENU.0;
         set_window_long(hwnd, GWL_STYLE, new_style as isize)?;
 
@@ -275,7 +300,7 @@ fn rect_eq(a: &RECT, b: &RECT) -> bool {
 /// 而不是包含标题栏的整个窗口。
 pub fn get_target_rect(target: HWND) -> Result<RECT> {
     unsafe {
-        let style = GetWindowLongPtrW(target, GWL_STYLE) as u32;
+        let style = get_window_long_ptr(target, GWL_STYLE) as u32;
         if style & WS_CAPTION.0 == 0 {
             // 无边框窗口化：使用整个窗口矩形。
             let mut rect = RECT::default();

@@ -471,13 +471,11 @@ impl ApplicationHandler<UserEvent> for App {
                         window.request_redraw();
                     }
                 }
-                // Overlay 窗口重绘。
+                // Overlay 窗口重绘（穿透窗口正常情况下收不到此事件，
+                // overlay 渲染在 about_to_wait 中直接调用）。
                 else if is_overlay_window {
                     if let Some(renderer) = self.overlay_renderer.as_mut() {
                         renderer.render_overlay();
-                    }
-                    if let Some(window) = &self.overlay_window {
-                        window.request_redraw();
                     }
                 }
             }
@@ -509,9 +507,10 @@ impl ApplicationHandler<UserEvent> for App {
                 window.request_redraw();
             }
         }
-        // Overlay 窗口存在时持续重绘。
-        if let Some(window) = &self.overlay_window {
-            window.request_redraw();
+        // Overlay 窗口：透明穿透窗口收不到 RedrawRequested 事件，
+        // 在此处直接渲染。
+        if let Some(renderer) = self.overlay_renderer.as_mut() {
+            renderer.render_overlay();
         }
     }
 }

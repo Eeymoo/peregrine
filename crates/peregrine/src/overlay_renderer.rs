@@ -75,6 +75,11 @@ impl OverlayRenderer {
             return;
         }
 
+        tracing::debug!(
+            width, height, scale = self.window.scale_factor(),
+            "overlay render_overlay: window inner_size"
+        );
+
         // 调整 softbuffer 缓冲区尺寸。
         if let Err(e) = self.surface.resize(
             NonZeroU32::new(width).unwrap(),
@@ -121,6 +126,13 @@ impl OverlayRenderer {
         // 清屏为完全透明。
         buffer.fill(0x00000000);
 
+        // 诊断：检查 buffer 长度与预期是否一致。
+        tracing::debug!(
+            buf_len = buffer.len(),
+            expected = (width as usize) * (height as usize),
+            "overlay buffer size check"
+        );
+
         if is_custom_image {
             // 绘制图片（只读 image_cache，不与 buffer 冲突）。
             if let Some(img) = &self.image_cache {
@@ -149,6 +161,14 @@ impl OverlayRenderer {
                 rasterize_shape(&mut buffer, width, height, scale, &shape, color);
             }
         }
+
+        // 诊断：统计非透明像素数量。
+        let non_transparent = buffer.iter().filter(|&&p| p != 0x00000000).count();
+        tracing::debug!(
+            non_transparent,
+            total = buffer.len(),
+            "overlay pixel stats after drawing"
+        );
 
         if let Err(e) = buffer.present() {
             tracing::error!("softbuffer present failed: {}", e);

@@ -29,6 +29,7 @@ egui-winit = "0.31"
 pollster = "0.4"
 tray-icon = "0.24"
 softbuffer = "0.4"
+png = "0.17"
 
 [profile.dev]
 # debug 构建保留 opt-level=1，平衡图形栈调试运行速度与编译速度。

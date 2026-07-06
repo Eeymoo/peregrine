@@ -617,6 +617,9 @@ fn draw_overlay_shape(
                 }
             }
         }
+        CrosshairStyle::CustomImage => {
+            // softbuffer 分支中由 OverlayRenderer 单独处理，此处为 dead_code。
+        }
     }
 }
 

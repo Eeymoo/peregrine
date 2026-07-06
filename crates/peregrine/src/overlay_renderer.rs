@@ -12,9 +12,7 @@
 // 像素光栅化原语参数较多（坐标、尺寸、颜色等），允许超过 clippy 默认限制。
 #![allow(clippy::too_many_arguments)]
 
-use peregrine_config::{
-    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, OrbPosition, RingStyle,
-};
+use peregrine_config::{Crosshair, CrosshairStyle};
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 use winit::window::Window;
@@ -30,6 +28,20 @@ pub struct OverlayRenderer {
     surface: softbuffer::Surface<Arc<Window>, Arc<Window>>,
     /// 当前配置快照。
     config: Arc<Mutex<peregrine_config::ConfigSnapshot>>,
+    /// PNG 图片缓存：路径 → 解码后的 RGBA 像素。
+    image_cache: Option<CachedImage>,
+}
+
+/// 已解码的 PNG 图片，包含原始像素数据和尺寸。
+struct CachedImage {
+    /// 用于缓存匹配的路径。
+    path: String,
+    /// RGBA 像素数据（行优先，从上到下）。
+    pixels: Vec<(u8, u8, u8, u8)>,
+    /// 原始宽度（像素）。
+    width: usize,
+    /// 原始高度（像素）。
+    height: usize,
 }
 
 impl OverlayRenderer {
@@ -45,6 +57,7 @@ impl OverlayRenderer {
             context,
             surface,
             config,
+            image_cache: None,
         }
     }
 
@@ -71,17 +84,6 @@ impl OverlayRenderer {
             return;
         }
 
-        let mut buffer = match self.surface.buffer_mut() {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::error!("softbuffer buffer_mut failed: {}", e);
-                return;
-            }
-        };
-
-        // 清屏为完全透明。
-        buffer.fill(0x00000000);
-
         // 读取当前准心配置。
         let config = self.config.lock().expect("config lock");
         let crosshair = config
@@ -93,41 +95,97 @@ impl OverlayRenderer {
         // 在像素缓冲区上绘制准心。
         let logical_w = width as f32 / self.window.scale_factor() as f32;
         let logical_h = height as f32 / self.window.scale_factor() as f32;
-        let rect = RectF {
+        let rect = crate::shapes::RectF {
             min_x: 0.0,
             min_y: 0.0,
             max_x: logical_w,
             max_y: logical_h,
         };
         let scale = self.window.scale_factor() as f32;
-        draw_crosshair(&mut buffer, width, height, scale, rect, &crosshair);
+
+        // CustomImage 需要访问 image_cache，单独处理。
+        // 先加载图片（在获取 buffer 之前，避免与 surface 借用冲突）。
+        let is_custom_image = crosshair.style == CrosshairStyle::CustomImage;
+        if is_custom_image {
+            self.ensure_image_loaded(&crosshair.image_path);
+        }
+
+        let mut buffer = match self.surface.buffer_mut() {
+            Ok(b) => b,
+            Err(e) => {
+                tracing::error!("softbuffer buffer_mut failed: {}", e);
+                return;
+            }
+        };
+
+        // 清屏为完全透明。
+        buffer.fill(0x00000000);
+
+        if is_custom_image {
+            // 绘制图片（只读 image_cache，不与 buffer 冲突）。
+            if let Some(img) = &self.image_cache {
+                let opacity = crosshair.opacity;
+                let img_scale = crosshair.image_scale;
+                let offset_x = crosshair.image_offset_x;
+                let offset_y = crosshair.image_offset_y;
+                draw_image(
+                    &mut buffer,
+                    width,
+                    height,
+                    scale,
+                    &rect,
+                    img,
+                    img_scale,
+                    offset_x,
+                    offset_y,
+                    opacity,
+                );
+            }
+        } else {
+            // 使用共享几何模块生成图元，确保预览与覆盖层完全一致。
+            let color = make_color(&crosshair.color, crosshair.opacity);
+            let shapes = crate::shapes::build_shapes(&rect, &crosshair);
+            for shape in shapes {
+                rasterize_shape(&mut buffer, width, height, scale, &shape, color);
+            }
+        }
 
         if let Err(e) = buffer.present() {
             tracing::error!("softbuffer present failed: {}", e);
         }
     }
-}
 
-/// 逻辑矩形区域（浮点坐标）。
-struct RectF {
-    min_x: f32,
-    min_y: f32,
-    max_x: f32,
-    max_y: f32,
-}
+    /// 确保 image_cache 中缓存的是当前路径的图片。
+    ///
+    /// 如果路径为空或加载失败，清空缓存并记录警告。
+    fn ensure_image_loaded(&mut self, path: &str) {
+        // 路径未变且有缓存 → 无需重新加载。
+        if let Some(cache) = &self.image_cache {
+            if cache.path == path {
+                return;
+            }
+        }
 
-impl RectF {
-    fn width(&self) -> f32 {
-        self.max_x - self.min_x
-    }
-    fn height(&self) -> f32 {
-        self.max_y - self.min_y
-    }
-    fn center_x(&self) -> f32 {
-        (self.min_x + self.max_x) / 2.0
-    }
-    fn center_y(&self) -> f32 {
-        (self.min_y + self.max_y) / 2.0
+        if path.is_empty() {
+            self.image_cache = None;
+            return;
+        }
+
+        match load_png(path) {
+            Ok((pixels, w, h)) => {
+                tracing::info!(path, width = w, height = h, "loaded crosshair PNG");
+                self.image_cache = Some(CachedImage {
+                    path: path.to_string(),
+                    pixels,
+                    width: w,
+                    height: h,
+                });
+            }
+            Err(e) => {
+                tracing::warn!(path, error = %e, "failed to load crosshair PNG");
+                self.image_cache = None;
+            }
+        }
     }
 }
 
@@ -144,358 +202,57 @@ fn make_color(color: &[f32; 4], opacity: f32) -> u32 {
     (ai << 24) | (ri << 16) | (gi << 8) | bi
 }
 
-/// 在像素缓冲区上绘制准心。
+/// 将一条 [`Shape`]（共享几何图元）光栅化到 softbuffer 像素缓冲区。
 ///
-/// `buffer` 是 softbuffer 的 `&mut [u32]`，像素格式 `0xAARRGGBB`。
-/// `scale` 是 DPI 缩放因子（逻辑坐标 → 物理像素）。
-fn draw_crosshair(
+/// 这是 overlay 侧的渲染器：与 settings_ui 中 egui painter 的预览渲染一一对应。
+/// 两者调用相同的 `build_shapes`，确保预览与实际效果完全一致。
+fn rasterize_shape(
     buffer: &mut [u32],
     pixel_w: u32,
     pixel_h: u32,
     scale: f32,
-    rect: RectF,
-    crosshair: &Crosshair,
+    shape: &crate::shapes::Shape,
+    color: u32,
 ) {
-    let color = make_color(&crosshair.color, crosshair.opacity);
-    let cx = rect.center_x();
-    let cy = rect.center_y();
-
-    match crosshair.style {
-        CrosshairStyle::Cross => {
-            let arm = crosshair.size;
-            let half_gap = crosshair.gap / 2.0;
-            let thickness = crosshair.thickness;
-            // 四条臂。
-            draw_rect(
+    use crate::shapes::Shape;
+    match shape {
+        Shape::Rect { x, y, w, h } => {
+            draw_rect(buffer, pixel_w, pixel_h, scale, *x, *y, *w, *h, color);
+        }
+        Shape::Circle { cx, cy, radius } => {
+            draw_circle(buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, color);
+        }
+        Shape::CircleStroke {
+            cx,
+            cy,
+            radius,
+            thickness,
+        } => {
+            draw_circle_stroke(
+                buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, *thickness, color,
+            );
+        }
+        Shape::DashedCircle {
+            cx,
+            cy,
+            radius,
+            thickness,
+            dash_len,
+            gap_len,
+        } => {
+            draw_dashed_circle(
                 buffer,
                 pixel_w,
                 pixel_h,
                 scale,
-                cx - arm - half_gap,
-                cy - thickness / 2.0,
-                arm - half_gap,
-                thickness,
+                *cx,
+                *cy,
+                *radius,
+                *thickness,
+                *dash_len,
+                *gap_len,
                 color,
             );
-            draw_rect(
-                buffer,
-                pixel_w,
-                pixel_h,
-                scale,
-                cx + half_gap,
-                cy - thickness / 2.0,
-                arm - half_gap,
-                thickness,
-                color,
-            );
-            draw_rect(
-                buffer,
-                pixel_w,
-                pixel_h,
-                scale,
-                cx - thickness / 2.0,
-                cy - arm - half_gap,
-                thickness,
-                arm - half_gap,
-                color,
-            );
-            draw_rect(
-                buffer,
-                pixel_w,
-                pixel_h,
-                scale,
-                cx - thickness / 2.0,
-                cy + half_gap,
-                thickness,
-                arm - half_gap,
-                color,
-            );
-        }
-        CrosshairStyle::LargeCross => {
-            let thickness = crosshair.thickness;
-            draw_rect(
-                buffer,
-                pixel_w,
-                pixel_h,
-                scale,
-                rect.min_x,
-                cy - thickness / 2.0,
-                rect.width(),
-                thickness,
-                color,
-            );
-            draw_rect(
-                buffer,
-                pixel_w,
-                pixel_h,
-                scale,
-                cx - thickness / 2.0,
-                rect.min_y,
-                thickness,
-                rect.height(),
-                color,
-            );
-        }
-        CrosshairStyle::ToiletPaper => {
-            let w = crosshair.size;
-            let h = crosshair.secondary_size;
-            let margin = crosshair.margin;
-            let (px, py) = match crosshair.anchor {
-                Anchor::Top => (cx, rect.min_y + h / 2.0 + margin),
-                Anchor::Bottom => (cx, rect.max_y - h / 2.0 - margin),
-                Anchor::Left => (rect.min_x + w / 2.0 + margin, cy),
-                Anchor::Right => (rect.max_x - w / 2.0 - margin, cy),
-                Anchor::Center => (cx, cy),
-            };
-            draw_rect(
-                buffer,
-                pixel_w,
-                pixel_h,
-                scale,
-                px - w / 2.0,
-                py - h / 2.0,
-                w,
-                h,
-                color,
-            );
-        }
-        CrosshairStyle::CornerDots4 | CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8 => {
-            let configured_offset = if crosshair.offset > 0.0 {
-                crosshair.offset
-            } else {
-                crosshair.size
-            };
-            let offset = configured_offset
-                .min(rect.width() / 4.0)
-                .min(rect.height() / 4.0);
-            let radius = if crosshair.radius > 0.0 {
-                crosshair.radius
-            } else {
-                crosshair.thickness * 3.0
-            };
-            let corners = [
-                (rect.min_x + offset, rect.min_y + offset),
-                (rect.max_x - offset, rect.min_y + offset),
-                (rect.min_x + offset, rect.max_y - offset),
-                (rect.max_x - offset, rect.max_y - offset),
-            ];
-            for (x, y) in corners {
-                draw_circle(buffer, pixel_w, pixel_h, scale, x, y, radius, color);
-            }
-            if matches!(
-                crosshair.style,
-                CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8
-            ) {
-                draw_circle(
-                    buffer,
-                    pixel_w,
-                    pixel_h,
-                    scale,
-                    cx,
-                    rect.min_y + offset,
-                    radius,
-                    color,
-                );
-                draw_circle(
-                    buffer,
-                    pixel_w,
-                    pixel_h,
-                    scale,
-                    cx,
-                    rect.max_y - offset,
-                    radius,
-                    color,
-                );
-            }
-            if matches!(crosshair.style, CrosshairStyle::CornerDots8) {
-                draw_circle(
-                    buffer,
-                    pixel_w,
-                    pixel_h,
-                    scale,
-                    rect.min_x + offset,
-                    cy,
-                    radius,
-                    color,
-                );
-                draw_circle(
-                    buffer,
-                    pixel_w,
-                    pixel_h,
-                    scale,
-                    rect.max_x - offset,
-                    cy,
-                    radius,
-                    color,
-                );
-            }
-        }
-        CrosshairStyle::Ring => {
-            let radius = rect.height() * crosshair.ring_radius_pct;
-            let thickness = crosshair.thickness;
-            match crosshair.ring_style {
-                RingStyle::Solid => {
-                    draw_circle_stroke(
-                        buffer, pixel_w, pixel_h, scale, cx, cy, radius, thickness, color,
-                    );
-                }
-                RingStyle::Dashed => {
-                    draw_dashed_circle(
-                        buffer, pixel_w, pixel_h, scale, cx, cy, radius, thickness, 4.0, 4.0, color,
-                    );
-                }
-                RingStyle::Double => {
-                    draw_circle_stroke(
-                        buffer,
-                        pixel_w,
-                        pixel_h,
-                        scale,
-                        cx,
-                        cy,
-                        radius - 2.0,
-                        1.0,
-                        color,
-                    );
-                    draw_dashed_circle(
-                        buffer,
-                        pixel_w,
-                        pixel_h,
-                        scale,
-                        cx,
-                        cy,
-                        radius + 2.0,
-                        1.0,
-                        4.0,
-                        4.0,
-                        color,
-                    );
-                }
-            }
-        }
-        CrosshairStyle::CustomOrb => {
-            let radius = crosshair.radius.max(1.0);
-            let offset = crosshair.offset;
-            if crosshair.orb_positions.contains(OrbPosition::TOP) {
-                draw_edge_orbs(
-                    buffer,
-                    pixel_w,
-                    pixel_h,
-                    scale,
-                    rect.min_x,
-                    rect.min_y + offset,
-                    rect.max_x,
-                    rect.min_y + offset,
-                    crosshair.custom_orb_top_count,
-                    radius,
-                    color,
-                );
-            }
-            if crosshair.orb_positions.contains(OrbPosition::BOTTOM) {
-                draw_edge_orbs(
-                    buffer,
-                    pixel_w,
-                    pixel_h,
-                    scale,
-                    rect.min_x,
-                    rect.max_y - offset,
-                    rect.max_x,
-                    rect.max_y - offset,
-                    crosshair.custom_orb_bottom_count,
-                    radius,
-                    color,
-                );
-            }
-            if crosshair.orb_positions.contains(OrbPosition::LEFT) {
-                draw_edge_orbs(
-                    buffer,
-                    pixel_w,
-                    pixel_h,
-                    scale,
-                    rect.min_x + offset,
-                    rect.min_y,
-                    rect.min_x + offset,
-                    rect.max_y,
-                    crosshair.custom_orb_left_count,
-                    radius,
-                    color,
-                );
-            }
-            if crosshair.orb_positions.contains(OrbPosition::RIGHT) {
-                draw_edge_orbs(
-                    buffer,
-                    pixel_w,
-                    pixel_h,
-                    scale,
-                    rect.max_x - offset,
-                    rect.min_y,
-                    rect.max_x - offset,
-                    rect.max_y,
-                    crosshair.custom_orb_right_count,
-                    radius,
-                    color,
-                );
-            }
-        }
-        CrosshairStyle::RandomOrb => {
-            let seed = ((crosshair.random_orb_offset * 1000.0) as u64)
-                .wrapping_add((crosshair.random_orb_jitter * 100.0) as u64)
-                .wrapping_add((crosshair.random_radius_min * 10.0) as u64)
-                .wrapping_add((crosshair.random_radius_max * 10.0) as u64)
-                .wrapping_add(crosshair.random_orb_count as u64);
-            let mut rng = SimpleRng::new(seed);
-            let count = crosshair.random_orb_count as usize;
-            let offset = crosshair.random_orb_offset;
-            let jitter = crosshair.random_orb_jitter;
-            let min_r = crosshair.random_radius_min;
-            let max_r = crosshair.random_radius_max;
-
-            for edge in 0..4 {
-                for _ in 0..count {
-                    let radius = min_r + rng.next_f32() * (max_r - min_r);
-                    let j = (rng.next_f32() - 0.5) * 2.0 * jitter;
-                    let (x, y) = match edge {
-                        0 => {
-                            let x = rect.min_x + rng.next_f32() * rect.width();
-                            (x + j, rect.min_y + offset + j)
-                        }
-                        1 => {
-                            let x = rect.min_x + rng.next_f32() * rect.width();
-                            (x + j, rect.max_y - offset + j)
-                        }
-                        2 => {
-                            let y = rect.min_y + rng.next_f32() * rect.height();
-                            (rect.min_x + offset + j, y + j)
-                        }
-                        _ => {
-                            let y = rect.min_y + rng.next_f32() * rect.height();
-                            (rect.max_x - offset + j, y + j)
-                        }
-                    };
-                    draw_circle(buffer, pixel_w, pixel_h, scale, x, y, radius, color);
-                }
-            }
-        }
-        CrosshairStyle::BorderFrame => {
-            let thickness = crosshair.thickness;
-            let offset = crosshair.offset;
-            let top_y = rect.min_y + offset;
-            let bottom_y = rect.max_y - offset;
-            let left_x = rect.min_x + offset;
-            let right_x = rect.max_x - offset;
-            match crosshair.border_frame_style {
-                BorderFrameStyle::Solid => {
-                    draw_solid_frame(
-                        buffer, pixel_w, pixel_h, scale, &rect, top_y, bottom_y, left_x, right_x,
-                        thickness, color,
-                    );
-                }
-                BorderFrameStyle::Gap => {
-                    draw_gap_frame(
-                        buffer, pixel_w, pixel_h, scale, &rect, top_y, bottom_y, left_x, right_x,
-                        thickness, color,
-                    );
-                }
-            }
         }
     }
 }
@@ -649,230 +406,113 @@ fn draw_dashed_circle(
     }
 }
 
-/// 在一条边上均匀分布绘制圆点。
-fn draw_edge_orbs(
+// ===== PNG 图片加载与绘制 =====
+
+/// 加载 PNG 文件，解码为 RGBA 像素向量。
+///
+/// 返回 (pixels, width, height)，pixels 为行优先从上到下的 RGBA 元组。
+#[allow(clippy::type_complexity)]
+fn load_png(path: &str) -> Result<(Vec<(u8, u8, u8, u8)>, usize, usize), Box<dyn std::error::Error>> {
+    let decoder = png::Decoder::new(std::fs::File::open(path)?);
+    let mut reader = decoder.read_info()?;
+    let info = reader.info().clone();
+    let mut buf = vec![0u8; reader.output_buffer_size()];
+    let frame = reader.next_frame(&mut buf)?;
+    let bytes = &buf[..frame.buffer_size()];
+
+    let w = info.width as usize;
+    let h = info.height as usize;
+
+    // 根据 PNG 的颜色类型转换为统一的 RGBA 元组。
+    let pixels: Vec<(u8, u8, u8, u8)> = match info.color_type {
+        png::ColorType::Rgba => {
+            bytes.chunks_exact(4).map(|c| (c[0], c[1], c[2], c[3])).collect()
+        }
+        png::ColorType::Rgb => {
+            // RGB 无 alpha，默认不透明。
+            bytes.chunks_exact(3).map(|c| (c[0], c[1], c[2], 255)).collect()
+        }
+        png::ColorType::Grayscale => {
+            bytes.iter().map(|&v| (v, v, v, 255)).collect()
+        }
+        png::ColorType::GrayscaleAlpha => {
+            bytes.chunks_exact(2).map(|c| (c[0], c[0], c[0], c[1])).collect()
+        }
+        png::ColorType::Indexed => {
+            // 调色板模式：reader 已将输出转为 RGBA（png crate 的 output 转换），
+            // 但如果 output 仍为 indexed，则按 RGB 处理。
+            bytes.chunks_exact(3).map(|c| (c[0], c[1], c[2], 255)).collect()
+        }
+    };
+
+    Ok((pixels, w, h))
+}
+
+/// 将 PNG 图片按缩放比例绘制到 softbuffer 像素缓冲区。
+///
+/// - `img_scale`：图片缩放比例（1.0 = 原始大小，逻辑像素）。
+/// - `offset_x`/`offset_y`：相对屏幕中心的偏移（逻辑像素）。
+/// - `opacity`：全局不透明度（与图片 alpha 相乘）。
+fn draw_image(
     buffer: &mut [u32],
     pixel_w: u32,
     pixel_h: u32,
     scale: f32,
-    x0: f32,
-    y0: f32,
-    x1: f32,
-    y1: f32,
-    count: u32,
-    radius: f32,
-    color: u32,
+    rect: &crate::shapes::RectF,
+    img: &CachedImage,
+    img_scale: f32,
+    offset_x: f32,
+    offset_y: f32,
+    opacity: f32,
 ) {
-    if count == 0 {
-        return;
-    }
-    if count == 1 {
-        let mx = (x0 + x1) / 2.0;
-        let my = (y0 + y1) / 2.0;
-        draw_circle(buffer, pixel_w, pixel_h, scale, mx, my, radius, color);
-        return;
-    }
-    let step = 1.0 / (count + 1) as f32;
-    for i in 1..=count {
-        let t = i as f32 * step;
-        let x = x0 + (x1 - x0) * t;
-        let y = y0 + (y1 - y0) * t;
-        draw_circle(buffer, pixel_w, pixel_h, scale, x, y, radius, color);
-    }
-}
+    // 缩放后的逻辑尺寸。
+    let scaled_w = img.width as f32 * img_scale;
+    let scaled_h = img.height as f32 * img_scale;
 
-/// 绘制完整边框（4 条矩形条）。
-fn draw_solid_frame(
-    buffer: &mut [u32],
-    pixel_w: u32,
-    pixel_h: u32,
-    scale: f32,
-    rect: &RectF,
-    top_y: f32,
-    bottom_y: f32,
-    left_x: f32,
-    right_x: f32,
-    thickness: f32,
-    color: u32,
-) {
-    let half_t = thickness / 2.0;
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        rect.min_x,
-        top_y - half_t,
-        rect.width(),
-        thickness,
-        color,
-    );
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        rect.min_x,
-        bottom_y - half_t,
-        rect.width(),
-        thickness,
-        color,
-    );
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        left_x - half_t,
-        rect.min_y,
-        thickness,
-        rect.height(),
-        color,
-    );
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        right_x - half_t,
-        rect.min_y,
-        thickness,
-        rect.height(),
-        color,
-    );
-}
+    // 图片中心在屏幕中心 + 偏移。
+    let center_x = rect.center_x() + offset_x;
+    let center_y = rect.center_y() + offset_y;
 
-/// 绘制带缺口的边框。
-fn draw_gap_frame(
-    buffer: &mut [u32],
-    pixel_w: u32,
-    pixel_h: u32,
-    scale: f32,
-    rect: &RectF,
-    top_y: f32,
-    bottom_y: f32,
-    left_x: f32,
-    right_x: f32,
-    thickness: f32,
-    color: u32,
-) {
-    let half_t = thickness / 2.0;
-    let half_gap_w = rect.width() * 0.2 / 2.0;
-    let half_gap_h = rect.height() * 0.2 / 2.0;
-    let cx = rect.center_x();
-    let cy = rect.center_y();
+    // 图片左上角的物理像素坐标。
+    let px_start_x = ((center_x - scaled_w / 2.0) * scale).round() as i32;
+    let px_start_y = ((center_y - scaled_h / 2.0) * scale).round() as i32;
+    // 图片覆盖的物理像素尺寸。
+    let px_w = (scaled_w * scale).round() as usize;
+    let px_h = (scaled_h * scale).round() as usize;
 
-    // 上边（两段）。
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        rect.min_x,
-        top_y - half_t,
-        cx - half_gap_w - rect.min_x,
-        thickness,
-        color,
-    );
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        cx + half_gap_w,
-        top_y - half_t,
-        rect.max_x - (cx + half_gap_w),
-        thickness,
-        color,
-    );
-    // 下边。
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        rect.min_x,
-        bottom_y - half_t,
-        cx - half_gap_w - rect.min_x,
-        thickness,
-        color,
-    );
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        cx + half_gap_w,
-        bottom_y - half_t,
-        rect.max_x - (cx + half_gap_w),
-        thickness,
-        color,
-    );
-    // 左边。
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        left_x - half_t,
-        rect.min_y,
-        thickness,
-        cy - half_gap_h - rect.min_y,
-        color,
-    );
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        left_x - half_t,
-        cy + half_gap_h,
-        thickness,
-        rect.max_y - (cy + half_gap_h),
-        color,
-    );
-    // 右边。
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        right_x - half_t,
-        rect.min_y,
-        thickness,
-        cy - half_gap_h - rect.min_y,
-        color,
-    );
-    draw_rect(
-        buffer,
-        pixel_w,
-        pixel_h,
-        scale,
-        right_x - half_t,
-        cy + half_gap_h,
-        thickness,
-        rect.max_y - (cy + half_gap_h),
-        color,
-    );
-}
+    for py in 0..px_h {
+        let dst_y = px_start_y + py as i32;
+        if dst_y < 0 || dst_y >= pixel_h as i32 {
+            continue;
+        }
+        for px in 0..px_w {
+            let dst_x = px_start_x + px as i32;
+            if dst_x < 0 || dst_x >= pixel_w as i32 {
+                continue;
+            }
+            // 将物理像素映射回原图坐标（最近邻采样）。
+            let src_x = (px as f32 / px_w as f32 * img.width as f32) as usize;
+            let src_y = (py as f32 / px_h as f32 * img.height as f32) as usize;
+            let src_x = src_x.min(img.width - 1);
+            let src_y = src_y.min(img.height - 1);
+            let (r, g, b, a) = img.pixels[src_y * img.width + src_x];
 
-/// 简单的线性同余 RNG。
-#[derive(Debug, Clone, Copy)]
-struct SimpleRng {
-    state: u64,
-}
+            let final_alpha = (a as f32 / 255.0 * opacity).clamp(0.0, 1.0);
+            if final_alpha < 0.01 {
+                continue;
+            }
 
-impl SimpleRng {
-    fn new(seed: u64) -> Self {
-        Self { state: seed.max(1) }
-    }
+            // 预乘 alpha 的 0xAARRGGBB 格式。
+            let ai = (final_alpha * 255.0) as u32;
+            let ri = (r as f32 * final_alpha) as u32;
+            let gi = (g as f32 * final_alpha) as u32;
+            let bi = (b as f32 * final_alpha) as u32;
+            let pixel = (ai << 24) | (ri << 16) | (gi << 8) | bi;
 
-    fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1);
-        self.state
-    }
-
-    fn next_f32(&mut self) -> f32 {
-        (self.next_u64() & 0x00FF_FFFF) as f32 / 0x0100_0000 as f32
+            let idx = dst_y as usize * pixel_w as usize + dst_x as usize;
+            if idx < buffer.len() {
+                buffer[idx] = pixel;
+            }
+        }
     }
 }

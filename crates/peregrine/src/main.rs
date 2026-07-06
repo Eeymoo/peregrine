@@ -14,6 +14,7 @@ mod overlay_renderer;
 mod platform;
 mod renderer;
 mod settings_ui;
+mod shapes;
 
 use peregrine_config::{ConfigNotifier, ConfigStorage, ConfigWatcher};
 use std::sync::{Arc, Mutex};

@@ -122,6 +122,18 @@ pub struct Crosshair {
     /// 随机球：位置随机扰动范围（px）。
     #[serde(default = "default_random_orb_jitter")]
     pub random_orb_jitter: f32,
+    /// 自定义图片：PNG 文件路径（空字符串表示未选择）。
+    #[serde(default)]
+    pub image_path: String,
+    /// 自定义图片：缩放比例（1.0 = 原始大小）。
+    #[serde(default = "default_image_scale")]
+    pub image_scale: f32,
+    /// 自定义图片：相对屏幕中心的水平偏移（px，逻辑坐标）。
+    #[serde(default)]
+    pub image_offset_x: f32,
+    /// 自定义图片：相对屏幕中心的垂直偏移（px，逻辑坐标）。
+    #[serde(default)]
+    pub image_offset_y: f32,
 }
 
 fn default_secondary_size() -> f32 {
@@ -162,6 +174,9 @@ fn default_random_orb_offset() -> f32 {
 }
 fn default_random_orb_jitter() -> f32 {
     40.0
+}
+fn default_image_scale() -> f32 {
+    1.0
 }
 fn default_border_inset() -> bool {
     true
@@ -208,6 +223,8 @@ pub enum CrosshairStyle {
     RandomOrb,
     /// 边框：类似电影安全框的边界参考。
     BorderFrame,
+    /// 自定义图片：加载 PNG 文件作为准心图案。
+    CustomImage,
 }
 
 /// 中心环线型样式。
@@ -403,6 +420,10 @@ impl Crosshair {
             random_orb_count: default_random_orb_count(),
             random_orb_offset: default_random_orb_offset(),
             random_orb_jitter: default_random_orb_jitter(),
+            image_path: String::new(),
+            image_scale: default_image_scale(),
+            image_offset_x: 0.0,
+            image_offset_y: 0.0,
         }
     }
 
@@ -493,6 +514,17 @@ impl Crosshair {
         if self.random_orb_offset < 0.0 || self.random_orb_jitter < 0.0 {
             return Err(crate::ConfigError::Validation(
                 "random orb offset/jitter must be non-negative".to_string(),
+            ));
+        }
+        if self.image_scale <= 0.0 {
+            return Err(crate::ConfigError::Validation(
+                "image_scale must be positive".to_string(),
+            ));
+        }
+        // CustomImage 样式要求 image_path 非空（仅在样式为 CustomImage 时检查）。
+        if matches!(self.style, CrosshairStyle::CustomImage) && self.image_path.trim().is_empty() {
+            return Err(crate::ConfigError::Validation(
+                "image_path must not be empty when style is CustomImage".to_string(),
             ));
         }
         Ok(())
@@ -679,5 +711,88 @@ mod tests {
             let restored: Crosshair = serde_json::from_str(&json).unwrap();
             assert_eq!(restored.style, style);
         }
+    }
+
+    #[test]
+    fn custom_image_validation_and_roundtrip() {
+        // 默认配置中 image 字段都有默认值。
+        let ch = Crosshair::default_crosshair();
+        assert!(ch.image_path.is_empty());
+        assert_eq!(ch.image_scale, 1.0);
+        assert_eq!(ch.image_offset_x, 0.0);
+        assert_eq!(ch.image_offset_y, 0.0);
+
+        // CustomImage 但 image_path 为空 → 校验失败。
+        let mut ch = Crosshair::default_crosshair();
+        ch.style = CrosshairStyle::CustomImage;
+        assert!(ch.validate().is_err());
+
+        // 设置了路径 → 校验通过。
+        ch.image_path = "/path/to/crosshair.png".to_string();
+        ch.image_scale = 0.5;
+        ch.image_offset_x = 10.0;
+        ch.image_offset_y = -5.0;
+        assert!(ch.validate().is_ok());
+
+        // 序列化往返。
+        let json = serde_json::to_string(&ch).unwrap();
+        let restored: Crosshair = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.style, CrosshairStyle::CustomImage);
+        assert_eq!(restored.image_path, "/path/to/crosshair.png");
+        assert_eq!(restored.image_scale, 0.5);
+        assert_eq!(restored.image_offset_x, 10.0);
+        assert_eq!(restored.image_offset_y, -5.0);
+
+        // image_scale <= 0 → 校验失败。
+        let mut ch = Crosshair::default_crosshair();
+        ch.image_scale = 0.0;
+        assert!(ch.validate().is_err());
+
+        let mut ch = Crosshair::default_crosshair();
+        ch.image_scale = -1.0;
+        assert!(ch.validate().is_err());
+    }
+
+    #[test]
+    fn old_config_without_image_fields_loads() {
+        // 模拟旧配置文件（没有 image_* 字段），确保 serde 默认值生效。
+        let json = r#"{
+            "style": "cross",
+            "size": 10.0,
+            "secondary_size": 48.0,
+            "thickness": 2.0,
+            "radius": 0.0,
+            "offset": 0.0,
+            "color": [1.0, 1.0, 1.0, 1.0],
+            "opacity": 0.8,
+            "gap": 4.0,
+            "corner_radius": 4.0,
+            "anchor": "center",
+            "margin": 0.0,
+            "ring_radius_pct": 0.05,
+            "ring_style": "solid",
+            "orb_positions": 3,
+            "random_mode": "lock_on_start",
+            "random_center_deviation": 0.2,
+            "random_radius_min": 4.0,
+            "random_radius_max": 12.0,
+            "random_orb_x": 0.0,
+            "random_orb_y": 0.0,
+            "border_frame_style": "solid",
+            "border_gap": false,
+            "border_inset": true,
+            "custom_orb_top_count": 3,
+            "custom_orb_bottom_count": 3,
+            "custom_orb_left_count": 3,
+            "custom_orb_right_count": 3,
+            "random_orb_count": 3,
+            "random_orb_offset": 100.0,
+            "random_orb_jitter": 40.0
+        }"#;
+        let restored: Crosshair = serde_json::from_str(json).unwrap();
+        assert_eq!(restored.image_path, "");
+        assert_eq!(restored.image_scale, 1.0);
+        assert_eq!(restored.image_offset_x, 0.0);
+        assert_eq!(restored.image_offset_y, 0.0);
     }
 }

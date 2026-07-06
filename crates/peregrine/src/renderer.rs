@@ -75,10 +75,7 @@ impl Renderer {
         let mut surface_config = surface
             .get_default_config(&adapter, size.width.max(1), size.height.max(1))
             .expect("default surface config");
-        // 强制使用 Bgra8Unorm（非 sRGB），保证清屏像素值精确匹配
-        // SetLayeredWindowAttributes 设置的颜色键（RGB(1,0,0)）。
-        // sRGB 格式会做 gamma 校正，导致实际像素值与颜色键不匹配，
-        // DWM 无法识别透明区域，窗口就会显示为不透明的普通窗口。
+        // 强制使用 Bgra8Unorm（非 sRGB），保证 alpha 通道线性合成正确。
         surface_config.format = wgpu::TextureFormat::Bgra8Unorm;
         surface_config.alpha_mode = pick_alpha_mode(&surface, &adapter);
         surface.configure(&device, &surface_config);
@@ -104,7 +101,9 @@ impl Renderer {
             None,
             None,
         );
-        let egui_renderer = egui_wgpu::Renderer::new(&device, surface_config.format, None, 1, true);
+        // prepend_srgb = false：Overlay 需要逐像素 alpha 透明，
+        // sRGB 转换会破坏 alpha 通道导致白色遮盖。
+        let egui_renderer = egui_wgpu::Renderer::new(&device, surface_config.format, None, 1, false);
 
         Self {
             device,
@@ -150,8 +149,8 @@ impl Renderer {
 
     /// 渲染覆盖层（准心）。
     ///
-    /// 清屏为颜色键色（RGB(1,0,0) 极深红），并根据当前 Profile 的 crosshair 配置
-    /// 绘制辅助贴图。颜色键区域会被 DWM 透明化，只留下准心图形。
+    /// 清屏为完全透明（alpha=0），并根据当前 Profile 的 crosshair 配置
+    /// 绘制辅助贴图。DWM 按 per-pixel alpha 合成，只留下准心图形可见。
     pub fn render_overlay(&mut self) {
         let output = match self.surface.get_current_texture() {
             Ok(t) => t,
@@ -199,7 +198,10 @@ impl Renderer {
                 .show(ctx, |ui| {
                     let screen_rect = ctx.screen_rect();
                     ui.set_min_size(screen_rect.size());
-                    draw_overlay_shape(ui, screen_rect, &crosshair);
+                    // 用透明 Frame 覆盖 Area 默认的背景。
+                    egui::Frame::NONE.show(ui, |ui| {
+                        draw_overlay_shape(ui, screen_rect, &crosshair);
+                    });
                 });
         });
         self.egui_state
@@ -230,14 +232,13 @@ impl Renderer {
                         view: &view,
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            // Windows 颜色键透明：清屏色必须与 SetLayeredWindowAttributes
-                            // 设定的色键一致（RGB(1,0,0) ≈ 极深红）。
-                            // 使用非纯黑是为了避免用户把准心颜色设为黑色时也被透明。
+                            // Per-pixel alpha 透明：清屏 alpha=0 完全透明，
+                            // 只有准心图形的 alpha 值决定可见度。
                             load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: (1.0 / 255.0),
+                                r: 0.0,
                                 g: 0.0,
                                 b: 0.0,
-                                a: 1.0,
+                                a: 0.0,
                             }),
                             store: wgpu::StoreOp::Store,
                         },
@@ -844,13 +845,14 @@ fn draw_overlay_gap_border_frame(
 
 /// 选择 surface 的 alpha 合成模式。
 ///
-/// 当前 Windows 已改回颜色键透明，surface 保持 Opaque 即可。
-/// 保留该函数以备后续需要重新启用逐像素 alpha。
+/// Overlay 窗口使用 per-pixel alpha 透明：背景 alpha=0 完全透明，
+/// 准心区域 alpha=用户配置值。Intel GPU 驱动通常不支持 `PostMultiplied`，
+/// 使用 `Inherit` 让 DWM 自行决定合成方式（DWM 使用 premultiplied alpha）。
 fn pick_alpha_mode(
     _surface: &wgpu::Surface<'static>,
     _adapter: &wgpu::Adapter,
 ) -> wgpu::CompositeAlphaMode {
-    wgpu::CompositeAlphaMode::Opaque
+    wgpu::CompositeAlphaMode::Inherit
 }
 
 /// 尝试从 Windows 系统字体路径加载中文字体并注册到 egui。

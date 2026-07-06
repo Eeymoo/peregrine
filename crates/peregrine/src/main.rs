@@ -123,6 +123,7 @@ impl App {
         let attributes = Window::default_attributes()
             .with_title("")
             .with_decorations(false)
+            .with_transparent(true)
             .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
 
         let window = match event_loop.create_window(attributes) {

@@ -1,7 +1,8 @@
 //! Windows 平台 Overlay 覆盖层辅助函数。
 //!
 //! 通过 `windows-rs` 调用 Win32 API，将 `winit` 创建的普通窗口改造为：
-//! - 透明（`WS_EX_LAYERED` + `SetLayeredWindowAttributes`，`RGB(1,0,0)` 极深红作为透明色键）
+//! - 透明（winit `with_transparent(true)` + wgpu surface `PreMultiplied` alpha，
+//!   DWM 按逐像素 alpha 合成，无需 `SetLayeredWindowAttributes`）
 //! - 置顶（`WS_EX_TOPMOST`）
 //! - 鼠标穿透（`WS_EX_TRANSPARENT`）
 //! - 不获取焦点（`WS_EX_NOACTIVATE`）
@@ -13,14 +14,14 @@
 use std::time::Duration;
 use tokio::sync::oneshot;
 use windows::Win32::Foundation::{
-    BOOL, COLORREF, GetLastError, HWND, LPARAM, POINT, RECT, SetLastError, WIN32_ERROR,
+    BOOL, GetLastError, HWND, LPARAM, POINT, RECT, SetLastError, WIN32_ERROR,
 };
 use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetWindowLongPtrW, GetWindowRect,
     GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, IsWindow,
-    IsWindowVisible, LWA_COLORKEY, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SetLayeredWindowAttributes, SetWindowLongPtrW,
+    IsWindowVisible, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE,
+    SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SetWindowLongPtrW,
     SetWindowPos, ShowWindow, WINDOW_LONG_PTR_INDEX, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE,
     WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU, WS_THICKFRAME,
 };
@@ -79,24 +80,20 @@ fn set_window_long(hwnd: HWND, index: WINDOW_LONG_PTR_INDEX, value: isize) -> Re
     Ok(())
 }
 
-/// 颜色键透明使用的色值：`RGB(1,0,0)`（极深红，人眼几乎不可见）。
-///
-/// 不使用纯黑 `RGB(0,0,0)`，以免用户把准心颜色设为黑色时也被透明掉。
-/// 这个色值在实际渲染中只会出现在 Overlay 清屏背景上。
-pub const COLORKEY_RGB: u32 = 0x00000001;
-
 /// 将 `winit` 窗口改造为透明置顶穿透的 Overlay 窗口。
 ///
 /// 具体行为：
 /// - 扩展样式增加 `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST |
 ///   WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`。
 /// - 移除 `WS_CAPTION | WS_THICKFRAME | WS_SYSMENU` 等边框样式。
-/// - 使用 `SetLayeredWindowAttributes` 将 `RGB(1,0,0)`（极深红）设为透明色键。
+/// - **不调用 `SetLayeredWindowAttributes`**：该方法会覆盖 surface 的逐像素 alpha，
+///   导致窗口无法真正透明。透明效果由 winit `with_transparent(true)` + wgpu surface
+///   的 `PreMultiplied` alpha mode 共同实现，DWM 直接按 swapchain 的 alpha 通道合成。
 ///
 /// # 注意
 ///
-/// 调用方需要保证渲染时把准心外区域清为同样的 `RGB(1,0,0)`，颜色键透明才会生效。
-/// 渲染器的 `render_overlay` 清屏色必须与此处一致。
+/// 调用方必须在 winit 创建窗口时设置 `.with_transparent(true)`，
+/// 并且 wgpu surface 的 alpha_mode 设为 `PreMultiplied`。
 pub fn setup_overlay_window(window: &Window) -> Result<()> {
     let hwnd = hwnd_from_window(window)?;
     unsafe {
@@ -122,9 +119,6 @@ pub fn setup_overlay_window(window: &Window) -> Result<()> {
             0,
             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
         )?;
-
-        // 使用极深红 RGB(1,0,0) 作为颜色键，避免纯黑准心被透明。
-        SetLayeredWindowAttributes(hwnd, COLORREF(COLORKEY_RGB), 0, LWA_COLORKEY)?;
     }
     Ok(())
 }
@@ -260,34 +254,11 @@ pub fn list_window_entries() -> Vec<WindowEntry> {
     state.entries
 }
 
-/// 返回 `current` 标题在窗口列表中的下一个窗口信息（循环）。
+/// 枚举当前可见的顶层窗口标题列表（排除 Peregrine 自身与空标题）。
 ///
-/// 逻辑：
-/// - 列表为空：返回 `None`。
-/// - 能找到 `current`：返回它的下一个；若已是最后一个则回到第一个。
-/// - 找不到 `current`：返回列表第一个，避免目标窗口标题变化后按钮彻底失效。
-pub fn next_window_entry(current: &str) -> Option<WindowEntry> {
-    let entries = list_window_entries();
-    tracing::info!(current, count = entries.len(), "select next window");
-    if entries.is_empty() {
-        return None;
-    }
-    let result = entries
-        .iter()
-        .position(|e| e.title == current)
-        .map(|idx| entries[(idx + 1) % entries.len()].clone())
-        .or_else(|| entries.first().cloned());
-    if let Some(ref e) = result {
-        tracing::info!(next = %e.title, "selected next window");
-    }
-    result
-}
-
-/// 返回 `current` 标题在窗口列表中的下一个窗口标题（循环）。
-///
-/// 等价于 [`next_window_entry`] 只取标题，供 UI 层使用。
-pub fn next_window_title(current: &str) -> Option<String> {
-    next_window_entry(current).map(|e| e.title)
+/// 供 UI 层的下拉选择控件使用，用户可以直接从列表中挑选目标窗口。
+pub fn list_window_titles() -> Vec<String> {
+    list_window_entries().into_iter().map(|e| e.title).collect()
 }
 #[inline]
 fn rect_eq(a: &RECT, b: &RECT) -> bool {
@@ -377,13 +348,13 @@ pub async fn follow_target_window(
                     // 目标窗口已销毁/关闭：结束跟随。
                     if !IsWindow(target.0).as_bool() {
                         tracing::info!("target window no longer exists, ending follow");
-                        ShowWindow(overlay.0, SW_HIDE).ok()?;
+                        let _ = ShowWindow(overlay.0, SW_HIDE);
                         return Err(OverlayError::Cancelled);
                     }
 
                     if IsIconic(target.0).as_bool() {
                         if visible {
-                            ShowWindow(overlay.0, SW_HIDE).ok()?;
+                            let _ = ShowWindow(overlay.0, SW_HIDE);
                             visible = false;
                         }
                         continue;
@@ -392,7 +363,14 @@ pub async fn follow_target_window(
                     let rect = match get_target_rect(target.0) {
                         Ok(r) => r,
                         Err(e) => {
-                            tracing::debug!("get_target_rect failed, skipping: {}", e);
+                            // get_target_rect 失败可能是目标窗口正在关闭，
+                            // 重新检查 IsWindow 而不是直接 continue。
+                            tracing::debug!("get_target_rect failed: {}, checking if window still exists", e);
+                            if !IsWindow(target.0).as_bool() {
+                                tracing::info!("target window no longer exists, ending follow");
+                                let _ = ShowWindow(overlay.0, SW_HIDE);
+                                return Err(OverlayError::Cancelled);
+                            }
                             continue;
                         }
                     };
@@ -419,7 +397,7 @@ pub async fn follow_target_window(
                     }
 
                     if !visible {
-                        ShowWindow(overlay.0, SW_SHOWNA).ok()?;
+                        let _ = ShowWindow(overlay.0, SW_SHOWNA);
                         visible = true;
                     }
                 }

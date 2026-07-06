@@ -15,6 +15,9 @@ pub struct SettingsUi {
     response: SettingsResponse,
     /// Overlay 是否正在运行（由 main.rs 每帧同步，控制按钮文字）。
     pub overlay_active: bool,
+    /// 缓存的窗口标题列表，避免每帧调用 EnumWindows。
+    #[allow(dead_code)]
+    cached_window_titles: Vec<String>,
 }
 
 /// UI 一帧的返回值。
@@ -282,29 +285,45 @@ impl SettingsUi {
                     }
                 }
 
-                // 选择窗口按钮：枚举顶层窗口并循环选中下一个。
+                // 选择目标窗口：下拉列表枚举当前可见的顶层窗口。
                 // 仅 Windows 平台支持窗口枚举。
-                if ui.button("选择窗口").clicked() {
+                // 窗口列表缓存在 SettingsUi 中，点击「刷新」按钮才重新枚举，
+                // 避免每帧调用 EnumWindows 造成性能问题和日志刷屏。
+                ui.horizontal(|ui| {
+                    ui.label("目标窗口：");
                     #[cfg(windows)]
                     {
-                        if let Some(next) =
-                            crate::platform::windows::next_window_title(&current_target_window)
-                        {
-                            new_target_window = Some(next);
+                        let selected_text = if current_target_window.is_empty() {
+                            "（未选择）".to_string()
+                        } else {
+                            current_target_window.clone()
+                        };
+                        ComboBox::from_id_salt("target_window_select")
+                            .selected_text(selected_text)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut profile.target_window, String::new(), "（未选择）");
+                                for title in &self.cached_window_titles {
+                                    ui.selectable_value(&mut profile.target_window, title.clone(), title);
+                                }
+                            });
+                        if profile.target_window != current_target_window {
+                            new_target_window = Some(profile.target_window.clone());
+                        }
+                        // 刷新按钮：点击时重新枚举窗口。
+                        if ui.button("🔄").clicked() {
+                            self.cached_window_titles = crate::platform::windows::list_window_titles();
+                        }
+                        // 首次打开时自动填充一次。
+                        if self.cached_window_titles.is_empty() {
+                            self.cached_window_titles = crate::platform::windows::list_window_titles();
                         }
                     }
                     #[cfg(not(windows))]
                     {
                         let _ = &current_target_window;
-                        tracing::warn!("window selection is not supported on this platform");
+                        ui.label("（当前平台不支持）");
                     }
-                }
-                let display_target = new_target_window
-                    .as_deref()
-                    .unwrap_or(&current_target_window);
-                if !display_target.is_empty() {
-                    ui.label(format!("目标窗口：{}", display_target));
-                }
+                });
 
                 ui.separator();
                 ui.add_space(4.0);

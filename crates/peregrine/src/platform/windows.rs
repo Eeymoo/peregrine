@@ -1,15 +1,12 @@
 //! Windows 平台 Overlay 覆盖层辅助函数。
 //!
-//! 通过 `windows-rs` 调用 Win32 API，将 `winit` 创建的普通窗口改造为：
-//! - 透明（winit `with_transparent(true)` + wgpu surface `PreMultiplied` alpha，
-//!   DWM 按逐像素 alpha 合成，无需 `SetLayeredWindowAttributes`）
-//! - 置顶（`WS_EX_TOPMOST`）
-//! - 鼠标穿透（`WS_EX_TRANSPARENT`）
-//! - 不获取焦点（`WS_EX_NOACTIVATE`）
-//! - 不在任务栏显示按钮（`WS_EX_TOOLWINDOW`）
+//! 透明、穿透、置顶由 winit 的窗口属性设置：
+//! - `with_transparent(true)` → DWM 透明（softbuffer 处理 per-pixel alpha）
+//! - `set_cursor_hittest(false)` → `WS_EX_TRANSPARENT | WS_EX_LAYERED`（鼠标穿透）
+//! - `WindowLevel::AlwaysOnTop` → `WS_EX_TOPMOST`（置顶）
 //!
-//! 同时提供顶层窗口枚举、目标游戏窗口查找（模糊匹配）、矩形计算、以及 16ms 轮询跟随逻辑。
-//! 本模块所有公开函数均返回 [`Result`] 或不 panic。
+//! 本模块仅补充 winit 不直接暴露的样式（`WS_EX_NOACTIVATE`、`WS_EX_TOOLWINDOW`），
+//! 以及窗口枚举、目标窗口查找、矩形计算、跟随逻辑。
 
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -20,10 +17,10 @@ use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetWindowLongPtrW, GetWindowRect,
     GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, IsWindow,
-    IsWindowVisible, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SetWindowLongPtrW,
-    SetWindowPos, ShowWindow, WINDOW_LONG_PTR_INDEX, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU, WS_THICKFRAME,
+    IsWindowVisible, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOOWNERZORDER, SWP_NOSIZE, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    WINDOW_LONG_PTR_INDEX, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU, WS_THICKFRAME,
 };
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::Window;
@@ -80,30 +77,17 @@ fn set_window_long(hwnd: HWND, index: WINDOW_LONG_PTR_INDEX, value: isize) -> Re
     Ok(())
 }
 
-/// 将 `winit` 窗口改造为透明置顶穿透的 Overlay 窗口。
+/// 将 Overlay 窗口补充设置 `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`。
 ///
-/// 具体行为：
-/// - 扩展样式增加 `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST |
-///   WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`。
-/// - 移除 `WS_CAPTION | WS_THICKFRAME | WS_SYSMENU` 等边框样式。
-/// - **不调用 `SetLayeredWindowAttributes`**：该方法会覆盖 surface 的逐像素 alpha，
-///   导致窗口无法真正透明。透明效果由 winit `with_transparent(true)` + wgpu surface
-///   的 `PreMultiplied` alpha mode 共同实现，DWM 直接按 swapchain 的 alpha 通道合成。
-///
-/// # 注意
-///
-/// 调用方必须在 winit 创建窗口时设置 `.with_transparent(true)`，
-/// 并且 wgpu surface 的 alpha_mode 设为 `PreMultiplied`。
+/// 透明、穿透、置顶已由 winit 的窗口属性设置完成
+///（`with_transparent`、`set_cursor_hittest`、`WindowLevel::AlwaysOnTop`）。
+/// softbuffer 内部处理 per-pixel alpha 透明。
+/// 本函数仅补充 winit 不直接暴露的样式。
 pub fn setup_overlay_window(window: &Window) -> Result<()> {
     let hwnd = hwnd_from_window(window)?;
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
-        let new_ex_style = ex_style
-            | WS_EX_LAYERED.0
-            | WS_EX_TRANSPARENT.0
-            | WS_EX_TOPMOST.0
-            | WS_EX_NOACTIVATE.0
-            | WS_EX_TOOLWINDOW.0;
+        let new_ex_style = ex_style | WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0;
         set_window_long(hwnd, GWL_EXSTYLE, new_ex_style as isize)?;
 
         let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;

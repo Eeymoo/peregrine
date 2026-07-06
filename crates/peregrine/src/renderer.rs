@@ -149,8 +149,8 @@ impl Renderer {
 
     /// 渲染覆盖层（准心）。
     ///
-    /// 清屏为完全透明（alpha=0），并根据当前 Profile 的 crosshair 配置
-    /// 绘制辅助贴图。DWM 按 per-pixel alpha 合成，只留下准心图形可见。
+    /// softbuffer 分支下遮盖层不再使用此方法，保留供 wgpu-alpha 分支使用。
+    #[allow(dead_code)]
     pub fn render_overlay(&mut self) {
         let output = match self.surface.get_current_texture() {
             Ok(t) => t,
@@ -646,6 +646,9 @@ fn draw_overlay_shape(
                     );
                 }
             }
+        }
+        CrosshairStyle::CustomImage => {
+            // softbuffer 分支中由 OverlayRenderer 单独处理，此处为 dead_code。
         }
     }
 }

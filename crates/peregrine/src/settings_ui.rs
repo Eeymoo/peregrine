@@ -3,13 +3,13 @@
 //! 负责把当前配置展示为可编辑的 UI，并返回用户是否做了修改。
 //! 界面采用左右布局：左侧为演示窗口，右侧为配置项。
 
-use egui::{Color32, ComboBox, CornerRadius, Slider, Stroke, Vec2};
+use egui::{Color32, ComboBox, Slider, Stroke, Vec2};
 use peregrine_config::{
     Anchor, AppConfig, BorderFrameStyle, ConfigSnapshot, CrosshairStyle, OrbPosition, RingStyle,
 };
 
 /// UI 状态容器。
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct SettingsUi {
     /// 最近一次帧的用户操作结果。
     response: SettingsResponse,
@@ -18,6 +18,18 @@ pub struct SettingsUi {
     /// 缓存的窗口标题列表，避免每帧调用 EnumWindows。
     #[allow(dead_code)]
     cached_window_titles: Vec<String>,
+    /// 缓存的自定义图片纹理（路径变化时重新加载）。
+    cached_image: Option<(String, std::sync::Arc<egui::TextureHandle>)>,
+}
+
+impl std::fmt::Debug for SettingsUi {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SettingsUi")
+            .field("response", &self.response)
+            .field("overlay_active", &self.overlay_active)
+            .field("cached_image", &self.cached_image.as_ref().map(|(p, _)| p))
+            .finish()
+    }
 }
 
 /// UI 一帧的返回值。
@@ -283,6 +295,38 @@ impl SettingsUi {
                         });
                         ui.checkbox(&mut crosshair.border_gap, "四边中间留 20% 缺口");
                     }
+                    CrosshairStyle::CustomImage => {
+                        ui.label("自定义图片");
+                        ui.horizontal(|ui| {
+                            ui.label("文件：");
+                            ui.add(
+                                egui::TextEdit::singleline(&mut crosshair.image_path)
+                                    .desired_width(160.0)
+                                    .hint_text("PNG 文件路径"),
+                            );
+                            if ui.button("浏览…").clicked() {
+                                if let Some(path) = std::env::current_dir()
+                                    .ok()
+                                    .and_then(|_| pick_png_file())
+                                {
+                                    crosshair.image_path = path;
+                                }
+                            }
+                        });
+                        ui.add(
+                            Slider::new(&mut crosshair.image_scale, 0.1..=5.0)
+                                .text("缩放比例")
+                                .step_by(0.1),
+                        );
+                        ui.add(
+                            Slider::new(&mut crosshair.image_offset_x, -500.0..=500.0)
+                                .text("水平偏移"),
+                        );
+                        ui.add(
+                            Slider::new(&mut crosshair.image_offset_y, -500.0..=500.0)
+                                .text("垂直偏移"),
+                        );
+                    }
                 }
 
                 // 选择目标窗口：下拉列表枚举当前可见的顶层窗口。
@@ -343,7 +387,7 @@ impl SettingsUi {
         egui::CentralPanel::default().show(ctx, |ui| {
             let rect = ui.available_rect_before_wrap();
             draw_checkerboard_background(ui, rect);
-            draw_preview_shape(ui, rect, crosshair);
+            draw_preview_shape(ui, rect, crosshair, ctx, &mut self.cached_image);
         });
 
         // 闭包结束后，把「选择窗口」按钮的选择结果写回 profile。
@@ -369,7 +413,7 @@ impl SettingsUi {
 }
 
 /// 所有可用的辅助贴图样式。
-fn all_styles() -> [CrosshairStyle; 10] {
+fn all_styles() -> [CrosshairStyle; 11] {
     [
         CrosshairStyle::ToiletPaper,
         CrosshairStyle::Cross,
@@ -381,6 +425,7 @@ fn all_styles() -> [CrosshairStyle; 10] {
         CrosshairStyle::CustomOrb,
         CrosshairStyle::RandomOrb,
         CrosshairStyle::BorderFrame,
+        CrosshairStyle::CustomImage,
     ]
 }
 
@@ -397,6 +442,7 @@ fn style_display_name(style: CrosshairStyle) -> String {
         CrosshairStyle::CustomOrb => "自定义定位球".to_string(),
         CrosshairStyle::RandomOrb => "随机球".to_string(),
         CrosshairStyle::BorderFrame => "边框".to_string(),
+        CrosshairStyle::CustomImage => "自定义图片".to_string(),
     }
 }
 
@@ -488,299 +534,90 @@ fn draw_checkerboard_background(ui: &mut egui::Ui, rect: egui::Rect) {
 }
 
 /// 在演示区域绘制当前选中的辅助贴图。
+///
+/// 使用 [`crate::shapes::build_shapes`] 生成与覆盖层完全一致的几何图元，
+/// 再用 egui painter 渲染，确保预览即所得。
+#[allow(clippy::too_many_arguments)]
 fn draw_preview_shape(
     ui: &mut egui::Ui,
     rect: egui::Rect,
     crosshair: &peregrine_config::Crosshair,
+    ctx: &egui::Context,
+    cached_image: &mut Option<(String, std::sync::Arc<egui::TextureHandle>)>,
 ) {
-    let center = rect.center();
+    // CustomImage 不走矢量图元，单独处理。
+    if crosshair.style == CrosshairStyle::CustomImage {
+        draw_preview_image(ui, rect, crosshair, ctx, cached_image);
+        return;
+    }
+
     let color = apply_opacity(color_f32_to_color32(&crosshair.color), crosshair.opacity);
 
-    match crosshair.style {
-        CrosshairStyle::ToiletPaper => {
-            // 根据贴边位置与边距计算矩形中心。
-            let width = crosshair.size;
-            let height = crosshair.secondary_size;
-            let margin = crosshair.margin;
-            let center = match crosshair.anchor {
-                Anchor::Top => egui::pos2(rect.center().x, rect.min.y + height / 2.0 + margin),
-                Anchor::Bottom => egui::pos2(rect.center().x, rect.max.y - height / 2.0 - margin),
-                Anchor::Left => egui::pos2(rect.min.x + width / 2.0 + margin, rect.center().y),
-                Anchor::Right => egui::pos2(rect.max.x - width / 2.0 - margin, rect.center().y),
-                Anchor::Center => rect.center(),
-            };
-            let shape_rect = egui::Rect::from_center_size(center, Vec2::new(width, height));
+    // 用共享几何模块生成图元，确保预览与 overlay 完全一致。
+    let screen = crate::shapes::RectF {
+        min_x: rect.min.x,
+        min_y: rect.min.y,
+        max_x: rect.max.x,
+        max_y: rect.max.y,
+    };
+    let shapes = crate::shapes::build_shapes(&screen, crosshair);
+    for shape in shapes {
+        render_shape_egui(ui, &shape, color);
+    }
+}
+
+/// 将一条 [`Shape`]（共享几何图元）用 egui painter 渲染。
+///
+/// 与 overlay_renderer 中 `rasterize_shape` 一一对应，确保两套渲染输出相同图形。
+fn render_shape_egui(ui: &mut egui::Ui, shape: &crate::shapes::Shape, color: Color32) {
+    use crate::shapes::Shape;
+    match shape {
+        Shape::Rect { x, y, w, h } => {
             ui.painter().rect_filled(
-                shape_rect,
-                CornerRadius::same(crosshair.corner_radius as u8),
+                egui::Rect::from_min_size(egui::pos2(*x, *y), Vec2::new(*w, *h)),
+                egui::CornerRadius::ZERO,
                 color,
             );
         }
-        CrosshairStyle::Cross => {
-            // 屏幕中心十字，预留中心间隙。
-            let arm = crosshair.size;
-            let half_gap = crosshair.gap / 2.0;
-            let thickness = crosshair.thickness;
-            let horizontal_left = egui::Rect::from_center_size(
-                egui::pos2(center.x - (arm + half_gap) / 2.0 - half_gap / 2.0, center.y),
-                Vec2::new(arm - half_gap, thickness),
-            );
-            let horizontal_right = egui::Rect::from_center_size(
-                egui::pos2(center.x + (arm + half_gap) / 2.0 + half_gap / 2.0, center.y),
-                Vec2::new(arm - half_gap, thickness),
-            );
-            let vertical_top = egui::Rect::from_center_size(
-                egui::pos2(center.x, center.y - (arm + half_gap) / 2.0 - half_gap / 2.0),
-                Vec2::new(thickness, arm - half_gap),
-            );
-            let vertical_bottom = egui::Rect::from_center_size(
-                egui::pos2(center.x, center.y + (arm + half_gap) / 2.0 + half_gap / 2.0),
-                Vec2::new(thickness, arm - half_gap),
-            );
-            for rect in [
-                horizontal_left,
-                horizontal_right,
-                vertical_top,
-                vertical_bottom,
-            ] {
-                ui.painter()
-                    .rect_filled(rect, egui::CornerRadius::ZERO, color);
-            }
-        }
-        CrosshairStyle::LargeCross => {
-            // 从屏幕边缘延伸到中心的水平线与垂直线。
-            let thickness = crosshair.thickness;
-            let horizontal = egui::Rect::from_min_max(
-                egui::pos2(rect.min.x, center.y - thickness / 2.0),
-                egui::pos2(rect.max.x, center.y + thickness / 2.0),
-            );
-            let vertical = egui::Rect::from_min_max(
-                egui::pos2(center.x - thickness / 2.0, rect.min.y),
-                egui::pos2(center.x + thickness / 2.0, rect.max.y),
-            );
+        Shape::Circle { cx, cy, radius } => {
             ui.painter()
-                .rect_filled(horizontal, egui::CornerRadius::ZERO, color);
-            ui.painter()
-                .rect_filled(vertical, egui::CornerRadius::ZERO, color);
+                .circle_filled(egui::pos2(*cx, *cy), *radius, color);
         }
-        CrosshairStyle::CornerDots4 | CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8 => {
-            // 四角圆形。
-            let configured_offset = if crosshair.offset > 0.0 {
-                crosshair.offset
-            } else {
-                crosshair.size
-            };
-            let offset = configured_offset
-                .min(rect.width() / 4.0)
-                .min(rect.height() / 4.0);
-            let radius = if crosshair.radius > 0.0 {
-                crosshair.radius
-            } else {
-                crosshair.thickness * 3.0
-            };
-            let corners = [
-                egui::pos2(rect.min.x + offset, rect.min.y + offset),
-                egui::pos2(rect.max.x - offset, rect.min.y + offset),
-                egui::pos2(rect.min.x + offset, rect.max.y - offset),
-                egui::pos2(rect.max.x - offset, rect.max.y - offset),
-            ];
-            for pos in corners {
-                ui.painter().circle_filled(pos, radius, color);
-            }
-            // 垂直中心圆形。
-            if matches!(
-                crosshair.style,
-                CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8
-            ) {
-                ui.painter().circle_filled(
-                    egui::pos2(center.x, rect.min.y + offset),
-                    radius,
-                    color,
-                );
-                ui.painter().circle_filled(
-                    egui::pos2(center.x, rect.max.y - offset),
-                    radius,
-                    color,
-                );
-            }
-            // 水平中心圆形。
-            if matches!(crosshair.style, CrosshairStyle::CornerDots8) {
-                ui.painter().circle_filled(
-                    egui::pos2(rect.min.x + offset, center.y),
-                    radius,
-                    color,
-                );
-                ui.painter().circle_filled(
-                    egui::pos2(rect.max.x - offset, center.y),
-                    radius,
-                    color,
-                );
-            }
+        Shape::CircleStroke {
+            cx,
+            cy,
+            radius,
+            thickness,
+        } => {
+            ui.painter().circle_stroke(
+                egui::pos2(*cx, *cy),
+                *radius,
+                Stroke::new(*thickness, color),
+            );
         }
-        CrosshairStyle::Ring => {
-            let radius = rect.height() * crosshair.ring_radius_pct;
-            let thickness = crosshair.thickness;
-            match crosshair.ring_style {
-                RingStyle::Solid => {
-                    ui.painter()
-                        .circle_stroke(center, radius, Stroke::new(thickness, color));
-                }
-                RingStyle::Dashed => {
-                    draw_dashed_circle(ui, center, radius, thickness, color, 4.0, 4.0);
-                }
-                RingStyle::Double => {
-                    ui.painter()
-                        .circle_stroke(center, radius - 2.0, Stroke::new(1.0, color));
-                    draw_dashed_circle(ui, center, radius + 2.0, 1.0, color, 4.0, 4.0);
-                }
-            }
-        }
-        CrosshairStyle::CustomOrb => {
-            let radius = crosshair.radius.max(1.0);
-            let offset = crosshair.offset;
-            let draw_edge_orbs = |ui: &mut egui::Ui, count: u32, positions: Vec<egui::Pos2>| {
-                if count == 0 || positions.is_empty() {
-                    return;
-                }
-                if count == 1 {
-                    ui.painter()
-                        .circle_filled(positions[positions.len() / 2], radius, color);
-                    return;
-                }
-                let step = (positions.len() - 1) as f32 / (count + 1) as f32;
-                for i in 1..=count {
-                    let idx_f = i as f32 * step;
-                    let idx0 = idx_f.floor() as usize;
-                    let idx1 = (idx0 + 1).min(positions.len() - 1);
-                    let t = idx_f - idx0 as f32;
-                    let p0 = positions[idx0];
-                    let p1 = positions[idx1];
-                    let pos = p0 + (p1 - p0) * t;
-                    ui.painter().circle_filled(pos, radius, color);
-                }
-            };
-
-            if crosshair.orb_positions.contains(OrbPosition::TOP) {
-                let positions: Vec<_> = (0..=16)
-                    .map(|i| {
-                        let x = egui::lerp(rect.min.x..=rect.max.x, i as f32 / 16.0);
-                        egui::pos2(x, rect.min.y + offset)
-                    })
-                    .collect();
-                draw_edge_orbs(ui, crosshair.custom_orb_top_count, positions);
-            }
-            if crosshair.orb_positions.contains(OrbPosition::BOTTOM) {
-                let positions: Vec<_> = (0..=16)
-                    .map(|i| {
-                        let x = egui::lerp(rect.min.x..=rect.max.x, i as f32 / 16.0);
-                        egui::pos2(x, rect.max.y - offset)
-                    })
-                    .collect();
-                draw_edge_orbs(ui, crosshair.custom_orb_bottom_count, positions);
-            }
-            if crosshair.orb_positions.contains(OrbPosition::LEFT) {
-                let positions: Vec<_> = (0..=16)
-                    .map(|i| {
-                        let y = egui::lerp(rect.min.y..=rect.max.y, i as f32 / 16.0);
-                        egui::pos2(rect.min.x + offset, y)
-                    })
-                    .collect();
-                draw_edge_orbs(ui, crosshair.custom_orb_left_count, positions);
-            }
-            if crosshair.orb_positions.contains(OrbPosition::RIGHT) {
-                let positions: Vec<_> = (0..=16)
-                    .map(|i| {
-                        let y = egui::lerp(rect.min.y..=rect.max.y, i as f32 / 16.0);
-                        egui::pos2(rect.max.x - offset, y)
-                    })
-                    .collect();
-                draw_edge_orbs(ui, crosshair.custom_orb_right_count, positions);
-            }
-        }
-        CrosshairStyle::RandomOrb => {
-            // 使用配置值作为稳定种子，避免每帧闪烁。
-            // seed 包含所有影响生成结果的参数（含 count、位置），
-            // 任一参数变化都会产生不同的随机序列。
-            let seed = ((crosshair.random_orb_offset * 1000.0) as u64)
-                .wrapping_add((crosshair.random_orb_jitter * 100.0) as u64)
-                .wrapping_add((crosshair.random_radius_min * 10.0) as u64)
-                .wrapping_add((crosshair.random_radius_max * 10.0) as u64)
-                .wrapping_add(crosshair.random_orb_count as u64);
-            let mut rng = SimpleRng::new(seed);
-            let count = crosshair.random_orb_count as usize;
-            let offset = crosshair.random_orb_offset;
-            let jitter = crosshair.random_orb_jitter;
-            let min_r = crosshair.random_radius_min;
-            let max_r = crosshair.random_radius_max;
-
-            let radius_for =
-                |rng: &mut SimpleRng| -> f32 { min_r + rng.next_f32() * (max_r - min_r) };
-            let jitter_for = |rng: &mut SimpleRng| -> f32 { (rng.next_f32() - 0.5) * 2.0 * jitter };
-
-            for _ in 0..count {
-                let radius = radius_for(&mut rng);
-                let x = egui::lerp(rect.min.x..=rect.max.x, rng.next_f32());
-                let pos = egui::pos2(
-                    x + jitter_for(&mut rng),
-                    rect.min.y + offset + jitter_for(&mut rng),
-                );
-                ui.painter().circle_filled(pos, radius, color);
-            }
-            for _ in 0..count {
-                let radius = radius_for(&mut rng);
-                let x = egui::lerp(rect.min.x..=rect.max.x, rng.next_f32());
-                let pos = egui::pos2(
-                    x + jitter_for(&mut rng),
-                    rect.max.y - offset + jitter_for(&mut rng),
-                );
-                ui.painter().circle_filled(pos, radius, color);
-            }
-            for _ in 0..count {
-                let radius = radius_for(&mut rng);
-                let y = egui::lerp(rect.min.y..=rect.max.y, rng.next_f32());
-                let pos = egui::pos2(
-                    rect.min.x + offset + jitter_for(&mut rng),
-                    y + jitter_for(&mut rng),
-                );
-                ui.painter().circle_filled(pos, radius, color);
-            }
-            for _ in 0..count {
-                let radius = radius_for(&mut rng);
-                let y = egui::lerp(rect.min.y..=rect.max.y, rng.next_f32());
-                let pos = egui::pos2(
-                    rect.max.x - offset + jitter_for(&mut rng),
-                    y + jitter_for(&mut rng),
-                );
-                ui.painter().circle_filled(pos, radius, color);
-            }
-        }
-        CrosshairStyle::BorderFrame => {
-            let thickness = crosshair.thickness;
-            let offset = crosshair.offset;
-
-            let top_y = rect.min.y + offset;
-            let bottom_y = rect.max.y - offset;
-            let left_x = rect.min.x + offset;
-            let right_x = rect.max.x - offset;
-
-            match crosshair.border_frame_style {
-                BorderFrameStyle::Solid => {
-                    draw_solid_border_frame(
-                        ui, rect, top_y, bottom_y, left_x, right_x, thickness, color,
-                    );
-                }
-                BorderFrameStyle::Gap => {
-                    draw_gap_border_frame(
-                        ui, rect, top_y, bottom_y, left_x, right_x, thickness, color,
-                    );
-                }
-            }
+        Shape::DashedCircle {
+            cx,
+            cy,
+            radius,
+            thickness,
+            dash_len,
+            gap_len,
+        } => {
+            render_dashed_circle_egui(
+                ui,
+                egui::pos2(*cx, *cy),
+                *radius,
+                *thickness,
+                color,
+                *dash_len,
+                *gap_len,
+            );
         }
     }
 }
 
-/// 绘制虚线圆：按线段长度与间隔将圆周分段。
-fn draw_dashed_circle(
+/// 用 egui painter 绘制虚线圆。
+fn render_dashed_circle_egui(
     ui: &mut egui::Ui,
     center: egui::Pos2,
     radius: f32,
@@ -810,160 +647,6 @@ fn draw_dashed_circle(
     }
 }
 
-/// 简单的线性同余 RNG，用于预览/覆盖层生成稳定随机球位置。
-#[derive(Debug, Clone, Copy)]
-struct SimpleRng {
-    state: u64,
-}
-
-impl SimpleRng {
-    fn new(seed: u64) -> Self {
-        Self { state: seed.max(1) }
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1);
-        self.state
-    }
-
-    fn next_f32(&mut self) -> f32 {
-        (self.next_u64() & 0x00FF_FFFF) as f32 / 0x0100_0000 as f32
-    }
-}
-
-/// 绘制完整边框（4 条矩形条）。
-fn draw_solid_border_frame(
-    ui: &mut egui::Ui,
-    rect: egui::Rect,
-    top_y: f32,
-    bottom_y: f32,
-    left_x: f32,
-    right_x: f32,
-    thickness: f32,
-    color: Color32,
-) {
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(rect.min.x, top_y - thickness / 2.0),
-            egui::pos2(rect.max.x, top_y + thickness / 2.0),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(rect.min.x, bottom_y - thickness / 2.0),
-            egui::pos2(rect.max.x, bottom_y + thickness / 2.0),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(left_x - thickness / 2.0, rect.min.y),
-            egui::pos2(left_x + thickness / 2.0, rect.max.y),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(right_x - thickness / 2.0, rect.min.y),
-            egui::pos2(right_x + thickness / 2.0, rect.max.y),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-}
-
-/// 绘制带中间缺口的边框。
-fn draw_gap_border_frame(
-    ui: &mut egui::Ui,
-    rect: egui::Rect,
-    top_y: f32,
-    bottom_y: f32,
-    left_x: f32,
-    right_x: f32,
-    thickness: f32,
-    color: Color32,
-) {
-    let gap_pct = 0.2;
-    let half_gap_w = rect.width() * gap_pct / 2.0;
-    let half_gap_h = rect.height() * gap_pct / 2.0;
-
-    // 上边。
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(rect.min.x, top_y - thickness / 2.0),
-            egui::pos2(rect.center().x - half_gap_w, top_y + thickness / 2.0),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(rect.center().x + half_gap_w, top_y - thickness / 2.0),
-            egui::pos2(rect.max.x, top_y + thickness / 2.0),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-
-    // 下边。
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(rect.min.x, bottom_y - thickness / 2.0),
-            egui::pos2(rect.center().x - half_gap_w, bottom_y + thickness / 2.0),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(rect.center().x + half_gap_w, bottom_y - thickness / 2.0),
-            egui::pos2(rect.max.x, bottom_y + thickness / 2.0),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-
-    // 左边。
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(left_x - thickness / 2.0, rect.min.y),
-            egui::pos2(left_x + thickness / 2.0, rect.center().y - half_gap_h),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(left_x - thickness / 2.0, rect.center().y + half_gap_h),
-            egui::pos2(left_x + thickness / 2.0, rect.max.y),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-
-    // 右边。
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(right_x - thickness / 2.0, rect.min.y),
-            egui::pos2(right_x + thickness / 2.0, rect.center().y - half_gap_h),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-    ui.painter().rect_filled(
-        egui::Rect::from_min_max(
-            egui::pos2(right_x - thickness / 2.0, rect.center().y + half_gap_h),
-            egui::pos2(right_x + thickness / 2.0, rect.max.y),
-        ),
-        egui::CornerRadius::ZERO,
-        color,
-    );
-}
-
 /// 把 [f32; 4] RGBA 转换为 egui Color32。
 fn color_f32_to_color32(color: &[f32; 4]) -> Color32 {
     Color32::from_rgba_premultiplied(
@@ -979,4 +662,137 @@ fn apply_opacity(color: Color32, opacity: f32) -> Color32 {
     let mut color = color;
     color[3] = (color[3] as f32 * opacity.clamp(0.0, 1.0)) as u8;
     color
+}
+// ===== 自定义图片预览 =====
+
+/// 在设置面板预览区绘制 CustomImage。
+///
+/// 从 `image_path` 加载 PNG，用 egui 的 `TextureHandle` 缓存，
+/// 按配置的缩放比例与偏移居中绘制在预览区。
+fn draw_preview_image(
+    ui: &mut egui::Ui,
+    rect: egui::Rect,
+    crosshair: &peregrine_config::Crosshair,
+    ctx: &egui::Context,
+    cached_image: &mut Option<(String, std::sync::Arc<egui::TextureHandle>)>,
+) {
+    if crosshair.image_path.trim().is_empty() {
+        ui.painter().text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            "请选择 PNG 文件",
+            egui::FontId::proportional(14.0),
+            egui::Color32::from_gray(120),
+        );
+        return;
+    }
+
+    // 检查路径是否变化，需要重新加载。
+    let need_reload = match cached_image {
+        Some((cached_path, _)) => cached_path != &crosshair.image_path,
+        None => true,
+    };
+
+    if need_reload {
+        match load_png_for_egui(&crosshair.image_path) {
+            Ok((rgba, w, h)) => {
+                let color_image = egui::ColorImage {
+                    size: [w, h],
+                    pixels: rgba,
+                };
+                let texture = std::sync::Arc::new(ctx.load_texture(
+                    "peregrine_crosshair_img",
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                ));
+                *cached_image = Some((crosshair.image_path.clone(), texture));
+            }
+            Err(e) => {
+                *cached_image = None;
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    format!("加载失败：{}", e),
+                    egui::FontId::proportional(12.0),
+                    egui::Color32::from_rgb(200, 80, 80),
+                );
+                return;
+            }
+        }
+    }
+
+    let Some((_, texture)) = cached_image.as_ref() else {
+        return;
+    };
+
+    let size = texture.size_vec2();
+    let scaled = size * crosshair.image_scale;
+    let center = egui::pos2(
+        rect.center().x + crosshair.image_offset_x,
+        rect.center().y + crosshair.image_offset_y,
+    );
+    let image_rect = egui::Rect::from_center_size(center, scaled);
+
+    let tint = apply_opacity(
+        egui::Color32::from_rgba_unmultiplied(255, 255, 255, 255),
+        crosshair.opacity,
+    );
+    ui.painter().image(
+        texture.id(),
+        image_rect,
+        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+        tint,
+    );
+}
+
+/// 加载 PNG 文件为 egui 可用的 RGBA 像素。
+fn load_png_for_egui(
+    path: &str,
+) -> Result<(Vec<egui::Color32>, usize, usize), String> {
+    let decoder = png::Decoder::new(
+        std::fs::File::open(path).map_err(|e| format!("打开文件失败：{}", e))?,
+    );
+    let mut reader = decoder
+        .read_info()
+        .map_err(|e| format!("读取 PNG 头失败：{}", e))?;
+    let info = reader.info().clone();
+    let mut buf = vec![0u8; reader.output_buffer_size()];
+    let frame = reader
+        .next_frame(&mut buf)
+        .map_err(|e| format!("解码失败：{}", e))?;
+    let bytes = &buf[..frame.buffer_size()];
+
+    let w = info.width as usize;
+    let h = info.height as usize;
+
+    let pixels: Vec<egui::Color32> = match info.color_type {
+        png::ColorType::Rgba => bytes
+            .chunks_exact(4)
+            .map(|c| egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3]))
+            .collect(),
+        png::ColorType::Rgb => bytes
+            .chunks_exact(3)
+            .map(|c| egui::Color32::from_rgb(c[0], c[1], c[2]))
+            .collect(),
+        png::ColorType::Grayscale => {
+            bytes.iter().map(|&v| egui::Color32::from_gray(v)).collect()
+        }
+        png::ColorType::GrayscaleAlpha => bytes
+            .chunks_exact(2)
+            .map(|c| egui::Color32::from_rgba_unmultiplied(c[0], c[0], c[0], c[1]))
+            .collect(),
+        png::ColorType::Indexed => bytes
+            .chunks_exact(3)
+            .map(|c| egui::Color32::from_rgb(c[0], c[1], c[2]))
+            .collect(),
+    };
+
+    Ok((pixels, w, h))
+}
+
+/// 弹出原生文件选择对话框，返回用户选择的 PNG 文件路径。
+fn pick_png_file() -> Option<String> {
+    // 使用 rfd（rust file dialog）弹出文件选择。
+    // 如果 rfd 未引入，则返回 None（用户需手动粘贴路径）。
+    None
 }

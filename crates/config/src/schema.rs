@@ -134,6 +134,27 @@ pub struct Crosshair {
     /// 自定义图片：相对屏幕中心的垂直偏移（px，逻辑坐标）。
     #[serde(default)]
     pub image_offset_y: f32,
+    /// 箭头：距屏幕边缘的像素距离（0 = 贴边）。
+    #[serde(default = "default_arrow_distance")]
+    pub arrow_distance: f32,
+    /// 箭头：尾巴宽度（px）。默认 0 表示等于箭头大小（size）。
+    #[serde(default)]
+    pub arrow_width: f32,
+    /// 箭头：是否为每边单独设置尾巴长度。
+    #[serde(default)]
+    pub arrow_tail_per_edge: bool,
+    /// 箭头：上边尾巴长度（仅 arrow_tail_per_edge 为 true 时生效）。
+    #[serde(default)]
+    pub arrow_tail_top: f32,
+    /// 箭头：下边尾巴长度。
+    #[serde(default)]
+    pub arrow_tail_bottom: f32,
+    /// 箭头：左边尾巴长度。
+    #[serde(default)]
+    pub arrow_tail_left: f32,
+    /// 箭头：右边尾巴长度。
+    #[serde(default)]
+    pub arrow_tail_right: f32,
 }
 
 fn default_secondary_size() -> f32 {
@@ -177,6 +198,9 @@ fn default_random_orb_jitter() -> f32 {
 }
 fn default_image_scale() -> f32 {
     1.0
+}
+fn default_arrow_distance() -> f32 {
+    0.0
 }
 fn default_border_inset() -> bool {
     true
@@ -225,6 +249,8 @@ pub enum CrosshairStyle {
     BorderFrame,
     /// 自定义图片：加载 PNG 文件作为准心图案。
     CustomImage,
+    /// 箭头：屏幕四边中点各一个指向中心的三角形箭头。
+    EdgeArrows,
 }
 
 /// 中心环线型样式。
@@ -424,6 +450,13 @@ impl Crosshair {
             image_scale: default_image_scale(),
             image_offset_x: 0.0,
             image_offset_y: 0.0,
+            arrow_distance: default_arrow_distance(),
+            arrow_width: 0.0,
+            arrow_tail_per_edge: false,
+            arrow_tail_top: 0.0,
+            arrow_tail_bottom: 0.0,
+            arrow_tail_left: 0.0,
+            arrow_tail_right: 0.0,
         }
     }
 

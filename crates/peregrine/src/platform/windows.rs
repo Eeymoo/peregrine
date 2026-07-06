@@ -15,9 +15,9 @@ use windows::Win32::Foundation::{
 };
 use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetWindowLongPtrW, GetWindowRect,
-    GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, IsWindow,
-    IsWindowVisible, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
+    EnumWindows, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetForegroundWindow, GetWindowLongPtrW,
+    GetWindowRect, GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic,
+    IsWindow, IsWindowVisible, SW_HIDE, SW_SHOWNA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
     SWP_NOOWNERZORDER, SWP_NOSIZE, SetWindowLongPtrW, SetWindowPos, ShowWindow,
     WINDOW_LONG_PTR_INDEX, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU, WS_THICKFRAME,
@@ -352,6 +352,16 @@ pub async fn follow_target_window(
                     }
 
                     if IsIconic(target.0).as_bool() {
+                        if visible {
+                            let _ = ShowWindow(overlay.0, SW_HIDE);
+                            visible = false;
+                        }
+                        continue;
+                    }
+
+                    // 目标窗口不是前台窗口时隐藏 overlay。
+                    let foreground = GetForegroundWindow();
+                    if foreground != target.0 {
                         if visible {
                             let _ = ShowWindow(overlay.0, SW_HIDE);
                             visible = false;

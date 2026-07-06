@@ -61,6 +61,15 @@ pub enum Shape {
         dash_len: f32,
         gap_len: f32,
     },
+    /// 填充三角形（3 个顶点，逻辑坐标）。
+    Triangle {
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+        x3: f32,
+        y3: f32,
+    },
 }
 
 /// 根据准心配置与绘制区域，生成一组图元。
@@ -334,6 +343,131 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                         &mut shapes, screen, top_y, bottom_y, left_x, right_x, thickness,
                     );
                 }
+            }
+        }
+        // 箭头：四边各一个三角形 + 尾巴矩形，从边缘向中心 ===>。
+        // 所有尺寸按屏幕短边等比缩放，确保预览与实际 overlay 比例一致。
+        CrosshairStyle::EdgeArrows => {
+            // 基准短边像素（1080p 短边），所有配置值以此为参照。
+            const BASE_SHORT: f32 = 1080.0;
+            let screen_short = screen.width().min(screen.height());
+            let scale = screen_short / BASE_SHORT;
+
+            let tri_size = (crosshair.size.max(4.0)) * scale;
+            let tri_half = tri_size * 0.6;
+            // 每边的尾巴长度。
+            let default_tail = crosshair.arrow_distance.max(0.0) * scale;
+            let (tail_top, tail_bottom, tail_left, tail_right) = if crosshair.arrow_tail_per_edge {
+                (
+                    crosshair.arrow_tail_top.max(0.0) * scale,
+                    crosshair.arrow_tail_bottom.max(0.0) * scale,
+                    crosshair.arrow_tail_left.max(0.0) * scale,
+                    crosshair.arrow_tail_right.max(0.0) * scale,
+                )
+            } else {
+                (default_tail, default_tail, default_tail, default_tail)
+            };
+            let tail_half = if crosshair.arrow_width > 0.0 {
+                ((crosshair.arrow_width / 2.0) * scale).min(tri_half)
+            } else {
+                tri_half
+            };
+
+            let pos = crosshair.orb_positions;
+            let all_off = !pos.contains(OrbPosition::TOP)
+                && !pos.contains(OrbPosition::BOTTOM)
+                && !pos.contains(OrbPosition::LEFT)
+                && !pos.contains(OrbPosition::RIGHT);
+            let (show_top, show_bottom, show_left, show_right) = if all_off {
+                (true, true, true, true)
+            } else {
+                (
+                    pos.contains(OrbPosition::TOP),
+                    pos.contains(OrbPosition::BOTTOM),
+                    pos.contains(OrbPosition::LEFT),
+                    pos.contains(OrbPosition::RIGHT),
+                )
+            };
+
+            if show_top {
+                let tri_base_y = screen.min_y + tail_top;
+                let tri_tip_y = tri_base_y + tri_size;
+                if tail_top > 0.0 {
+                    shapes.push(Shape::Rect {
+                        x: cx - tail_half,
+                        y: screen.min_y,
+                        w: tail_half * 2.0,
+                        h: tail_top,
+                    });
+                }
+                shapes.push(Shape::Triangle {
+                    x1: cx,
+                    y1: tri_tip_y,
+                    x2: cx - tri_half,
+                    y2: tri_base_y,
+                    x3: cx + tri_half,
+                    y3: tri_base_y,
+                });
+            }
+            if show_bottom {
+                let tri_base_y = screen.max_y - tail_bottom;
+                let tri_tip_y = tri_base_y - tri_size;
+                if tail_bottom > 0.0 {
+                    shapes.push(Shape::Rect {
+                        x: cx - tail_half,
+                        y: tri_base_y,
+                        w: tail_half * 2.0,
+                        h: tail_bottom,
+                    });
+                }
+                shapes.push(Shape::Triangle {
+                    x1: cx,
+                    y1: tri_tip_y,
+                    x2: cx - tri_half,
+                    y2: tri_base_y,
+                    x3: cx + tri_half,
+                    y3: tri_base_y,
+                });
+            }
+            if show_left {
+                let tri_base_x = screen.min_x + tail_left;
+                let tri_tip_x = tri_base_x + tri_size;
+                if tail_left > 0.0 {
+                    shapes.push(Shape::Rect {
+                        x: screen.min_x,
+                        y: cy - tail_half,
+                        w: tail_left,
+                        h: tail_half * 2.0,
+                    });
+                }
+                shapes.push(Shape::Triangle {
+                    x1: tri_tip_x,
+                    y1: cy,
+                    x2: tri_base_x,
+                    y2: cy - tri_half,
+                    x3: tri_base_x,
+                    y3: cy + tri_half,
+                });
+            }
+            if show_right {
+                let tri_base_x = screen.max_x - tail_right;
+                let tri_tip_x = tri_base_x - tri_size;
+                if tail_right > 0.0 {
+                    shapes.push(Shape::Rect {
+                        x: tri_base_x,
+                        y: cy - tail_half,
+                        w: tail_right,
+                        h: tail_half * 2.0,
+                    });
+                }
+                shapes.push(Shape::Triangle {
+                    x1: tri_tip_x,
+                    y1: cy,
+                    x2: tri_base_x,
+                    y2: cy - tri_half,
+                    x3: tri_base_x,
+                    y3: cy + tri_half,
+                });
             }
         }
         // CustomImage 不生成矢量图元，由各渲染器单独处理图片加载与 blit。

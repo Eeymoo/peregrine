@@ -5,7 +5,7 @@ members = ["crates/config", "crates/peregrine"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
+license = "PolyForm-Noncommercial-1.0.0"
 authors = ["Peregrine Contributors"]
 rust-version = "1.85"
 

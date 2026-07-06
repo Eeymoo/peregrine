@@ -118,8 +118,6 @@ impl SettingsUi {
             .show(ctx, |ui| {
                 ui.set_min_width(240.0);
                 ui.set_max_width(280.0);
-                ui.heading("辅助贴图设置");
-                ui.separator();
 
                 // 类型下拉框。
                 ui.horizontal(|ui| {
@@ -349,6 +347,73 @@ impl SettingsUi {
                                 .text("垂直偏移"),
                         );
                     }
+                    CrosshairStyle::EdgeArrows => {
+                        ui.label("箭头");
+                        ui.add(
+                            Slider::new(&mut crosshair.size, 4.0..=60.0)
+                                .text("箭头大小")
+                                .step_by(1.0),
+                        );
+                        ui.add(
+                            Slider::new(&mut crosshair.arrow_width, 0.0..=72.0)
+                                .text("宽度(0=等箭头)")
+                                .step_by(1.0),
+                        );
+                        ui.checkbox(&mut crosshair.arrow_tail_per_edge, "分别设置尾巴长度");
+                        if crosshair.arrow_tail_per_edge {
+                            ui.add(
+                                Slider::new(&mut crosshair.arrow_tail_top, 0.0..=500.0)
+                                    .text("上尾巴")
+                                    .step_by(1.0),
+                            );
+                            ui.add(
+                                Slider::new(&mut crosshair.arrow_tail_bottom, 0.0..=500.0)
+                                    .text("下尾巴")
+                                    .step_by(1.0),
+                            );
+                            ui.add(
+                                Slider::new(&mut crosshair.arrow_tail_left, 0.0..=500.0)
+                                    .text("左尾巴")
+                                    .step_by(1.0),
+                            );
+                            ui.add(
+                                Slider::new(&mut crosshair.arrow_tail_right, 0.0..=500.0)
+                                    .text("右尾巴")
+                                    .step_by(1.0),
+                            );
+                        } else {
+                            ui.add(
+                                Slider::new(&mut crosshair.arrow_distance, 0.0..=500.0)
+                                    .text("尾巴长度")
+                                    .step_by(1.0),
+                            );
+                        }
+                        ui.horizontal(|ui| {
+                            ui.label("显示：");
+                            let mut top = crosshair.orb_positions.contains(OrbPosition::TOP);
+                            let mut bottom =
+                                crosshair.orb_positions.contains(OrbPosition::BOTTOM);
+                            let mut left = crosshair.orb_positions.contains(OrbPosition::LEFT);
+                            let mut right = crosshair.orb_positions.contains(OrbPosition::RIGHT);
+                            ui.checkbox(&mut top, "上");
+                            ui.checkbox(&mut bottom, "下");
+                            ui.checkbox(&mut left, "左");
+                            ui.checkbox(&mut right, "右");
+                            crosshair.orb_positions = OrbPosition::empty();
+                            if top {
+                                crosshair.orb_positions.insert(OrbPosition::TOP);
+                            }
+                            if bottom {
+                                crosshair.orb_positions.insert(OrbPosition::BOTTOM);
+                            }
+                            if left {
+                                crosshair.orb_positions.insert(OrbPosition::LEFT);
+                            }
+                            if right {
+                                crosshair.orb_positions.insert(OrbPosition::RIGHT);
+                            }
+                        });
+                    }
                 }
 
                 // 选择目标窗口：下拉列表枚举当前可见的顶层窗口。
@@ -414,6 +479,30 @@ impl SettingsUi {
                         start_overlay = true;
                     }
                 }
+
+                // 底部水印：署名与许可提示。
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
+                    ui.separator();
+                    ui.label(
+                        egui::RichText::new("PolyForm Noncommercial 1.0.0 · 个人免费 · 禁止商业贩卖")
+                            .small()
+                            .color(egui::Color32::from_gray(120)),
+                    );
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        ui.hyperlink_to(
+                            egui::RichText::new("Peregrine")
+                                .small()
+                                .color(egui::Color32::from_gray(120)),
+                            "https://github.com/Eeymoo/peregrine",
+                        );
+                        ui.label(
+                            egui::RichText::new("© eeymoo · 免费使用")
+                                .small()
+                                .color(egui::Color32::from_gray(120)),
+                        );
+                    });
+                });
             });
 
         // 左侧：演示窗口。
@@ -467,7 +556,7 @@ impl SettingsUi {
 }
 
 /// 所有可用的辅助贴图样式。
-fn all_styles() -> [CrosshairStyle; 11] {
+fn all_styles() -> [CrosshairStyle; 12] {
     [
         CrosshairStyle::ToiletPaper,
         CrosshairStyle::Cross,
@@ -480,6 +569,7 @@ fn all_styles() -> [CrosshairStyle; 11] {
         CrosshairStyle::RandomOrb,
         CrosshairStyle::BorderFrame,
         CrosshairStyle::CustomImage,
+        CrosshairStyle::EdgeArrows,
     ]
 }
 
@@ -497,6 +587,7 @@ fn style_display_name(style: CrosshairStyle) -> String {
         CrosshairStyle::RandomOrb => "随机球".to_string(),
         CrosshairStyle::BorderFrame => "边框".to_string(),
         CrosshairStyle::CustomImage => "自定义图片".to_string(),
+        CrosshairStyle::EdgeArrows => "箭头".to_string(),
     }
 }
 
@@ -666,6 +757,25 @@ fn render_shape_egui(ui: &mut egui::Ui, shape: &crate::shapes::Shape, color: Col
                 *dash_len,
                 *gap_len,
             );
+        }
+        Shape::Triangle {
+            x1,
+            y1,
+            x2,
+            y2,
+            x3,
+            y3,
+        } => {
+            let points = vec![
+                egui::pos2(*x1, *y1),
+                egui::pos2(*x2, *y2),
+                egui::pos2(*x3, *y3),
+            ];
+            ui.painter().add(egui::Shape::convex_polygon(
+                points,
+                color,
+                egui::Stroke::NONE,
+            ));
         }
     }
 }

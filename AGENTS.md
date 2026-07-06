@@ -6,7 +6,7 @@
 
 Peregrine 是一个桌面辅助贴图（准心 / 覆盖层）工具，**主要用途是防 3D 眩晕**：在屏幕中心或边缘绘制半透明的视觉锚点，为玩家在 3D 游戏中提供固定参照物。
 
-- 语言 / 生态：**Rust**，Cargo **workspace**（`resolver = "3"`，`edition = "2024"`，`rust-version = 1.85`，MIT 许可）。
+- 语言 / 生态：**Rust**，Cargo **workspace**（`resolver = "3"`，`edition = "2024"`，`rust-version = 1.85`，PolyForm Noncommercial 许可）。
 - 图形栈：`winit`（窗口 / 事件循环）+ `wgpu`（GPU 渲染）+ `egui` / `egui-wgpu` / `egui-winit`（即时模式 UI）。
 - 异步运行时：`tokio`（配置读写、文件热重载、后台任务）。
 - 目标平台：以 **macOS** 为主要开发/运行平台（字体加载、配置目录等有 macOS 专门处理），同时对 Windows / Linux 做了条件编译兼容。

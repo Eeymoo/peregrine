@@ -274,10 +274,79 @@ fn rasterize_shape(
                 color,
             );
         }
+        Shape::Triangle {
+            x1,
+            y1,
+            x2,
+            y2,
+            x3,
+            y3,
+        } => {
+            draw_triangle(
+                buffer, pixel_w, pixel_h, scale, *x1, *y1, *x2, *y2, *x3, *y3, color,
+            );
+        }
     }
 }
 
 // ===== 像素光栅化原语 =====
+
+/// 绘制填充三角形（逻辑坐标，重心坐标法光栅化）。
+fn draw_triangle(
+    buffer: &mut [u32],
+    pixel_w: u32,
+    pixel_h: u32,
+    scale: f32,
+    x1: f32,
+    y1: f32,
+    x2: f32,
+    y2: f32,
+    x3: f32,
+    y3: f32,
+    color: u32,
+) {
+    // 转换到物理像素坐标。
+    let (px1, py1) = (x1 * scale, y1 * scale);
+    let (px2, py2) = (x2 * scale, y2 * scale);
+    let (px3, py3) = (x3 * scale, y3 * scale);
+
+    // 包围盒。
+    let min_x = px1.min(px2).min(px3).floor() as i32;
+    let max_x = px1.max(px2).max(px3).ceil() as i32;
+    let min_y = py1.min(py2).min(py3).floor() as i32;
+    let max_y = py1.max(py2).max(py3).ceil() as i32;
+
+    let x0 = min_x.max(0);
+    let y0 = min_y.max(0);
+    let x1_clip = max_x.min(pixel_w as i32);
+    let y1_clip = max_y.min(pixel_h as i32);
+
+    // 三角形面积（2 倍）。
+    let area = (px2 - px1) * (py3 - py1) - (px3 - px1) * (py2 - py1);
+    if area.abs() < 0.01 {
+        return;
+    }
+
+    for py in y0..y1_clip {
+        for px in x0..x1_clip {
+            let pxc = px as f32 + 0.5;
+            let pyc = py as f32 + 0.5;
+            // 重心坐标判断点是否在三角形内。
+            let w0 = (px2 - pxc) * (py3 - pyc) - (px3 - pxc) * (py2 - pyc);
+            let w1 = (px3 - pxc) * (py1 - pyc) - (px1 - pxc) * (py3 - pyc);
+            let w2 = (px1 - pxc) * (py2 - pyc) - (px2 - pxc) * (py1 - pyc);
+            // 判断三个重心坐标同号。
+            let inside = (w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0)
+                || (w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0);
+            if inside {
+                let idx = (py as u32) * pixel_w + (px as u32);
+                if (idx as usize) < buffer.len() {
+                    buffer[idx as usize] = color;
+                }
+            }
+        }
+    }
+}
 
 /// 绘制填充矩形（逻辑坐标）。
 fn draw_rect(

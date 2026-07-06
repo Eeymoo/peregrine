@@ -137,8 +137,8 @@ impl Renderer {
 
     /// 渲染覆盖层（准心）。
     ///
-    /// 清屏为颜色键色（RGB(1,0,0) 极深红），并根据当前 Profile 的 crosshair 配置
-    /// 绘制辅助贴图。颜色键区域会被 DWM 透明化，只留下准心图形。
+    /// softbuffer 分支下遮盖层不再使用此方法，保留供 wgpu-alpha 分支使用。
+    #[allow(dead_code)]
     pub fn render_overlay(&mut self) {
         let output = self.surface.get_current_texture().expect("surface texture");
         let view = output

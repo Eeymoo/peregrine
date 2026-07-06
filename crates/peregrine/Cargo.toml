@@ -19,6 +19,7 @@ egui-wgpu = { workspace = true }
 egui-winit = { workspace = true }
 pollster = { workspace = true }
 tray-icon = { workspace = true }
+softbuffer = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

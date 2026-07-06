@@ -1,7 +1,8 @@
 //! Peregrine 主程序入口。
 //!
-//! 双窗口架构：设置窗口（普通窗口）+ Overlay 窗口（独立透明穿透置顶）。
-//! 两者各自有独立的 wgpu surface 和 egui context，互不干扰。
+//! 双窗口架构：设置窗口（wgpu + egui）+ Overlay 窗口（softbuffer 像素缓冲区）。
+//! 设置窗口用 GPU 渲染 egui 面板；Overlay 窗口用 CPU 像素缓冲区绘制准心，
+//! 参考 simple-crosshair-overlay 的方案，透明天然可靠。
 //! Overlay 窗口在点击「开始覆盖」时创建，跟随目标游戏窗口的位置与大小，
 //! 目标窗口关闭时自动销毁。
 
@@ -9,6 +10,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod icon;
+mod overlay_renderer;
 mod platform;
 mod renderer;
 mod settings_ui;
@@ -42,8 +44,8 @@ struct App {
     settings_renderer: Option<renderer::Renderer>,
     /// Overlay 窗口句柄（点击「开始覆盖」后创建）。
     overlay_window: Option<Arc<Window>>,
-    /// Overlay 窗口的 wgpu + egui 渲染器。
-    overlay_renderer: Option<renderer::Renderer>,
+    /// Overlay 窗口的 softbuffer 像素渲染器。
+    overlay_renderer: Option<overlay_renderer::OverlayRenderer>,
     /// Overlay 是否处于活动状态（用于 UI 按钮文字切换）。
     overlay_active: bool,
     /// 配置存储。
@@ -105,8 +107,11 @@ impl App {
 
     /// 创建 Overlay 窗口并启动跟随任务。
     ///
-    /// Overlay 窗口是无边框的独立窗口，创建后立即设置 Win32 分层属性
-    ///（透明穿透置顶），然后启动后台 16ms 轮询跟随目标窗口。
+    /// Overlay 窗口是无边框透明窗口，参考 simple-crosshair-overlay 的方案：
+    /// - `with_transparent(true)` 启用 DWM 透明
+    /// - `set_cursor_hittest(false)` 鼠标穿透
+    /// - `WindowLevel::AlwaysOnTop` 置顶
+    /// - softbuffer 像素缓冲区渲染准心
     #[allow(unused_variables)]
     fn create_overlay(&mut self, event_loop: &ActiveEventLoop) {
         if self.overlay_window.is_some() {
@@ -118,7 +123,17 @@ impl App {
         let attributes = Window::default_attributes()
             .with_title("")
             .with_decorations(false)
+            .with_transparent(true)
+            .with_active(false)
+            .with_window_level(winit::window::WindowLevel::AlwaysOnTop)
             .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
+
+        // Windows 平台：跳过任务栏 + 禁用拖放。
+        #[cfg(windows)]
+        let attributes = {
+            use winit::platform::windows::WindowAttributesExtWindows;
+            attributes.with_skip_taskbar(true).with_drag_and_drop(false)
+        };
 
         let window = match event_loop.create_window(attributes) {
             Ok(w) => Arc::new(w),
@@ -128,8 +143,10 @@ impl App {
             }
         };
 
-        // 设置 Win32 分层属性：透明穿透置顶。
-        // 非 Windows 平台跳过，Overlay 仅作为普通无边框窗口存在。
+        // 鼠标穿透（必须在窗口可见后调用）。
+        let _ = window.set_cursor_hittest(false);
+
+        // Windows 平台：补充 WS_EX_NOACTIVATE 和 WS_EX_TOOLWINDOW。
         #[cfg(windows)]
         {
             if let Err(e) = platform::windows::setup_overlay_window(&window) {
@@ -138,9 +155,8 @@ impl App {
             }
         }
 
-        // 初始化 Overlay 的独立渲染器。
-        let renderer =
-            pollster::block_on(renderer::Renderer::new(window.clone(), self.config.clone()));
+        // 初始化 Overlay 的 softbuffer 渲染器。
+        let renderer = overlay_renderer::OverlayRenderer::new(window.clone(), self.config.clone());
 
         self.overlay_window = Some(window.clone());
         self.overlay_renderer = Some(renderer);

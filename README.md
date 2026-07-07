@@ -1,37 +1,38 @@
 # Peregrine
 
+[![下载](https://img.shields.io/github/v/release/Eeymoo/peregrine?style=for-the-badge&label=%E4%B8%8B%E8%BD%BD)](https://github.com/Eeymoo/peregrine/releases)
+
 Peregrine 是一个桌面辅助贴图(准心 / 覆盖层)工具,**主要用途是防 3D 眩晕**:在屏幕中心或边缘绘制半透明的视觉锚点,为玩家在 3D 游戏中提供固定参照物,缓解眩晕感。
 
-> **当前状态:可运行的骨架。** UI、配置、渲染管线已打通,但覆盖层尚未实现真正的透明置顶穿透窗口,"跟随窗口""进程触发"等功能仍为占位。详见文末 [已知局限](#已知局限)。
+> **当前状态: v0.1.0 正式版已发布。** Windows 透明置顶穿透覆盖层、目标窗口跟随、多种准心样式、自定义 PNG 贴图等功能已可用。
 
 > 面向使用者的操作说明请看 **[使用帮助(HELP.md)](HELP.md)**。
+> 贡献指南请看 **[CONTRIBUTING.md](CONTRIBUTING.md)**。
 
-## 特性
+## 快速开始
 
-- 多种辅助贴图样式:卫生纸(矩形贴边)、准星、大准星、定位球(4/6/8 点)、中心环、自定义定位球、随机球、边框。
-- 每种样式可调尺寸、厚度、颜色、不透明度、间隙、贴边位置等参数。
-- 多 Profile 配置,可为不同场景保存独立设置。
-- 实时预览:在设置面板中调整参数即时看到效果。
-- 配置持久化 + 热重载:外部编辑配置文件后自动生效。
-- 内置 egui 设置界面,通过热键在覆盖层 / 设置两种模式间切换。
+### 下载与启动（推荐）
 
-## 技术栈
+1. 前往 **[Releases 页面](https://github.com/Eeymoo/peregrine/releases)** 下载最新版本。
+2. 根据系统选择对应包：
+   - `peregrine-v*-windows-x64.zip` — 64 位系统
+   - `peregrine-v*-windows-x86.zip` — 32 位系统
+   - `peregrine-v*-windows-arm64.zip` — ARM 设备
+3. 解压后直接运行 `peregrine.exe`，程序默认进入**设置界面**。
+4. 调整样式、颜色、透明度后按 **Tab** 切换到覆盖层模式。
 
-- **语言 / 生态**:Rust,Cargo workspace(`edition = "2024"`,`rust-version = 1.85`,PolyForm Noncommercial 许可)。
-- **图形栈**:[`winit`](https://github.com/rust-windowing/winit)(窗口 / 事件循环) + [`wgpu`](https://github.com/gfx-rs/wgpu)(GPU 渲染) + [`egui`](https://github.com/emilk/egui) / `egui-wgpu` / `egui-winit`(即时模式 UI)。
-- **异步运行时**:[`tokio`](https://github.com/tokio-rs/tokio)(配置读写、文件热重载、后台任务)。
-- **目标平台**:以 **macOS** 为主要开发 / 运行平台(字体加载、配置目录等有 macOS 专门处理),同时对 Windows / Linux 做了条件编译兼容。
+> 首次运行会自动生成默认配置，所有设置自动保存。
 
-## 构建与运行
+### 从源码构建
 
-需要较新的 Rust 工具链(edition 2024,rustc/cargo ≥ 1.85)。在仓库根目录执行:
+需要 Rust 工具链（≥ 1.85）。在仓库根目录执行：
 
 ```bash
 # 构建
 cargo build
 cargo build --release
 
-# 运行 GUI 主程序(workspace 有多个成员,需用 -p 指定)
+# 运行 GUI 主程序（workspace 有多个成员，需用 -p 指定）
 cargo run -p peregrine
 
 # 测试
@@ -42,6 +43,26 @@ cargo test -p peregrine_config  # 只测配置库
 cargo fmt
 cargo clippy
 ```
+
+## 特性
+
+- **Windows 透明覆盖层窗口**：置顶、鼠标穿透的 Overlay 窗口，可悬浮于游戏或应用上方。
+- **目标窗口跟随**：通过下拉列表选择目标窗口，覆盖层可跟随其位置与尺寸。
+- 多种辅助贴图样式：卫生纸（矩形贴边）、准星、大准星、定位球（4/6/8 点）、中心环、自定义定位球、随机球、边框。
+- **自定义 PNG 贴图**：支持加载 PNG 图片作为覆盖层内容。
+- 每种样式可调尺寸、厚度、颜色、不透明度、间隙、贴边位置等参数。
+- 多 Profile 配置，可为不同场景保存独立设置。
+- 实时预览：在设置面板中调整参数即时看到效果。
+- 配置持久化 + 热重载：外部编辑配置文件后自动生效。
+- 内置 egui 设置界面，通过热键在覆盖层 / 设置两种模式间切换。
+- **GitHub Actions 自动构建**：Windows x86 / x86_64 / ARM64 跨平台构建与发布。
+
+## 技术栈
+
+- **语言 / 生态**:Rust,Cargo workspace(`edition = "2024"`,`rust-version = 1.85`,PolyForm Noncommercial 许可)。
+- **图形栈**:[`winit`](https://github.com/rust-windowing/winit)(窗口 / 事件循环) + [`wgpu`](https://github.com/gfx-rs/wgpu)(GPU 渲染) + [`egui`](https://github.com/emilk/egui) / `egui-wgpu` / `egui-winit`(即时模式 UI)。
+- **异步运行时**:[`tokio`](https://github.com/tokio-rs/tokio)(配置读写、文件热重载、后台任务)。
+- **目标平台**:**Windows**（x86 / x86_64 / ARM64）。
 
 ### 快捷键
 
@@ -81,9 +102,8 @@ peregrine/
 
 | 平台 | 路径 |
 | --- | --- |
-| macOS | `~/Library/Application Support/Peregrine/config.json` |
 | Windows | `%APPDATA%/Peregrine/config.json` |
-| Linux | `~/.config/Peregrine/config.json` |
+| Windows | `%APPDATA%/Peregrine/config.json` |
 
 - 配置根为 `AppConfig`(`active_profile` + 多个命名 `Profile`)。首次运行会自动生成默认配置。
 - 写入为原子操作(同目录临时文件 + `rename`),写入前必先校验,避免落盘非法配置。
@@ -100,11 +120,8 @@ UI 改动 / 外部编辑文件
 
 ## 已知局限
 
-当前处于骨架阶段,以下功能尚未完成:
-
-- 覆盖层窗口目前是普通窗口,**尚未实现透明、置顶、鼠标穿透**等真正的 overlay 特性。
-- `Profile.target_window`("选择窗口"按钮)与 `TriggerRule`(进程触发)均为**占位**,未接入平台 API。
-- `Renderer` 未处理窗口大小变化(无 resize 重配逻辑)。
+- `TriggerRule`（进程触发）仍为**占位**，未接入系统 API。
+- `Renderer` 未处理窗口大小变化（无 resize 重配逻辑）。
 
 ## 许可
 

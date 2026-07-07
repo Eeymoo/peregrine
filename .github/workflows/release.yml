@@ -28,12 +28,15 @@ jobs:
         include:
           - os: windows-latest
             target: i686-pc-windows-msvc
+            asset_name: windows-x86
             archive: zip
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            asset_name: windows-x64
             archive: zip
           - os: windows-latest
             target: aarch64-pc-windows-msvc
+            asset_name: windows-arm64
             archive: zip
     steps:
       - name: Checkout
@@ -56,7 +59,7 @@ jobs:
       - name: Package (Windows)
         shell: pwsh
         run: |
-          $staging = "$env:BIN_NAME-$env:GITHUB_REF_NAME-${{ matrix.target }}"
+          $staging = "$env:BIN_NAME-$env:GITHUB_REF_NAME-${{ matrix.asset_name }}"
           New-Item -ItemType Directory -Force -Path $staging | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/$env:BIN_NAME.exe" $staging
           if (Test-Path README.md) { Copy-Item README.md $staging }
@@ -67,7 +70,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}
+          name: ${{ matrix.asset_name }}
           path: ${{ env.ASSET }}
           if-no-files-found: error
 
@@ -97,6 +100,14 @@ jobs:
             echo "channel=正式版本 (Release)" >> "$GITHUB_OUTPUT"
           fi
 
+      # 获取标签指向的提交信息作为 Release body。
+      - name: Get release body
+        id: body
+        run: |
+          echo "text<<EOF" >> "$GITHUB_OUTPUT"
+          git log -1 --format="%B" "${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -105,10 +116,4 @@ jobs:
           prerelease: ${{ steps.meta.outputs.prerelease }}
           files: dist/*
           fail_on_unmatched_files: true
-          body: |
-            Peregrine ${{ github.ref_name }} — ${{ steps.meta.outputs.channel }}
-
-            自动构建产物：
-            - Windows x86 (32-bit) (`.zip`)
-            - Windows x86_64 (64-bit) (`.zip`)
-            - Windows ARM64 (`.zip`)
+          body: ${{ steps.body.outputs.text }}

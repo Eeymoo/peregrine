@@ -854,11 +854,19 @@ fn draw_overlay_gap_border_frame(
 /// Overlay 窗口使用 per-pixel alpha 透明：背景 alpha=0 完全透明，
 /// 准心区域 alpha=用户配置值。Intel GPU 驱动通常不支持 `PostMultiplied`，
 /// 使用 `Inherit` 让 DWM 自行决定合成方式（DWM 使用 premultiplied alpha）。
+///
+/// 部分平台（如 macOS）的 surface 不支持 `Inherit`，
+/// 此时回退到 `Auto`，由 wgpu 从 capabilities 中自动选取一个支持的模式。
 fn pick_alpha_mode(
-    _surface: &wgpu::Surface<'static>,
-    _adapter: &wgpu::Adapter,
+    surface: &wgpu::Surface<'static>,
+    adapter: &wgpu::Adapter,
 ) -> wgpu::CompositeAlphaMode {
-    wgpu::CompositeAlphaMode::Inherit
+    let alpha_modes = surface.get_capabilities(adapter).alpha_modes;
+    if alpha_modes.contains(&wgpu::CompositeAlphaMode::Inherit) {
+        wgpu::CompositeAlphaMode::Inherit
+    } else {
+        wgpu::CompositeAlphaMode::Auto
+    }
 }
 
 /// 尝试从 Windows 系统字体路径加载中文字体并注册到 egui。

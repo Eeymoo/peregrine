@@ -55,6 +55,30 @@ jobs:
       - name: Build release binary
         run: cargo build --release --locked -p peregrine --target ${{ matrix.target }}
 
+      # 验证 exe 不再依赖 VC 运行时 DLL（VCRUNTIME140.dll 等）。
+      # +crt-static 会把这些静态链入；若此步骤失败，说明静态链接未生效，
+      # 分发给用户的 exe 会出现"找不到 VCRUNTIME140.dll"错误。
+      - name: Verify no VC runtime DLL dependency
+        shell: pwsh
+        run: |
+          $exe = "target/${{ matrix.target }}/release/$env:BIN_NAME.exe"
+          $deps = & dumpbin /dependents $exe 2>$null | Select-String -Pattern '\.dll' -CaseSensitive:$false
+          $forbidden = @(
+            'VCRUNTIME140.dll', 'VCRUNTIME140_1.dll', 'MSVCP140.dll',
+            'CONCRT140.dll', 'VCAMP140.dll', 'VCCORLIB140.dll'
+          )
+          $found = @()
+          foreach ($d in $deps) {
+            foreach ($f in $forbidden) {
+              if ($d -match $f) { $found += $f }
+            }
+          }
+          if ($found.Count -gt 0) {
+            Write-Error "exe 仍依赖 VC 运行时 DLL: $($found -join ', ')"
+            exit 1
+          }
+          Write-Host "✓ 无 VC 运行时 DLL 依赖"
+
       # Windows 打包为 zip。
       - name: Package (Windows)
         shell: pwsh

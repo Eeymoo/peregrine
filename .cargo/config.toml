@@ -1,0 +1,13 @@
+# 对所有 Windows MSVC 目标静态链接 C 运行时（CRT）。
+#
+# 默认 MSVC 工具链动态链接 VCRUNTIME140.dll / MSVCP140.dll 等，
+# 目标机器若未安装 VC++ Redistributable 会因找不到 DLL 无法启动。
+# 开启 +crt-static 后，这些运行时会被静态链入 exe，实现单文件零依赖分发。
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.i686-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

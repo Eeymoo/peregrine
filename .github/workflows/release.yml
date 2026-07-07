@@ -64,8 +64,8 @@ jobs:
           Copy-Item "target/${{ matrix.target }}/release/$env:BIN_NAME.exe" $staging
           if (Test-Path README.md) { Copy-Item README.md $staging }
           if (Test-Path LICENSE)   { Copy-Item LICENSE   $staging }
-          Compress-Archive -Path $staging -DestinationPath "$staging.zip"
-          "ASSET=$staging.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Compress-Archive -Path $staging -DestinationPath "${staging}.zip"
+          "ASSET=${staging}.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

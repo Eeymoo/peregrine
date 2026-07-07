@@ -6,6 +6,25 @@
 
 ---
 
+## [v0.1.1-alpha.1] — 2026-07-07
+
+### 修复
+
+- macOS 上 wgpu surface 不支持 `Inherit` alpha 模式导致启动 panic，改为按 capabilities 自动选择。
+
+### 构建
+
+- Windows MSVC 三个目标（x86/x64/ARM64）开启 `+crt-static` 静态链接 C 运行时，exe 不再依赖 `VCRUNTIME140.dll` 等外部 DLL。
+- Release CI 增加 DLL 依赖验证步骤，确保产物不含 VC 运行时动态依赖。
+
+### 文档
+
+- 添加 VitePress 文档站点与 GitHub Pages 自动部署。
+- 修正仓库链接与使用说明，首页增加立即下载按钮。
+- 显式添加 search-insights 依赖以修复 CI `npm ci`。
+
+---
+
 ## [v0.2.0-alpha.0] — 2026-07-06
 
 ### 新增
@@ -86,6 +105,7 @@
 
 ---
 
+[v0.1.1-alpha.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.1-alpha.1
 [v0.2.0-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.2.0-alpha.0
 [v0.1.0-alpha.12]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.0-alpha.12
 [v0.1.0-alpha.11]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.0-alpha.11

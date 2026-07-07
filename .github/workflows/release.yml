@@ -88,6 +88,11 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       # 根据标签是否包含 `-` 判定预发布：v0.0.0-alpha.0 → true；v0.0.0 → false。
       - name: Resolve release type
         id: meta

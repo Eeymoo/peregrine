@@ -199,11 +199,7 @@ pub fn target_window_aspect(title: &str) -> Option<f32> {
     let rect = get_target_rect(hwnd).ok()?;
     let w = (rect.right - rect.left) as f32;
     let h = (rect.bottom - rect.top) as f32;
-    if h > 0.0 {
-        Some(w / h)
-    } else {
-        None
-    }
+    if h > 0.0 { Some(w / h) } else { None }
 }
 
 /// 一个可见顶层窗口的句柄与标题。

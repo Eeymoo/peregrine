@@ -76,7 +76,9 @@ impl OverlayRenderer {
         }
 
         tracing::debug!(
-            width, height, scale = self.window.scale_factor(),
+            width,
+            height,
+            scale = self.window.scale_factor(),
             "overlay render_overlay: window inner_size"
         );
 
@@ -261,17 +263,8 @@ fn rasterize_shape(
             gap_len,
         } => {
             draw_dashed_circle(
-                buffer,
-                pixel_w,
-                pixel_h,
-                scale,
-                *cx,
-                *cy,
-                *radius,
-                *thickness,
-                *dash_len,
-                *gap_len,
-                color,
+                buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, *thickness, *dash_len,
+                *gap_len, color,
             );
         }
         Shape::Triangle {
@@ -336,8 +329,8 @@ fn draw_triangle(
             let w1 = (px3 - pxc) * (py1 - pyc) - (px1 - pxc) * (py3 - pyc);
             let w2 = (px1 - pxc) * (py2 - pyc) - (px2 - pxc) * (py1 - pyc);
             // 判断三个重心坐标同号。
-            let inside = (w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0)
-                || (w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0);
+            let inside =
+                (w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0) || (w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0);
             if inside {
                 let idx = (py as u32) * pixel_w + (px as u32);
                 if (idx as usize) < buffer.len() {
@@ -501,7 +494,9 @@ fn draw_dashed_circle(
 ///
 /// 返回 (pixels, width, height)，pixels 为行优先从上到下的 RGBA 元组。
 #[allow(clippy::type_complexity)]
-fn load_png(path: &str) -> Result<(Vec<(u8, u8, u8, u8)>, usize, usize), Box<dyn std::error::Error>> {
+fn load_png(
+    path: &str,
+) -> Result<(Vec<(u8, u8, u8, u8)>, usize, usize), Box<dyn std::error::Error>> {
     let decoder = png::Decoder::new(std::fs::File::open(path)?);
     let mut reader = decoder.read_info()?;
     let info = reader.info().clone();
@@ -514,23 +509,29 @@ fn load_png(path: &str) -> Result<(Vec<(u8, u8, u8, u8)>, usize, usize), Box<dyn
 
     // 根据 PNG 的颜色类型转换为统一的 RGBA 元组。
     let pixels: Vec<(u8, u8, u8, u8)> = match info.color_type {
-        png::ColorType::Rgba => {
-            bytes.chunks_exact(4).map(|c| (c[0], c[1], c[2], c[3])).collect()
-        }
+        png::ColorType::Rgba => bytes
+            .chunks_exact(4)
+            .map(|c| (c[0], c[1], c[2], c[3]))
+            .collect(),
         png::ColorType::Rgb => {
             // RGB 无 alpha，默认不透明。
-            bytes.chunks_exact(3).map(|c| (c[0], c[1], c[2], 255)).collect()
+            bytes
+                .chunks_exact(3)
+                .map(|c| (c[0], c[1], c[2], 255))
+                .collect()
         }
-        png::ColorType::Grayscale => {
-            bytes.iter().map(|&v| (v, v, v, 255)).collect()
-        }
-        png::ColorType::GrayscaleAlpha => {
-            bytes.chunks_exact(2).map(|c| (c[0], c[0], c[0], c[1])).collect()
-        }
+        png::ColorType::Grayscale => bytes.iter().map(|&v| (v, v, v, 255)).collect(),
+        png::ColorType::GrayscaleAlpha => bytes
+            .chunks_exact(2)
+            .map(|c| (c[0], c[0], c[0], c[1]))
+            .collect(),
         png::ColorType::Indexed => {
             // 调色板模式：reader 已将输出转为 RGBA（png crate 的 output 转换），
             // 但如果 output 仍为 indexed，则按 RGB 处理。
-            bytes.chunks_exact(3).map(|c| (c[0], c[1], c[2], 255)).collect()
+            bytes
+                .chunks_exact(3)
+                .map(|c| (c[0], c[1], c[2], 255))
+                .collect()
         }
     };
 

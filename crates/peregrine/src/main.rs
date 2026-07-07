@@ -444,8 +444,7 @@ impl ApplicationHandler<UserEvent> for App {
                                 .map(|p| p.target_window.clone())
                                 .unwrap_or_default();
                             let target_changed = new_target != self.target_window_title;
-                            *self.config.lock().expect("config lock") =
-                                response.config.clone();
+                            *self.config.lock().expect("config lock") = response.config.clone();
                             self.target_window_title = new_target;
                             let storage = self.storage.clone();
                             let notifier = self.notifier.clone();

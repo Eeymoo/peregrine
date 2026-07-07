@@ -145,9 +145,7 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                 h,
             });
         }
-        CrosshairStyle::CornerDots4
-        | CrosshairStyle::CornerDots6
-        | CrosshairStyle::CornerDots8 => {
+        CrosshairStyle::CornerDots4 | CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8 => {
             let configured_offset = if crosshair.offset > 0.0 {
                 crosshair.offset
             } else {
@@ -168,7 +166,11 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                 (screen.max_x - offset, screen.max_y - offset),
             ];
             for (x, y) in corners {
-                shapes.push(Shape::Circle { cx: x, cy: y, radius });
+                shapes.push(Shape::Circle {
+                    cx: x,
+                    cy: y,
+                    radius,
+                });
             }
             if matches!(
                 crosshair.style,
@@ -321,7 +323,11 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                             (screen.max_x - offset + j, y + j)
                         }
                     };
-                    shapes.push(Shape::Circle { cx: x, cy: y, radius });
+                    shapes.push(Shape::Circle {
+                        cx: x,
+                        cy: y,
+                        radius,
+                    });
                 }
             }
         }
@@ -335,12 +341,24 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
             match crosshair.border_frame_style {
                 BorderFrameStyle::Solid => {
                     solid_frame_shapes(
-                        &mut shapes, screen, top_y, bottom_y, left_x, right_x, thickness,
+                        &mut shapes,
+                        screen,
+                        top_y,
+                        bottom_y,
+                        left_x,
+                        right_x,
+                        thickness,
                     );
                 }
                 BorderFrameStyle::Gap => {
                     gap_frame_shapes(
-                        &mut shapes, screen, top_y, bottom_y, left_x, right_x, thickness,
+                        &mut shapes,
+                        screen,
+                        top_y,
+                        bottom_y,
+                        left_x,
+                        right_x,
+                        thickness,
                     );
                 }
             }
@@ -505,7 +523,11 @@ fn edge_orb_shapes(
         let t = i as f32 * step;
         let x = x0 + (x1 - x0) * t;
         let y = y0 + (y1 - y0) * t;
-        shapes.push(Shape::Circle { cx: x, cy: y, radius });
+        shapes.push(Shape::Circle {
+            cx: x,
+            cy: y,
+            radius,
+        });
     }
 }
 

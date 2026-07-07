@@ -103,7 +103,8 @@ impl Renderer {
         );
         // prepend_srgb = false：Overlay 需要逐像素 alpha 透明，
         // sRGB 转换会破坏 alpha 通道导致白色遮盖。
-        let egui_renderer = egui_wgpu::Renderer::new(&device, surface_config.format, None, 1, false);
+        let egui_renderer =
+            egui_wgpu::Renderer::new(&device, surface_config.format, None, 1, false);
 
         Self {
             device,

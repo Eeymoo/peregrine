@@ -88,8 +88,7 @@ impl SettingsUi {
         // 如果目标窗口存在且尚未查询过宽高比，查询一次。
         #[cfg(windows)]
         {
-            if !current_target_window.is_empty()
-                && self.cached_aspect_for != current_target_window
+            if !current_target_window.is_empty() && self.cached_aspect_for != current_target_window
             {
                 self.cached_aspect_for = current_target_window.clone();
                 self.overlay_aspect_ratio =
@@ -325,9 +324,8 @@ impl SettingsUi {
                                     .hint_text("PNG 文件路径"),
                             );
                             if ui.button("浏览…").clicked() {
-                                if let Some(path) = std::env::current_dir()
-                                    .ok()
-                                    .and_then(|_| pick_png_file())
+                                if let Some(path) =
+                                    std::env::current_dir().ok().and_then(|_| pick_png_file())
                                 {
                                     crosshair.image_path = path;
                                 }
@@ -391,8 +389,7 @@ impl SettingsUi {
                         ui.horizontal(|ui| {
                             ui.label("显示：");
                             let mut top = crosshair.orb_positions.contains(OrbPosition::TOP);
-                            let mut bottom =
-                                crosshair.orb_positions.contains(OrbPosition::BOTTOM);
+                            let mut bottom = crosshair.orb_positions.contains(OrbPosition::BOTTOM);
                             let mut left = crosshair.orb_positions.contains(OrbPosition::LEFT);
                             let mut right = crosshair.orb_positions.contains(OrbPosition::RIGHT);
                             ui.checkbox(&mut top, "上");
@@ -442,10 +439,18 @@ impl SettingsUi {
                         ComboBox::from_id_salt("target_window_select")
                             .selected_text(selected_text)
                             .show_ui(ui, |ui| {
-                                ui.selectable_value(&mut profile.target_window, String::new(), "（未选择）");
+                                ui.selectable_value(
+                                    &mut profile.target_window,
+                                    String::new(),
+                                    "（未选择）",
+                                );
                                 for title in &self.cached_window_titles {
                                     let display = truncate_title(title);
-                                    ui.selectable_value(&mut profile.target_window, title.clone(), display);
+                                    ui.selectable_value(
+                                        &mut profile.target_window,
+                                        title.clone(),
+                                        display,
+                                    );
                                 }
                             });
                         if profile.target_window != current_target_window {
@@ -453,11 +458,13 @@ impl SettingsUi {
                         }
                         // 刷新按钮：点击时重新枚举窗口。
                         if ui.button("🔄").clicked() {
-                            self.cached_window_titles = crate::platform::windows::list_window_titles();
+                            self.cached_window_titles =
+                                crate::platform::windows::list_window_titles();
                         }
                         // 首次打开时自动填充一次。
                         if self.cached_window_titles.is_empty() {
-                            self.cached_window_titles = crate::platform::windows::list_window_titles();
+                            self.cached_window_titles =
+                                crate::platform::windows::list_window_titles();
                         }
                     }
                     #[cfg(not(windows))]
@@ -484,9 +491,11 @@ impl SettingsUi {
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
                     ui.separator();
                     ui.label(
-                        egui::RichText::new("PolyForm Noncommercial 1.0.0 · 个人免费 · 禁止商业贩卖")
-                            .small()
-                            .color(egui::Color32::from_gray(120)),
+                        egui::RichText::new(
+                            "PolyForm Noncommercial 1.0.0 · 个人免费 · 禁止商业贩卖",
+                        )
+                        .small()
+                        .color(egui::Color32::from_gray(120)),
                     );
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
@@ -910,12 +919,9 @@ fn draw_preview_image(
 }
 
 /// 加载 PNG 文件为 egui 可用的 RGBA 像素。
-fn load_png_for_egui(
-    path: &str,
-) -> Result<(Vec<egui::Color32>, usize, usize), String> {
-    let decoder = png::Decoder::new(
-        std::fs::File::open(path).map_err(|e| format!("打开文件失败：{}", e))?,
-    );
+fn load_png_for_egui(path: &str) -> Result<(Vec<egui::Color32>, usize, usize), String> {
+    let decoder =
+        png::Decoder::new(std::fs::File::open(path).map_err(|e| format!("打开文件失败：{}", e))?);
     let mut reader = decoder
         .read_info()
         .map_err(|e| format!("读取 PNG 头失败：{}", e))?;
@@ -938,9 +944,7 @@ fn load_png_for_egui(
             .chunks_exact(3)
             .map(|c| egui::Color32::from_rgb(c[0], c[1], c[2]))
             .collect(),
-        png::ColorType::Grayscale => {
-            bytes.iter().map(|&v| egui::Color32::from_gray(v)).collect()
-        }
+        png::ColorType::Grayscale => bytes.iter().map(|&v| egui::Color32::from_gray(v)).collect(),
         png::ColorType::GrayscaleAlpha => bytes
             .chunks_exact(2)
             .map(|c| egui::Color32::from_rgba_unmultiplied(c[0], c[0], c[0], c[1]))

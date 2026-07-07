@@ -9,6 +9,7 @@
     "docs:preview": "vitepress preview"
   },
   "devDependencies": {
+    "search-insights": "^2.17.3",
     "vitepress": "^1.5.0"
   },
   "dependencies": {

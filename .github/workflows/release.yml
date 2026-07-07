@@ -105,13 +105,20 @@ jobs:
             echo "channel=正式版本 (Release)" >> "$GITHUB_OUTPUT"
           fi
 
-      # 获取标签指向的提交信息作为 Release body。
+      # 获取 tag 消息作为 Release body（优先 annotated tag，fallback 到 commit message）。
       - name: Get release body
         id: body
         run: |
-          echo "text<<EOF" >> "$GITHUB_OUTPUT"
-          git log -1 --format="%B" "${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          TAG_MSG=$(git tag -l --format='%(contents)' "${{ github.ref_name }}")
+          if [ -n "$TAG_MSG" ]; then
+            echo "text<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$TAG_MSG" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "text<<EOF" >> "$GITHUB_OUTPUT"
+            git log -1 --format="%B" "${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

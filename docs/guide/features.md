@@ -25,6 +25,8 @@
 | `CustomOrb` | 自定义定位球 |
 | `RandomOrb` | 随机分布球 |
 | `BorderFrame` | 屏幕边框 |
+| `CustomImage` | 自定义图片 |
+| `EdgeArrows` | 箭头 |
 
 ## 自定义 PNG 贴图
 
@@ -36,7 +38,6 @@
 
 - 实时参数调节
 - 即时预览
-- 多 Profile 管理
 - 自动保存与配置校验
 
 ## 进程触发（占位）

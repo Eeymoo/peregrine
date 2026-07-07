@@ -10,7 +10,7 @@
 
 ```bash
 git clone https://github.com/eeymoo/peregrine.git
-cd Peregrine
+cd peregrine
 ```
 
 ## 构建

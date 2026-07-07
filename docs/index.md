@@ -10,6 +10,9 @@ hero:
     alt: Peregrine
   actions:
     - theme: brand
+      text: 立即下载
+      link: https://github.com/eeymoo/peregrine/releases
+    - theme: alt
       text: 立即了解
       link: /guide/intro
     - theme: alt

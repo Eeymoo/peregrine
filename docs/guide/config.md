@@ -10,15 +10,18 @@
   "profiles": {
     "default": {
       "crosshair": {
-        "style": "Cross",
-        "size": 32,
-        "thickness": 2,
-        "color": "#ff0000",
-        "opacity": 0.8
+        "style": "toilet_paper",
+        "size": 120.0,
+        "thickness": 2.0,
+        "color": [1.0, 1.0, 1.0, 1.0],
+        "opacity": 0.6
       },
-      "trigger": null,
-      "settings_hotkey": "Tab",
-      "target_window": null
+      "trigger": {
+        "enabled": true,
+        "process_names": []
+      },
+      "settings_hotkey": "F10",
+      "target_window": ""
     }
   }
 }
@@ -47,10 +50,11 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `style` | CrosshairStyle | 准心样式 |
-| `size` | number | 尺寸 |
-| `thickness` | number | 线宽 |
-| `color` | string | 颜色（十六进制） |
+| `size` | number | 尺寸（float） |
+| `thickness` | number | 线宽（float） |
+| `color` | [f32; 4] | RGBA 颜色，如 `[1.0, 0.0, 0.0, 1.0]` |
 | `opacity` | number | 不透明度（0.0 ~ 1.0） |
+| ... | | 更多字段见 schema.rs |
 
 ## 热重载
 

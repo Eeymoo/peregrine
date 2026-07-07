@@ -4,6 +4,31 @@
 
 ---
 
+## [v0.1.1] — 2026-07-07
+
+首个正式版本后的补丁更新。修复 macOS 启动崩溃，Windows 产物改为静态链接 C 运行时，实现下载解压即可运行，无需额外安装 VC++ Redistributable。
+
+### 修复
+
+- macOS 上 wgpu surface 不支持 `Inherit` alpha 模式导致启动 panic，改为按 capabilities 自动选择。
+
+### 构建
+
+- Windows MSVC 三个目标（x86/x64/ARM64）开启 `+crt-static` 静态链接 C 运行时，exe 不再依赖 `VCRUNTIME140.dll` 等外部 DLL。
+- Release CI 增加 DLL 依赖验证步骤，确保产物不含 VC 运行时动态依赖。
+
+### 文档
+
+- 新增 VitePress 文档站点与 GitHub Pages 自动部署。
+- 完善 README、HELP 与 AGENTS 文档，首页增加立即下载按钮。
+- 新增发布流程规范与贡献指南。
+
+### 下载
+
+- Windows x86 / x86_64 / ARM64 可执行文件见 Release Assets。
+
+---
+
 ## [v0.1.0] — 2026-07-07
 
 首个正式版本。一个用于缓解 3D 眩晕的桌面辅助贴图工具，在屏幕上方显示半透明视觉锚点，帮助玩家在 3D 游戏中获得固定参照。
@@ -46,4 +71,5 @@
 
 ---
 
+[v0.1.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.1
 [v0.1.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.0

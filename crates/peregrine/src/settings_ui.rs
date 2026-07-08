@@ -585,7 +585,7 @@ fn all_styles() -> [CrosshairStyle; 12] {
 /// 样式在 UI 上的显示名称。
 fn style_display_name(style: CrosshairStyle) -> String {
     match style {
-        CrosshairStyle::ToiletPaper => "卫生纸".to_string(),
+        CrosshairStyle::ToiletPaper => "矩形".to_string(),
         CrosshairStyle::Cross => "准星".to_string(),
         CrosshairStyle::LargeCross => "大准星".to_string(),
         CrosshairStyle::CornerDots4 => "定位球4".to_string(),

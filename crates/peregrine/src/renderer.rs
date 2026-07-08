@@ -71,6 +71,12 @@ impl Renderer {
             .await
             .expect("request device");
 
+        // 设置自定义 wgpu 错误处理：记录日志而非默认的 panic（fatal）行为。
+        // 这样偶发的 wgpu 校验错误（如窗口尺寸瞬变为 0）不会直接崩溃程序。
+        device.on_uncaptured_error(Box::new(|e| {
+            tracing::error!("wgpu 未捕获错误: {}", e);
+        }));
+
         let size = window.inner_size();
         let mut surface_config = surface
             .get_default_config(&adapter, size.width.max(1), size.height.max(1))
@@ -153,6 +159,11 @@ impl Renderer {
     /// softbuffer 分支下遮盖层不再使用此方法，保留供 wgpu-alpha 分支使用。
     #[allow(dead_code)]
     pub fn render_overlay(&mut self) {
+        // 窗口尺寸为 0 时跳过渲染，避免视口校验失败。
+        let size = self.window.inner_size();
+        if size.width == 0 || size.height == 0 {
+            return;
+        }
         let output = match self.surface.get_current_texture() {
             Ok(t) => t,
             Err(e) => {
@@ -267,6 +278,12 @@ impl Renderer {
         ui_state: &mut super::settings_ui::SettingsUi,
         config: &peregrine_config::ConfigSnapshot,
     ) -> super::settings_ui::SettingsResponse {
+        // 窗口最小化或尺寸为 0 时跳过渲染，避免视口尺寸无效导致 wgpu 校验失败。
+        let size = self.window.inner_size();
+        if size.width == 0 || size.height == 0 {
+            return ui_state.take_response();
+        }
+
         let raw_input = self.egui_state.take_egui_input(&self.window);
         let full_output = self
             .egui_state
@@ -291,8 +308,6 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("settings-encoder"),
             });
-
-        let size = self.window.inner_size();
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [size.width, size.height],
             pixels_per_point: self.window.scale_factor() as f32,

@@ -44,6 +44,8 @@ export default withMermaid(defineConfig({
           { text: '快速开始', link: '/guide/getting-started' },
           { text: '功能特性', link: '/guide/features' },
           { text: '配置说明', link: '/guide/config' },
+          { text: '缓解晕 3D', link: '/guide/motion-sickness' },
+          { text: '推荐配置', link: '/guide/recommendations' },
           { text: '开发构建', link: '/guide/development' }
         ]
       }

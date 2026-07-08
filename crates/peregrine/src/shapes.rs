@@ -86,9 +86,9 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
             let arm = crosshair.size;
             let half_gap = crosshair.gap / 2.0;
             let thickness = crosshair.thickness;
-            // 四条臂。
+            // 四条臂（以中心为原点对称展开，间距两侧均等）。
             shapes.push(Shape::Rect {
-                x: cx - arm - half_gap,
+                x: cx - arm,
                 y: cy - thickness / 2.0,
                 w: arm - half_gap,
                 h: thickness,
@@ -101,7 +101,7 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
             });
             shapes.push(Shape::Rect {
                 x: cx - thickness / 2.0,
-                y: cy - arm - half_gap,
+                y: cy - arm,
                 w: thickness,
                 h: arm - half_gap,
             });

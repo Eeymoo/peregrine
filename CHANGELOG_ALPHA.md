@@ -6,6 +6,14 @@
 
 ---
 
+## [v0.2.0-alpha.2] — 2026-07-08
+
+### 修复
+
+- 十字准星（Cross）调整间距时整体向左上偏移：左臂与顶臂多减了一个半间距，导致左侧/上方间距是右侧/下方的两倍。修正为以中心对称展开，间距两侧均等。
+
+---
+
 ## [v0.1.1-alpha.1] — 2026-07-07
 
 ### 修复
@@ -105,6 +113,7 @@
 
 ---
 
+[v0.2.0-alpha.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.2.0-alpha.2
 [v0.1.1-alpha.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.1-alpha.1
 [v0.2.0-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.2.0-alpha.0
 [v0.1.0-alpha.12]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.0-alpha.12

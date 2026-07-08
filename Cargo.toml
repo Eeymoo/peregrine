@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/config", "crates/peregrine"]
 
 [workspace.package]
-version = "0.1.2-alpha.2"
+version = "0.1.2-alpha.3"
 edition = "2024"
 license = "PolyForm-Noncommercial-1.0.0"
 authors = ["Peregrine Contributors"]

@@ -91,13 +91,26 @@ fn inside_rounded_rect(px: f32, py: f32, x: f32, y: f32, w: f32, h: f32, r: f32)
     dx * dx + dy * dy <= r * r
 }
 
-/// 构造状态栏（托盘）图标（32×32）。
+/// 构造状态栏（托盘）图标。
+///
+/// Windows 优先从 exe 嵌入资源（icon ID 1）加载，保证与 exe 图标一致；
+/// 加载失败时回退到运行时生成的像素图。
 pub fn tray_icon() -> tray_icon::Icon {
+    #[cfg(windows)]
+    {
+        if let Ok(icon) = tray_icon::Icon::from_resource(1, None) {
+            return icon;
+        }
+    }
     let (rgba, w, h) = placeholder_rgba(32);
     tray_icon::Icon::from_rgba(rgba, w, h).expect("build tray icon from rgba")
 }
 
 /// 构造窗口图标（64×64），作为窗口标题栏与任务栏图标生效。
+///
+/// 当前未使用：Windows 上由 exe 嵌入的 icon 资源自动提供任务栏图标，
+/// 保留此函数供其它平台或未来需要时使用。
+#[allow(dead_code)]
 pub fn window_icon() -> winit::window::Icon {
     let (rgba, w, h) = placeholder_rgba(64);
     winit::window::Icon::from_rgba(rgba, w, h).expect("build window icon from rgba")

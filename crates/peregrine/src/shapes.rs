@@ -127,7 +127,7 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                 h: screen.height(),
             });
         }
-        CrosshairStyle::ToiletPaper => {
+        CrosshairStyle::EdgeRect => {
             let w = crosshair.size;
             let h = crosshair.secondary_size;
             let margin = crosshair.margin;

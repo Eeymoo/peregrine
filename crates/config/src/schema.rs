@@ -35,10 +35,10 @@ pub struct Crosshair {
     /// 辅助贴图样式类型。
     pub style: CrosshairStyle,
     /// 贴图主尺寸，单位像素。
-    /// 卫生纸用做宽度；准星用做十字臂长；定位球用于限制半径/偏移上限。
+    /// 贴边矩形用做宽度；准星用做十字臂长；定位球用于限制半径/偏移上限。
     pub size: f32,
     /// 贴图次尺寸，单位像素。
-    /// 卫生纸用做高度；其他样式可忽略。
+    /// 贴边矩形用做高度；其他样式可忽略。
     #[serde(default = "default_secondary_size")]
     pub secondary_size: f32,
     /// 贴图线条/圆形厚度，单位像素。
@@ -56,13 +56,13 @@ pub struct Crosshair {
     pub opacity: f32,
     /// 中心点间隙，单位像素（准星等样式用到）。
     pub gap: f32,
-    /// 矩形贴图圆角半径，单位像素（卫生纸用到）。
+    /// 矩形贴图圆角半径，单位像素（贴边矩形用到）。
     #[serde(default = "default_corner_radius")]
     pub corner_radius: f32,
-    /// 矩形贴图（卫生纸）的贴边位置。
+    /// 矩形贴图（贴边矩形）的贴边位置。
     #[serde(default)]
     pub anchor: Anchor,
-    /// 矩形贴图（卫生纸）与贴边外侧的边距，单位像素。
+    /// 矩形贴图（贴边矩形）与贴边外侧的边距，单位像素。
     #[serde(default = "default_margin")]
     pub margin: f32,
     /// 中心环：环半径占屏幕高度的比例。
@@ -206,7 +206,7 @@ fn default_border_inset() -> bool {
     true
 }
 
-/// 矩形贴图（卫生纸）可贴靠的屏幕边缘位置。
+/// 矩形贴图（贴边矩形）可贴靠的屏幕边缘位置。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Anchor {
@@ -227,8 +227,9 @@ pub enum Anchor {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CrosshairStyle {
-    /// 卫生纸：屏幕中心一定尺寸的白色半透明矩形，模拟贴了一张卫生纸。
-    ToiletPaper,
+    /// 贴边矩形：可贴靠屏幕四边或居中的半透明矩形，作为固定视觉锚点。
+    #[serde(alias = "toilet_paper")]
+    EdgeRect,
     /// 准星：屏幕中心十字线。
     Cross,
     /// 大准星：从屏幕边缘延伸到屏幕中心的水平线与垂直线。
@@ -412,10 +413,10 @@ impl Profile {
 }
 
 impl Crosshair {
-    /// 生成默认辅助贴图配置：卫生纸样式，尺寸 120x80、厚度 2、白色、透明度 60%。
+    /// 生成默认辅助贴图配置：贴边矩形样式，尺寸 120x80、厚度 2、白色、透明度 60%。
     pub fn default_crosshair() -> Self {
         Self {
-            style: CrosshairStyle::ToiletPaper,
+            style: CrosshairStyle::EdgeRect,
             size: 120.0,
             secondary_size: 80.0,
             thickness: 2.0,
@@ -733,6 +734,7 @@ mod tests {
     #[test]
     fn all_new_styles_serialize_roundtrip() {
         for style in [
+            CrosshairStyle::EdgeRect,
             CrosshairStyle::Ring,
             CrosshairStyle::CustomOrb,
             CrosshairStyle::RandomOrb,
@@ -744,6 +746,45 @@ mod tests {
             let restored: Crosshair = serde_json::from_str(&json).unwrap();
             assert_eq!(restored.style, style);
         }
+    }
+
+    #[test]
+    fn edge_rect_alias_loads_old_toilet_paper() {
+        let json = r#"{
+            "style": "toilet_paper",
+            "size": 120.0,
+            "secondary_size": 80.0,
+            "thickness": 2.0,
+            "radius": 0.0,
+            "offset": 0.0,
+            "color": [1.0, 1.0, 1.0, 1.0],
+            "opacity": 0.6,
+            "gap": 4.0,
+            "corner_radius": 4.0,
+            "anchor": "top",
+            "margin": 0.0,
+            "ring_radius_pct": 0.05,
+            "ring_style": "solid",
+            "orb_positions": 3,
+            "random_mode": "lock_on_start",
+            "random_center_deviation": 0.2,
+            "random_radius_min": 4.0,
+            "random_radius_max": 12.0,
+            "random_orb_x": 0.0,
+            "random_orb_y": 0.0,
+            "border_frame_style": "solid",
+            "border_gap": false,
+            "border_inset": true,
+            "custom_orb_top_count": 3,
+            "custom_orb_bottom_count": 3,
+            "custom_orb_left_count": 3,
+            "custom_orb_right_count": 3,
+            "random_orb_count": 3,
+            "random_orb_offset": 100.0,
+            "random_orb_jitter": 40.0
+        }"#;
+        let restored: Crosshair = serde_json::from_str(json).unwrap();
+        assert_eq!(restored.style, CrosshairStyle::EdgeRect);
     }
 
     #[test]

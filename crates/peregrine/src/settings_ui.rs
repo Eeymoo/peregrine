@@ -150,8 +150,8 @@ impl SettingsUi {
 
                 // 按类型显示专属配置项。
                 match crosshair.style {
-                    CrosshairStyle::ToiletPaper => {
-                        ui.label("卫生纸尺寸");
+                    CrosshairStyle::EdgeRect => {
+                        ui.label("贴边矩形尺寸");
                         ui.add(Slider::new(&mut crosshair.size, 10.0..=400.0).text("宽度"));
                         ui.add(
                             Slider::new(&mut crosshair.secondary_size, 10.0..=300.0).text("高度"),
@@ -160,7 +160,7 @@ impl SettingsUi {
 
                         ui.horizontal(|ui| {
                             ui.label("贴边：");
-                            ComboBox::from_id_salt("toilet_paper_anchor")
+                            ComboBox::from_id_salt("edge_rect_anchor")
                                 .selected_text(anchor_display_name(crosshair.anchor))
                                 .show_ui(ui, |ui| {
                                     for anchor in all_anchors() {
@@ -567,7 +567,7 @@ impl SettingsUi {
 /// 所有可用的辅助贴图样式。
 fn all_styles() -> [CrosshairStyle; 12] {
     [
-        CrosshairStyle::ToiletPaper,
+        CrosshairStyle::EdgeRect,
         CrosshairStyle::Cross,
         CrosshairStyle::LargeCross,
         CrosshairStyle::CornerDots4,
@@ -585,7 +585,7 @@ fn all_styles() -> [CrosshairStyle; 12] {
 /// 样式在 UI 上的显示名称。
 fn style_display_name(style: CrosshairStyle) -> String {
     match style {
-        CrosshairStyle::ToiletPaper => "卫生纸".to_string(),
+        CrosshairStyle::EdgeRect => "贴边矩形".to_string(),
         CrosshairStyle::Cross => "准星".to_string(),
         CrosshairStyle::LargeCross => "大准星".to_string(),
         CrosshairStyle::CornerDots4 => "定位球4".to_string(),

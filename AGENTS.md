@@ -111,7 +111,7 @@ cargo clippy
 ### 配置模型与存储
 
 - 配置根为 `AppConfig`（`active_profile` + 多个命名 `Profile`），每个 `Profile` 含 `crosshair`（`Crosshair`）、`trigger`（`TriggerRule`）、`settings_hotkey`、`target_window`。
-- `Crosshair.style`（`CrosshairStyle`，12 种）：卫生纸 `ToiletPaper`、准星 `Cross`、大准星 `LargeCross`、定位球 `CornerDots4/6/8`、中心环 `Ring`、自定义定位球 `CustomOrb`、随机球 `RandomOrb`、边框 `BorderFrame`、自定义图片 `CustomImage`、箭头 `EdgeArrows`。各样式可调尺寸、厚度、颜色、透明度、间隙、贴边位置、边距等参数；`CustomImage` 额外有路径、缩放、偏移。
+- `Crosshair.style`（`CrosshairStyle`，12 种）：贴边矩形 `EdgeRect`、准星 `Cross`、大准星 `LargeCross`、定位球 `CornerDots4/6/8`、中心环 `Ring`、自定义定位球 `CustomOrb`、随机球 `RandomOrb`、边框 `BorderFrame`、自定义图片 `CustomImage`、箭头 `EdgeArrows`。各样式可调尺寸、厚度、颜色、透明度、间隙、贴边位置、边距等参数；`CustomImage` 额外有路径、缩放、偏移。
 - 配置文件为 JSON，路径由 OS 标准目录决定：
   - Windows：`%APPDATA%/Peregrine/config.json`
   - macOS：`~/Library/Application Support/Peregrine/config.json`

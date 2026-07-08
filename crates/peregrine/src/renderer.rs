@@ -366,7 +366,7 @@ fn draw_overlay_shape(
     let color = settings_ui_color(&crosshair.color, crosshair.opacity);
 
     match crosshair.style {
-        CrosshairStyle::ToiletPaper => {
+        CrosshairStyle::EdgeRect => {
             let width = crosshair.size;
             let height = crosshair.secondary_size;
             let margin = crosshair.margin;

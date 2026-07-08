@@ -6,6 +6,15 @@
 
 ---
 
+## [v0.1.2-alpha.0] — 2026-07-08
+
+### 修复
+
+- 设置窗口最小化后程序闪退：最小化时不再向 0×0 的 wgpu surface 持续提交渲染（原仅检查 `hidden` 状态，最小化不等于 hidden）。
+- 设置窗口从状态栏恢复时的渲染竞态：`render_settings` 入口补尺寸守卫，避免 `set_visible(true)` 异步映射期间以 `[0,0]` 尺寸驱动 egui-wgpu 渲染触发 panic。
+
+---
+
 ## [v0.1.1-alpha.1] — 2026-07-07
 
 ### 修复
@@ -105,6 +114,7 @@
 
 ---
 
+[v0.1.2-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.2-alpha.0
 [v0.1.1-alpha.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.1-alpha.1
 [v0.2.0-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.2.0-alpha.0
 [v0.1.0-alpha.12]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.0-alpha.12

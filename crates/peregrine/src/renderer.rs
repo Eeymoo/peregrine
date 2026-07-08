@@ -267,6 +267,14 @@ impl Renderer {
         ui_state: &mut super::settings_ui::SettingsUi,
         config: &peregrine_config::ConfigSnapshot,
     ) -> super::settings_ui::SettingsResponse {
+        // 窗口尺寸为 0 时（最小化或刚 set_visible 恢复的竞态窗口期）
+        // 直接返回，避免以 [0,0] 的 screen_descriptor 驱动 egui-wgpu 渲染，
+        // 部分驱动会在此触发 validation 错误或 panic。
+        let size = self.window.inner_size();
+        if size.width == 0 || size.height == 0 {
+            return ui_state.take_response();
+        }
+
         let raw_input = self.egui_state.take_egui_input(&self.window);
         let full_output = self
             .egui_state

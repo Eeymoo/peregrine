@@ -508,14 +508,21 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        // 设置窗口可见时持续重绘。
+        // 设置窗口可见且非最小化时持续重绘。
+        // 最小化时窗口 inner_size 为 0×0，向最小化窗口的 wgpu surface 持续提交
+        // 渲染会触发 GPU 设备丢失甚至 panic。
         if !self.hidden {
             if let Some(window) = &self.settings_window {
-                window.request_redraw();
+                let size = window.inner_size();
+                if size.width > 0 && size.height > 0 {
+                    window.request_redraw();
+                }
             }
         }
         // Overlay 窗口：透明穿透窗口收不到 RedrawRequested 事件，
-        // 在此处直接渲染。
+        // 在此处直接渲染。render_overlay 内部对 softbuffer 的所有操作
+        // （resize / buffer_mut / present）均做了错误处理，窗口被
+        // SW_HIDE 时只会 log 并跳过，不会 panic。
         if let Some(renderer) = self.overlay_renderer.as_mut() {
             renderer.render_overlay();
         }

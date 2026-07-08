@@ -4,6 +4,31 @@
 
 ---
 
+## [v0.1.2] — 2026-07-08
+
+正式版本。修复 wgpu 崩溃与图标显示问题，优化 UI 样式命名。
+
+### 修复
+
+- 修复设置窗口最小化时 wgpu 视口校验失败导致程序崩溃（`set_viewport` 尺寸为 0）。
+- 设置 wgpu 错误处理器，将未捕获错误降级为日志记录而非直接 panic。
+- 修复任务栏与窗口标题栏图标不正确：托盘图标改为从 exe 嵌入资源加载。
+- 恢复窗口标题栏图标显示，提升像素图尺寸至 256×256。
+
+### 变更
+
+- 「卫生纸」样式显示名改为「矩形」。
+
+### 文档
+
+- 新增「缓解晕 3D」与「推荐配置」页面，扩充项目介绍。
+
+### 下载
+
+- Windows x86 / x86_64 / ARM64 可执行文件见 Release Assets。
+
+---
+
 ## [v0.1.1] — 2026-07-07
 
 首个正式版本后的补丁更新。修复 macOS 启动崩溃，Windows 产物改为静态链接 C 运行时，实现下载解压即可运行，无需额外安装 VC++ Redistributable。
@@ -71,5 +96,6 @@
 
 ---
 
+[v0.1.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.2
 [v0.1.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.1
 [v0.1.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.0

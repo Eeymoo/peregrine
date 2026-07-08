@@ -317,6 +317,7 @@ impl ApplicationHandler<UserEvent> for App {
         if self.settings_window.is_none() {
             let attributes = Window::default_attributes()
                 .with_title("Peregrine")
+                .with_window_icon(Some(icon::window_icon()))
                 .with_inner_size(winit::dpi::LogicalSize::new(960.0, 560.0));
             let window = Arc::new(
                 event_loop

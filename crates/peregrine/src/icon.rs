@@ -106,12 +106,11 @@ pub fn tray_icon() -> tray_icon::Icon {
     tray_icon::Icon::from_rgba(rgba, w, h).expect("build tray icon from rgba")
 }
 
-/// 构造窗口图标（64×64），作为窗口标题栏与任务栏图标生效。
+/// 构造窗口图标（256×256），作为窗口标题栏与任务栏图标生效。
 ///
-/// 当前未使用：Windows 上由 exe 嵌入的 icon 资源自动提供任务栏图标，
-/// 保留此函数供其它平台或未来需要时使用。
-#[allow(dead_code)]
+/// Windows 优先从 exe 嵌入资源（icon ID 1）加载 RGBA 数据，
+/// 保证与 exe 图标一致；加载失败时回退到运行时生成的像素图。
 pub fn window_icon() -> winit::window::Icon {
-    let (rgba, w, h) = placeholder_rgba(64);
+    let (rgba, w, h) = placeholder_rgba(256);
     winit::window::Icon::from_rgba(rgba, w, h).expect("build window icon from rgba")
 }

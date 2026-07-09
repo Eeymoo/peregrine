@@ -1,0 +1,49 @@
+/**
+ * Peregrine 文档自定义主题
+ *
+ * 覆盖 VitePress 默认主题的品牌色，使其与应用图标背景色一致。
+ * 图标主色 BLUE = (37, 99, 235) = #2563EB（见 assets/gen_icon.py 与 docs/public/logo.svg）。
+ * 色阶基于 Tailwind blue（blue-400 ~ blue-800），保证 hover / 深浅模式下的明暗层次合理。
+ */
+
+/* -----------------------------------------------------------
+ * 浅色模式：主品牌色统一为 #2563EB
+ * - --vp-c-brand-1：链接、按钮文字、侧边栏激活态文字色
+ * - --vp-c-brand-2 / -3：按钮背景及其 hover（逐级加深）
+ * - --vp-c-brand-soft：徽章、tag 等软背景
+ * --------------------------------------------------------- */
+:root {
+  --vp-c-brand-1: #2563eb;
+  --vp-c-brand-2: #1d4ed8;
+  --vp-c-brand-3: #1e40af;
+  --vp-c-brand-soft: rgba(37, 99, 235, 0.14);
+
+  /* 向后兼容：部分组件仍引用旧版 brand 变量 */
+  --vp-c-brand: #2563eb;
+  --vp-c-brand-light: #3b82f6;
+  --vp-c-brand-lighter: #60a5fa;
+  --vp-c-brand-dark: #1d4ed8;
+  --vp-c-brand-darker: #1e40af;
+
+  /* 首页 Hero 名称渐变：与品牌蓝呼应 */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #3b82f6 30%, #1e40af);
+  --vp-home-hero-image-background-image: linear-gradient(-45deg, #2563eb 50%, #1e40af 50%);
+  --vp-home-hero-image-filter: blur(44px);
+}
+
+/* -----------------------------------------------------------
+ * 深色模式：品牌色略微提亮，保证在深色背景上的对比度
+ * --------------------------------------------------------- */
+.dark {
+  --vp-c-brand-1: #3b82f6;
+  --vp-c-brand-2: #2563eb;
+  --vp-c-brand-3: #1d4ed8;
+  --vp-c-brand-soft: rgba(59, 130, 246, 0.16);
+
+  --vp-c-brand: #3b82f6;
+  --vp-c-brand-light: #60a5fa;
+  --vp-c-brand-lighter: #93c5fd;
+  --vp-c-brand-dark: #2563eb;
+  --vp-c-brand-darker: #1d4ed8;
+}

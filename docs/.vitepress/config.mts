@@ -6,15 +6,15 @@ export default withMermaid(defineConfig({
   title: 'Peregrine',
   description: 'Peregrine — 桌面辅助贴图工具，专为缓解 3D 眩晕而设计',
   lang: 'zh-CN',
-  base: '/peregrine/',
+  base: '/',
   lastUpdated: true,
 
   head: [
-    ['link', { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/peregrine/img/icons/favicon-16x16.png' }],
-    ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/peregrine/img/icons/favicon-32x32.png' }],
-    ['link', { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/peregrine/img/icons/favicon-48x48.png' }],
-    ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/peregrine/img/icons/apple-touch-icon.png' }],
-    ['link', { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/peregrine/img/icons/favicon-192x192.png' }]
+    ['link', { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/img/icons/favicon-16x16.png' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/img/icons/favicon-32x32.png' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/img/icons/favicon-48x48.png' }],
+    ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/img/icons/apple-touch-icon.png' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/img/icons/favicon-192x192.png' }]
   ],
 
   vite: {

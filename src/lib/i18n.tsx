@@ -85,6 +85,18 @@ interface I18nProviderProps {
   children: ReactNode;
 }
 
+/** 将当前语言同步到后端，用于更新托盘菜单与后端错误提示。 */
+async function syncLocaleToBackend(next: Locale): Promise<void> {
+  await invoke("update_locale", {
+    locale: next,
+    tray: {
+      config: translate(next, "tray.config"),
+      settings: translate(next, "tray.settings"),
+      quit: translate(next, "tray.quit"),
+    },
+  });
+}
+
 /** 国际化上下文提供者，默认从 localStorage 读取，未设置则通过 navigator.language 检测。 */
 export function I18nProvider({ children }: I18nProviderProps) {
   const [locale, setLocaleState] = useState<Locale>(() => {
@@ -97,18 +109,16 @@ export function I18nProvider({ children }: I18nProviderProps) {
     setLocaleState(next);
     try {
       await emit(LOCALE_EVENT, { locale: next });
-      await invoke("update_locale", {
-        locale: next,
-        tray: {
-          config: translate(next, "tray.config"),
-          settings: translate(next, "tray.settings"),
-          quit: translate(next, "tray.quit"),
-        },
-      });
+      await syncLocaleToBackend(next);
     } catch {
       // Tauri 事件或命令不可用（如浏览器环境）时静默回退。
     }
   }, [locale]);
+
+  // 初始化时将当前语言同步到后端，确保托盘菜单与错误提示语言一致。
+  useEffect(() => {
+    syncLocaleToBackend(locale).catch(() => {});
+  }, []);
 
   // 监听其他窗口触发的语言变更事件，保持多窗口同步。
   useEffect(() => {

@@ -92,48 +92,48 @@
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `style` | CrosshairStyle | `"edge_rect"` | 准心样式 |
-| `size` | number | `120.0` | 主尺寸（px）。贴边矩形用作宽度，准星用作臂长，箭头用作大小 |
-| `secondary_size` | number | `80.0` | 次尺寸（px）。贴边矩形用作高度 |
+| `style` | CrosshairStyle | `"edge_rect"` | 视觉锚点样式 |
+| `size` | number | `120.0` | 主尺寸（px）。边缘矩形用作宽度，十字准星用作臂长，边缘箭头用作大小 |
+| `secondary_size` | number | `80.0` | 次尺寸（px）。边缘矩形用作高度 |
 | `thickness` | number | `2.0` | 线条/矩形条厚度（px），必须为正 |
-| `radius` | number | `0.0` | 圆形定位球半径（px）。`<=0` 时按 `thickness * 3` 自动计算 |
+| `radius` | number | `0.0` | 圆形边缘标记半径（px）。`<=0` 时按 `thickness * 3` 自动计算 |
 | `offset` | number | `0.0` | 元素距屏幕外侧的距离（px），必须为非负数 |
 | `color` | `[f32; 4]` | `[1.0, 1.0, 1.0, 1.0]` | RGBA 颜色，各通道范围 `[0.0, 1.0]` |
 | `opacity` | number | `0.6` | 不透明度，`0.0` 完全透明，`1.0` 不透明 |
-| `gap` | number | `4.0` | 准星中心间隙（px） |
-| `corner_radius` | number | `4.0` | 贴边矩形圆角半径（px） |
-| `anchor` | Anchor | `"top"` | 贴边矩形的贴靠位置 |
-| `margin` | number | `0.0` | 贴边矩形与贴边外侧的边距（px） |
-| `ring_radius_pct` | number | `0.05` | 中心环半径占屏幕高度的比例，范围 `[0.03, 0.08]` |
-| `ring_style` | RingStyle | `"solid"` | 中心环线型 |
-| `orb_positions` | integer | `3` | 自定义定位球/箭头的位置位掩码：`TOP=1`、`BOTTOM=2`、`LEFT=4`、`RIGHT=8` |
-| `random_mode` | RandomOrbMode | `"lock_on_start"` | 随机球工作模式 |
-| `random_center_deviation` | number | `0.2` | 随机球相对屏幕中心的偏移范围，范围 `[0.1, 0.3]` |
-| `random_radius_min` | number | `4.0` | 随机球最小半径（px），必须为正 |
-| `random_radius_max` | number | `12.0` | 随机球最大半径（px），必须为正且不小于 `random_radius_min` |
+| `gap` | number | `4.0` | 十字准星中心间隙（px） |
+| `corner_radius` | number | `4.0` | 边缘矩形圆角半径（px） |
+| `anchor` | Anchor | `"top"` | 边缘矩形的锚点位置 |
+| `margin` | number | `0.0` | 边缘矩形与锚边外侧的边距（px） |
+| `ring_radius_pct` | number | `0.05` | 中心圆环半径占屏幕高度的比例，范围 `[0.03, 0.08]` |
+| `ring_style` | RingStyle | `"solid"` | 中心圆环线型 |
+| `orb_positions` | integer | `3` | 自定义边缘标记/边缘箭头的位置位掩码：`TOP=1`、`BOTTOM=2`、`LEFT=4`、`RIGHT=8` |
+| `random_mode` | RandomOrbMode | `"lock_on_start"` | 随机边缘标记工作模式 |
+| `random_center_deviation` | number | `0.2` | 随机边缘标记相对屏幕中心的偏移范围，范围 `[0.1, 0.3]` |
+| `random_radius_min` | number | `4.0` | 随机边缘标记最小半径（px），必须为正 |
+| `random_radius_max` | number | `12.0` | 随机边缘标记最大半径（px），必须为正且不小于 `random_radius_min` |
 | `random_orb_x` | number | `0.0` | `LockOnStart` 模式下已锁定的相对中心 X 偏移 |
 | `random_orb_y` | number | `0.0` | `LockOnStart` 模式下已锁定的相对中心 Y 偏移 |
 | `border_frame_style` | BorderFrameStyle | `"solid"` | 边框样式 |
 | `border_gap` | boolean | `false` | 边框四边中间是否留 20% 缺口 |
 | `border_inset` | boolean | `true` | 边框矩形条是否位于屏幕内侧 |
-| `custom_orb_top_count` | integer | `3` | 自定义定位球上边缘数量（1~10） |
-| `custom_orb_bottom_count` | integer | `3` | 自定义定位球下边缘数量（1~10） |
-| `custom_orb_left_count` | integer | `3` | 自定义定位球左边缘数量（预留） |
-| `custom_orb_right_count` | integer | `3` | 自定义定位球右边缘数量（预留） |
-| `random_orb_count` | integer | `3` | 随机球每边数量，必须为正 |
-| `random_orb_offset` | number | `100.0` | 随机球距屏幕边缘的固定偏移（px） |
-| `random_orb_jitter` | number | `40.0` | 随机球位置随机扰动范围（px） |
+| `custom_orb_top_count` | integer | `3` | 自定义边缘标记上边缘数量（1~10） |
+| `custom_orb_bottom_count` | integer | `3` | 自定义边缘标记下边缘数量（1~10） |
+| `custom_orb_left_count` | integer | `3` | 自定义边缘标记左边缘数量（预留） |
+| `custom_orb_right_count` | integer | `3` | 自定义边缘标记右边缘数量（预留） |
+| `random_orb_count` | integer | `3` | 随机边缘标记每边数量，必须为正 |
+| `random_orb_offset` | number | `100.0` | 随机边缘标记距屏幕边缘的固定偏移（px） |
+| `random_orb_jitter` | number | `40.0` | 随机边缘标记位置随机扰动范围（px） |
 | `image_path` | string | `""` | 自定义图片的 PNG 文件路径，空字符串表示未选择 |
 | `image_scale` | number | `1.0` | 自定义图片缩放比例，必须为正 |
 | `image_offset_x` | number | `0.0` | 自定义图片相对屏幕中心的水平偏移（px） |
 | `image_offset_y` | number | `0.0` | 自定义图片相对屏幕中心的垂直偏移（px） |
-| `arrow_distance` | number | `0.0` | 箭头距屏幕边缘的像素距离（`0` 表示贴边） |
-| `arrow_width` | number | `0.0` | 箭头尾巴宽度（px），`0` 表示等于箭头大小 |
-| `arrow_tail_per_edge` | boolean | `false` | 是否为每边单独设置尾巴长度 |
-| `arrow_tail_top` | number | `0.0` | 上边尾巴长度（px） |
-| `arrow_tail_bottom` | number | `0.0` | 下边尾巴长度（px） |
-| `arrow_tail_left` | number | `0.0` | 左边尾巴长度（px） |
-| `arrow_tail_right` | number | `0.0` | 右边尾巴长度（px） |
+| `arrow_distance` | number | `0.0` | 边缘箭头距屏幕边缘的像素距离（`0` 表示贴边） |
+| `arrow_width` | number | `0.0` | 边缘箭头尾宽（px），`0` 表示等于箭头大小 |
+| `arrow_tail_per_edge` | boolean | `false` | 是否为每边单独设置尾部长度 |
+| `arrow_tail_top` | number | `0.0` | 上边缘尾部长度（px） |
+| `arrow_tail_bottom` | number | `0.0` | 下边缘尾部长度（px） |
+| `arrow_tail_left` | number | `0.0` | 左边缘尾部长度（px） |
+| `arrow_tail_right` | number | `0.0` | 右边缘尾部长度（px） |
 
 ### CrosshairStyle
 
@@ -141,32 +141,32 @@
 
 | 枚举值 | 说明 |
 |--------|------|
-| `edge_rect` | 贴边矩形：可贴靠屏幕四边或居中的半透明矩形 |
-| `cross` | 准星：屏幕中心十字线 |
-| `large_cross` | 大准星：从屏幕边缘延伸到中心的横竖线 |
-| `corner_dots4` | 四角定位点 |
-| `corner_dots6` | 四角 + 上下中点定位点 |
-| `corner_dots8` | 四角 + 上下左右中点定位点 |
-| `ring` | 中心环 |
-| `custom_orb` | 自定义定位球 |
-| `random_orb` | 随机分布球 |
-| `border_frame` | 屏幕边框 |
+| `edge_rect` | 边缘矩形：可锚定屏幕四边或居中的半透明矩形 |
+| `cross` | 十字准星：屏幕中心十字线 |
+| `large_cross` | 大型十字准星：从屏幕边缘延伸到中心的横竖线 |
+| `corner_dots4` | 四角边缘标记 |
+| `corner_dots6` | 四角 + 上下中点边缘标记 |
+| `corner_dots8` | 四角 + 上下左右中点边缘标记 |
+| `ring` | 中心圆环 |
+| `custom_orb` | 自定义边缘标记 |
+| `random_orb` | 随机边缘标记 |
+| `border_frame` | 边框 |
 | `custom_image` | 自定义 PNG 图片 |
-| `edge_arrows` | 屏幕四边箭头 |
+| `edge_arrows` | 边缘箭头 |
 
 > 旧配置文件中的 `toilet_paper` 仍会被识别为 `edge_rect`，保存后会写入 `edge_rect`。
 
 ### Anchor
 
-贴边位置枚举（`snake_case`）：`top`、`bottom`、`left`、`right`、`center`。
+锚点位置枚举（`snake_case`）：`top`、`bottom`、`left`、`right`、`center`。
 
 ### RingStyle
 
-中心环线型枚举（`snake_case`）：`solid`（实线）、`dashed`（虚线）、`double`（双环）。
+中心圆环线型枚举（`snake_case`）：`solid`（实线）、`dashed`（虚线）、`double`（双线）。
 
 ### RandomOrbMode
 
-随机球模式枚举（`snake_case`）：`lock_on_start`（启动后固定）、`reshuffle`（每次启动重新随机）。
+随机边缘标记模式枚举（`snake_case`）：`lock_on_start`（启动后固定）、`reshuffle`（每次启动重新随机）。
 
 ### BorderFrameStyle
 

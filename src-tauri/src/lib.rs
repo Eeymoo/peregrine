@@ -19,6 +19,57 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 mod overlay;
 
+/// 支持的后端 UI 语言。
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BackendLocale {
+    ZhCN,
+    En,
+}
+
+impl BackendLocale {
+    fn detect() -> Self {
+        let locale = std::env::var("LANG")
+            .or_else(|_| std::env::var("LC_ALL"))
+            .unwrap_or_default()
+            .to_lowercase();
+        if locale.starts_with("zh") {
+            BackendLocale::ZhCN
+        } else {
+            BackendLocale::En
+        }
+    }
+
+    fn from_str(s: &str) -> Self {
+        if s.to_lowercase().starts_with("zh") {
+            BackendLocale::ZhCN
+        } else {
+            BackendLocale::En
+        }
+    }
+}
+
+fn detect_locale() -> &'static str {
+    match BackendLocale::detect() {
+        BackendLocale::ZhCN => "zh-CN",
+        BackendLocale::En => "en",
+    }
+}
+
+fn tr(locale: BackendLocale, key: &str) -> String {
+    match (locale, key) {
+        (BackendLocale::ZhCN, "target_window_required") => "未选择目标窗口".to_string(),
+        (BackendLocale::En, "target_window_required") => "No target window selected".to_string(),
+        (BackendLocale::ZhCN, "png_filter") => "PNG 图片".to_string(),
+        (BackendLocale::En, "png_filter") => "PNG images".to_string(),
+        _ => key.to_string(),
+    }
+}
+
+fn current_locale(state: &AppState) -> BackendLocale {
+    let locale = state.locale.lock().map(|s| s.clone()).unwrap_or_default();
+    BackendLocale::from_str(&locale)
+}
+
 /// 全局应用状态，跨 commands 共享。
 pub struct AppState {
     /// 配置存储。
@@ -29,6 +80,8 @@ pub struct AppState {
     pub config: Arc<Mutex<ConfigSnapshot>>,
     /// 向 overlay 管理线程发送命令。
     pub overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
+    /// 当前 UI 语言，用于后端错误提示国际化。
+    pub locale: Mutex<String>,
 }
 
 /// 托盘菜单项句柄，用于运行时更新菜单文本。
@@ -84,6 +137,7 @@ pub fn run() {
         notifier,
         config: shared_config,
         overlay_cmd_tx,
+        locale: Mutex::new(detect_locale().to_string()),
     };
 
     tauri::Builder::default()
@@ -278,7 +332,7 @@ fn list_window_titles() -> Vec<String> {
 #[tauri::command]
 fn start_overlay(state: State<AppState>, target_window: String) -> Result<(), String> {
     if target_window.is_empty() {
-        return Err("未选择目标窗口".to_string());
+        return Err(tr(current_locale(&state), "target_window_required").to_string());
     }
     state
         .overlay_cmd_tx
@@ -307,11 +361,14 @@ fn get_overlay_active(state: State<AppState>) -> bool {
 /// 更新当前语言与托盘菜单显示文本。
 #[tauri::command]
 fn update_locale(
+    app_state: State<AppState>,
     tray_state: State<TrayMenuState>,
     locale: String,
     tray: TrayLabels,
 ) -> Result<(), String> {
-    let _ = locale;
+    if let Ok(mut guard) = app_state.locale.lock() {
+        *guard = locale;
+    }
     tray_state.config_item.set_text(&tray.config).map_err(|e| e.to_string())?;
     tray_state.settings_item.set_text(&tray.settings).map_err(|e| e.to_string())?;
     tray_state.quit_item.set_text(&tray.quit).map_err(|e| e.to_string())?;
@@ -327,12 +384,13 @@ struct TrayLabels {
 
 /// 弹出文件选择对话框，返回 PNG 路径。
 #[tauri::command]
-async fn pick_image_path(app: tauri::AppHandle) -> Result<Option<String>, String> {
+async fn pick_image_path(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
+    let locale = current_locale(&state);
     let path = app
         .dialog()
         .file()
-        .add_filter("PNG 图片", &["png"])
+        .add_filter(tr(locale, "png_filter"), &["png"])
         .blocking_pick_file();
     Ok(path.map(|p| p.to_string()))
 }

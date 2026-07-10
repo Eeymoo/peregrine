@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Preview } from "@/components/Preview";
 import { StyleFields } from "@/components/StyleFields";
+import { useI18n } from "@/lib/i18n";
 import {
   getConfig,
   saveConfig,
@@ -21,22 +22,23 @@ import {
 } from "@/lib/api";
 import type { AppConfig, Crosshair, CrosshairStyle } from "@/types/config";
 
-const STYLES: { value: CrosshairStyle; label: string }[] = [
-  { value: "edge_rect", label: "贴边矩形" },
-  { value: "cross", label: "准星" },
-  { value: "large_cross", label: "大准星" },
-  { value: "corner_dots4", label: "定位球4" },
-  { value: "corner_dots6", label: "定位球6" },
-  { value: "corner_dots8", label: "定位球8" },
-  { value: "ring", label: "中心环" },
-  { value: "custom_orb", label: "自定义定位球" },
-  { value: "random_orb", label: "随机球" },
-  { value: "border_frame", label: "边框" },
-  { value: "custom_image", label: "自定义图片" },
-  { value: "edge_arrows", label: "箭头" },
+const STYLES: CrosshairStyle[] = [
+  "edge_rect",
+  "cross",
+  "large_cross",
+  "corner_dots4",
+  "corner_dots6",
+  "corner_dots8",
+  "ring",
+  "custom_orb",
+  "random_orb",
+  "border_frame",
+  "custom_image",
+  "edge_arrows",
 ];
 
 export default function ConfigApp() {
+  const { t } = useI18n();
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [windows, setWindows] = useState<string[]>([]);
   const [overlayActive, setOverlayActive] = useState(false);
@@ -96,7 +98,7 @@ export default function ConfigApp() {
   if (loading || !config || !crosshair) {
     return (
       <div className="h-screen flex items-center justify-center text-muted-foreground">
-        加载中…
+        {t("config.loading")}
       </div>
     );
   }
@@ -114,7 +116,7 @@ export default function ConfigApp() {
         <div className="space-y-3 shrink-0">
           {/* 样式选择 */}
           <div className="space-y-2">
-            <Label className="text-sm">类型</Label>
+            <Label className="text-sm">{t("config.style")}</Label>
             <Select
               value={crosshair.style}
               onValueChange={(v) => updateCrosshair({ style: v as CrosshairStyle })}
@@ -124,8 +126,8 @@ export default function ConfigApp() {
               </SelectTrigger>
               <SelectContent>
                 {STYLES.map((s) => (
-                  <SelectItem key={s.value} value={s.value} className="text-sm">
-                    {s.label}
+                  <SelectItem key={s} value={s} className="text-sm">
+                    {t(`styles.${s}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -136,7 +138,7 @@ export default function ConfigApp() {
           <div className="space-y-3">
             <div className="space-y-2">
               <div className="flex justify-between">
-                <Label className="text-sm">透明度</Label>
+                <Label className="text-sm">{t("config.opacity")}</Label>
                 <span className="text-sm text-muted-foreground">{crosshair.opacity.toFixed(2)}</span>
               </div>
               <Slider
@@ -149,7 +151,7 @@ export default function ConfigApp() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Label className="shrink-0 text-sm">颜色</Label>
+              <Label className="shrink-0 text-sm">{t("config.color")}</Label>
               <input
                 type="color"
                 value={colorCss}
@@ -180,9 +182,9 @@ export default function ConfigApp() {
           {/* 目标窗口 */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <Label className="text-sm">目标窗口</Label>
+              <Label className="text-sm">{t("config.targetWindow")}</Label>
               <Button variant="ghost" size="sm" onClick={refreshWindows} className="h-8 text-sm px-2">
-                刷新
+                {t("config.refresh")}
               </Button>
             </div>
             <Select
@@ -203,10 +205,10 @@ export default function ConfigApp() {
               }}
             >
               <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder="（未选择）" />
+                <SelectValue placeholder={t("config.none")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__" className="text-sm">（未选择）</SelectItem>
+                <SelectItem value="__none__" className="text-sm">{t("config.none")}</SelectItem>
                 {windows.map((w) => (
                   <SelectItem key={w} value={w} className="text-sm">
                     {w.length > 30 ? w.slice(0, 30) + "…" : w}
@@ -220,11 +222,11 @@ export default function ConfigApp() {
           <div>
             {overlayActive ? (
               <Button variant="destructive" className="w-full h-8 text-sm" onClick={handleStopOverlay}>
-                ■ 停止覆盖
+                ■ {t("config.stopOverlay")}
               </Button>
             ) : (
               <Button className="w-full h-8 text-sm" onClick={handleStartOverlay}>
-                ▶ 开始覆盖
+                ▶ {t("config.startOverlay")}
               </Button>
             )}
           </div>

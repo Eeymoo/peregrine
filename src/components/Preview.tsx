@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { Crosshair } from "@/types/config";
 import { buildShapes, colorToCss } from "@/lib/shapes";
+import { useI18n } from "@/lib/i18n";
 
 interface PreviewProps {
   crosshair: Crosshair;
@@ -8,6 +9,7 @@ interface PreviewProps {
 }
 
 export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -56,7 +58,7 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
 
     // CustomImage 单独处理
     if (crosshair.style === "custom_image") {
-      drawCustomImage(ctx, crosshair, screen);
+      drawCustomImage(ctx, crosshair, screen, t);
       return;
     }
 
@@ -131,7 +133,8 @@ function drawDashedCircle(
 function drawCustomImage(
   ctx: CanvasRenderingContext2D,
   crosshair: Crosshair,
-  screen: { minX: number; minY: number; maxX: number; maxY: number }
+  screen: { minX: number; minY: number; maxX: number; maxY: number },
+  t: (key: string) => string
 ) {
   const centerX = (screen.minX + screen.maxX) / 2 + crosshair.image_offset_x;
   const centerY = (screen.minY + screen.maxY) / 2 + crosshair.image_offset_y;
@@ -141,7 +144,7 @@ function drawCustomImage(
     ctx.font = "14px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("请选择 PNG 文件", centerX, centerY);
+    ctx.fillText(t("preview.placeholder"), centerX, centerY);
     return;
   }
 

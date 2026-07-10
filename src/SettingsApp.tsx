@@ -1,24 +1,59 @@
+import { useI18n, type Locale } from "@/lib/i18n";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const LANGUAGE_OPTIONS: { value: Locale; label: string }[] = [
+  { value: "zh-CN", label: "简体中文" },
+  { value: "en", label: "English" },
+];
 
 export default function SettingsApp() {
+  const { t, locale, setLocale } = useI18n();
+
   return (
     <div className="h-screen flex flex-col bg-background text-foreground p-6">
-      <h1 className="text-xl font-semibold">设置</h1>
+      <h1 className="text-xl font-semibold">{t("settings.title")}</h1>
       <p className="text-sm text-muted-foreground mt-1">
-        更多设置项将在后续版本加入。
+        {t("settings.description")}
       </p>
 
       <Separator className="my-4" />
 
+      {/* 语言设置 */}
+      <div className="space-y-2">
+        <Label className="text-sm">{t("settings.language")}</Label>
+        <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LANGUAGE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value} className="text-sm">
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Separator className="my-4" />
+
       <div className="space-y-3">
-        <h2 className="text-lg font-medium">关于 Peregrine</h2>
+        <h2 className="text-lg font-medium">{t("settings.about.title")}</h2>
         <p className="text-sm text-muted-foreground">
-          Peregrine 是一款桌面辅助贴图（准心 / 覆盖层）工具，主要用途是帮助玩家缓解 3D 眩晕。
+          {t("settings.about.description")}
         </p>
         <ul className="text-sm space-y-1 text-muted-foreground">
-          <li>版本：0.1.1</li>
-          <li>许可：PolyForm Noncommercial · 个人免费 · 禁止商业贩卖</li>
-          <li>仓库：https://github.com/eeymoo/peregrine</li>
+          <li>{t("settings.about.version")}：0.1.1</li>
+          <li>{t("settings.about.license")}：{t("license.polyform")}</li>
+          <li>{t("settings.about.repository")}：https://github.com/eeymoo/peregrine</li>
         </ul>
       </div>
 

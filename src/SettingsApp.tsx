@@ -1,4 +1,4 @@
-import { useI18n, type Locale } from "@/lib/i18n";
+import { useI18n, LANGUAGE_OPTIONS, type Locale } from "@/lib/i18n";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import {
@@ -8,11 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const LANGUAGE_OPTIONS: { value: Locale; label: string }[] = [
-  { value: "zh-CN", label: "简体中文" },
-  { value: "en", label: "English" },
-];
 
 export default function SettingsApp() {
   const { t, locale, setLocale } = useI18n();

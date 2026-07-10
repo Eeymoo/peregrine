@@ -6,6 +6,16 @@
 
 ---
 
+## [v0.1.3-alpha.2] — 2026-07-10
+
+### 修复
+
+- 修复 `Locale` 类型包含 `"auto"` 后与 `localeMap` 索引类型不匹配导致的 TypeScript 编译失败，CI 构建中断。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
 ## [v0.1.3-alpha.1] — 2026-07-10
 
 ### 新增
@@ -159,6 +169,7 @@
 
 ---
 
+[v0.1.3-alpha.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.2
 [v0.1.3-alpha.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.1
 [v0.1.3-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.0
 [v0.2.0-alpha.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.2.0-alpha.2

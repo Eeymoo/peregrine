@@ -15,7 +15,7 @@ import options from "@/i18n/options.json";
 /** 支持的语言，`auto` 表示跟随系统语言。 */
 export type Locale = "auto" | "zh-CN" | "en";
 
-const FALLBACK_LOCALE: Locale = "zh-CN";
+const FALLBACK_LOCALE: Exclude<Locale, "auto"> = "zh-CN";
 const LOCALE_EVENT = "peregrine:locale-changed";
 
 const localeMap: Record<Exclude<Locale, "auto">, Record<string, string>> = {

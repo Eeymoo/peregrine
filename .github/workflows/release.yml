@@ -60,12 +60,12 @@ jobs:
       - name: Build Tauri release
         run: npx tauri build --target ${{ matrix.target }}
 
-      # Tauri 产物路径：target/<target>/release/bundle/msi/*.msi
+      # Tauri NSIS 产物路径：target/<target>/release/bundle/nsis/*-setup.exe
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: target/${{ matrix.target }}/release/bundle/msi/*.msi
+          path: target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
 
   # 汇总产物并创建 GitHub Release。

@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Peregrine
-  text: 桌面辅助贴图工具
-  tagline: 在屏幕中心绘制半透明视觉锚点，帮助缓解 3D 眩晕
+  text: 缓解 3D 眩晕的桌面工具
+  tagline: 通过可定制的视觉锚点稳定你的视觉系统，让你正常游玩容易眩晕的 3D 游戏
   image:
     src: /logo.svg
     alt: Peregrine

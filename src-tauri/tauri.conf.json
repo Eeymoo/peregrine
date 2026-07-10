@@ -1,0 +1,56 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "productName": "Peregrine",
+  "version": "0.1.1",
+  "identifier": "com.eeymoo.peregrine",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "config",
+        "title": "Peregrine 配置",
+        "width": 1080,
+        "height": 720,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "visible": true,
+        "decorations": true,
+        "center": true,
+        "skipTaskbar": false
+      },
+      {
+        "label": "settings",
+        "title": "Peregrine 设置",
+        "width": 600,
+        "height": 420,
+        "minWidth": 480,
+        "minHeight": 360,
+        "resizable": true,
+        "fullscreen": false,
+        "visible": false,
+        "decorations": true,
+        "center": true,
+        "skipTaskbar": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {}
+}

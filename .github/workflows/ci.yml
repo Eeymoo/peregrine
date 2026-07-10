@@ -59,9 +59,15 @@ jobs:
       - name: Run config tests
         run: cargo test -p peregrine_config --locked
 
-      # 全量 release 编译，确保二进制 crate 可跨平台构建。
-      - name: Build release binary
-        run: cargo build --release --locked -p peregrine --target ${{ matrix.target }}
+      # 新 Tauri 入口：安装 Node 依赖并构建 Tauri release。
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Build Tauri release
+        run: npx tauri build --target ${{ matrix.target }}
 
   # 代码格式与 lint 检查（仅在 Linux 上跑，节省 CI 时间）。
   lint:

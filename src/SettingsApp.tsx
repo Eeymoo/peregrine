@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useI18n, LANGUAGE_OPTIONS, type Locale } from "@/lib/i18n";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import {
@@ -11,6 +13,10 @@ import {
 
 export default function SettingsApp() {
   const { t, locale, setLocale } = useI18n();
+
+  useEffect(() => {
+    getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("settings.title")}`).catch(() => {});
+  }, [t]);
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground p-6">

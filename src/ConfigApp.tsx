@@ -13,6 +13,7 @@ import {
 import { Preview } from "@/components/Preview";
 import { StyleFields } from "@/components/StyleFields";
 import { useI18n } from "@/lib/i18n";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
   getConfig,
   saveConfig,
@@ -39,6 +40,11 @@ const STYLES: CrosshairStyle[] = [
 
 export default function ConfigApp() {
   const { t } = useI18n();
+
+  useEffect(() => {
+    getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("config.title")}`).catch(() => {});
+  }, [t]);
+
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [windows, setWindows] = useState<string[]>([]);
   const [overlayActive, setOverlayActive] = useState(false);

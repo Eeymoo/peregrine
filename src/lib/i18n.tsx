@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import zhCN from "@/i18n/locales/zh-CN.json";
 import en from "@/i18n/locales/en.json";
 import options from "@/i18n/options.json";
@@ -96,8 +97,16 @@ export function I18nProvider({ children }: I18nProviderProps) {
     setLocaleState(next);
     try {
       await emit(LOCALE_EVENT, { locale: next });
+      await invoke("update_locale", {
+        locale: next,
+        tray: {
+          config: translate(next, "tray.config"),
+          settings: translate(next, "tray.settings"),
+          quit: translate(next, "tray.quit"),
+        },
+      });
     } catch {
-      // Tauri 事件不可用（如浏览器环境）时静默回退。
+      // Tauri 事件或命令不可用（如浏览器环境）时静默回退。
     }
   }, [locale]);
 

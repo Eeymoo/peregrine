@@ -4,6 +4,7 @@
     "version": "版本"
   },
   "config": {
+    "title": "配置",
     "loading": "加载中…",
     "style": "类型",
     "opacity": "透明度",
@@ -85,10 +86,10 @@
     "arrowSize": "箭头尺寸",
     "arrowWidth": "箭头宽度（0 为等宽）",
     "tailPerEdge": "分别设置尾部长度",
-    "tailTop": "顶部尾部长度",
-    "tailBottom": "下尾部长度",
-    "tailLeft": "左侧尾部长度",
-    "tailRight": "右尾部长度",
+    "tailTop": "上",
+    "tailBottom": "下",
+    "tailLeft": "左",
+    "tailRight": "右",
     "tailLength": "尾部长度",
     "file": "文件",
     "imagePathPlaceholder": "PNG 文件路径",
@@ -104,6 +105,11 @@
   },
   "preview": {
     "placeholder": "请选择 PNG 文件"
+  },
+  "tray": {
+    "config": "配置",
+    "settings": "设置",
+    "quit": "退出"
   },
   "license": {
     "polyform": "PolyForm Noncommercial · 个人免费 · 禁止商业贩卖"

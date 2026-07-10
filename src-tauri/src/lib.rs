@@ -31,6 +31,13 @@ pub struct AppState {
     pub overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
 }
 
+/// 托盘菜单项句柄，用于运行时更新菜单文本。
+pub struct TrayMenuState {
+    pub config_item: MenuItem<tauri::Wry>,
+    pub settings_item: MenuItem<tauri::Wry>,
+    pub quit_item: MenuItem<tauri::Wry>,
+}
+
 /// 启动 Tauri 应用。
 pub fn run() {
     init_logging();
@@ -87,6 +94,13 @@ pub fn run() {
             let settings_i = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&config_i, &settings_i, &quit_i])?;
+
+            // 保存托盘菜单项句柄，供 update_locale 命令更新文本。
+            app.manage(TrayMenuState {
+                config_item: config_i.clone(),
+                settings_item: settings_i.clone(),
+                quit_item: quit_i.clone(),
+            });
 
             let mut tray_builder = TrayIconBuilder::new()
                 .tooltip("Peregrine")
@@ -163,6 +177,7 @@ pub fn run() {
             stop_overlay,
             pick_image_path,
             get_overlay_active,
+            update_locale,
         ])
         .on_window_event(|_app_handle, event| {
             // 窗口关闭时隐藏到托盘（双重保险）。
@@ -287,6 +302,27 @@ fn get_overlay_active(state: State<AppState>) -> bool {
         .overlay_cmd_tx
         .send(overlay::OverlayCommand::QueryActive)
         .is_ok()
+}
+
+/// 更新当前语言与托盘菜单显示文本。
+#[tauri::command]
+fn update_locale(
+    tray_state: State<TrayMenuState>,
+    locale: String,
+    tray: TrayLabels,
+) -> Result<(), String> {
+    let _ = locale;
+    tray_state.config_item.set_text(&tray.config).map_err(|e| e.to_string())?;
+    tray_state.settings_item.set_text(&tray.settings).map_err(|e| e.to_string())?;
+    tray_state.quit_item.set_text(&tray.quit).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[derive(serde::Deserialize)]
+struct TrayLabels {
+    config: String,
+    settings: String,
+    quit: String,
 }
 
 /// 弹出文件选择对话框，返回 PNG 路径。

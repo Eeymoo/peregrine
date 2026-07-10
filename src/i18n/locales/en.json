@@ -4,6 +4,7 @@
     "version": "Version"
   },
   "config": {
+    "title": "Config",
     "loading": "Loading…",
     "style": "Style",
     "opacity": "Opacity",
@@ -85,10 +86,10 @@
     "arrowSize": "Arrow size",
     "arrowWidth": "Arrow width (0 = equal)",
     "tailPerEdge": "Set tail length per edge",
-    "tailTop": "Top tail length",
-    "tailBottom": "Bottom tail length",
-    "tailLeft": "Left tail length",
-    "tailRight": "Right tail length",
+    "tailTop": "Top",
+    "tailBottom": "Bottom",
+    "tailLeft": "Left",
+    "tailRight": "Right",
     "tailLength": "Tail length",
     "file": "File",
     "imagePathPlaceholder": "PNG file path",
@@ -104,6 +105,11 @@
   },
   "preview": {
     "placeholder": "Please select a PNG file"
+  },
+  "tray": {
+    "config": "Config",
+    "settings": "Settings",
+    "quit": "Quit"
   },
   "license": {
     "polyform": "PolyForm Noncommercial · free for personal use · commercial resale prohibited"

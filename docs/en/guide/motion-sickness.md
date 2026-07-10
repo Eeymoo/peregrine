@@ -31,7 +31,7 @@ This is also why some people are more prone to 3D motion sickness: individuals d
 
 A key idea for relieving sensory conflict is: **give the brain a stable, stationary reference object** so it can confirm “I am not actually moving”.
 
-This is Peregrine's core principle—overlaying a **fixed visual anchor** on the screen (crosshair, ring, corner markers, and so on). When the game image shakes violently, the anchor stays perfectly still; the eyes treat it as the “ground” or “horizon”, reducing the sensory conflict.
+This is Peregrine's core principle—overlaying a **fixed visual anchor** on the screen (Crosshair, Center Ring, Corner Markers, and so on). When the game image shakes violently, the anchor stays perfectly still; the eyes treat it as the “ground” or “horizon”, reducing the sensory conflict.
 
 This method is supported by academic evidence. A study by Seok et al. published in *JMIR Serious Games* found that enabling a crosshair (visual guide) in FPS games **significantly reduced** VR sickness symptoms, especially when using a gamepad; the best effect was achieved with a crosshair size of about 30% of the screen area, placed in the head-tracking direction[[4]](https://games.jmir.org/2021/3/e18020/).
 
@@ -47,9 +47,9 @@ Place a semi-transparent, fixed reference object at the center or edge of the sc
 
 **Peregrine usage tips:**
 
-- Try `Cross` (crosshair) or `Ring` (center ring) first; these work best for most people.
+- Try `cross` (Crosshair) or `ring` (Center Ring) first; these work best for most people.
 - Keep the anchor small and dim, semi-transparent, so it does not block the game view.
-- If a center crosshair interferes with aiming, try `EdgeRect` (edge rectangle) or `BorderFrame` (border frame) to place the anchor at the edges.
+- If a center crosshair interferes with aiming, try `edge_rect` (Edge Rectangle) or `border_frame` (Border Frame) to place the anchor at the edges.
 
 ### 2. Adjust Field of View (FOV)
 

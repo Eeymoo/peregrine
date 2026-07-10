@@ -32,7 +32,7 @@ Peregrine 的核心是「覆盖层」（Overlay）——一个特殊的窗口，
 
 渲染上，覆盖层走 **CPU 像素光栅化**（softbuffer）而非 GPU，以避开 Windows 透明合成的一些坑。程序直接在像素缓冲里绘制准心几何形状（矩形、圆、线段、三角形等），再交给系统合成到屏幕上。这种方式轻量、稳定，不依赖游戏的渲染管线。
 
-设置窗口则使用 **Tauri**（Webview）承载 **React + Tailwind CSS + shadcn/ui** 构建的界面，提供实时预览——你在设置面板里看到的锚点，和覆盖层实际显示的完全一致。
+配置窗口则使用 **Tauri**（Webview）承载 **React + Tailwind CSS + shadcn/ui** 构建的界面，提供实时预览——你在设置面板里看到的锚点，和覆盖层实际显示的完全一致。
 
 想了解为什么会眩晕、以及除视觉锚点外的其他缓解方法，请参阅 [缓解晕 3D](./motion-sickness.md)。
 
@@ -42,7 +42,7 @@ Peregrine 使用 Rust 编写，以下是主要依赖及其用途：
 
 | 依赖 | 用途 |
 |------|------|
-| [Tauri](https://tauri.app/) | 跨平台桌面应用框架，提供 Webview 设置窗口与系统托盘 |
+| [Tauri](https://tauri.app/) | 跨平台桌面应用框架，提供 Webview 配置窗口与系统托盘 |
 | [React](https://react.dev/) / [Tailwind CSS](https://tailwindcss.com/) / [shadcn/ui](https://ui.shadcn.com/) | 设置面板界面与组件 |
 | [winit](https://github.com/rust-windowing/winit) | 跨平台窗口创建与事件循环 |
 | [softbuffer](https://github.com/rust-windowing/softbuffer) | 覆盖层的 CPU 像素缓冲光栅化 |

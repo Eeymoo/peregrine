@@ -226,7 +226,7 @@ fn make_color(color: &[f32; 4], opacity: f32) -> u32 {
 
 /// 将一条 [`Shape`]（共享几何图元）光栅化到 softbuffer 像素缓冲区。
 ///
-/// 这是 overlay 侧的渲染器：与 settings_ui 中 egui painter 的预览渲染一一对应。
+/// 这是 overlay 侧的渲染器：与前端 `Preview` 组件的预览渲染一一对应。
 /// 两者调用相同的 `build_shapes`，确保预览与实际效果完全一致。
 fn rasterize_shape(
     buffer: &mut [u32],

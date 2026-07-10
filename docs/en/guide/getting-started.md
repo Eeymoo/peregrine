@@ -8,23 +8,23 @@ Visit the [GitHub Releases](https://github.com/eeymoo/peregrine/releases) page a
 
 ## Launch the Program
 
-After downloading, double-click `peregrine.exe` to run it. Once launched, the program displays the **settings window**, where you can configure the crosshair style and parameters.
+After downloading, double-click `peregrine.exe` to run it. Once launched, the program displays the **config window**, where you can configure the visual anchor style and parameters.
 
 ## Common Operations
 
 | Operation | Function |
 |-----------|----------|
-| Press `Esc` in the settings window | Hide to system tray |
+| Press `Esc` in the config window | Hide to system tray |
 | Click **Start Overlay** | Create a transparent always-on-top overlay |
 | Click **Stop Overlay** | Close the overlay |
-| Right-click tray icon **Settings** | Show the settings window again |
+| Right-click tray icon **Config** | Show the config window again |
 | Right-click tray icon **Exit** | Exit the program |
 
-## Step 1: Choose a Crosshair Style
+## Step 1: Choose a Visual Anchor Style
 
-1. In the settings panel, click the **Type** dropdown and choose a style you like, such as `Crosshair`, `Center Ring`, or `Edge Rectangle`.
+1. In the settings panel, click the **Style** dropdown and choose a style you like, such as `Crosshair`, `Center Ring`, or `Edge Rectangle`.
 2. Adjust parameters such as size, opacity, and color; the preview on the left updates in real time.
-3. Click **Start Overlay**, and the assistive overlay will appear at the center of the screen.
+3. Click **Start Overlay**, and the visual anchor will appear at the center of the screen.
 
 ## Configuration File
 

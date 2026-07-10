@@ -83,7 +83,7 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `crosshair` | Crosshair | 辅助贴图配置 |
+| `crosshair` | Crosshair | 视觉锚点配置 |
 | `trigger` | TriggerRule | 进程触发规则（占位，尚未生效） |
 | `settings_hotkey` | string | 打开设置面板的热键字符串 |
 | `target_window` | string | 目标窗口标题（可选）。空字符串表示不跟随特定窗口，覆盖层将固定显示在屏幕中心 |

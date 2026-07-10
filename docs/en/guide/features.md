@@ -2,35 +2,35 @@
 
 ## Overlay Mode
 
-In overlay mode, Peregrine draws an assistive image on top of the screen. Window characteristics include:
+In overlay mode, Peregrine draws a visual anchor on top of the screen. Window characteristics include:
 
 - **Transparent**: The background is fully transparent, showing only the visual anchor or image.
 - **Always on top**: Always stays above other windows.
 - **Click-through**: Does not intercept mouse clicks or keyboard input, so gameplay is unaffected.
 - **Window follow**: Optionally follows a specified game window as it moves.
 
-## Crosshair Styles
+## Visual Anchor Styles
 
 `CrosshairStyle` currently supports the following styles:
 
 | Style | Description |
 |-------|-------------|
-| `EdgeRect` | Edge rectangle, classic visual anchor |
-| `Cross` | Crosshair |
-| `LargeCross` | Large crosshair |
-| `CornerDots4` | Corner markers (4) |
-| `CornerDots6` | Corner markers (6) |
-| `CornerDots8` | Corner markers (8) |
-| `Ring` | Center ring |
-| `CustomOrb` | Custom edge markers |
-| `RandomOrb` | Random edge markers |
-| `BorderFrame` | Border frame |
-| `CustomImage` | Custom image |
-| `EdgeArrows` | Edge arrows |
+| `edge_rect` | Edge Rectangle, classic visual anchor |
+| `cross` | Crosshair |
+| `large_cross` | Large Crosshair |
+| `corner_dots4` | 4 Corner Markers |
+| `corner_dots6` | 6 Corner Markers |
+| `corner_dots8` | 8 Corner Markers |
+| `ring` | Center Ring |
+| `custom_orb` | Custom Edge Markers |
+| `random_orb` | Random Edge Markers |
+| `border_frame` | Border Frame |
+| `custom_image` | Custom Image |
+| `edge_arrows` | Edge Arrows |
 
 ## Custom PNG Image
 
-You can load any PNG image as an assistive overlay; the program decodes it and draws it at the center of the screen.
+You can load any PNG image as a visual anchor; the program decodes it and draws it at the center of the screen.
 
 ## Settings and Preview
 

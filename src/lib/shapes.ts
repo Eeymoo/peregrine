@@ -22,17 +22,20 @@ const OrbPosition = {
 };
 
 class SimpleRng {
-  private state: number;
+  private state: bigint;
   constructor(seed: number) {
-    this.state = Math.max(seed, 1);
+    // 与 Rust 侧 SimpleRng 使用相同的 64-bit LCG 种子。
+    this.state = BigInt(Math.max(seed, 1));
   }
-  nextU64(): number {
-    // 32-bit safe LCG
-    this.state = (this.state * 1664525 + 1013904223) >>> 0;
+  nextU64(): bigint {
+    // 与 crates/peregrine/src/shapes.rs 保持一致：
+    // state = state * 6364136223846793005 + 1
+    const MULT = 6364136223846793005n;
+    this.state = (this.state * MULT + 1n) & 0xffffffffffffffffn;
     return this.state;
   }
   nextF32(): number {
-    return (this.nextU64() & 0x00ffffff) / 0x01000000;
+    return Number(this.nextU64() & 0x00ffffffn) / 0x01000000;
   }
 }
 
@@ -131,8 +134,18 @@ export function buildShapes(screen: RectF, crosshair: Crosshair): Shape[] {
       break;
     }
     case "random_orb": {
-      const seed = ((crosshair.random_orb_offset * 1000) | 0) + ((crosshair.random_orb_jitter * 100) | 0) + ((crosshair.random_radius_min * 10) | 0) + ((crosshair.random_radius_max * 10) | 0) + crosshair.random_orb_count;
-      const rng = new SimpleRng(seed);
+      // 与 Rust 侧 seed 计算保持一致（u64 wrapping_add）。
+      const seed =
+        (BigInt(Math.trunc(crosshair.random_orb_offset * 1000)) &
+          0xffffffffffffffffn) +
+        (BigInt(Math.trunc(crosshair.random_orb_jitter * 100)) &
+          0xffffffffffffffffn) +
+        (BigInt(Math.trunc(crosshair.random_radius_min * 10)) &
+          0xffffffffffffffffn) +
+        (BigInt(Math.trunc(crosshair.random_radius_max * 10)) &
+          0xffffffffffffffffn) +
+        (BigInt(crosshair.random_orb_count) & 0xffffffffffffffffn);
+      const rng = new SimpleRng(Number(seed)); // 配置值保证在 JS 安全整数范围内
       const count = crosshair.random_orb_count;
       const offset = crosshair.random_orb_offset;
       const jitter = crosshair.random_orb_jitter;

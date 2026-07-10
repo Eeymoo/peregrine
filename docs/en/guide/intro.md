@@ -30,9 +30,9 @@ The core of Peregrine is the **overlay** — a special window that meets three c
 
 On Windows, these features are implemented via system APIs: transparency and click-through are handled by window attributes (`with_transparent` + disabled hit-testing + always-on-top level), and the program additionally sets "does not steal focus" and "not shown in the taskbar" attributes, ensuring the overlay floats quietly above the game.
 
-For rendering, the overlay uses **CPU pixel rasterization** (softbuffer) instead of the GPU, to avoid some pitfalls of Windows transparent compositing. The program draws crosshair geometries (rectangles, circles, line segments, triangles, etc.) directly into a pixel buffer, then hands it to the system compositor. This approach is lightweight, stable, and independent of the game's rendering pipeline.
+For rendering, the overlay uses **CPU pixel rasterization** (softbuffer) instead of the GPU, to avoid some pitfalls of Windows transparent compositing. The program draws visual-anchor geometries (rectangles, circles, line segments, triangles, etc.) directly into a pixel buffer, then hands it to the system compositor. This approach is lightweight, stable, and independent of the game's rendering pipeline.
 
-The settings window is built with **Tauri** (Webview) carrying a **React + Tailwind CSS + shadcn/ui** interface, providing real-time preview — the anchor you see in the settings panel is exactly the same as what the overlay displays.
+The config window is built with **Tauri** (Webview) carrying a **React + Tailwind CSS + shadcn/ui** interface, providing real-time preview — the anchor you see in the settings panel is exactly the same as what the overlay displays.
 
 To learn more about why motion sickness happens and other relief methods besides visual anchors, see [Relieving 3D Motion Sickness](./motion-sickness.md).
 
@@ -42,7 +42,7 @@ Peregrine is written in Rust. Below are the main dependencies and their purposes
 
 | Dependency | Purpose |
 |------------|---------|
-| [Tauri](https://tauri.app/) | Cross-platform desktop application framework; provides the Webview settings window and system tray |
+| [Tauri](https://tauri.app/) | Cross-platform desktop application framework; provides the Webview config window and system tray |
 | [React](https://react.dev/) / [Tailwind CSS](https://tailwindcss.com/) / [shadcn/ui](https://ui.shadcn.com/) | Settings panel UI and components |
 | [winit](https://github.com/rust-windowing/winit) | Cross-platform window creation and event loop |
 | [softbuffer](https://github.com/rust-windowing/softbuffer) | CPU pixel-buffer rasterization for the overlay |

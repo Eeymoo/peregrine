@@ -84,14 +84,14 @@ Symptoms vary by individual and usually worsen in the following order[[1]](https
 
 | Parameter | Recommended value | Explanation |
 |------|--------|------|
-| Style (style) | `cross` or `ring` | Either crosshair or center ring works |
+| Style (style) | `cross` or `ring` | Either Crosshair or Center Ring works |
 | Main size (size) | `10`–`15` (cross) / `ring_radius_pct: 0.04` | Slightly larger; the wider TPS field of view can accommodate a larger central anchor |
 | Thickness (thickness) | `2`–`3` | Slightly thicker to increase visibility |
 | Gap (gap) | `4`–`8` | |
 | Opacity (opacity) | `0.4`–`0.5` | Third-person is less likely to cause motion sickness than FPS, so the anchor can be more subtle |
 | Color (color) | White `[1.0, 1.0, 1.0, 1.0]` or light green `[0.3, 1.0, 0.3, 1.0]` | |
 
-**Principle**: Motion sickness in third-person mainly comes from **running shake** and **perspective zoom**. The anchor provides a stable "horizon" reference when the camera shakes. The center ring (`ring`) works especially well in TPS because it doesn't rely on precise aiming and only needs to provide a stationary center point.
+**Principle**: Motion sickness in third-person mainly comes from **running shake** and **perspective zoom**. The anchor provides a stable "horizon" reference when the camera shakes. Center Ring (`ring`) works especially well in TPS because it doesn't rely on precise aiming and only needs to provide a stationary center point.
 
 **Additional advice**: In game settings, turn off or reduce "camera shake", "head bob", and "ADS animation" options.
 
@@ -107,14 +107,14 @@ Symptoms vary by individual and usually worsen in the following order[[1]](https
 
 | Parameter | Recommended value | Explanation |
 |------|--------|------|
-| Style (style) | `ring` or `edge_rect` | Center ring is suitable for jumping reference; edge rectangle provides additional edge reference |
+| Style (style) | `ring` or `edge_rect` | Center Ring is suitable for jumping reference; Edge Rectangle provides additional edge reference |
 | Main size (size) | `ring_radius_pct: 0.05` / `edge_rect`: `size: 100, secondary_size: 60` | |
 | Thickness (thickness) | `2`–`3` | |
 | Opacity (opacity) | `0.5`–`0.7` | Fast screen changes require a more obvious anchor |
 | Anchor position (anchor) | `top` (if using edge_rect) | Top anchor simulates a "ceiling reference" and helps quickly perceive height changes when jumping |
 | Color (color) | High-contrast colors such as bright green `[0.0, 1.0, 0.3, 1.0]` or orange `[1.0, 0.6, 0.0, 1.0]` | Complex parkour scenes need eye-catching colors |
 
-**Principle**: Motion sickness in parkour games comes from **multi-directional intense motion**—horizontal running + vertical jumping + camera bobbing happening at the same time. The center ring provides a reference for "my position relative to the ground" even in the most chaotic moments. The edge rectangle simulates a fixed frame, letting the brain perceive the screen boundary during violent shaking.
+**Principle**: Motion sickness in parkour games comes from **multi-directional intense motion**—horizontal running + vertical jumping + camera bobbing happening at the same time. Center Ring provides a reference for "my position relative to the ground" even in the most chaotic moments. Edge Rectangle simulates a fixed frame, letting the brain perceive the screen boundary during violent shaking.
 
 **Additional advice**: Be sure to turn off motion blur and head bob; prioritize skills or equipment that improve "stability / damping" (the Explorer outfit in Dying Light has this effect)[[7]](https://steelseries.com/blog/dying-light-the-beast-tips).
 
@@ -182,13 +182,13 @@ Symptoms vary by individual and usually worsen in the following order[[1]](https
   - Green forests / grasslands → use white or red anchors.
   - Sky / ocean blue tones → use orange or yellow anchors.
 - White is the most universal choice but can blend into bright scenes (snow, sky).
-- You can also use a custom PNG image (`CustomImage` style) for finer visual effects.
+- You can also use a custom PNG image (`custom_image` style) for finer visual effects.
 
 ### Position
 
 - **Center** (`Cross` / `Ring`): The most common choice, suitable for most scenarios.
-- **Edge** (`EdgeRect` / `BorderFrame`): When you don't want anything in the dead center of the screen, edge anchors provide a frame feel without interfering with actions.
-- **Corner markers** (`CornerDots`): The least conspicuous option; only small dots at the four corners provide a minimal reference.
+- **Edge** (`edge_rect` / `border_frame`): When you don't want anything in the dead center of the screen, edge anchors provide a frame feel without interfering with actions.
+- **Corner Markers** (`corner_dots`): The least conspicuous option; only small dots at the four corners provide a minimal reference.
 
 ### Rules of Thumb
 

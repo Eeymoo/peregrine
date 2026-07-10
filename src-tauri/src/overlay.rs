@@ -58,7 +58,10 @@ fn run_overlay_loop_windows(
     config: Arc<Mutex<ConfigSnapshot>>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
 ) {
+    use winit::platform::windows::EventLoopBuilderExtWindows;
+
     let event_loop = EventLoop::<UserEvent>::with_user_event()
+        .with_any_thread(true)
         .build()
         .expect("create overlay event loop");
     event_loop.set_control_flow(ControlFlow::Wait);

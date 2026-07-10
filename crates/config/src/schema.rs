@@ -12,6 +12,40 @@ pub struct AppConfig {
     pub active_profile: String,
     /// 所有可用 Profile，按名称索引。
     pub profiles: std::collections::HashMap<String, Profile>,
+    /// 应用级 UI 设置（非 Profile 绑定的全局偏好）。
+    #[serde(default)]
+    pub settings: AppSettings,
+}
+
+/// 应用级 UI 设置（全局偏好，不随 Profile 切换）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AppSettings {
+    /// 开始覆盖时是否自动隐藏配置窗口并切换到目标窗口。
+    /// - `"yes"`: 自动隐藏并切换
+    /// - `"no"`: 保持配置窗口显示
+    /// - `"ask"`: 每次询问
+    #[serde(default = "default_auto_switch_on_overlay")]
+    pub auto_switch_on_overlay: String,
+    /// UI 语言（`"zh-CN"` / `"en"`），`"auto"` 表示跟随系统语言。
+    #[serde(default = "default_locale")]
+    pub locale: String,
+}
+
+fn default_auto_switch_on_overlay() -> String {
+    "ask".to_string()
+}
+
+fn default_locale() -> String {
+    "auto".to_string()
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            auto_switch_on_overlay: default_auto_switch_on_overlay(),
+            locale: default_locale(),
+        }
+    }
 }
 
 /// 单个 Profile 配置。
@@ -354,6 +388,7 @@ impl AppConfig {
         Self {
             active_profile: "default".to_string(),
             profiles,
+            settings: AppSettings::default(),
         }
     }
 
@@ -868,5 +903,74 @@ mod tests {
         assert_eq!(restored.image_scale, 1.0);
         assert_eq!(restored.image_offset_x, 0.0);
         assert_eq!(restored.image_offset_y, 0.0);
+    }
+
+    #[test]
+    fn app_settings_defaults() {
+        let s = AppSettings::default();
+        assert_eq!(s.auto_switch_on_overlay, "ask");
+        assert_eq!(s.locale, "auto");
+    }
+
+    #[test]
+    fn app_settings_roundtrip() {
+        let s = AppSettings {
+            auto_switch_on_overlay: "yes".to_string(),
+            locale: "en".to_string(),
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let restored: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, s);
+    }
+
+    #[test]
+    fn old_config_without_settings_loads() {
+        // 模拟旧配置文件（无 settings 字段），serde 应回退到 AppSettings::default()。
+        let json = r#"{
+            "active_profile": "default",
+            "profiles": {
+                "default": {
+                    "crosshair": {
+                        "style": "cross",
+                        "size": 10.0,
+                        "secondary_size": 48.0,
+                        "thickness": 2.0,
+                        "radius": 0.0,
+                        "offset": 0.0,
+                        "color": [1.0, 1.0, 1.0, 1.0],
+                        "opacity": 0.8,
+                        "gap": 4.0,
+                        "corner_radius": 4.0,
+                        "anchor": "center",
+                        "margin": 0.0,
+                        "ring_radius_pct": 0.05,
+                        "ring_style": "solid",
+                        "orb_positions": 3,
+                        "random_mode": "lock_on_start",
+                        "random_center_deviation": 0.2,
+                        "random_radius_min": 4.0,
+                        "random_radius_max": 12.0,
+                        "random_orb_x": 0.0,
+                        "random_orb_y": 0.0,
+                        "border_frame_style": "solid",
+                        "border_gap": false,
+                        "border_inset": true,
+                        "custom_orb_top_count": 3,
+                        "custom_orb_bottom_count": 3,
+                        "custom_orb_left_count": 3,
+                        "custom_orb_right_count": 3,
+                        "random_orb_count": 3,
+                        "random_orb_offset": 100.0,
+                        "random_orb_jitter": 40.0
+                    },
+                    "trigger": { "enabled": true, "process_names": [] },
+                    "settings_hotkey": "F10",
+                    "target_window": ""
+                }
+            }
+        }"#;
+        let restored: AppConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(restored.settings.auto_switch_on_overlay, "ask");
+        assert_eq!(restored.settings.locale, "auto");
     }
 }

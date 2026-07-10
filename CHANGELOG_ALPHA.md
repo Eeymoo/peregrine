@@ -6,6 +6,29 @@
 
 ---
 
+## [v0.1.3-alpha.1] — 2026-07-10
+
+### 新增
+
+- 语言设置新增「跟随系统」选项，默认根据系统语言自动选择简体中文或英文。
+- 设置页新增「开始覆盖时自动切换到游戏」偏好：每次询问 / 是 / 否。
+- 首次点击「开始覆盖」时弹出确认对话框，可选择是否记住该选择。
+
+### 变更
+
+- 语言与自动切换偏好统一持久化到 `config.json` 的 `settings` 中，移除前端的 `localStorage` 依赖，跨窗口同步更可靠。
+- 托盘菜单文本在应用启动时即根据当前语言初始化。
+
+### 修复
+
+- 修复 `npm ci` 时 `picomatch` 版本与 `package-lock.json` 不一致导致的安装失败。
+- 修复 alpha 预发布版本号无法打包 MSI 的问题：发布产物改用 NSIS（`*-setup.exe`）。
+- 修复 overlay 事件循环在非主线程创建时缺少 `with_any_thread(true)` 导致的 panic。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
 ## [v0.1.3-alpha.0] — 2026-07-10
 
 ### 新增
@@ -136,6 +159,8 @@
 
 ---
 
+[v0.1.3-alpha.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.1
+[v0.1.3-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.0
 [v0.2.0-alpha.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.2.0-alpha.2
 [v0.1.1-alpha.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.1-alpha.1
 [v0.2.0-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.2.0-alpha.0

@@ -6,20 +6,19 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { emit, listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { getConfig, updatePreferences } from "@/lib/api";
 import zhCN from "@/i18n/locales/zh-CN.json";
 import en from "@/i18n/locales/en.json";
 import options from "@/i18n/options.json";
 
-/** 支持的语言。 */
-export type Locale = "zh-CN" | "en";
+/** 支持的语言，`auto` 表示跟随系统语言。 */
+export type Locale = "auto" | "zh-CN" | "en";
 
-const STORAGE_KEY = "peregrine:locale";
 const FALLBACK_LOCALE: Locale = "zh-CN";
 const LOCALE_EVENT = "peregrine:locale-changed";
 
-const localeMap: Record<Locale, Record<string, string>> = {
+const localeMap: Record<Exclude<Locale, "auto">, Record<string, string>> = {
   "zh-CN": flatten(zhCN),
   en: flatten(en),
 };
@@ -44,37 +43,32 @@ function flatten(obj: unknown, prefix = ""): Record<string, string> {
 }
 
 /** 根据浏览器语言返回最匹配的受支持 locale。 */
-export function detectLocale(): Locale {
+export function detectLocale(): Exclude<Locale, "auto"> {
   const locale = navigator.language;
   if (locale.toLowerCase().startsWith("zh")) return "zh-CN";
   if (locale.toLowerCase().startsWith("en")) return "en";
   return FALLBACK_LOCALE;
 }
 
-function getStoredLocale(): Locale | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === "zh-CN" || raw === "en") return raw;
-  } catch {
-    // localStorage 不可用（隐私模式等）时回退到检测。
-  }
-  return null;
-}
-
-function storeLocale(locale: Locale): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, locale);
-  } catch {
-    // 忽略写入失败。
-  }
+/**
+ * 将存储的 locale 解析为实际显示的语言。
+ * `"auto"` 会根据系统语言实时解析。
+ */
+export function resolveLocale(locale: Locale): Exclude<Locale, "auto"> {
+  if (locale === "auto") return detectLocale();
+  return locale;
 }
 
 export function translate(locale: Locale, key: string): string {
-  return localeMap[locale][key] ?? localeMap[FALLBACK_LOCALE][key] ?? key;
+  const resolved = resolveLocale(locale);
+  return localeMap[resolved][key] ?? localeMap[FALLBACK_LOCALE][key] ?? key;
 }
 
 interface I18nContextValue {
+  /** 当前选择的 locale（可能是 `auto`）。 */
   locale: Locale;
+  /** 当前实际显示的语言（已解析 `auto`）。 */
+  resolvedLocale: Exclude<Locale, "auto">;
   setLocale: (locale: Locale) => void;
   t: (key: string) => string;
 }
@@ -85,50 +79,52 @@ interface I18nProviderProps {
   children: ReactNode;
 }
 
-/** 将当前语言同步到后端，用于更新托盘菜单与后端错误提示。 */
-async function syncLocaleToBackend(next: Locale): Promise<void> {
-  await invoke("update_locale", {
-    locale: next,
-    tray: {
-      config: translate(next, "tray.config"),
-      settings: translate(next, "tray.settings"),
-      quit: translate(next, "tray.quit"),
-    },
-  });
-}
-
-/** 国际化上下文提供者，默认从 localStorage 读取，未设置则通过 navigator.language 检测。 */
+/**
+ * 国际化上下文提供者。
+ *
+ * locale 从后端配置（config.json）读取，支持 `"auto"` 跟随系统语言。
+ * 写入时通过 `update_preferences` 命令持久化到配置文件并广播给所有窗口。
+ */
 export function I18nProvider({ children }: I18nProviderProps) {
-  const [locale, setLocaleState] = useState<Locale>(() => {
-    return getStoredLocale() ?? detectLocale();
-  });
+  const [locale, setLocaleState] = useState<Locale>("auto");
 
-  const setLocale = useCallback(async (next: Locale) => {
-    if (next === locale) return;
-    storeLocale(next);
-    setLocaleState(next);
-    try {
-      await emit(LOCALE_EVENT, { locale: next });
-      await syncLocaleToBackend(next);
-    } catch {
-      // Tauri 事件或命令不可用（如浏览器环境）时静默回退。
-    }
-  }, [locale]);
-
-  // 初始化时将当前语言同步到后端，确保托盘菜单与错误提示语言一致。
+  // 初始化：从后端配置读取 locale，未设置则回退到 auto。
   useEffect(() => {
-    syncLocaleToBackend(locale).catch(() => {});
+    let cancelled = false;
+    (async () => {
+      try {
+        const config = await getConfig();
+        const saved = config.settings?.locale;
+        if (saved === "auto" || saved === "zh-CN" || saved === "en") {
+          if (!cancelled) setLocaleState(saved);
+        } else {
+          if (!cancelled) setLocaleState("auto");
+        }
+      } catch {
+        if (!cancelled) setLocaleState("auto");
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  // 监听其他窗口触发的语言变更事件，保持多窗口同步。
+  const setLocale = useCallback(async (next: Locale) => {
+    setLocaleState(next);
+    try {
+      // 通过 update_preferences 写入配置，后端会广播 locale-changed 事件给所有窗口。
+      await updatePreferences({ locale: next });
+    } catch {
+      // 非 Tauri 环境静默失败。
+    }
+  }, []);
+
+  // 监听后端广播的语言变更事件，统一更新所有窗口的 React 状态。
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     const setup = async () => {
       try {
-        unlisten = await listen<{ locale: Locale }>(LOCALE_EVENT, (event) => {
-          const next = event.payload.locale;
-          if (next === "zh-CN" || next === "en") {
-            storeLocale(next);
+        unlisten = await listen<string>(LOCALE_EVENT, (event) => {
+          const next = event.payload;
+          if (next === "auto" || next === "zh-CN" || next === "en") {
             setLocaleState(next);
           }
         });
@@ -140,12 +136,15 @@ export function I18nProvider({ children }: I18nProviderProps) {
     return () => unlisten?.();
   }, []);
 
+  const resolvedLocale = resolveLocale(locale);
+
   useEffect(() => {
-    document.documentElement.lang = locale;
-  }, [locale]);
+    document.documentElement.lang = resolvedLocale;
+  }, [resolvedLocale]);
 
   const value: I18nContextValue = {
     locale,
+    resolvedLocale,
     setLocale,
     t: (key: string) => translate(locale, key),
   };

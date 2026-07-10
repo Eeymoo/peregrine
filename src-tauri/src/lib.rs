@@ -10,7 +10,7 @@
 use peregrine_config::{ConfigNotifier, ConfigSnapshot, ConfigStorage};
 use std::sync::{Arc, Mutex, mpsc};
 use tauri::{
-    Manager, State, WindowEvent,
+    Emitter, Manager, State, WindowEvent,
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder},
 };
@@ -61,13 +61,24 @@ fn tr(locale: BackendLocale, key: &str) -> String {
         (BackendLocale::En, "target_window_required") => "No target window selected".to_string(),
         (BackendLocale::ZhCN, "png_filter") => "PNG 图片".to_string(),
         (BackendLocale::En, "png_filter") => "PNG images".to_string(),
+        (BackendLocale::ZhCN, "tray.config") => "配置".to_string(),
+        (BackendLocale::En, "tray.config") => "Config".to_string(),
+        (BackendLocale::ZhCN, "tray.settings") => "设置".to_string(),
+        (BackendLocale::En, "tray.settings") => "Settings".to_string(),
+        (BackendLocale::ZhCN, "tray.quit") => "退出".to_string(),
+        (BackendLocale::En, "tray.quit") => "Quit".to_string(),
         _ => key.to_string(),
     }
 }
 
 fn current_locale(state: &AppState) -> BackendLocale {
     let locale = state.locale.lock().map(|s| s.clone()).unwrap_or_default();
-    BackendLocale::from_str(&locale)
+    let resolved = if locale == "zh-CN" || locale == "en" {
+        locale.as_str()
+    } else {
+        detect_locale()
+    };
+    BackendLocale::from_str(resolved)
 }
 
 /// 全局应用状态，跨 commands 共享。
@@ -132,21 +143,37 @@ pub fn run() {
         let _ = tx.send(());
     });
 
+    // 初始 locale：配置为 "auto" 或空时通过环境变量检测系统语言，否则直接使用保存值。
+    let initial_locale = {
+        let saved = snapshot.settings.locale.as_str();
+        if saved == "zh-CN" || saved == "en" {
+            saved.to_string()
+        } else {
+            detect_locale().to_string()
+        }
+    };
+
     let state = AppState {
         storage,
         notifier,
         config: shared_config,
         overlay_cmd_tx,
-        locale: Mutex::new(detect_locale().to_string()),
+        locale: Mutex::new(initial_locale.clone()),
     };
 
     tauri::Builder::default()
         .manage(state)
-        .setup(|app| {
-            // 托盘图标菜单：配置 / 设置 / 退出。
-            let config_i = MenuItem::with_id(app, "config", "配置", true, None::<&str>)?;
-            let settings_i = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
-            let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+        .setup(move |app| {
+            // 根据 locale 初始化托盘菜单文本。
+            let locale = BackendLocale::from_str(&initial_locale);
+            let config_label = tr(locale, "tray.config");
+            let settings_label = tr(locale, "tray.settings");
+            let quit_label = tr(locale, "tray.quit");
+
+            let config_i = MenuItem::with_id(app, "config", &config_label, true, None::<&str>)?;
+            let settings_i =
+                MenuItem::with_id(app, "settings", &settings_label, true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", &quit_label, true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&config_i, &settings_i, &quit_i])?;
 
             // 保存托盘菜单项句柄，供 update_locale 命令更新文本。
@@ -156,9 +183,7 @@ pub fn run() {
                 quit_item: quit_i.clone(),
             });
 
-            let mut tray_builder = TrayIconBuilder::new()
-                .tooltip("Peregrine")
-                .menu(&menu);
+            let mut tray_builder = TrayIconBuilder::new().tooltip("Peregrine").menu(&menu);
             if let Some(icon) = app.default_window_icon() {
                 tray_builder = tray_builder.icon(icon.clone());
             }
@@ -231,7 +256,8 @@ pub fn run() {
             stop_overlay,
             pick_image_path,
             get_overlay_active,
-            update_locale,
+            update_preferences,
+            focus_target_window,
         ])
         .on_window_event(|_app_handle, event| {
             // 窗口关闭时隐藏到托盘（双重保险）。
@@ -358,33 +384,97 @@ fn get_overlay_active(state: State<AppState>) -> bool {
         .is_ok()
 }
 
-/// 更新当前语言与托盘菜单显示文本。
+/// 更新应用级偏好设置（locale / auto_switch_on_overlay）。
+///
+/// - 仅更新传入的字段，其余保持不变。
+/// - 写入配置文件、更新内存快照、广播给 overlay。
+/// - 如果 locale 发生变化，更新托盘菜单文本并广播 `peregrine:locale-changed` 事件给所有窗口。
 #[tauri::command]
-fn update_locale(
-    app_state: State<AppState>,
-    tray_state: State<TrayMenuState>,
-    locale: String,
-    tray: TrayLabels,
+async fn update_preferences(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    tray_state: State<'_, TrayMenuState>,
+    preferences: PreferencesPatch,
 ) -> Result<(), String> {
-    if let Ok(mut guard) = app_state.locale.lock() {
-        *guard = locale;
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+
+    let old_locale = state.locale.lock().map(|s| s.clone()).unwrap_or_default();
+    let locale_changed = preferences
+        .locale
+        .as_deref()
+        .is_some_and(|l| l != old_locale);
+
+    // 应用偏好设置变更。
+    if let Some(locale) = &preferences.locale {
+        config.settings.locale = locale.clone();
+        if let Ok(mut guard) = state.locale.lock() {
+            *guard = locale.clone();
+        }
     }
-    tray_state.config_item.set_text(&tray.config).map_err(|e| e.to_string())?;
-    tray_state.settings_item.set_text(&tray.settings).map_err(|e| e.to_string())?;
-    tray_state.quit_item.set_text(&tray.quit).map_err(|e| e.to_string())?;
+    if let Some(auto_switch) = &preferences.auto_switch_on_overlay {
+        config.settings.auto_switch_on_overlay = auto_switch.clone();
+    }
+
+    config.validate().map_err(|e| e.to_string())?;
+    state
+        .storage
+        .save(&config)
+        .await
+        .map_err(|e| e.to_string())?;
+    state
+        .notifier
+        .update(config.clone())
+        .map_err(|e| e.to_string())?;
+    let snapshot: ConfigSnapshot = Arc::new(config);
+    *state.config.lock().map_err(|e| e.to_string())? = snapshot.clone();
+    let _ = state
+        .overlay_cmd_tx
+        .send(overlay::OverlayCommand::UpdateConfig(snapshot));
+
+    // locale 变化时更新托盘菜单并广播事件。
+    if locale_changed {
+        let saved = state.locale.lock().map(|s| s.clone()).unwrap_or_default();
+        // "auto" 时根据系统语言解析为实际显示语言。
+        let resolved = if saved == "zh-CN" || saved == "en" {
+            saved.as_str()
+        } else {
+            detect_locale()
+        };
+        let bl = BackendLocale::from_str(resolved);
+        tray_state
+            .config_item
+            .set_text(&tr(bl, "tray.config"))
+            .map_err(|e| e.to_string())?;
+        tray_state
+            .settings_item
+            .set_text(&tr(bl, "tray.settings"))
+            .map_err(|e| e.to_string())?;
+        tray_state
+            .quit_item
+            .set_text(&tr(bl, "tray.quit"))
+            .map_err(|e| e.to_string())?;
+        app.emit("peregrine:locale-changed", &saved)
+            .map_err(|e| e.to_string())?;
+    }
+
     Ok(())
 }
 
 #[derive(serde::Deserialize)]
-struct TrayLabels {
-    config: String,
-    settings: String,
-    quit: String,
+struct PreferencesPatch {
+    locale: Option<String>,
+    auto_switch_on_overlay: Option<String>,
 }
 
 /// 弹出文件选择对话框，返回 PNG 路径。
 #[tauri::command]
-async fn pick_image_path(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<Option<String>, String> {
+async fn pick_image_path(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
     let locale = current_locale(&state);
     let path = app
@@ -393,4 +483,18 @@ async fn pick_image_path(app: tauri::AppHandle, state: State<'_, AppState>) -> R
         .add_filter(tr(locale, "png_filter"), &["png"])
         .blocking_pick_file();
     Ok(path.map(|p| p.to_string()))
+}
+
+/// 将焦点切换到指定标题的目标窗口（游戏窗口）。
+#[tauri::command]
+fn focus_target_window(target_window: String) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+        let hwnd = peregrine::platform::windows::find_target_window(&target_window)
+            .map_err(|e| e.to_string())?;
+        unsafe { SetForegroundWindow(hwnd) };
+    }
+    let _ = target_window;
+    Ok(())
 }

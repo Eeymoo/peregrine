@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -20,6 +21,8 @@ import {
   listWindowTitles,
   startOverlay,
   stopOverlay,
+  focusTargetWindow,
+  updatePreferences,
 } from "@/lib/api";
 import type { AppConfig, Crosshair, CrosshairStyle } from "@/types/config";
 
@@ -49,6 +52,8 @@ export default function ConfigApp() {
   const [windows, setWindows] = useState<string[]>([]);
   const [overlayActive, setOverlayActive] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showAutoSwitchDialog, setShowAutoSwitchDialog] = useState(false);
+  const [rememberChoice, setRememberChoice] = useState(false);
 
   useEffect(() => {
     getConfig()
@@ -77,15 +82,61 @@ export default function ConfigApp() {
     listWindowTitles().then(setWindows).catch(console.error);
   }, []);
 
+  /** 更新应用级偏好设置（仅更新指定字段，不覆盖整个配置）。 */
+  const updateSettings = useCallback((patch: Partial<AppConfig["settings"]>) => {
+    if (!config) return;
+    const newConfig = {
+      ...config,
+      settings: { ...config.settings, ...patch },
+    };
+    setConfig(newConfig);
+    updatePreferences(patch).catch(console.error);
+  }, [config]);
+
+  /** 隐藏配置窗口并切换焦点到目标游戏窗口。 */
+  const hideAndSwitch = useCallback(async (targetWindow: string) => {
+    await getCurrentWebviewWindow().hide();
+    focusTargetWindow(targetWindow).catch(console.error);
+  }, []);
+
   const handleStartOverlay = useCallback(async () => {
     if (!profile?.target_window) return;
     try {
       await startOverlay(profile.target_window);
       setOverlayActive(true);
+
+      const pref = config?.settings.auto_switch_on_overlay ?? "ask";
+      if (pref === "yes") {
+        await hideAndSwitch(profile.target_window);
+      } else if (pref === "no") {
+        // 不隐藏，不做操作。
+      } else {
+        // 未设置偏好（ask），弹出对话框。
+        setShowAutoSwitchDialog(true);
+      }
     } catch (e) {
       console.error(e);
     }
-  }, [profile?.target_window]);
+  }, [profile?.target_window, config?.settings.auto_switch_on_overlay, hideAndSwitch]);
+
+  /** 对话框确认：隐藏配置窗口并切换焦点，同时按勾选状态保存偏好。 */
+  const handleDialogConfirm = useCallback(async () => {
+    if (rememberChoice) {
+      updateSettings({ auto_switch_on_overlay: "yes" });
+    }
+    setShowAutoSwitchDialog(false);
+    if (profile?.target_window) {
+      await hideAndSwitch(profile.target_window);
+    }
+  }, [rememberChoice, profile?.target_window, hideAndSwitch, updateSettings]);
+
+  /** 对话框取消：保持配置窗口显示，同时按勾选状态保存偏好。 */
+  const handleDialogCancel = useCallback(async () => {
+    if (rememberChoice) {
+      updateSettings({ auto_switch_on_overlay: "no" });
+    }
+    setShowAutoSwitchDialog(false);
+  }, [rememberChoice, updateSettings]);
 
   const handleStopOverlay = useCallback(async () => {
     try {
@@ -243,6 +294,34 @@ export default function ConfigApp() {
           </div>
         </div>
       </div>
+
+      {/* 自动切换确认对话框 */}
+      {showAutoSwitchDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card border rounded-lg shadow-lg p-6 max-w-sm w-full mx-4 space-y-4">
+            <h2 className="text-base font-semibold">{t("overlay.autoSwitchTitle")}</h2>
+            <p className="text-sm text-muted-foreground">{t("overlay.autoSwitchDesc")}</p>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="remember-choice"
+                checked={rememberChoice}
+                onCheckedChange={(v) => setRememberChoice(v === true)}
+              />
+              <Label htmlFor="remember-choice" className="text-sm cursor-pointer">
+                {t("overlay.rememberChoice")}
+              </Label>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={handleDialogCancel}>
+                {t("overlay.keepConfig")}
+              </Button>
+              <Button size="sm" onClick={handleDialogConfirm}>
+                {t("overlay.switchToGame")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

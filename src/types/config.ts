@@ -80,4 +80,10 @@ export interface Profile {
 export interface AppConfig {
   active_profile: string;
   profiles: Record<string, Profile>;
+  settings: AppSettings;
+}
+
+export interface AppSettings {
+  auto_switch_on_overlay: string;
+  locale: string;
 }

@@ -28,3 +28,14 @@ export async function pickImagePath(): Promise<string | null> {
 export async function getOverlayActive(): Promise<boolean> {
   return invoke<boolean>("get_overlay_active");
 }
+
+export async function focusTargetWindow(targetWindow: string): Promise<void> {
+  return invoke("focus_target_window", { targetWindow });
+}
+
+/** 更新应用级偏好设置（locale / auto_switch_on_overlay）。 */
+export async function updatePreferences(
+  preferences: Partial<AppConfig["settings"]>,
+): Promise<void> {
+  return invoke("update_preferences", { preferences });
+}

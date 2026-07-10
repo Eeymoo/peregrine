@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "identifier": "default",
   "description": "Default capabilities for Peregrine settings window",
-  "windows": ["main"],
+  "windows": ["config", "settings"],
   "permissions": [
     "core:default",
     "core:window:default",

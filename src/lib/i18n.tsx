@@ -3,8 +3,10 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
   type ReactNode,
 } from "react";
+import { emit, listen } from "@tauri-apps/api/event";
 import zhCN from "@/i18n/locales/zh-CN.json";
 import en from "@/i18n/locales/en.json";
 import options from "@/i18n/options.json";
@@ -14,6 +16,7 @@ export type Locale = "zh-CN" | "en";
 
 const STORAGE_KEY = "peregrine:locale";
 const FALLBACK_LOCALE: Locale = "zh-CN";
+const LOCALE_EVENT = "peregrine:locale-changed";
 
 const localeMap: Record<Locale, Record<string, string>> = {
   "zh-CN": flatten(zhCN),
@@ -87,10 +90,36 @@ export function I18nProvider({ children }: I18nProviderProps) {
     return getStoredLocale() ?? detectLocale();
   });
 
-  const setLocale = (next: Locale) => {
+  const setLocale = useCallback(async (next: Locale) => {
+    if (next === locale) return;
     storeLocale(next);
     setLocaleState(next);
-  };
+    try {
+      await emit(LOCALE_EVENT, { locale: next });
+    } catch {
+      // Tauri 事件不可用（如浏览器环境）时静默回退。
+    }
+  }, [locale]);
+
+  // 监听其他窗口触发的语言变更事件，保持多窗口同步。
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    const setup = async () => {
+      try {
+        unlisten = await listen<{ locale: Locale }>(LOCALE_EVENT, (event) => {
+          const next = event.payload.locale;
+          if (next === "zh-CN" || next === "en") {
+            storeLocale(next);
+            setLocaleState(next);
+          }
+        });
+      } catch {
+        // 非 Tauri 环境下忽略监听失败。
+      }
+    };
+    setup();
+    return () => unlisten?.();
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = locale;

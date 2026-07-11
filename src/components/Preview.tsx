@@ -31,7 +31,7 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
     const cell = 20;
     for (let y = 0; y < rect.height; y += cell) {
       for (let x = 0; x < rect.width; x += cell) {
-        const dark = ((x / cell) | 0) + ((y / cell) | 0) % 2 === 0;
+        const dark = (((x / cell) | 0) + ((y / cell) | 0)) % 2 === 0;
         ctx.fillStyle = dark ? "#1a1a1a" : "#2a2a2a";
         ctx.fillRect(x, y, cell, cell);
       }

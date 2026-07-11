@@ -57,15 +57,22 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build Tauri release
-        run: npx tauri build --target ${{ matrix.target }}
+      - name: Build Tauri release (no-bundle，仅编译 exe)
+        run: npx tauri build --target ${{ matrix.target }} --no-bundle
 
-      # Tauri NSIS 产物路径：target/<target>/release/bundle/nsis/*-setup.exe
+      # 将编译产物 exe 打包为便携 zip，用户下载解压即可运行，无需安装。
+      - name: Create portable zip
+        shell: pwsh
+        run: |
+          $exe = "target/${{ matrix.target }}/release/peregrine-tauri.exe"
+          $zip = "peregrine-${{ matrix.asset_name }}.zip"
+          Compress-Archive -Path $exe -DestinationPath $zip
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
+          path: peregrine-${{ matrix.asset_name }}.zip
           if-no-files-found: error
 
   # 汇总产物并创建 GitHub Release。

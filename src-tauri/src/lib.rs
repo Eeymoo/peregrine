@@ -11,6 +11,7 @@ use peregrine_config::{ConfigNotifier, ConfigSnapshot, ConfigStorage};
 use std::sync::{Arc, Mutex, mpsc};
 use tauri::{
     Emitter, Manager, State, WindowEvent,
+    image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder},
 };
@@ -28,14 +29,34 @@ enum BackendLocale {
 
 impl BackendLocale {
     fn detect() -> Self {
-        let locale = std::env::var("LANG")
-            .or_else(|_| std::env::var("LC_ALL"))
-            .unwrap_or_default()
-            .to_lowercase();
-        if locale.starts_with("zh") {
-            BackendLocale::ZhCN
-        } else {
-            BackendLocale::En
+        // Windows 上 LANG 环境变量通常不存在，使用 Win32 API 获取系统 UI 语言。
+        #[cfg(windows)]
+        {
+            use windows::Win32::Globalization::GetUserDefaultLocaleName;
+            let mut buf = [0u16; 85]; // LOCALE_NAME_MAX_LENGTH
+            let ok = unsafe { GetUserDefaultLocaleName(&mut buf) };
+            if ok > 0 {
+                let locale = String::from_utf16_lossy(&buf[..ok as usize])
+                    .trim_end_matches('\0')
+                    .to_lowercase();
+                if locale.starts_with("zh") {
+                    return BackendLocale::ZhCN;
+                }
+            }
+            return BackendLocale::En;
+        }
+        // 非 Windows 平台使用环境变量检测。
+        #[cfg(not(windows))]
+        {
+            let locale = std::env::var("LANG")
+                .or_else(|_| std::env::var("LC_ALL"))
+                .unwrap_or_default()
+                .to_lowercase();
+            if locale.starts_with("zh") {
+                BackendLocale::ZhCN
+            } else {
+                BackendLocale::En
+            }
         }
     }
 
@@ -183,10 +204,14 @@ pub fn run() {
                 quit_item: quit_i.clone(),
             });
 
-            let mut tray_builder = TrayIconBuilder::new().tooltip("Peregrine").menu(&menu);
-            if let Some(icon) = app.default_window_icon() {
-                tray_builder = tray_builder.icon(icon.clone());
-            }
+            // 嵌入高分辨率 PNG（512x512）作为托盘图标源，Tauri 会按需缩放。
+            let icon = Image::from_bytes(include_bytes!("../icons/icon.png"))
+                .expect("failed to load embedded tray icon");
+
+            let tray_builder = TrayIconBuilder::new()
+                .tooltip("Peregrine")
+                .menu(&menu)
+                .icon(icon);
             let _tray = tray_builder
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "config" => {
@@ -224,6 +249,10 @@ pub fn run() {
 
             // 启动时确保配置窗口可见并前置。
             let config_window = app.get_webview_window("config").unwrap();
+            // 设置高分辨率窗口图标（标题栏 + 任务栏）。
+            let win_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))
+                .expect("failed to load window icon");
+            let _ = config_window.set_icon(win_icon.clone());
             let _ = config_window.show();
             let _ = config_window.set_focus();
 
@@ -238,6 +267,7 @@ pub fn run() {
 
             // 关闭设置窗口时同样隐藏到托盘。
             let settings_window = app.get_webview_window("settings").unwrap();
+            let _ = settings_window.set_icon(win_icon);
             let settings_clone = settings_window.clone();
             settings_window.on_window_event(move |event| {
                 if let WindowEvent::CloseRequested { api, .. } = event {
@@ -432,7 +462,7 @@ async fn update_preferences(
     *state.config.lock().map_err(|e| e.to_string())? = snapshot.clone();
     let _ = state
         .overlay_cmd_tx
-        .send(overlay::OverlayCommand::UpdateConfig(snapshot));
+        .send(overlay::OverlayCommand::UpdateConfig(snapshot.clone()));
 
     // locale 变化时更新托盘菜单并广播事件。
     if locale_changed {
@@ -460,10 +490,19 @@ async fn update_preferences(
             .map_err(|e| e.to_string())?;
     }
 
+    // 广播 settings 变更，让所有窗口的 React state 同步更新。
+    let settings_json = serde_json::json!({
+        "auto_switch_on_overlay": snapshot.as_ref().settings.auto_switch_on_overlay,
+        "locale": snapshot.as_ref().settings.locale,
+    });
+    app.emit("peregrine:settings-changed", &settings_json)
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 struct PreferencesPatch {
     locale: Option<String>,
     auto_switch_on_overlay: Option<String>,
@@ -486,14 +525,50 @@ async fn pick_image_path(
 }
 
 /// 将焦点切换到指定标题的目标窗口（游戏窗口）。
+///
+/// Windows 的 `SetForegroundWindow` 有前台锁定限制：只有当前前台窗口的线程
+/// 才有权限切换前台。这里通过 `AttachThreadInput` 将当前线程的输入队列
+/// 临时附加到目标窗口的线程，使其获得设置前台的权限，然后用
+/// `BringWindowToTop` + `ShowWindow` 组合完成切换。
 #[tauri::command]
 fn focus_target_window(target_window: String) -> Result<(), String> {
     #[cfg(windows)]
     {
-        use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, ShowWindow,
+            SW_RESTORE, SW_SHOW,
+        };
+        use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+        use windows::Win32::Foundation::BOOL;
+
         let hwnd = peregrine::platform::windows::find_target_window(&target_window)
             .map_err(|e| e.to_string())?;
-        unsafe { SetForegroundWindow(hwnd) };
+
+        unsafe {
+            let foreground = GetForegroundWindow();
+            let target_thread = GetWindowThreadProcessId(hwnd, None);
+            let foreground_thread = GetWindowThreadProcessId(foreground, None);
+            let current_thread = GetCurrentThreadId();
+
+            // 如果目标窗口最小化了，先恢复。
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+
+            if target_thread != foreground_thread {
+                // 将当前线程和目标窗口线程的输入队列附加到前台线程，
+                // 使前台权限传递到当前线程，从而可以设置前台窗口。
+                let _ = AttachThreadInput(current_thread, foreground_thread, BOOL(1));
+                let _ = AttachThreadInput(current_thread, target_thread, BOOL(1));
+
+                let _ = BringWindowToTop(hwnd);
+                let _ = ShowWindow(hwnd, SW_SHOW);
+
+                let _ = AttachThreadInput(current_thread, foreground_thread, BOOL(0));
+                let _ = AttachThreadInput(current_thread, target_thread, BOOL(0));
+            } else {
+                let _ = BringWindowToTop(hwnd);
+                let _ = ShowWindow(hwnd, SW_SHOW);
+            }
+        }
     }
     let _ = target_window;
     Ok(())

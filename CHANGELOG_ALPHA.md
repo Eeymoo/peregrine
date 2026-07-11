@@ -6,6 +6,27 @@
 
 ---
 
+## [v0.1.3-alpha.3] — 2026-07-11
+
+### 变更
+
+- 发布产物从 NSIS 安装程序（`*-setup.exe`）改回便携 zip 压缩包：每个架构单独打包为 `peregrine-windows-x86.zip` / `peregrine-windows-x64.zip` / `peregrine-windows-arm64.zip`，下载解压即可运行，无需安装。
+
+### 修复
+
+- 修复托盘菜单语言跟随系统语言失效：Windows 上 `LANG` 环境变量通常不存在，改用 Win32 API `GetUserDefaultLocaleName` 检测系统语言。
+- 修复「开始覆盖后自动隐藏并切换到游戏」功能失效：`SetForegroundWindow` 受前台锁定限制，改用 `AttachThreadInput` + `BringWindowToTop` 组合可靠切换。
+- 修复设置窗口修改「自动切换」偏好后配置窗口未同步：新增 `peregrine:settings-changed` 事件广播，两窗口 React state 实时同步。
+- 修复配置预览棋盘格背景错乱：`%` 运算符优先级高于 `+` 导致格子交替模式错乱。
+
+### 优化
+
+- 图标清晰度大幅提升：生成脚本改用 8x 超采样抗锯齿，ICO 包含 16/32/48/64/128/256 六档，托盘与窗口标题栏使用 1024x1024 高分辨率 PNG 源图，高 DPI 下清晰锐利。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
 ## [v0.1.3-alpha.2] — 2026-07-10
 
 ### 修复
@@ -169,6 +190,7 @@
 
 ---
 
+[v0.1.3-alpha.3]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.3
 [v0.1.3-alpha.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.2
 [v0.1.3-alpha.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.1
 [v0.1.3-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.0

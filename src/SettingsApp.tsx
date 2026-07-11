@@ -32,6 +32,26 @@ export default function SettingsApp() {
       .catch(console.error);
   }, []);
 
+  /** 监听后端 settings 变更（来自配置窗口的对话框记住选择），同步本窗口状态。 */
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen<{ auto_switch_on_overlay?: string }>(
+          "peregrine:settings-changed",
+          (event) => {
+            const { auto_switch_on_overlay } = event.payload;
+            if (auto_switch_on_overlay !== undefined) {
+              setAutoSwitchState(auto_switch_on_overlay);
+            }
+          },
+        );
+      } catch { /* 非 Tauri 环境忽略 */ }
+    })();
+    return () => unlisten?.();
+  }, []);
+
   const handleAutoSwitchChange = useCallback((value: string) => {
     setAutoSwitchState(value);
     if (!config) return;

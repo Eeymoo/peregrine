@@ -63,6 +63,29 @@ export default function ConfigApp() {
     refreshWindows();
   }, []);
 
+  /** 监听后端 settings 变更（来自设置窗口），同步 React state。 */
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen<{ auto_switch_on_overlay?: string; locale?: string }>(
+          "peregrine:settings-changed",
+          (event) => {
+            const { auto_switch_on_overlay } = event.payload;
+            if (auto_switch_on_overlay !== undefined) {
+              setConfig((prev) => {
+                if (!prev) return prev;
+                return { ...prev, settings: { ...prev.settings, auto_switch_on_overlay } };
+              });
+            }
+          },
+        );
+      } catch { /* 非 Tauri 环境忽略 */ }
+    })();
+    return () => unlisten?.();
+  }, []);
+
   const profile = config?.profiles[config.active_profile];
   const crosshair = profile?.crosshair;
 

@@ -7,7 +7,18 @@ In overlay mode, Peregrine draws a visual anchor on top of the screen. Window ch
 - **Transparent**: The background is fully transparent, showing only the visual anchor or image.
 - **Always on top**: Always stays above other windows.
 - **Click-through**: Does not intercept mouse clicks or keyboard input, so gameplay is unaffected.
-- **Window follow**: Optionally follows a specified game window as it moves.
+- **Window follow**: In window mode, optionally follows a specified game window as it moves.
+
+## Overlay Mode
+
+Peregrine supports two overlay modes, switchable from the config page or tray menu — both stay in sync:
+
+- **Fullscreen mode** (default): The overlay covers the entire screen without needing to select a target window. Ideal for multi-monitor fullscreen gaming.
+- **Window mode**: The overlay only covers the target window area. After enabling "Window Mode", select a target window and the overlay will follow its position and size.
+
+::: tip Live Drag Preview
+In Settings, you can enable "Live Drag Preview". When enabled, the overlay follows the window in real time during dragging. When disabled (default), the overlay reappears ~1200ms after dragging stops, reducing CPU usage.
+:::
 
 ## Visual Anchor Styles
 
@@ -39,6 +50,15 @@ The settings panel is built with Tauri + React and provides:
 - Real-time parameter adjustment
 - Instant preview
 - Auto-save and config validation
+
+### Settings
+
+The following settings are located in the separate Settings window (not profile-specific):
+
+- **Live Drag Preview**: When enabled, the overlay follows the window in real time during dragging. Disabled by default — the overlay reappears after dragging stops, reducing CPU usage.
+- **GPU Hardware Acceleration**: When enabled, activates WebView2 GPU rendering (disabled by default). When off, pure CPU rendering is used to reduce GPU process memory usage.
+- **Auto-switch to game on overlay start**: Ask / Yes / No.
+- **Language**: Simplified Chinese / English / Follow System.
 
 ## Process Trigger (Placeholder)
 

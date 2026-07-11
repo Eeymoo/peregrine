@@ -58,6 +58,7 @@ export default withMermaid(defineConfig({
               { text: '缓解晕 3D', link: '/guide/motion-sickness' },
               { text: '推荐配置', link: '/guide/recommendations' },
               { text: '开发构建', link: '/guide/development' },
+              { text: '更新日志', link: '/guide/changelog' },
               { text: '术语表', link: '/guide/glossary' }
             ]
           }
@@ -100,6 +101,7 @@ export default withMermaid(defineConfig({
               { text: 'Motion Sickness Relief', link: '/en/guide/motion-sickness' },
               { text: 'Recommended Settings', link: '/en/guide/recommendations' },
               { text: 'Development', link: '/en/guide/development' },
+              { text: 'Changelog', link: '/en/guide/changelog' },
               { text: 'Glossary', link: '/en/guide/glossary' }
             ]
           }

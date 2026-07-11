@@ -49,3 +49,27 @@ export async function getAppVersion(): Promise<string> {
 export async function relaunchApp(): Promise<void> {
   return invoke("relaunch_app");
 }
+
+/** 检查是否有可用更新。 */
+export async function checkForUpdate(): Promise<{
+  available: boolean;
+  version?: string;
+  body?: string;
+}> {
+  const { check } = await import("@tauri-apps/plugin-updater");
+  const update = await check();
+  if (update) {
+    return { available: true, version: update.version, body: update.body };
+  }
+  return { available: false };
+}
+
+/** 下载并安装更新，完成后自动重启。 */
+export async function downloadAndInstallUpdate(): Promise<void> {
+  const { check } = await import("@tauri-apps/plugin-updater");
+  const update = await check();
+  if (update) {
+    await update.downloadAndInstall();
+    await relaunchApp();
+  }
+}

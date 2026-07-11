@@ -271,6 +271,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(state)
         .on_window_event(|window, event| {
             // 关闭窗口时真正销毁 WebView2 渲染进程（~30-50MB/窗口），

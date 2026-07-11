@@ -18,10 +18,22 @@
   },
   "bundle": {
     "active": true,
-    "targets": [],
+    "targets": ["nsis"],
     "icon": [
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine"
+      }
+    }
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Eeymoo/peregrine/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQxRTUzRTMxRUZFRkJBOEYKUldTUHV1L3ZNVDdsUVRObTdVNDNQRDJqNGpyMmc2eENISXUrQjQ4akZyZXZwOVc5UWZVUXZFaDEK"
+    }
+  }
 }

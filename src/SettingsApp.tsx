@@ -3,6 +3,7 @@ import { useI18n, LANGUAGE_OPTIONS, type Locale } from "@/lib/i18n";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -10,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getConfig, updatePreferences, getAppVersion, relaunchApp } from "@/lib/api";
+import { getConfig, updatePreferences, getAppVersion, relaunchApp, checkForUpdate, downloadAndInstallUpdate } from "@/lib/api";
 import type { AppConfig } from "@/types/config";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -19,6 +20,7 @@ export default function SettingsApp() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [autoSwitch, setAutoSwitchState] = useState<string>("ask");
   const [version, setVersion] = useState("");
+  const [updateState, setUpdateState] = useState<{ status: "idle" | "checking" | "available" | "upToDate" | "updating" | "failed"; version?: string; body?: string }>({ status: "idle" });
 
   useEffect(() => {
     getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("settings.title")}`).catch(() => {});
@@ -216,6 +218,77 @@ export default function SettingsApp() {
           <li>{t("settings.about.license")}：{t("license.mit")}</li>
           <li>{t("settings.about.repository")}：https://github.com/Eeymoo/peregrine</li>
         </ul>
+
+        {/* 检查更新按钮 */}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={updateState.status === "checking" || updateState.status === "updating"}
+          onClick={async () => {
+            setUpdateState({ status: "checking" });
+            try {
+              const result = await checkForUpdate();
+              if (result.available) {
+                setUpdateState({ status: "available", version: result.version, body: result.body });
+              } else {
+                setUpdateState({ status: "upToDate" });
+              }
+            } catch (e) {
+              console.error("[Update] check failed:", e);
+              setUpdateState({ status: "failed" });
+            }
+          }}
+        >
+          {updateState.status === "checking" ? "..." : t("settings.checkUpdate")}
+        </Button>
+
+        {/* 更新状态提示 */}
+        {updateState.status === "upToDate" && (
+          <p className="text-xs text-green-600">{t("settings.updateUpToDate")}</p>
+        )}
+        {updateState.status === "failed" && (
+          <p className="text-xs text-red-500">{t("settings.updateFailed")}</p>
+        )}
+        {updateState.status === "updating" && (
+          <p className="text-xs text-blue-500">{t("settings.updating")}</p>
+        )}
+
+        {/* 发现新版本对话框 */}
+        {updateState.status === "available" && (
+          <div className="border rounded-lg p-3 space-y-2 bg-muted/50">
+            <p className="text-sm font-medium">
+              {t("settings.updateAvailable")}：v{updateState.version}
+            </p>
+            {updateState.body && (
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-6">
+                {updateState.body}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={async () => {
+                  setUpdateState((s) => ({ ...s, status: "updating" }));
+                  try {
+                    await downloadAndInstallUpdate();
+                  } catch (e) {
+                    console.error("[Update] download failed:", e);
+                    setUpdateState({ status: "failed" });
+                  }
+                }}
+              >
+                {t("settings.updateNow")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUpdateState({ status: "idle" })}
+              >
+                {t("settings.updateLater")}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-auto text-xs text-muted-foreground text-right">

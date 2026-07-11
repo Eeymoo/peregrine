@@ -18,7 +18,13 @@ export default withMermaid(defineConfig({
   ],
 
   vite: {
-    plugins: [llmstxt()]
+    plugins: [llmstxt()],
+    // 显式置空 PostCSS 配置，阻止 VitePress 继承仓库根目录的 postcss.config.js
+    // （根配置引用了 tailwindcss / autoprefixer，在 CI 中 docs/ 下未安装这些依赖，
+    // 会导致 "Cannot find module 'tailwindcss'" 构建失败）
+    css: {
+      postcss: {}
+    }
   },
 
   mermaid: {

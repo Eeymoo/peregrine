@@ -20,7 +20,12 @@ export default function SettingsApp() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [autoSwitch, setAutoSwitchState] = useState<string>("ask");
   const [version, setVersion] = useState("");
-  const [updateState, setUpdateState] = useState<{ status: "idle" | "checking" | "available" | "upToDate" | "updating" | "failed"; version?: string; body?: string }>({ status: "idle" });
+  const [updateState, setUpdateState] = useState<{
+    status: "idle" | "checking" | "available" | "upToDate" | "updating" | "failed";
+    version?: string;
+    body?: string;
+    progress?: number;
+  }>({ status: "idle" });
 
   useEffect(() => {
     getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("settings.title")}`).catch(() => {});
@@ -35,6 +40,19 @@ export default function SettingsApp() {
       })
       .catch(console.error);
     getAppVersion().then(setVersion).catch(() => {});
+
+    // 启动时自动检测更新（静默，发现新版本才提示）。
+    const autoCheck = async () => {
+      try {
+        const cfg = await getConfig();
+        const channel = cfg.settings?.update_channel ?? "stable";
+        const result = await checkForUpdate(channel);
+        if (result.available) {
+          setUpdateState({ status: "available", version: result.version, body: result.body });
+        }
+      } catch { /* 静默失败 */ }
+    };
+    autoCheck();
   }, []);
 
   /** 监听后端 settings 变更（来自托盘或配置窗口），同步本窗口状态。 */
@@ -271,8 +289,27 @@ export default function SettingsApp() {
         {updateState.status === "failed" && (
           <p className="text-xs text-red-500">{t("settings.updateFailed")}</p>
         )}
+
+        {/* 下载进度条 */}
         {updateState.status === "updating" && (
-          <p className="text-xs text-blue-500">{t("settings.updating")}</p>
+          <div className="space-y-1">
+            <p className="text-xs text-blue-500">{t("settings.updating")}</p>
+            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all"
+                style={{
+                  width: updateState.progress
+                    ? `${updateState.progress}%`
+                    : "30%",
+                }}
+              />
+            </div>
+            {updateState.progress !== undefined && (
+              <p className="text-xs text-muted-foreground text-right">
+                {Math.round(updateState.progress)}%
+              </p>
+            )}
+          </div>
         )}
 
         {/* 发现新版本对话框 */}
@@ -290,9 +327,14 @@ export default function SettingsApp() {
               <Button
                 size="sm"
                 onClick={async () => {
-                  setUpdateState((s) => ({ ...s, status: "updating" }));
+                  setUpdateState({ status: "updating", progress: 0 });
                   try {
-                    await downloadAndInstallUpdate();
+                    await downloadAndInstallUpdate((downloaded, total) => {
+                      if (total > 0) {
+                        const pct = Math.min(100, Math.round((downloaded / total) * 100));
+                        setUpdateState((s) => ({ ...s, progress: pct }));
+                      }
+                    });
                   } catch (e) {
                     console.error("[Update] download failed:", e);
                     setUpdateState({ status: "failed" });

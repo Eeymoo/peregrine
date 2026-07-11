@@ -107,12 +107,31 @@ export async function checkForUpdate(
   return { available: false };
 }
 
-/** 下载并安装更新，完成后自动重启。 */
-export async function downloadAndInstallUpdate(): Promise<void> {
+/** 下载并安装更新，完成后自动重启。
+ * onProgress: 可选回调，接收已下载字节数和总字节数。
+ */
+export async function downloadAndInstallUpdate(
+  onProgress?: (downloaded: number, total: number) => void
+): Promise<void> {
   const { check } = await import("@tauri-apps/plugin-updater");
   const update = await check();
   if (update) {
-    await update.downloadAndInstall();
+    let total = 0;
+    let downloaded = 0;
+    await update.downloadAndInstall((event: any) => {
+      switch (event.event) {
+        case "Started":
+          total = event.data.contentLength ?? 0;
+          break;
+        case "Progress":
+          downloaded += event.data.chunkLength ?? 0;
+          break;
+        case "Finished":
+          downloaded = total;
+          break;
+      }
+      if (onProgress) onProgress(downloaded, total);
+    });
     await relaunchApp();
   }
 }

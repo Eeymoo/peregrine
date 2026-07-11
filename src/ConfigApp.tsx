@@ -25,6 +25,8 @@ import {
   updatePreferences,
   getAppVersion,
   getOverlayActive,
+  checkForUpdate,
+  downloadAndInstallUpdate,
 } from "@/lib/api";
 import type { AppConfig, Crosshair, CrosshairStyle } from "@/types/config";
 
@@ -57,6 +59,9 @@ export default function ConfigApp() {
   const [showAutoSwitchDialog, setShowAutoSwitchDialog] = useState(false);
   const [rememberChoice, setRememberChoice] = useState(false);
   const [version, setVersion] = useState("");
+  const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body?: string } | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
 
   useEffect(() => {
     getConfig()
@@ -66,6 +71,19 @@ export default function ConfigApp() {
     refreshWindows();
     getAppVersion().then(setVersion).catch(() => {});
     getOverlayActive().then(setOverlayActive).catch(() => {});
+
+    // 启动时自动检测更新（静默，发现新版本才弹窗）。
+    const autoCheck = async () => {
+      try {
+        const cfg = await getConfig();
+        const channel = cfg.settings?.update_channel ?? "stable";
+        const result = await checkForUpdate(channel);
+        if (result.available) {
+          setUpdateAvailable({ version: result.version || "", body: result.body });
+        }
+      } catch { /* 静默失败 */ }
+    };
+    autoCheck();
   }, []);
 
   /** 监听后端 settings 变更（来自托盘或设置窗口），同步 React state。 */
@@ -410,6 +428,64 @@ export default function ConfigApp() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 发现新版本对话框 */}
+      {updateAvailable && !updating && (
+        <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
+          <p className="text-sm font-medium">
+            {t("settings.updateAvailable")}：v{updateAvailable.version}
+          </p>
+          {updateAvailable.body && (
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">
+              {updateAvailable.body}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={async () => {
+                setUpdating(true);
+                setUpdateProgress(0);
+                try {
+                  await downloadAndInstallUpdate((downloaded, total) => {
+                    if (total > 0) {
+                      setUpdateProgress(Math.min(100, Math.round((downloaded / total) * 100)));
+                    }
+                  });
+                } catch (e) {
+                  console.error("[Update] download failed:", e);
+                  setUpdating(false);
+                }
+              }}
+            >
+              {t("settings.updateNow")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setUpdateAvailable(null)}
+            >
+              {t("settings.updateLater")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 更新下载进度 */}
+      {updating && (
+        <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
+          <p className="text-xs text-blue-500">{t("settings.updating")}</p>
+          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all"
+              style={{ width: `${updateProgress || 30}%` }}
+            />
+          </div>
+          {updateProgress > 0 && (
+            <p className="text-xs text-muted-foreground text-right">{updateProgress}%</p>
+          )}
         </div>
       )}
     </div>

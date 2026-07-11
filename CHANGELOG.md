@@ -4,6 +4,39 @@
 
 ---
 
+## [v0.1.3] — 2026-07-11
+
+### 新增
+
+- 全新设置界面：迁移到 Tauri + React + shadcn/ui，双窗口架构（配置窗口 + 设置窗口）。
+- 应用国际化：支持简体中文与英文，设置页一键切换，窗口标题、托盘菜单、错误提示同步切换，支持「跟随系统语言」。
+- 文档站点英文版：完整英文使用说明与术语表。
+- 开始覆盖时自动切换到游戏：支持「每次询问 / 是 / 否」，未选目标窗口时按钮禁用。
+
+### 修复
+
+- 修复托盘菜单语言跟随系统语言失效：Windows 上改用 Win32 API `GetUserDefaultLocaleName` 检测系统语言。
+- 修复「开始覆盖后自动隐藏并切换到游戏」失效：用 `AttachThreadInput` + `BringWindowToTop` 替代 `SetForegroundWindow`。
+- 修复设置窗口修改偏好设置后配置窗口未同步：新增 `peregrine:settings-changed` 事件广播。
+- 修复配置预览棋盘格背景运算符优先级 bug。
+- 修复 `npm ci` 时 `picomatch` 版本不一致导致的安装失败。
+
+### 变更
+
+- 发布产物从 NSIS 安装程序改回便携 zip 压缩包，下载解压即可运行，无需安装。
+- 移除无实际效果的「四边中缝缺口（20%）」选项。
+- 暂时隐藏「自定义图片」准心样式（存在已知问题待修复）。
+
+### 优化
+
+- 图标清晰度大幅提升：生成脚本改用 8x 超采样抗锯齿，ICO 含 16/32/48/64/128/256 六档，托盘与窗口标题栏使用 1024×1024 高分辨率 PNG 源图，高 DPI 下清晰锐利。
+
+### 下载
+
+- Windows x86 / x86_64 / ARM64 便携 zip 见 Release Assets。
+
+---
+
 ## [v0.1.2] — 2026-07-08
 
 正式版本。修复 wgpu 崩溃与图标显示问题，优化 UI 样式命名。
@@ -96,6 +129,7 @@
 
 ---
 
+[v0.1.3]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3
 [v0.1.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.2
 [v0.1.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.1
 [v0.1.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.0

@@ -72,9 +72,10 @@ export default function ConfigApp() {
     getAppVersion().then(setVersion).catch(() => {});
     getOverlayActive().then(setOverlayActive).catch(() => {});
 
-    // 启动时自动检测更新（静默，发现新版本才弹窗）。
+    // 启动时自动检测更新（静默，发现新版本才弹窗）。延迟 3 秒避免抢焦点。
     const autoCheck = async () => {
       try {
+        await new Promise((r) => setTimeout(r, 3000));
         const cfg = await getConfig();
         const channel = cfg.settings?.update_channel ?? "stable";
         const result = await checkForUpdate(channel);
@@ -446,6 +447,7 @@ export default function ConfigApp() {
             <Button
               size="sm"
               onClick={async () => {
+                setUpdateAvailable(null);
                 setUpdating(true);
                 setUpdateProgress(0);
                 try {

@@ -41,9 +41,10 @@ export default function SettingsApp() {
       .catch(console.error);
     getAppVersion().then(setVersion).catch(() => {});
 
-    // 启动时自动检测更新（静默，发现新版本才提示）。
+    // 启动时自动检测更新（静默，发现新版本才提示）。延迟 3 秒避免抢焦点。
     const autoCheck = async () => {
       try {
+        await new Promise((r) => setTimeout(r, 3000));
         const cfg = await getConfig();
         const channel = cfg.settings?.update_channel ?? "stable";
         const result = await checkForUpdate(channel);

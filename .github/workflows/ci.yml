@@ -39,7 +39,7 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # Linux 需要安装 GUI 依赖（wgpu / winit / tray-icon 编译需要）。
+      # Linux 需要安装 GUI 依赖（winit / tray-icon / WebKit 编译需要）。
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -48,7 +48,8 @@ jobs:
             libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
             libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev \
             libxi-dev libwayland-dev libxkbcommon-dev libegl-dev libasound2-dev \
-            libglib2.0-dev libgtk-3-dev libgdk-pixbuf2.0-dev libxdo-dev
+            libglib2.0-dev libgtk-3-dev libgdk-pixbuf2.0-dev libxdo-dev \
+            libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
 
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
@@ -59,15 +60,18 @@ jobs:
       - name: Run config tests
         run: cargo test -p peregrine_config --locked
 
-      # 新 Tauri 入口：安装 Node 依赖并构建 Tauri release。
+      # 新 Tauri 入口：安装 Node 依赖、构建前端、验证 Rust 后端可编译。
+      # CI 不打包 NSIS（避免签名密钥缺失导致 Windows 构建失败），由 release.yml 负责产物签名发布。
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Install frontend dependencies
         run: npm ci
-      - name: Build Tauri release
-        run: npx tauri build --target ${{ matrix.target }}
+      - name: Build frontend
+        run: npm run build
+      - name: Build Tauri binary
+        run: cargo build --manifest-path src-tauri/Cargo.toml --bins --features tauri/custom-protocol --release --target ${{ matrix.target }}
 
   # 代码格式与 lint 检查（仅在 Linux 上跑，节省 CI 时间）。
   lint:

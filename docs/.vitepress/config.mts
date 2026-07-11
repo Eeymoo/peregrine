@@ -4,7 +4,7 @@ import llmstxt from 'vitepress-plugin-llms'
 
 export default withMermaid(defineConfig({
   title: 'Peregrine',
-  description: 'Peregrine — 桌面辅助贴图工具，专为缓解 3D 眩晕而设计',
+  description: 'Peregrine — 桌面视觉锚点工具，专为缓解 3D 眩晕而设计',
   lang: 'zh-CN',
   base: '/',
   lastUpdated: true,
@@ -35,7 +35,7 @@ export default withMermaid(defineConfig({
     root: {
       label: '简体中文',
       lang: 'zh-CN',
-      description: 'Peregrine — 桌面辅助贴图工具，专为缓解 3D 眩晕而设计',
+      description: 'Peregrine — 桌面视觉锚点工具，专为缓解 3D 眩晕而设计',
       themeConfig: {
         nav: [
           { text: '首页', link: '/' },

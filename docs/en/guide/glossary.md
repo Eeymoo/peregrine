@@ -53,12 +53,3 @@ Styles are stored as `snake_case` enum values in code; the UI and documentation 
 | Ring Style | 圆环样式 | Center ring line style: solid, dashed, or double. |
 | Border Frame Style | 边框样式 | Border frame style: solid four sides or mid-edge gaps. |
 
-## Deprecated Terms
-
-The following terms are no longer used and should be replaced with the standardized terms above:
-
-- ~~corner dots~~ → **Corner Markers**
-- ~~center ring~~ is already correct; do not use "ring" alone in user-facing text.
-- ~~crosshair style~~ (when referring to all styles) → **visual anchor style**
-- ~~settings mode~~ → **Config Window**
-- ~~auxiliary overlay~~ → **visual anchor** (general) or the specific style name

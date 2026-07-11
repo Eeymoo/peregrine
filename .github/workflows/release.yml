@@ -153,19 +153,94 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Get release body
+      - name: Generate changelog
         id: body
         run: |
-          TAG_MSG=$(git tag -l --format='%(contents)' "${{ github.ref_name }}")
-          if [ -n "$TAG_MSG" ]; then
-            echo "text<<EOF" >> "$GITHUB_OUTPUT"
-            echo "$TAG_MSG" >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+
+          # 查找上一个 tag：正式版找上一个正式版 tag，尝鲜版找紧邻的上一个 tag。
+          if [[ "$CURRENT_TAG" == *-* ]]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
           else
-            echo "text<<EOF" >> "$GITHUB_OUTPUT"
-            git log -1 --format="%B" "${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
+            PREV_TAG=$(git tag --list 'v*' --sort=-v:refname | grep -v '^v[0-9.]*-' | grep -v "^${CURRENT_TAG}$" | head -1)
           fi
+
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..${CURRENT_TAG}"
+          else
+            RANGE="${CURRENT_TAG}"
+          fi
+
+          echo "Generating changelog for range: $RANGE"
+
+          # 按 conventional commit 前缀分类生成中文更新日志。
+          CHANGELOG=$(python3 - <<PYEOF
+          import subprocess, re, sys
+          current = "${CURRENT_TAG}"
+          prev = "${PREV_TAG}"
+          rng = f"{prev}..{current}" if prev else current
+          try:
+              lines = subprocess.check_output(["git", "log", rng, "--pretty=format:%s", "--no-merges"], text=True).splitlines()
+          except subprocess.CalledProcessError:
+              lines = []
+
+          categories = {
+              "新增": [],
+              "修复": [],
+              "变更": [],
+              "构建": [],
+              "文档": [],
+              "其他": [],
+          }
+          pattern = re.compile(r"^(\w+)(?:\([^)]+\))?!?:\s*(.+)$")
+          for line in lines:
+              line = line.strip()
+              if not line:
+                  continue
+              m = pattern.match(line)
+              if m:
+                  typ, msg = m.groups()
+                  if typ in ("feat", "feature"):
+                      categories["新增"].append(msg)
+                  elif typ == "fix":
+                      categories["修复"].append(msg)
+                  elif typ in ("refactor", "perf", "style"):
+                      categories["变更"].append(msg)
+                  elif typ in ("chore", "build", "ci"):
+                      categories["构建"].append(msg)
+                  elif typ == "docs":
+                      categories["文档"].append(msg)
+                  else:
+                      categories["其他"].append(line)
+              else:
+                  categories["其他"].append(line)
+
+          out = []
+          for title, items in categories.items():
+              if not items:
+                  continue
+              out.append(f"### {title}")
+              for item in items:
+                  out.append(f"- {item}")
+              out.append("")
+
+          print("\n".join(out).strip())
+          PYEOF
+          )
+
+          # 如果没有任何提交，回退到 tag 消息或最近一条 commit。
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG=$(git tag -l --format='%(contents)' "$CURRENT_TAG" 2>/dev/null || git log -1 --format="%B" "$CURRENT_TAG")
+          fi
+
+          {
+            echo "text<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "--- Changelog ---"
+          echo "$CHANGELOG"
 
       # 生成更新清单 JSON。
       # 正式版（stable）：生成 stable.json + latest.json
@@ -174,15 +249,15 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
           CHANNEL: ${{ steps.meta.outputs.channel }}
+          BODY: ${{ steps.body.outputs.text }}
         run: |
           VERSION_NUM="${VERSION#v}"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          TAG_MSG=$(git tag -l --format='%(contents)' "${{ github.ref_name }}")
           SIG_X86=$(cat "dist/peregrine-v${VERSION_NUM}-windows-x86-setup.exe.sig" 2>/dev/null || echo "")
           SIG_X64=$(cat "dist/peregrine-v${VERSION_NUM}-windows-x64-setup.exe.sig" 2>/dev/null || echo "")
           SIG_ARM64=$(cat "dist/peregrine-v${VERSION_NUM}-windows-arm64-setup.exe.sig" 2>/dev/null || echo "")
           DOWNLOAD_BASE="https://github.com/Eeymoo/peregrine/releases/download/${VERSION}"
-          NOTES=$(echo "$TAG_MSG" | head -100 | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))' 2>/dev/null || echo '""')
+          NOTES=$(echo "$BODY" | head -100 | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))' 2>/dev/null || echo '""')
 
           generate_json() {
             local OUTPUT_FILE=$1
@@ -246,3 +321,102 @@ jobs:
           files: dist/*
           fail_on_unmatched_files: true
           body: ${{ steps.body.outputs.text }}
+
+      # 正式版推送到 Gitee，方便国内用户自动更新。
+      - name: Push to Gitee (stable only)
+        if: steps.meta.outputs.channel == 'stable'
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          BODY: ${{ steps.body.outputs.text }}
+        run: |
+          if [ -z "$GITEE_TOKEN" ]; then
+            echo "::warning::GITEE_TOKEN is not set, skipping Gitee push"
+            exit 0
+          fi
+
+          TAG="${TAG}"
+          VERSION_NUM="${TAG#v}"
+          echo "Pushing ${TAG} to Gitee..."
+
+          # 删除已有同 tag 的 Gitee Release（如果存在）。
+          EXISTING_ID=$(curl -sS \
+            "https://gitee.com/api/v5/repos/eeymoo/peregrine/releases/tags/${TAG}?access_token=${GITEE_TOKEN}" \
+            | grep -oP '"id":\s*\K\d+' | head -1)
+          if [ -n "$EXISTING_ID" ]; then
+            echo "Deleting existing Gitee release ID: $EXISTING_ID"
+            curl -sS -X DELETE \
+              "https://gitee.com/api/v5/repos/eeymoo/peregrine/releases/${EXISTING_ID}" \
+              -H "Content-Type: application/json" \
+              -d "{\"access_token\":\"${GITEE_TOKEN}\"}"
+          fi
+
+          # 创建 Gitee Release。
+          BODY_ESCAPED=$(echo "$BODY" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
+          CREATE_RESP=$(curl -sS -X POST \
+            "https://gitee.com/api/v5/repos/eeymoo/peregrine/releases" \
+            -H "Content-Type: application/json;charset=UTF-8" \
+            -d "{\"access_token\":\"${GITEE_TOKEN}\",\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":${BODY_ESCAPED},\"target_commitish\":\"main\",\"prerelease\":false}")
+
+          RELEASE_ID=$(echo "$CREATE_RESP" | grep -oP '"id":\s*\K\d+' | head -1)
+          if [ -z "$RELEASE_ID" ]; then
+            echo "::error::Failed to create Gitee release"
+            echo "$CREATE_RESP"
+            exit 1
+          fi
+          echo "Created Gitee release ID: $RELEASE_ID"
+
+          # 生成 Gitee 专用 stable.json（下载 URL 指向 Gitee）。
+          SIG_X86=$(cat "dist/peregrine-v${VERSION_NUM}-windows-x86-setup.exe.sig" 2>/dev/null || echo "")
+          SIG_X64=$(cat "dist/peregrine-v${VERSION_NUM}-windows-x64-setup.exe.sig" 2>/dev/null || echo "")
+          SIG_ARM64=$(cat "dist/peregrine-v${VERSION_NUM}-windows-arm64-setup.exe.sig" 2>/dev/null || echo "")
+          GITEE_BASE="https://gitee.com/eeymoo/peregrine/releases/download/${TAG}"
+          NOTES_ESCAPED=$(echo "$BODY" | head -100 | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))' 2>/dev/null || echo '""')
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          cat > dist/gitee-stable.json << JSONEOF
+          {
+            "version": "${VERSION_NUM}",
+            "notes": ${NOTES_ESCAPED},
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "windows-i686": {
+                "signature": "${SIG_X86}",
+                "url": "${GITEE_BASE}/peregrine-v${VERSION_NUM}-windows-x86-setup.exe"
+              },
+              "windows-x86_64": {
+                "signature": "${SIG_X64}",
+                "url": "${GITEE_BASE}/peregrine-v${VERSION_NUM}-windows-x64-setup.exe"
+              },
+              "windows-aarch64": {
+                "signature": "${SIG_ARM64}",
+                "url": "${GITEE_BASE}/peregrine-v${VERSION_NUM}-windows-arm64-setup.exe"
+              }
+            }
+          }
+          JSONEOF
+
+          # 重命名为 stable.json（Gitee 上的文件名）。
+          cp dist/gitee-stable.json dist/stable.json
+
+          # 上传附件到 Gitee Release。
+          for file in \
+            dist/peregrine-v${VERSION_NUM}-windows-x86-setup.exe \
+            dist/peregrine-v${VERSION_NUM}-windows-x64-setup.exe \
+            dist/peregrine-v${VERSION_NUM}-windows-arm64-setup.exe \
+            dist/peregrine-v${VERSION_NUM}-windows-x86.zip \
+            dist/peregrine-v${VERSION_NUM}-windows-x64.zip \
+            dist/peregrine-v${VERSION_NUM}-windows-arm64.zip \
+            dist/stable.json; do
+            [ -f "$file" ] || continue
+            FILENAME=$(basename "$file")
+            echo "Uploading $FILENAME to Gitee..."
+            UPLOAD_RESP=$(curl -sS -X POST \
+              "https://gitee.com/api/v5/repos/eeymoo/peregrine/releases/${RELEASE_ID}/attach_files" \
+              -H "Content-Type: multipart/form-data" \
+              -F "access_token=${GITEE_TOKEN}" \
+              -F "file=@${file}")
+            ATTACH_NAME=$(echo "$UPLOAD_RESP" | grep -oP '"name":\s*"\K[^"]+' | head -1)
+            echo "  Uploaded as: $ATTACH_NAME"
+          done
+
+          echo "Gitee release pushed successfully"

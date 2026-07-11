@@ -89,4 +89,5 @@ export interface AppSettings {
   live_drag_preview: boolean;
   gpu_acceleration: boolean;
   update_channel: string;
+  update_source: string;
 }

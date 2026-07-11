@@ -169,7 +169,7 @@ cargo clippy
 三个 workflow（`.github/workflows/`）：
 
 - **`ci.yml`**：push 到 main/master 或提交 PR 时触发。`build` job 在 **Windows（x86_64-msvc）/ macOS（aarch64 + x86_64 交叉编译）/ Linux（x86_64-gnu）** 三平台矩阵运行 `cargo test -p peregrine_config --locked` + `npm ci && npx tauri build --target <target>`（Tauri 入口）；Linux job 需先安装 GUI 依赖（xcb/x11/wayland/gtk 等）。`lint` job 仅在 Linux 跑 `cargo fmt --all -- --check` 与 `cargo clippy -p peregrine_config -- -D warnings`。
-- **`release.yml`**：推送 `v*` 标签时触发。在 Windows 构建 i686 / x86_64 / aarch64 三个 target 的 Tauri release 产物，包含 **NSIS 安装包（带 Tauri updater 签名）+ 便携 zip + `latest.json` 更新清单**，用 `softprops/action-gh-release` 创建 GitHub Release。CI 从 GitHub Secrets 读取 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 对安装包签名。标签带 `-`（如 `v0.2.0-alpha.0`）判定为预发布，纯版本号（如 `v0.1.0`）为正式版。Release body 取 annotated tag 消息，回退到 commit message。
+- **`release.yml`**：推送 `v*` 标签时触发。在 Windows 构建 i686 / x86_64 / aarch64 三个 target 的 Tauri release 产物，包含 **NSIS 安装包（带 Tauri updater 签名）+ 便携 zip + `latest.json` 更新清单**，用 `softprops/action-gh-release` 创建 GitHub Release。CI 从 GitHub Secrets 读取 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 对安装包签名。标签带 `-`（如 `v0.2.0-alpha.0`）判定为预发布，纯版本号（如 `v0.1.0`）为正式版。Release body 与 updater `notes` 由 CI 根据当前 tag 与上一个 tag 之间的 commit 自动生成，按 conventional commit 前缀分为「新增 / 修复 / 变更 / 构建 / 文档 / 其他」；无可用提交时回退到 tag 消息或最近 commit message。
 - **`pages.yml`**：push 到 main、发布 Release 或手动触发时部署文档。用 Node 22 在 `docs/` 下 `npm ci` + `npm run docs:build` 构建 VitePress 站点，上传产物并部署到 GitHub Pages。
 
 发布流程规范见 `.agent/skills/release/SKILL.md`：遵循 SemVer（major/minor/patch + `-alpha.N`/`-beta.N` 预发布后缀），Release Notes 按「新增 / 修复 / 变更 / 构建」分类，打 tag 推送前需向用户确认版本号与 tag 消息。`CHANGELOG.md` 记录正式版，`CHANGELOG_ALPHA.md` 记录测试版。

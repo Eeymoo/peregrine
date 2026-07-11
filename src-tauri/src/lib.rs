@@ -16,6 +16,7 @@ use tauri::{
     tray::{MouseButton, TrayIconBuilder},
     webview::WebviewWindowBuilder,
 };
+use tauri_plugin_updater::UpdaterExt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -182,9 +183,8 @@ fn create_settings_window(
     }
     let window = webview_builder
         .title("Peregrine 设置")
-        .inner_size(600.0, 420.0)
-        .min_inner_size(480.0, 360.0)
-        .resizable(true)
+        .inner_size(480.0, 540.0)
+        .resizable(false)
         .decorations(true)
         .center()
         .skip_taskbar(false)
@@ -356,6 +356,7 @@ pub fn run() {
                                     live_drag_preview: None,
                                     gpu_acceleration: None,
                                     update_channel: None,
+                                    update_source: None,
                                 },
                             )
                             .await;
@@ -403,6 +404,8 @@ pub fn run() {
             focus_target_window,
             get_app_version,
             relaunch_app,
+            check_update,
+            download_install_update,
         ])
         .build(tauri::generate_context!())
         .expect("build tauri app")
@@ -584,6 +587,7 @@ struct PreferencesPatch {
     live_drag_preview: Option<bool>,
     gpu_acceleration: Option<bool>,
     update_channel: Option<String>,
+    update_source: Option<String>,
 }
 
 /// 更新偏好设置的共享逻辑，供 Tauri command 和托盘菜单事件复用。
@@ -626,6 +630,9 @@ async fn update_preferences_inner(
     }
     if let Some(channel) = &preferences.update_channel {
         config.settings.update_channel = channel.clone();
+    }
+    if let Some(source) = &preferences.update_source {
+        config.settings.update_source = source.clone();
     }
 
     config.validate().map_err(|e| e.to_string())?;
@@ -687,6 +694,7 @@ async fn update_preferences_inner(
         "live_drag_preview": snapshot.as_ref().settings.live_drag_preview,
         "gpu_acceleration": snapshot.as_ref().settings.gpu_acceleration,
         "update_channel": snapshot.as_ref().settings.update_channel,
+        "update_source": snapshot.as_ref().settings.update_source,
     });
     app.emit("peregrine:settings-changed", &settings_json)
         .map_err(|e| e.to_string())?;
@@ -758,4 +766,225 @@ fn focus_target_window(target_window: String) -> Result<(), String> {
     }
     let _ = target_window;
     Ok(())
+}
+
+// ===== 自定义更新检查与下载 =====
+
+/// GitHub / Gitee 仓库标识。
+const GITHUB_OWNER_REPO: &str = "Eeymoo/peregrine";
+const GITEE_OWNER_REPO: &str = "eeymoo/peregrine";
+
+/// 从指定源和通道解析 updater manifest JSON 的 URL。
+///
+/// - GitHub stable: `releases/latest/download/stable.json`（直接可用）
+/// - GitHub prerelease: 调 GitHub API 找最新 prerelease tag → 拼 URL
+/// - Gitee stable: 调 Gitee API 拿 latest release tag → 拼 URL
+/// - Gitee prerelease: 调 Gitee API 列出 releases 找 prerelease tag → 拼 URL
+async fn resolve_manifest_url(source: &str, channel: &str) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("peregrine-updater")
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))?;
+
+    match (source, channel) {
+        ("github", "stable") => Ok(format!(
+            "https://github.com/{}/releases/latest/download/stable.json",
+            GITHUB_OWNER_REPO
+        )),
+        ("github", "prerelease") => {
+            // 调 GitHub API 找最新 prerelease。
+            let url = format!(
+                "https://api.github.com/repos/{}/releases",
+                GITHUB_OWNER_REPO
+            );
+            let resp = client
+                .get(&url)
+                .header("Accept", "application/vnd.github+json")
+                .send()
+                .await
+                .map_err(|e| format!("GitHub API 请求失败: {e}"))?;
+            if !resp.status().is_success() {
+                return Err(format!("GitHub API 返回 {}", resp.status()));
+            }
+            let releases: serde_json::Value = resp
+                .json()
+                .await
+                .map_err(|e| format!("解析 GitHub API 响应失败: {e}"))?;
+            let arr = releases.as_array().ok_or("GitHub API 响应不是数组")?;
+            for r in arr {
+                if r.get("prerelease")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+                {
+                    let tag = r
+                        .get("tag_name")
+                        .and_then(|v| v.as_str())
+                        .ok_or("GitHub prerelease 缺少 tag_name")?;
+                    return Ok(format!(
+                        "https://github.com/{}/releases/download/{}/prerelease.json",
+                        GITHUB_OWNER_REPO, tag
+                    ));
+                }
+            }
+            Err("未找到 GitHub prerelease".to_string())
+        }
+        ("gitee", _) => {
+            // 调 Gitee API 拿 latest release（stable）或列表（prerelease）。
+            if channel == "stable" {
+                let url = format!(
+                    "https://gitee.com/api/v5/repos/{}/releases/latest",
+                    GITEE_OWNER_REPO
+                );
+                let resp = client
+                    .get(&url)
+                    .send()
+                    .await
+                    .map_err(|e| format!("Gitee API 请求失败: {e}"))?;
+                if !resp.status().is_success() {
+                    return Err(format!("Gitee API 返回 {}", resp.status()));
+                }
+                let release: serde_json::Value = resp
+                    .json()
+                    .await
+                    .map_err(|e| format!("解析 Gitee API 响应失败: {e}"))?;
+                let tag = release
+                    .get("tag_name")
+                    .and_then(|v| v.as_str())
+                    .ok_or("Gitee latest release 缺少 tag_name")?;
+                Ok(format!(
+                    "https://gitee.com/{}/releases/download/{}/stable.json",
+                    GITEE_OWNER_REPO, tag
+                ))
+            } else {
+                // prerelease: 列出所有 releases 找第一个 prerelease。
+                let url = format!(
+                    "https://gitee.com/api/v5/repos/{}/releases",
+                    GITEE_OWNER_REPO
+                );
+                let resp = client
+                    .get(&url)
+                    .send()
+                    .await
+                    .map_err(|e| format!("Gitee API 请求失败: {e}"))?;
+                if !resp.status().is_success() {
+                    return Err(format!("Gitee API 返回 {}", resp.status()));
+                }
+                let releases: serde_json::Value = resp
+                    .json()
+                    .await
+                    .map_err(|e| format!("解析 Gitee API 响应失败: {e}"))?;
+                let arr = releases.as_array().ok_or("Gitee API 响应不是数组")?;
+                for r in arr {
+                    if r.get("prerelease")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                    {
+                        let tag = r
+                            .get("tag_name")
+                            .and_then(|v| v.as_str())
+                            .ok_or("Gitee prerelease 缺少 tag_name")?;
+                        return Ok(format!(
+                            "https://gitee.com/{}/releases/download/{}/prerelease.json",
+                            GITEE_OWNER_REPO, tag
+                        ));
+                    }
+                }
+                Err("未找到 Gitee prerelease".to_string())
+            }
+        }
+        _ => Err(format!("未知的更新源/通道: {source}/{channel}")),
+    }
+}
+
+/// 检查是否有可用更新。
+///
+/// - `source`: `"github"` 或 `"gitee"`
+/// - `channel`: `"stable"` 或 `"prerelease"`
+///
+/// 返回 `{ available, version, body }`。
+#[tauri::command]
+async fn check_update(
+    app: tauri::AppHandle,
+    source: String,
+    channel: String,
+) -> Result<serde_json::Value, String> {
+    let manifest_url = resolve_manifest_url(&source, &channel).await?;
+    let url: url::Url = manifest_url
+        .parse()
+        .map_err(|e| format!("无效的 URL: {e}"))?;
+
+    let updater = app
+        .updater_builder()
+        .endpoints(vec![url])
+        .map_err(|e| format!("设置 endpoint 失败: {e}"))?
+        .build()
+        .map_err(|e| format!("构建 updater 失败: {e}"))?;
+
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| format!("检查更新失败: {e}"))?;
+
+    match update {
+        Some(u) => Ok(serde_json::json!({
+            "available": true,
+            "version": u.version,
+            "body": u.body,
+        })),
+        None => Ok(serde_json::json!({ "available": false })),
+    }
+}
+
+/// 下载并安装更新，通过 Channel 转发下载进度事件，完成后自动重启。
+#[tauri::command]
+async fn download_install_update(
+    app: tauri::AppHandle,
+    source: String,
+    channel: String,
+    on_event: tauri::ipc::Channel<serde_json::Value>,
+) -> Result<(), String> {
+    let manifest_url = resolve_manifest_url(&source, &channel).await?;
+    let url: url::Url = manifest_url
+        .parse()
+        .map_err(|e| format!("无效的 URL: {e}"))?;
+
+    let updater = app
+        .updater_builder()
+        .endpoints(vec![url])
+        .map_err(|e| format!("设置 endpoint 失败: {e}"))?
+        .build()
+        .map_err(|e| format!("构建 updater 失败: {e}"))?;
+
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| format!("检查更新失败: {e}"))?
+        .ok_or("没有可用更新")?;
+
+    let mut first_chunk = true;
+    let on_event_progress = on_event.clone();
+    update
+        .download_and_install(
+            move |chunk_length, content_length| {
+                if first_chunk {
+                    first_chunk = false;
+                    let _ = on_event_progress.send(serde_json::json!({
+                        "event": "Started",
+                        "data": { "contentLength": content_length }
+                    }));
+                }
+                let _ = on_event_progress.send(serde_json::json!({
+                    "event": "Progress",
+                    "data": { "chunkLength": chunk_length }
+                }));
+            },
+            move || {
+                let _ = on_event.send(serde_json::json!({ "event": "Finished" }));
+            },
+        )
+        .await
+        .map_err(|e| format!("下载安装失败: {e}"))?;
+
+    app.restart();
 }

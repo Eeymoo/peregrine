@@ -95,9 +95,6 @@ export default function SettingsApp() {
   return (
     <div className="h-screen flex flex-col bg-background text-foreground p-6">
       <h1 className="text-xl font-semibold">{t("settings.title")}</h1>
-      <p className="text-sm text-muted-foreground mt-1">
-        {t("settings.description")}
-      </p>
 
       <Separator className="my-4" />
 
@@ -159,14 +156,6 @@ export default function SettingsApp() {
             {t("overlaySettings.liveDragPreview")}
           </Label>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {t("overlaySettings.liveDragPreviewHint")}
-        </p>
-        {(config?.settings?.fullscreen_overlay ?? true) && (
-          <p className="text-xs text-muted-foreground italic">
-            {t("overlaySettings.fullscreenOnlyHint")}
-          </p>
-        )}
       </div>
 
       <Separator className="my-4" />

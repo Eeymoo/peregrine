@@ -12,7 +12,6 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [, forceTick] = useState(0);
 
   // 监听容器尺寸变化（窗口拖拽、缩放等），强制重绘预览。
   const [sizeTick, setSizeTick] = useState(0);

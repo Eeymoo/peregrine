@@ -25,6 +25,12 @@ description: Release 发布流程与规范。按标准格式打 tag、编写 Rel
 
 推荐版本号时按此默认值给出，并在确认环节向用户说明当前递增的是哪一位，方便其纠正。
 
+## 分支策略
+
+- **main**：稳定分支，仅包含正式版代码。正式版发布后合并到 main。
+- **dev**：开发分支，包含正在测试的功能。测试通过后合并到 main 发布正式版。
+- 功能开发在 dev 上进行，main 保持与最新正式版一致。
+
 ## Release Notes 编写指南
 
 ### 确定功能点
@@ -51,7 +57,7 @@ git log --merges --oneline <上个tag>..
 ### 编写规范
 
 1. **标题行**：`Peregrine v<版本号>`，如 `Peregrine v0.1.0`
-2. **概述**：用一句话说明本版本的核心价值，例如"首个正式版本。一个用于缓解 3D 眩晕的桌面辅助贴图工具……"
+2. **概述**：用一句话说明本版本的核心价值
 3. **功能列表**：按编号列出每条改动，每行末尾标注作者 `@Eeymoo`
 4. **许可与下载**：结尾固定段落
 
@@ -75,7 +81,7 @@ Peregrine v<版本号>
 
 下载
 
-• Windows x86 / x86_64 / ARM64 可执行文件见 Release Assets。
+• Windows x86 / x86_64 / ARM64 NSIS 安装包 + 便携 zip 见 Release Assets。
 ```
 
 预发布版可简写，列出核心改动即可。
@@ -87,6 +93,28 @@ Peregrine v<版本号>
 ```bash
 git shortlog -sn <上个tag>..
 ```
+
+## 发布产物
+
+CI 构建完成后，每个架构产生以下产物：
+
+| 产物 | 说明 |
+| --- | --- |
+| `peregrine-v*.exe`（NSIS 安装包） | 带签名，支持自动更新 |
+| `*.sig` | 安装包签名文件 |
+| `peregrine-v*-*.zip`（便携 zip） | 解压即用，不支持自动更新 |
+| `latest.json` | Tauri updater 清单（版本号、签名、下载 URL） |
+
+正式版（纯版本号 tag）和预发布版（带 `-` 后缀）产物格式相同。
+
+## 自动更新
+
+项目集成了 `tauri-plugin-updater`，安装版（NSIS）用户可通过「设置 → 检查更新」自动下载安装新版本。
+
+- **签名密钥**：私钥存在本地 `.tauri/peregrine.key`（已被 `.gitignore` 排除），公钥写入 `tauri.conf.json`。
+- **GitHub Secrets**：`TAURI_SIGNING_PRIVATE_KEY`（私钥内容）和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（密码）配置在 repo settings 中，CI 构建时用于签名。
+- **更新清单**：`latest.json` 由 CI 自动生成，上传到 GitHub Release。
+- **注意事项**：私钥和密码丢失后将无法发布可自动更新的版本，请妥善备份。便携 zip 用户无法自动更新，需手动下载替换。
 
 ## 发布前检查清单
 
@@ -107,13 +135,14 @@ git shortlog -sn <上个tag>..
 
 ```bash
 # 创建正式版 tag
-git tag v0.1.0
+git tag -a v0.1.0 -m "Release message"
 
 # 或创建预发布 tag
-git tag v0.2.0-alpha.0
+git tag -a v0.2.0-alpha.0 -m "Pre-release message"
 
 # 推送到远程，触发 GitHub Actions 自动构建
-git push origin v0.1.0
+# 注意：分支和 tag 同名时用 refs/tags/ 前缀避免歧义
+git push origin refs/tags/v0.1.0
 ```
 
-推送后自动构建 Windows x86 / x86_64 / ARM64 产物并创建 GitHub Release。
+推送后自动构建 Windows x86 / x86_64 / ARM64 产物（NSIS 安装包 + 便携 zip + latest.json）并创建 GitHub Release。

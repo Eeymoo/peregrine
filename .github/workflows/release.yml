@@ -224,6 +224,19 @@ jobs:
 
           cat dist/latest.json
 
+      - name: Delete existing release (if any)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          RELEASE_ID=$(curl -sS -H "Authorization: token ${GH_TOKEN}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}" | grep -oP '"id":\s*\K\d+' | head -1)
+          if [ -n "$RELEASE_ID" ]; then
+            echo "Deleting existing release ID: $RELEASE_ID"
+            curl -sS -X DELETE -H "Authorization: token ${GH_TOKEN}" "https://api.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID}"
+          else
+            echo "No existing release found"
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

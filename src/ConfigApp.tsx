@@ -23,6 +23,8 @@ import {
   stopOverlay,
   focusTargetWindow,
   updatePreferences,
+  getAppVersion,
+  getOverlayActive,
 } from "@/lib/api";
 import type { AppConfig, Crosshair, CrosshairStyle } from "@/types/config";
 
@@ -54,6 +56,7 @@ export default function ConfigApp() {
   const [loading, setLoading] = useState(true);
   const [showAutoSwitchDialog, setShowAutoSwitchDialog] = useState(false);
   const [rememberChoice, setRememberChoice] = useState(false);
+  const [version, setVersion] = useState("");
 
   useEffect(() => {
     getConfig()
@@ -61,26 +64,38 @@ export default function ConfigApp() {
       .catch(console.error)
       .finally(() => setLoading(false));
     refreshWindows();
+    getAppVersion().then(setVersion).catch(() => {});
+    getOverlayActive().then(setOverlayActive).catch(() => {});
   }, []);
 
-  /** 监听后端 settings 变更（来自设置窗口），同步 React state。 */
+  /** 监听后端 settings 变更（来自托盘或设置窗口），同步 React state。 */
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
       try {
         const { listen } = await import("@tauri-apps/api/event");
-        unlisten = await listen<{ auto_switch_on_overlay?: string; locale?: string }>(
-          "peregrine:settings-changed",
-          (event) => {
-            const { auto_switch_on_overlay } = event.payload;
+        unlisten = await listen<{
+          auto_switch_on_overlay?: string;
+          locale?: string;
+          fullscreen_overlay?: boolean;
+          live_drag_preview?: boolean;
+        }>("peregrine:settings-changed", (event) => {
+          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview } = event.payload;
+          setConfig((prev) => {
+            if (!prev) return prev;
+            const settings = { ...prev.settings };
             if (auto_switch_on_overlay !== undefined) {
-              setConfig((prev) => {
-                if (!prev) return prev;
-                return { ...prev, settings: { ...prev.settings, auto_switch_on_overlay } };
-              });
+              settings.auto_switch_on_overlay = auto_switch_on_overlay;
             }
-          },
-        );
+            if (fullscreen_overlay !== undefined) {
+              settings.fullscreen_overlay = fullscreen_overlay;
+            }
+            if (live_drag_preview !== undefined) {
+              settings.live_drag_preview = live_drag_preview;
+            }
+            return { ...prev, settings };
+          });
+        });
       } catch { /* 非 Tauri 环境忽略 */ }
     })();
     return () => unlisten?.();
@@ -116,21 +131,27 @@ export default function ConfigApp() {
     updatePreferences(patch).catch(console.error);
   }, [config]);
 
-  /** 隐藏配置窗口并切换焦点到目标游戏窗口。 */
+  /** 销毁配置窗口并切换焦点到目标游戏窗口。
+   *  使用 destroy 而非 hide，让 WebView2 渲染进程被回收（~30-50MB），
+   *  下次从托盘打开时由 show_or_recreate_window 重建。 */
   const hideAndSwitch = useCallback(async (targetWindow: string) => {
-    await getCurrentWebviewWindow().hide();
     focusTargetWindow(targetWindow).catch(console.error);
+    await getCurrentWebviewWindow().destroy();
   }, []);
 
   const handleStartOverlay = useCallback(async () => {
-    if (!profile?.target_window) return;
+    // 全屏模式不需要目标窗口；窗口模式需要。
+    const isFullscreen = config?.settings.fullscreen_overlay ?? true;
+    if (!isFullscreen && !profile?.target_window) return;
     try {
-      await startOverlay(profile.target_window);
+      await startOverlay(profile?.target_window ?? "");
       setOverlayActive(true);
 
       const pref = config?.settings.auto_switch_on_overlay ?? "ask";
       if (pref === "yes") {
-        await hideAndSwitch(profile.target_window);
+        if (profile?.target_window) {
+          await hideAndSwitch(profile.target_window);
+        }
       } else if (pref === "no") {
         // 不隐藏，不做操作。
       } else {
@@ -140,7 +161,7 @@ export default function ConfigApp() {
     } catch (e) {
       console.error(e);
     }
-  }, [profile?.target_window, config?.settings.auto_switch_on_overlay, hideAndSwitch]);
+  }, [profile?.target_window, config?.settings.fullscreen_overlay, config?.settings.auto_switch_on_overlay, hideAndSwitch]);
 
   /** 对话框确认：隐藏配置窗口并切换焦点，同时按勾选状态保存偏好。 */
   const handleDialogConfirm = useCallback(async () => {
@@ -153,13 +174,36 @@ export default function ConfigApp() {
     }
   }, [rememberChoice, profile?.target_window, hideAndSwitch, updateSettings]);
 
-  /** 对话框取消：保持配置窗口显示，同时按勾选状态保存偏好。 */
+  /** 对话框取消（保持配置窗口）：不停止覆盖，保持配置窗口显示，按勾选状态保存偏好。 */
   const handleDialogCancel = useCallback(async () => {
     if (rememberChoice) {
       updateSettings({ auto_switch_on_overlay: "no" });
     }
     setShowAutoSwitchDialog(false);
   }, [rememberChoice, updateSettings]);
+
+  /** ESC 键关闭对话框：停止覆盖（等同点击停止覆盖按钮）。 */
+  const handleDialogEsc = useCallback(async () => {
+    setShowAutoSwitchDialog(false);
+    try {
+      await stopOverlay();
+      setOverlayActive(false);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  /** ESC 键监听：仅在对话框显示时生效。 */
+  useEffect(() => {
+    if (!showAutoSwitchDialog) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleDialogEsc();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showAutoSwitchDialog, handleDialogEsc]);
 
   const handleStopOverlay = useCallback(async () => {
     try {
@@ -257,46 +301,60 @@ export default function ConfigApp() {
 
         <Separator className="shrink-0" />
 
-        {/* 底部固定区：目标窗口 + 开始/停止覆盖 */}
+        {/* 底部固定区：覆盖模式 + 目标窗口 + 开始/停止覆盖 */}
         <div className="space-y-3 shrink-0">
-          {/* 目标窗口 */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <Label className="text-sm">{t("config.targetWindow")}</Label>
-              <Button variant="ghost" size="sm" onClick={refreshWindows} className="h-8 text-sm px-2">
-                {t("config.refresh")}
-              </Button>
-            </div>
-            <Select
-              value={profile.target_window || "__none__"}
-              onValueChange={(v) => {
-                const newConfig = {
-                  ...config,
-                  profiles: {
-                    ...config.profiles,
-                    [config.active_profile]: {
-                      ...profile,
-                      target_window: v === "__none__" ? "" : v,
-                    },
-                  },
-                };
-                setConfig(newConfig);
-                saveConfig(newConfig).catch(console.error);
-              }}
-            >
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder={t("config.none")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__" className="text-sm">{t("config.none")}</SelectItem>
-                {windows.map((w) => (
-                  <SelectItem key={w} value={w} className="text-sm">
-                    {w.length > 30 ? w.slice(0, 30) + "…" : w}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* 窗口模式勾选（默认全屏，勾选切换为窗口模式） */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="window-mode"
+              checked={!config.settings.fullscreen_overlay}
+              onCheckedChange={(v) => updateSettings({ fullscreen_overlay: !v })}
+            />
+            <Label htmlFor="window-mode" className="text-sm cursor-pointer">
+              {t("overlaySettings.windowMode")}
+            </Label>
           </div>
+
+          {/* 目标窗口（仅窗口模式时显示） */}
+          {!config.settings.fullscreen_overlay && (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label className="text-sm">{t("config.targetWindow")}</Label>
+                <Button variant="ghost" size="sm" onClick={refreshWindows} className="h-8 text-sm px-2">
+                  {t("config.refresh")}
+                </Button>
+              </div>
+              <Select
+                value={profile.target_window || "__none__"}
+                onValueChange={(v) => {
+                  const newConfig = {
+                    ...config,
+                    profiles: {
+                      ...config.profiles,
+                      [config.active_profile]: {
+                        ...profile,
+                        target_window: v === "__none__" ? "" : v,
+                      },
+                    },
+                  };
+                  setConfig(newConfig);
+                  saveConfig(newConfig).catch(console.error);
+                }}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder={t("config.none")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__" className="text-sm">{t("config.none")}</SelectItem>
+                  {windows.map((w) => (
+                    <SelectItem key={w} value={w} className="text-sm">
+                      {w.length > 30 ? w.slice(0, 30) + "…" : w}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* 开始/停止覆盖 */}
           <div>
@@ -305,7 +363,7 @@ export default function ConfigApp() {
                 ■ {t("config.stopOverlay")}
               </Button>
             ) : (
-              <Button className="w-full h-8 text-sm" onClick={handleStartOverlay} disabled={!profile.target_window}>
+              <Button className="w-full h-8 text-sm" onClick={handleStartOverlay} disabled={!config.settings.fullscreen_overlay && !profile.target_window}>
                 ▶ {t("config.startOverlay")}
               </Button>
             )}
@@ -313,7 +371,7 @@ export default function ConfigApp() {
 
           {/* 底部信息 */}
           <div className="text-xs text-muted-foreground text-right">
-            Peregrine v0.1.1
+            Peregrine v{version || "..."}
           </div>
         </div>
       </div>

@@ -54,18 +54,52 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
     ctx.lineWidth = 1;
     ctx.strokeRect(px, py, pw, ph);
 
-    const screen = { minX: px, minY: py, maxX: px + pw, maxY: py + ph };
+    // 虚拟屏幕：以真实分辨率（短边 1080）构建准心，再缩放到预览区域。
+    // 这样预览中准心的大小比例与实际 overlay 完全一致（所见即所得）。
+    const REFERENCE_SHORT = 1080;
+    let realW: number, realH: number;
+    if (aspectRatio >= 1) {
+      realH = REFERENCE_SHORT;
+      realW = realH * aspectRatio;
+    } else {
+      realW = REFERENCE_SHORT;
+      realH = realW / aspectRatio;
+    }
+    const virtualScreen = { minX: 0, minY: 0, maxX: realW, maxY: realH };
+    const sx = pw / realW;
+    const sy = ph / realH;
 
-    // CustomImage 单独处理
+    // CustomImage 占位文本不需要缩放，直接在预览坐标系绘制
     if (crosshair.style === "custom_image") {
-      drawCustomImage(ctx, crosshair, screen, t);
+      const cx = px + pw / 2;
+      const cy = py + ph / 2;
+      if (!crosshair.image_path.trim()) {
+        ctx.fillStyle = "#888";
+        ctx.font = "14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(t("preview.placeholder"), cx, cy);
+      } else {
+        ctx.fillStyle = colorToCss(crosshair.color, crosshair.opacity);
+        ctx.font = "14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const name = crosshair.image_path.split(/[\\/]/).pop() || crosshair.image_path;
+        ctx.fillText(name, cx, cy);
+      }
       return;
     }
 
-    const shapes = buildShapes(screen, crosshair);
+    // 在虚拟屏幕分辨率下生成图元，确保比例与实际 overlay 一致
+    const shapes = buildShapes(virtualScreen, crosshair);
     const color = colorToCss(crosshair.color, crosshair.opacity);
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
+
+    // 应用缩放变换：虚拟坐标 → 预览区域
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.scale(sx, sy);
 
     for (const shape of shapes) {
       switch (shape.type) {
@@ -96,6 +130,8 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
           break;
       }
     }
+
+    ctx.restore();
   }, [crosshair, aspectRatio]);
 
   return (
@@ -130,29 +166,4 @@ function drawDashedCircle(
   }
 }
 
-function drawCustomImage(
-  ctx: CanvasRenderingContext2D,
-  crosshair: Crosshair,
-  screen: { minX: number; minY: number; maxX: number; maxY: number },
-  t: (key: string) => string
-) {
-  const centerX = (screen.minX + screen.maxX) / 2 + crosshair.image_offset_x;
-  const centerY = (screen.minY + screen.maxY) / 2 + crosshair.image_offset_y;
 
-  if (!crosshair.image_path.trim()) {
-    ctx.fillStyle = "#888";
-    ctx.font = "14px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(t("preview.placeholder"), centerX, centerY);
-    return;
-  }
-
-  // 前端无法直接读取本地文件路径的图像，占位显示文件名
-  ctx.fillStyle = colorToCss(crosshair.color, crosshair.opacity);
-  ctx.font = "14px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  const name = crosshair.image_path.split(/[\\/]/).pop() || crosshair.image_path;
-  ctx.fillText(name, centerX, centerY);
-}

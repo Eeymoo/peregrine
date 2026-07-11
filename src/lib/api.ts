@@ -39,3 +39,8 @@ export async function updatePreferences(
 ): Promise<void> {
   return invoke("update_preferences", { preferences });
 }
+
+/** 获取应用版本号（从 Cargo.toml / tauri.conf.json 继承）。 */
+export async function getAppVersion(): Promise<string> {
+  return invoke<string>("get_app_version");
+}

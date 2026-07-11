@@ -10,11 +10,10 @@
 use peregrine_config::{ConfigNotifier, ConfigSnapshot, ConfigStorage};
 use std::sync::{Arc, Mutex, mpsc};
 use tauri::{
-    Emitter, Manager, State,
+    Emitter, Manager, State, WebviewUrl,
     image::Image,
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, TrayIconBuilder},
-    WebviewUrl,
     webview::WebviewWindowBuilder,
 };
 use tracing_subscriber::layer::SubscriberExt;
@@ -90,6 +89,8 @@ fn tr(locale: BackendLocale, key: &str) -> String {
         (BackendLocale::En, "tray.settings") => "Settings".to_string(),
         (BackendLocale::ZhCN, "tray.quit") => "退出".to_string(),
         (BackendLocale::En, "tray.quit") => "Quit".to_string(),
+        (BackendLocale::ZhCN, "tray.window_mode") => "窗口模式".to_string(),
+        (BackendLocale::En, "tray.window_mode") => "Window Mode".to_string(),
         _ => key.to_string(),
     }
 }
@@ -118,20 +119,43 @@ pub struct AppState {
     pub locale: Mutex<String>,
     /// 标记是否由托盘「退出」主动触发，避免阻止真正的退出流程。
     pub quitting: std::sync::atomic::AtomicBool,
+    /// overlay 是否活跃，供前端查询按钮状态。
+    pub overlay_active: std::sync::atomic::AtomicBool,
 }
 
-/// 托盘菜单项句柄，用于运行时更新菜单文本。
+/// 托盘菜单项句柄，用于运行时更新菜单文本与勾选状态。
 pub struct TrayMenuState {
     pub config_item: MenuItem<tauri::Wry>,
     pub settings_item: MenuItem<tauri::Wry>,
     pub quit_item: MenuItem<tauri::Wry>,
+    /// 「窗口模式」勾选项（勾选 = 窗口模式，取消 = 全屏模式）。
+    pub window_mode_item: CheckMenuItem<tauri::Wry>,
 }
 
-/// 创建配置窗口（config），并在关闭时真正销毁 WebView2。
-fn create_config_window(app: &impl tauri::Manager<tauri::Wry>) -> tauri::Result<tauri::WebviewWindow> {
-    let win_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))
-        .expect("failed to load window icon");
-    let window = WebviewWindowBuilder::new(app, "config", WebviewUrl::App("index.html".into()))
+/// 从配置快照读取 GPU 加速设置。
+fn read_gpu_setting(app: &impl tauri::Manager<tauri::Wry>) -> bool {
+    let state = app.state::<AppState>();
+    state
+        .config
+        .lock()
+        .ok()
+        .map(|guard| guard.as_ref().settings.gpu_acceleration)
+        .unwrap_or(false)
+}
+
+/// 创建配置窗口（config）。关闭时由 on_window_event 销毁 WebView2。
+fn create_config_window(
+    app: &impl tauri::Manager<tauri::Wry>,
+) -> tauri::Result<tauri::WebviewWindow> {
+    let win_icon =
+        Image::from_bytes(include_bytes!("../icons/icon.png")).expect("failed to load window icon");
+    let gpu_enabled = read_gpu_setting(app);
+    let mut webview_builder =
+        WebviewWindowBuilder::new(app, "config", WebviewUrl::App("index.html".into()));
+    if !gpu_enabled {
+        webview_builder = webview_builder.additional_browser_args("--disable-gpu");
+    }
+    let window = webview_builder
         .title("Peregrine 配置")
         .inner_size(1080.0, 720.0)
         .min_inner_size(900.0, 600.0)
@@ -144,11 +168,19 @@ fn create_config_window(app: &impl tauri::Manager<tauri::Wry>) -> tauri::Result<
     Ok(window)
 }
 
-/// 创建设置窗口（settings），并在关闭时真正销毁 WebView2。
-fn create_settings_window(app: &impl tauri::Manager<tauri::Wry>) -> tauri::Result<tauri::WebviewWindow> {
-    let win_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))
-        .expect("failed to load window icon");
-    let window = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()))
+/// 创建设置窗口（settings）。关闭时由 on_window_event 销毁 WebView2。
+fn create_settings_window(
+    app: &impl tauri::Manager<tauri::Wry>,
+) -> tauri::Result<tauri::WebviewWindow> {
+    let win_icon =
+        Image::from_bytes(include_bytes!("../icons/icon.png")).expect("failed to load window icon");
+    let gpu_enabled = read_gpu_setting(app);
+    let mut webview_builder =
+        WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()));
+    if !gpu_enabled {
+        webview_builder = webview_builder.additional_browser_args("--disable-gpu");
+    }
+    let window = webview_builder
         .title("Peregrine 设置")
         .inner_size(600.0, 420.0)
         .min_inner_size(480.0, 360.0)
@@ -234,28 +266,60 @@ pub fn run() {
         overlay_cmd_tx,
         locale: Mutex::new(initial_locale.clone()),
         quitting: std::sync::atomic::AtomicBool::new(false),
+        overlay_active: std::sync::atomic::AtomicBool::new(false),
     };
 
     tauri::Builder::default()
         .manage(state)
+        .on_window_event(|window, event| {
+            // 关闭窗口时真正销毁 WebView2 渲染进程（~30-50MB/窗口），
+            // 而非 hide 保留在内存中。下次打开由 show_or_recreate_window 重建。
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.destroy();
+            }
+        })
         .setup(move |app| {
             // 根据 locale 初始化托盘菜单文本。
             let locale = BackendLocale::from_str(&initial_locale);
             let config_label = tr(locale, "tray.config");
             let settings_label = tr(locale, "tray.settings");
             let quit_label = tr(locale, "tray.quit");
+            let window_mode_label = tr(locale, "tray.window_mode");
 
             let config_i = MenuItem::with_id(app, "config", &config_label, true, None::<&str>)?;
             let settings_i =
                 MenuItem::with_id(app, "settings", &settings_label, true, None::<&str>)?;
+            let sep1 = PredefinedMenuItem::separator(app)?;
+            // 窗口模式勾选：勾选 = 窗口模式，取消 = 全屏模式（默认取消）。
+            let window_mode_i = CheckMenuItem::with_id(
+                app,
+                "window_mode",
+                &window_mode_label,
+                true,
+                !snapshot.settings.fullscreen_overlay,
+                None::<&str>,
+            )?;
+            let sep2 = PredefinedMenuItem::separator(app)?;
             let quit_i = MenuItem::with_id(app, "quit", &quit_label, true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&config_i, &settings_i, &quit_i])?;
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &config_i,
+                    &settings_i,
+                    &sep1,
+                    &window_mode_i,
+                    &sep2,
+                    &quit_i,
+                ],
+            )?;
 
             // 保存托盘菜单项句柄，供 update_locale 命令更新文本。
             app.manage(TrayMenuState {
                 config_item: config_i.clone(),
                 settings_item: settings_i.clone(),
                 quit_item: quit_i.clone(),
+                window_mode_item: window_mode_i.clone(),
             });
 
             // 嵌入高分辨率 PNG（512x512）作为托盘图标源，Tauri 会按需缩放。
@@ -273,6 +337,26 @@ pub fn run() {
                     }
                     "settings" => {
                         show_or_recreate_window(app, "settings", create_settings_window);
+                    }
+                    "window_mode" => {
+                        // 勾选 = 窗口模式（fullscreen_overlay=false），取消 = 全屏模式。
+                        let tray_state = app.state::<TrayMenuState>();
+                        let is_window_mode =
+                            tray_state.window_mode_item.is_checked().unwrap_or(false);
+                        let app_clone = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = update_preferences_inner(
+                                app_clone,
+                                PreferencesPatch {
+                                    locale: None,
+                                    auto_switch_on_overlay: None,
+                                    fullscreen_overlay: Some(!is_window_mode),
+                                    live_drag_preview: None,
+                                    gpu_acceleration: None,
+                                },
+                            )
+                            .await;
+                        });
                     }
                     "quit" => {
                         // 标记主动退出，避免 ExitRequested 被阻止。
@@ -314,6 +398,7 @@ pub fn run() {
             get_overlay_active,
             update_preferences,
             focus_target_window,
+            get_app_version,
         ])
         .build(tauri::generate_context!())
         .expect("build tauri app")
@@ -323,10 +408,7 @@ pub fn run() {
                     // 窗口关闭时只销毁 WebView，不退出应用；
                     // 托盘点「退出」会设置 quitting 标志，此时允许退出。
                     let state = _app_handle.state::<AppState>();
-                    if !state
-                        .quitting
-                        .load(std::sync::atomic::Ordering::SeqCst)
-                    {
+                    if !state.quitting.load(std::sync::atomic::Ordering::SeqCst) {
                         api.prevent_exit();
                     }
                 }
@@ -418,16 +500,28 @@ fn list_window_titles() -> Vec<String> {
     }
 }
 
-/// 启动 overlay 跟随指定目标窗口。
+/// 启动 overlay。
+///
+/// - 全屏模式：不需要目标窗口，直接覆盖全屏。
+/// - 窗口模式：需要选择目标窗口。
 #[tauri::command]
 fn start_overlay(state: State<AppState>, target_window: String) -> Result<(), String> {
-    if target_window.is_empty() {
+    // 全屏模式不需要目标窗口。
+    let is_fullscreen = {
+        let cfg = state.config.lock().map_err(|e| e.to_string())?;
+        cfg.settings.fullscreen_overlay
+    };
+    if !is_fullscreen && target_window.is_empty() {
         return Err(tr(current_locale(&state), "target_window_required").to_string());
     }
     state
         .overlay_cmd_tx
         .send(overlay::OverlayCommand::Start(target_window))
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    state
+        .overlay_active
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
 }
 
 /// 停止 overlay。
@@ -436,30 +530,59 @@ fn stop_overlay(state: State<AppState>) -> Result<(), String> {
     state
         .overlay_cmd_tx
         .send(overlay::OverlayCommand::Stop)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    state
+        .overlay_active
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
 }
 
 /// 询问 overlay 是否处于活动状态。
 #[tauri::command]
 fn get_overlay_active(state: State<AppState>) -> bool {
     state
-        .overlay_cmd_tx
-        .send(overlay::OverlayCommand::QueryActive)
-        .is_ok()
+        .overlay_active
+        .load(std::sync::atomic::Ordering::SeqCst)
 }
 
-/// 更新应用级偏好设置（locale / auto_switch_on_overlay）。
+/// 获取应用版本号（从 Cargo.toml / tauri.conf.json 继承）。
+#[tauri::command]
+fn get_app_version(app: tauri::AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+/// 更新应用级偏好设置（locale / auto_switch_on_overlay / fullscreen_overlay / live_drag_preview）。
 ///
 /// - 仅更新传入的字段，其余保持不变。
 /// - 写入配置文件、更新内存快照、广播给 overlay。
-/// - 如果 locale 发生变化，更新托盘菜单文本并广播 `peregrine:locale-changed` 事件给所有窗口。
+/// - locale 变化时更新托盘菜单文本并广播事件。
+/// - fullscreen_overlay / live_drag_preview 变化时同步托盘勾选状态。
 #[tauri::command]
 async fn update_preferences(
     app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    tray_state: State<'_, TrayMenuState>,
     preferences: PreferencesPatch,
 ) -> Result<(), String> {
+    update_preferences_inner(app, preferences).await
+}
+
+#[derive(serde::Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+struct PreferencesPatch {
+    locale: Option<String>,
+    auto_switch_on_overlay: Option<String>,
+    fullscreen_overlay: Option<bool>,
+    live_drag_preview: Option<bool>,
+    gpu_acceleration: Option<bool>,
+}
+
+/// 更新偏好设置的共享逻辑，供 Tauri command 和托盘菜单事件复用。
+async fn update_preferences_inner(
+    app: tauri::AppHandle,
+    preferences: PreferencesPatch,
+) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let tray_state = app.state::<TrayMenuState>();
+
     let mut config = {
         let guard = state.config.lock().map_err(|e| e.to_string())?;
         guard.as_ref().clone()
@@ -480,6 +603,15 @@ async fn update_preferences(
     }
     if let Some(auto_switch) = &preferences.auto_switch_on_overlay {
         config.settings.auto_switch_on_overlay = auto_switch.clone();
+    }
+    if let Some(fullscreen) = preferences.fullscreen_overlay {
+        config.settings.fullscreen_overlay = fullscreen;
+    }
+    if let Some(live_drag) = preferences.live_drag_preview {
+        config.settings.live_drag_preview = live_drag;
+    }
+    if let Some(gpu) = preferences.gpu_acceleration {
+        config.settings.gpu_acceleration = gpu;
     }
 
     config.validate().map_err(|e| e.to_string())?;
@@ -520,26 +652,31 @@ async fn update_preferences(
             .quit_item
             .set_text(&tr(bl, "tray.quit"))
             .map_err(|e| e.to_string())?;
+        tray_state
+            .window_mode_item
+            .set_text(&tr(bl, "tray.window_mode"))
+            .map_err(|e| e.to_string())?;
         app.emit("peregrine:locale-changed", &saved)
             .map_err(|e| e.to_string())?;
+    }
+
+    // fullscreen_overlay 变化时同步托盘「窗口模式」勾选状态。
+    if let Some(fs) = preferences.fullscreen_overlay {
+        let _ = tray_state.window_mode_item.set_checked(!fs);
     }
 
     // 广播 settings 变更，让所有窗口的 React state 同步更新。
     let settings_json = serde_json::json!({
         "auto_switch_on_overlay": snapshot.as_ref().settings.auto_switch_on_overlay,
         "locale": snapshot.as_ref().settings.locale,
+        "fullscreen_overlay": snapshot.as_ref().settings.fullscreen_overlay,
+        "live_drag_preview": snapshot.as_ref().settings.live_drag_preview,
+        "gpu_acceleration": snapshot.as_ref().settings.gpu_acceleration,
     });
     app.emit("peregrine:settings-changed", &settings_json)
         .map_err(|e| e.to_string())?;
 
     Ok(())
-}
-
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-struct PreferencesPatch {
-    locale: Option<String>,
-    auto_switch_on_overlay: Option<String>,
 }
 
 /// 弹出文件选择对话框，返回 PNG 路径。
@@ -568,12 +705,12 @@ async fn pick_image_path(
 fn focus_target_window(target_window: String) -> Result<(), String> {
     #[cfg(windows)]
     {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, ShowWindow,
-            SW_RESTORE, SW_SHOW,
-        };
-        use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
         use windows::Win32::Foundation::BOOL;
+        use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+        use windows::Win32::UI::WindowsAndMessaging::{
+            BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, SW_RESTORE, SW_SHOW,
+            ShowWindow,
+        };
 
         let hwnd = peregrine::platform::windows::find_target_window(&target_window)
             .map_err(|e| e.to_string())?;

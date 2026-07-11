@@ -29,6 +29,17 @@ pub struct AppSettings {
     /// UI 语言（`"zh-CN"` / `"en"`），`"auto"` 表示跟随系统语言。
     #[serde(default = "default_locale")]
     pub locale: String,
+    /// Overlay 覆盖模式：true=全屏覆盖，false=仅跟随目标窗口区域。默认 true。
+    #[serde(default = "default_fullscreen_overlay")]
+    pub fullscreen_overlay: bool,
+    /// 拖拽窗口时是否实时显示准心（仅窗口模式生效）。
+    /// 默认 false：拖拽期间隐藏准心，停止拖拽 1200ms 后恢复显示。
+    #[serde(default)]
+    pub live_drag_preview: bool,
+    /// 是否启用 WebView2 GPU 硬件加速。
+    /// 默认 false：关闭 GPU 加速以降低内存占用（GPU 进程 ~80MB → ~15MB）。
+    #[serde(default)]
+    pub gpu_acceleration: bool,
 }
 
 fn default_auto_switch_on_overlay() -> String {
@@ -39,11 +50,18 @@ fn default_locale() -> String {
     "auto".to_string()
 }
 
+fn default_fullscreen_overlay() -> bool {
+    true
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
             auto_switch_on_overlay: default_auto_switch_on_overlay(),
             locale: default_locale(),
+            fullscreen_overlay: default_fullscreen_overlay(),
+            live_drag_preview: false,
+            gpu_acceleration: false,
         }
     }
 }
@@ -903,6 +921,9 @@ mod tests {
         let s = AppSettings::default();
         assert_eq!(s.auto_switch_on_overlay, "ask");
         assert_eq!(s.locale, "auto");
+        assert!(s.fullscreen_overlay);
+        assert!(!s.live_drag_preview);
+        assert!(!s.gpu_acceleration);
     }
 
     #[test]
@@ -910,6 +931,9 @@ mod tests {
         let s = AppSettings {
             auto_switch_on_overlay: "yes".to_string(),
             locale: "en".to_string(),
+            fullscreen_overlay: false,
+            live_drag_preview: true,
+            gpu_acceleration: true,
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -964,5 +988,8 @@ mod tests {
         let restored: AppConfig = serde_json::from_str(json).unwrap();
         assert_eq!(restored.settings.auto_switch_on_overlay, "ask");
         assert_eq!(restored.settings.locale, "auto");
+        assert!(restored.settings.fullscreen_overlay);
+        assert!(!restored.settings.live_drag_preview);
+        assert!(!restored.settings.gpu_acceleration);
     }
 }

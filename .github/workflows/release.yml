@@ -57,6 +57,17 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # 从 git tag 提取版本号，自动同步到 Cargo.toml / package.json / tauri.conf.json，
+      # 确保三个版本来源一致，无需手动维护。
+      - name: Sync version from tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Syncing version: $VERSION"
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+          node -e "const fs=require('fs');const p=require('./package.json');p.version='$VERSION';fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
+          node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
+
       - name: Build Tauri release (no-bundle，仅编译 exe)
         run: npx tauri build --target ${{ matrix.target }} --no-bundle
 

@@ -25,6 +25,15 @@
     "keepConfig": "Keep config window",
     "confirm": "Confirm"
   },
+  "overlaySettings": {
+    "fullscreenOverlay": "Fullscreen Overlay",
+    "fullscreenOverlayHint": "Cover the entire screen, not following the target window position",
+    "windowMode": "Window Mode",
+    "windowModeHint": "Cover only the target window client area",
+    "liveDragPreview": "Live Drag Preview",
+    "liveDragPreviewHint": "When off, the crosshair is hidden during window drag and restored 1200ms after dragging stops",
+    "fullscreenOnlyHint": "Only available in window mode"
+  },
   "settings": {
     "title": "Settings",
     "description": "More settings will be added in future versions.",
@@ -32,6 +41,8 @@
     "autoSwitch": "Switch to game on overlay start",
     "autoSwitchHint": "Hide config window and focus the target window",
     "autoSwitchAsk": "Ask every time",
+    "gpuAcceleration": "GPU Hardware Acceleration",
+    "gpuAccelerationHint": "Disabling saves ~60MB of memory, takes effect after reopening the window",
     "about": {
       "title": "About Peregrine",
       "description": "Peregrine is a desktop tool focused on reducing 3D motion sickness. It provides customizable visual anchors (such as crosshairs, border frames, edge arrows) on your screen to help you keep visual stability during fast camera turns or complex scenes, easing nausea and dizziness caused by vestibular-visual conflict. So you can play games like Half-Life 2, Mirror's Edge, Dying Light, and No Man's Sky that tend to trigger motion sickness.",
@@ -121,7 +132,8 @@
   "tray": {
     "config": "Config",
     "settings": "Settings",
-    "quit": "Quit"
+    "quit": "Quit",
+    "windowMode": "Window Mode"
   },
   "license": {
     "polyform": "PolyForm Noncommercial · free for personal use · commercial resale prohibited"

@@ -30,6 +30,8 @@ pub enum OverlayCommand {
     UpdateConfig(ConfigSnapshot),
     /// 查询是否活跃（用于 heartbeat）。
     QueryActive,
+    /// 标记需要重绘（follower 调整窗口位置后触发）。
+    Invalidate,
 }
 
 /// 内部自定义事件：把外部命令转发进 winit 事件循环。
@@ -95,6 +97,8 @@ struct OverlayApp {
     last_render: Option<Instant>,
     /// 目标帧间隔（60 FPS ≈ 16.6 ms）。
     frame_interval: Duration,
+    /// 静态准心脏标记：仅在配置变化/窗口尺寸变化时为 true，渲染后清除。
+    needs_redraw: bool,
 }
 
 #[cfg(windows)]
@@ -109,6 +113,7 @@ impl OverlayApp {
             follower_stop: None,
             last_render: None,
             frame_interval: Duration::from_nanos(16_666_667),
+            needs_redraw: false,
         }
     }
 
@@ -117,9 +122,36 @@ impl OverlayApp {
             OverlayCommand::Start(title) => self.create_overlay(event_loop, title),
             OverlayCommand::Stop => self.destroy_overlay(),
             OverlayCommand::UpdateConfig(snap) => {
+                // 检测 fullscreen_overlay / live_drag_preview 是否变化，需要重启 follower。
+                let old_fullscreen = {
+                    let cfg = self.config.lock().expect("config lock");
+                    cfg.settings.fullscreen_overlay
+                };
+                let old_live_drag = {
+                    let cfg = self.config.lock().expect("config lock");
+                    cfg.settings.live_drag_preview
+                };
+
+                let need_restart_follower = self.overlay_active
+                    && (snap.settings.fullscreen_overlay != old_fullscreen
+                        || snap.settings.live_drag_preview != old_live_drag);
+
                 *self.config.lock().expect("config lock") = snap;
+
+                // 配置变化，静态准心需要重绘。
+                self.needs_redraw = true;
+
+                if need_restart_follower {
+                    let title = self.target_title.clone();
+                    self.stop_follower();
+                    self.start_follower(title);
+                }
             }
             OverlayCommand::QueryActive => {}
+            OverlayCommand::Invalidate => {
+                // follower 调整了窗口位置，需要重绘一帧。
+                self.needs_redraw = true;
+            }
         }
     }
 
@@ -132,12 +164,26 @@ impl OverlayApp {
             self.destroy_overlay();
         }
 
-        if title.is_empty() {
+        let fullscreen = {
+            let cfg = self.config.lock().expect("config lock");
+            cfg.settings.fullscreen_overlay
+        };
+
+        // 全屏模式允许空标题；窗口模式必须有目标窗口。
+        if !fullscreen && title.is_empty() {
             tracing::warn!("cannot start overlay: no target window selected");
             return;
         }
 
-        tracing::info!("creating overlay window");
+        tracing::info!(fullscreen, title = %title, "creating overlay window");
+
+        // 根据覆盖模式选择初始窗口尺寸。
+        let (win_w, win_h) = if fullscreen {
+            // 全屏模式：使用主屏幕逻辑尺寸，follower 会立即调整。
+            (1920.0_f32, 1080.0_f32)
+        } else {
+            (800.0_f32, 600.0_f32)
+        };
 
         let attributes = Window::default_attributes()
             .with_title("")
@@ -145,7 +191,7 @@ impl OverlayApp {
             .with_transparent(true)
             .with_active(false)
             .with_window_level(winit::window::WindowLevel::AlwaysOnTop)
-            .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
+            .with_inner_size(winit::dpi::LogicalSize::new(win_w, win_h));
 
         #[cfg(windows)]
         let attributes = {
@@ -169,6 +215,63 @@ impl OverlayApp {
                 tracing::error!("setup overlay window failed: {}", e);
                 return;
             }
+
+            // 创建后立即将 overlay 定位到正确位置，避免首帧渲染在错误位置。
+            if let Ok(overlay_hwnd) = platform::windows::hwnd_from_window(&window) {
+                if fullscreen {
+                    // 全屏模式：定位到 (0,0) 并使用主屏幕物理尺寸。
+                    let (screen_w, screen_h) = unsafe {
+                        (
+                            windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                                windows::Win32::UI::WindowsAndMessaging::SM_CXSCREEN,
+                            ),
+                            windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                                windows::Win32::UI::WindowsAndMessaging::SM_CYSCREEN,
+                            ),
+                        )
+                    };
+                    unsafe {
+                        let _ = windows::Win32::UI::WindowsAndMessaging::SetWindowPos(
+                            overlay_hwnd,
+                            windows::Win32::Foundation::HWND(std::ptr::null_mut()),
+                            0,
+                            0,
+                            screen_w,
+                            screen_h,
+                            windows::Win32::UI::WindowsAndMessaging::SWP_NOZORDER
+                                | windows::Win32::UI::WindowsAndMessaging::SWP_NOACTIVATE,
+                        );
+                    }
+                    tracing::debug!(screen_w, screen_h, "pre-positioned overlay to fullscreen");
+                } else if !title.is_empty() {
+                    // 窗口模式：将 overlay 对齐到目标窗口客户区。
+                    if let Ok(target_hwnd) = platform::windows::find_target_window(&title) {
+                        if let Ok(rect) = platform::windows::get_target_rect(target_hwnd) {
+                            let width = rect.right - rect.left;
+                            let height = rect.bottom - rect.top;
+                            unsafe {
+                                let _ = windows::Win32::UI::WindowsAndMessaging::SetWindowPos(
+                                    overlay_hwnd,
+                                    windows::Win32::Foundation::HWND(std::ptr::null_mut()),
+                                    rect.left,
+                                    rect.top,
+                                    width,
+                                    height,
+                                    windows::Win32::UI::WindowsAndMessaging::SWP_NOZORDER
+                                        | windows::Win32::UI::WindowsAndMessaging::SWP_NOACTIVATE,
+                                );
+                            }
+                            tracing::debug!(
+                                left = rect.left,
+                                top = rect.top,
+                                width,
+                                height,
+                                "pre-positioned overlay to target window"
+                            );
+                        }
+                    }
+                }
+            }
         }
 
         let renderer = overlay_renderer::OverlayRenderer::new(window.clone(), self.config.clone());
@@ -177,6 +280,7 @@ impl OverlayApp {
         self.renderer = Some(renderer);
         self.overlay_active = true;
         self.target_title = title.clone();
+        self.needs_redraw = true;
 
         self.start_follower(title);
         window.request_redraw();
@@ -208,15 +312,30 @@ impl OverlayApp {
                     return;
                 }
             };
-            let target_hwnd = match platform::windows::find_target_window(&title) {
-                Ok(t) => platform::windows::SendHwnd(t),
-                Err(e) => {
-                    tracing::error!("failed to find target window '{}': {}", title, e);
-                    return;
+
+            // 从配置读取覆盖模式和拖拽选项。
+            let (fullscreen, live_drag) = {
+                let cfg = self.config.lock().expect("config lock");
+                (
+                    cfg.settings.fullscreen_overlay,
+                    cfg.settings.live_drag_preview,
+                )
+            };
+
+            // 全屏模式不需要目标窗口；窗口模式必须找到目标窗口。
+            let target_hwnd = if fullscreen {
+                platform::windows::SendHwnd(windows::Win32::Foundation::HWND(std::ptr::null_mut()))
+            } else {
+                match platform::windows::find_target_window(&title) {
+                    Ok(t) => platform::windows::SendHwnd(t),
+                    Err(e) => {
+                        tracing::error!("failed to find target window '{}': {}", title, e);
+                        return;
+                    }
                 }
             };
 
-            tracing::info!(title = %title, "starting overlay follower");
+            tracing::info!(title = %title, fullscreen, live_drag, "starting overlay follower");
 
             let (tx, rx) = tokio::sync::oneshot::channel();
             self.follower_stop = Some(tx);
@@ -224,8 +343,14 @@ impl OverlayApp {
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("create tokio runtime");
                 rt.block_on(async move {
-                    if let Err(e) =
-                        platform::windows::follow_target_window(overlay_hwnd, target_hwnd, rx).await
+                    if let Err(e) = platform::windows::follow_target_window(
+                        overlay_hwnd,
+                        target_hwnd,
+                        fullscreen,
+                        live_drag,
+                        rx,
+                    )
+                    .await
                     {
                         tracing::info!("overlay follower ended: {}", e);
                     }
@@ -267,9 +392,10 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
             }
             WindowEvent::Resized(_size) => {
                 if let Some(renderer) = self.renderer.as_mut() {
-                    // OverlayRenderer 的 resize 目前为空实现，大小变化在 render 中处理。
                     renderer.resize(_size);
                 }
+                // 窗口尺寸变化，需要重绘。
+                self.needs_redraw = true;
             }
             WindowEvent::RedrawRequested => {
                 // 额外兜底：防止外部事件在短时间内触发多次重绘。
@@ -283,6 +409,8 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
                     renderer.render_overlay();
                     self.last_render = Some(now);
                 }
+                // 静态准心渲染完毕后清除脏标记。
+                self.needs_redraw = false;
                 event_loop.set_control_flow(ControlFlow::WaitUntil(now + self.frame_interval));
             }
             _ => {}
@@ -296,16 +424,39 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
             return;
         };
 
-        // 限制帧率：静态准心不需要无限制重绘，60 FPS 足够覆盖 RandomOrb 动画。
-        let now = Instant::now();
-        if let Some(last) = self.last_render {
-            let elapsed = now.saturating_duration_since(last);
-            if elapsed < self.frame_interval {
-                event_loop.set_control_flow(ControlFlow::WaitUntil(last + self.frame_interval));
-                return;
-            }
-        }
+        // 判断当前准心是否为动画样式（RandomOrb 需要持续重绘）。
+        let is_animated = {
+            let cfg = self.config.lock().expect("config lock");
+            cfg.active_profile()
+                .map(|p| p.crosshair.style == peregrine_config::CrosshairStyle::RandomOrb)
+                .unwrap_or(false)
+        };
 
-        window.request_redraw();
+        if is_animated {
+            // RandomOrb 保持 60FPS 持续重绘。
+            let now = Instant::now();
+            if let Some(last) = self.last_render {
+                let elapsed = now.saturating_duration_since(last);
+                if elapsed < self.frame_interval {
+                    event_loop.set_control_flow(ControlFlow::WaitUntil(last + self.frame_interval));
+                    return;
+                }
+            }
+            window.request_redraw();
+        } else if self.needs_redraw {
+            // 静态准心仅在脏标记为 true 时重绘一帧。
+            let now = Instant::now();
+            if let Some(last) = self.last_render {
+                let elapsed = now.saturating_duration_since(last);
+                if elapsed < self.frame_interval {
+                    event_loop.set_control_flow(ControlFlow::WaitUntil(last + self.frame_interval));
+                    return;
+                }
+            }
+            window.request_redraw();
+        } else {
+            // 无需重绘，等待事件唤醒。
+            event_loop.set_control_flow(ControlFlow::Wait);
+        }
     }
 }

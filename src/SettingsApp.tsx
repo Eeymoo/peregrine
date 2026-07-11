@@ -10,13 +10,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getConfig, updatePreferences } from "@/lib/api";
+import { getConfig, updatePreferences, getAppVersion } from "@/lib/api";
 import type { AppConfig } from "@/types/config";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function SettingsApp() {
   const { t, locale, setLocale } = useI18n();
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [autoSwitch, setAutoSwitchState] = useState<string>("ask");
+  const [version, setVersion] = useState("");
 
   useEffect(() => {
     getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("settings.title")}`).catch(() => {});
@@ -30,23 +32,44 @@ export default function SettingsApp() {
         setAutoSwitchState(cfg.settings?.auto_switch_on_overlay ?? "ask");
       })
       .catch(console.error);
+    getAppVersion().then(setVersion).catch(() => {});
   }, []);
 
-  /** 监听后端 settings 变更（来自配置窗口的对话框记住选择），同步本窗口状态。 */
+  /** 监听后端 settings 变更（来自托盘或配置窗口），同步本窗口状态。 */
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
       try {
         const { listen } = await import("@tauri-apps/api/event");
-        unlisten = await listen<{ auto_switch_on_overlay?: string }>(
-          "peregrine:settings-changed",
-          (event) => {
-            const { auto_switch_on_overlay } = event.payload;
+        unlisten = await listen<{
+          auto_switch_on_overlay?: string;
+          locale?: string;
+          fullscreen_overlay?: boolean;
+          live_drag_preview?: boolean;
+          gpu_acceleration?: boolean;
+        }>("peregrine:settings-changed", (event) => {
+          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration } = event.payload;
+          if (auto_switch_on_overlay !== undefined) {
+            setAutoSwitchState(auto_switch_on_overlay);
+          }
+          setConfig((prev) => {
+            if (!prev) return prev;
+            const settings = { ...prev.settings };
             if (auto_switch_on_overlay !== undefined) {
-              setAutoSwitchState(auto_switch_on_overlay);
+              settings.auto_switch_on_overlay = auto_switch_on_overlay;
             }
-          },
-        );
+            if (fullscreen_overlay !== undefined) {
+              settings.fullscreen_overlay = fullscreen_overlay;
+            }
+            if (live_drag_preview !== undefined) {
+              settings.live_drag_preview = live_drag_preview;
+            }
+            if (gpu_acceleration !== undefined) {
+              settings.gpu_acceleration = gpu_acceleration;
+            }
+            return { ...prev, settings };
+          });
+        });
       } catch { /* 非 Tauri 环境忽略 */ }
     })();
     return () => unlisten?.();
@@ -109,20 +132,80 @@ export default function SettingsApp() {
 
       <Separator className="my-4" />
 
+      {/* 拖拽时实时显示（仅窗口模式生效） */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="live-drag-preview"
+            checked={config?.settings?.live_drag_preview ?? false}
+            disabled={config?.settings?.fullscreen_overlay ?? true}
+            onCheckedChange={(v) => {
+              if (!config) return;
+              const newConfig: AppConfig = {
+                ...config,
+                settings: { ...config.settings, live_drag_preview: v === true },
+              };
+              setConfig(newConfig);
+              updatePreferences({ live_drag_preview: v === true }).catch(console.error);
+            }}
+          />
+          <Label htmlFor="live-drag-preview" className="text-sm cursor-pointer">
+            {t("overlaySettings.liveDragPreview")}
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {t("overlaySettings.liveDragPreviewHint")}
+        </p>
+        {(config?.settings?.fullscreen_overlay ?? true) && (
+          <p className="text-xs text-muted-foreground italic">
+            {t("overlaySettings.fullscreenOnlyHint")}
+          </p>
+        )}
+      </div>
+
+      <Separator className="my-4" />
+
+      {/* GPU 硬件加速（重启窗口后生效） */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="gpu-acceleration"
+            checked={config?.settings?.gpu_acceleration ?? false}
+            onCheckedChange={(v) => {
+              if (!config) return;
+              const newConfig: AppConfig = {
+                ...config,
+                settings: { ...config.settings, gpu_acceleration: v === true },
+              };
+              setConfig(newConfig);
+              updatePreferences({ gpu_acceleration: v === true }).catch(console.error);
+            }}
+          />
+          <Label htmlFor="gpu-acceleration" className="text-sm cursor-pointer">
+            {t("settings.gpuAcceleration")}
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {t("settings.gpuAccelerationHint")}
+        </p>
+      </div>
+
+      <Separator className="my-4" />
+
       <div className="space-y-3">
         <h2 className="text-lg font-medium">{t("settings.about.title")}</h2>
         <p className="text-sm text-muted-foreground">
           {t("settings.about.description")}
         </p>
         <ul className="text-sm space-y-1 text-muted-foreground">
-          <li>{t("settings.about.version")}：0.1.1</li>
+          <li>{t("settings.about.version")}：{version || "..."}</li>
           <li>{t("settings.about.license")}：{t("license.polyform")}</li>
           <li>{t("settings.about.repository")}：https://github.com/Eeymoo/peregrine</li>
         </ul>
       </div>
 
       <div className="mt-auto text-xs text-muted-foreground text-right">
-        Peregrine v0.1.1
+        Peregrine v{version || "..."}
       </div>
     </div>
   );

@@ -85,4 +85,7 @@ export interface AppConfig {
 export interface AppSettings {
   auto_switch_on_overlay: string;
   locale: string;
+  fullscreen_overlay: boolean;
+  live_drag_preview: boolean;
+  gpu_acceleration: boolean;
 }

@@ -13,6 +13,7 @@
     "core:window:allow-minimize",
     "core:tray:default",
     "dialog:default",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    "dialog:allow-ask"
   ]
 }

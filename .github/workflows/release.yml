@@ -64,6 +64,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "Syncing version: $VERSION"
+          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
           node -e "const fs=require('fs');const p=require('./package.json');p.version='$VERSION';fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
           node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
@@ -71,19 +72,22 @@ jobs:
       - name: Build Tauri release (no-bundle，仅编译 exe)
         run: npx tauri build --target ${{ matrix.target }} --no-bundle
 
-      # 将编译产物 exe 打包为便携 zip，用户下载解压即可运行，无需安装。
+      # 将编译产物 exe 重命名（带版本号），连同 README、LICENSE 打包为便携 zip。
       - name: Create portable zip
         shell: pwsh
         run: |
-          $exe = "target/${{ matrix.target }}/release/peregrine-tauri.exe"
-          $zip = "peregrine-${{ matrix.asset_name }}.zip"
-          Compress-Archive -Path $exe -DestinationPath $zip
+          $VERSION = "${{ env.RELEASE_VERSION }}"
+          $srcExe = "target/${{ matrix.target }}/release/peregrine-tauri.exe"
+          $dstExe = "peregrine-v${VERSION}.exe"
+          Copy-Item $srcExe $dstExe
+          $zip = "peregrine-v${VERSION}-${{ matrix.asset_name }}.zip"
+          Compress-Archive -Path $dstExe, README.md, LICENSE -DestinationPath $zip
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: peregrine-${{ matrix.asset_name }}.zip
+          path: peregrine-v${{ env.RELEASE_VERSION }}-${{ matrix.asset_name }}.zip
           if-no-files-found: error
 
   # 汇总产物并创建 GitHub Release。

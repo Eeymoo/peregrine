@@ -43,6 +43,10 @@
     "autoSwitchAsk": "Ask every time",
     "gpuAcceleration": "GPU Hardware Acceleration",
     "gpuAccelerationHint": "Disabling saves ~60MB of memory, takes effect after reopening the window",
+    "gpuRestartTitle": "GPU acceleration setting changed",
+    "gpuRestartDesc": "GPU acceleration requires an app restart to take effect. Restart now?",
+    "gpuRestartNow": "Restart now",
+    "gpuRestartLater": "Restart later",
     "about": {
       "title": "About Peregrine",
       "description": "Peregrine is a desktop tool focused on reducing 3D motion sickness. It provides customizable visual anchors (such as crosshairs, border frames, edge arrows) on your screen to help you keep visual stability during fast camera turns or complex scenes, easing nausea and dizziness caused by vestibular-visual conflict. So you can play games like Half-Life 2, Mirror's Edge, Dying Light, and No Man's Sky that tend to trigger motion sickness.",

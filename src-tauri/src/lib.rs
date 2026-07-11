@@ -270,6 +270,7 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .on_window_event(|window, event| {
             // 关闭窗口时真正销毁 WebView2 渲染进程（~30-50MB/窗口），
@@ -399,6 +400,7 @@ pub fn run() {
             update_preferences,
             focus_target_window,
             get_app_version,
+            relaunch_app,
         ])
         .build(tauri::generate_context!())
         .expect("build tauri app")
@@ -549,6 +551,12 @@ fn get_overlay_active(state: State<AppState>) -> bool {
 #[tauri::command]
 fn get_app_version(app: tauri::AppHandle) -> String {
     app.package_info().version.to_string()
+}
+
+/// 重启应用（GPU 加速等需要重新创建 WebView2 的设置变更后调用）。
+#[tauri::command]
+fn relaunch_app(app: tauri::AppHandle) {
+    app.restart();
 }
 
 /// 更新应用级偏好设置（locale / auto_switch_on_overlay / fullscreen_overlay / live_drag_preview）。

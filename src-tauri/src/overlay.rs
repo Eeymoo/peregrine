@@ -397,6 +397,12 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
                 // 窗口尺寸变化，需要重绘。
                 self.needs_redraw = true;
             }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                // DPI 缩放变化时，强制下一帧重绘。
+                // follower 线程会检测到新的屏幕尺寸并调整窗口大小，
+                // 随后的 Resized 事件会设置 needs_redraw，这里也额外标记确保及时。
+                self.needs_redraw = true;
+            }
             WindowEvent::RedrawRequested => {
                 // 额外兜底：防止外部事件在短时间内触发多次重绘。
                 let now = Instant::now();

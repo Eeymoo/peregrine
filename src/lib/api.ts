@@ -44,3 +44,8 @@ export async function updatePreferences(
 export async function getAppVersion(): Promise<string> {
   return invoke<string>("get_app_version");
 }
+
+/** 重启应用（GPU 加速等设置变更后需要重建 WebView2）。 */
+export async function relaunchApp(): Promise<void> {
+  return invoke("relaunch_app");
+}

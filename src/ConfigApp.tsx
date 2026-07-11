@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
@@ -104,6 +104,15 @@ export default function ConfigApp() {
   const profile = config?.profiles[config.active_profile];
   const crosshair = profile?.crosshair;
 
+  /** 防抖保存配置：拖滑块等连续操作时只在停止后 300ms 写入一次。 */
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedSave = useCallback((cfg: AppConfig) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveConfig(cfg).catch(console.error);
+    }, 300);
+  }, []);
+
   const updateCrosshair = useCallback((patch: Partial<Crosshair>) => {
     if (!config || !profile || !crosshair) return;
     const newCrosshair = { ...crosshair, ...patch };
@@ -113,8 +122,8 @@ export default function ConfigApp() {
       profiles: { ...config.profiles, [config.active_profile]: newProfile },
     };
     setConfig(newConfig);
-    saveConfig(newConfig).catch(console.error);
-  }, [config, profile, crosshair]);
+    debouncedSave(newConfig);
+  }, [config, profile, crosshair, debouncedSave]);
 
   const refreshWindows = useCallback(() => {
     listWindowTitles().then(setWindows).catch(console.error);
@@ -338,7 +347,7 @@ export default function ConfigApp() {
                     },
                   };
                   setConfig(newConfig);
-                  saveConfig(newConfig).catch(console.error);
+                  debouncedSave(newConfig);
                 }}
               >
                 <SelectTrigger className="h-8 text-sm">

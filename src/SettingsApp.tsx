@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getConfig, updatePreferences, getAppVersion } from "@/lib/api";
+import { getConfig, updatePreferences, getAppVersion, relaunchApp } from "@/lib/api";
 import type { AppConfig } from "@/types/config";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -165,20 +165,34 @@ export default function SettingsApp() {
 
       <Separator className="my-4" />
 
-      {/* GPU 硬件加速（重启窗口后生效） */}
+      {/* GPU 硬件加速（重启应用后生效） */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Checkbox
             id="gpu-acceleration"
             checked={config?.settings?.gpu_acceleration ?? false}
-            onCheckedChange={(v) => {
+            onCheckedChange={async (v) => {
               if (!config) return;
+              const newValue = v === true;
               const newConfig: AppConfig = {
                 ...config,
-                settings: { ...config.settings, gpu_acceleration: v === true },
+                settings: { ...config.settings, gpu_acceleration: newValue },
               };
               setConfig(newConfig);
-              updatePreferences({ gpu_acceleration: v === true }).catch(console.error);
+              await updatePreferences({ gpu_acceleration: newValue });
+              // GPU 加速设置变更后，弹窗询问是否立即重启。
+              try {
+                const { ask } = await import("@tauri-apps/plugin-dialog");
+                const confirmed = await ask(t("settings.gpuRestartDesc"), {
+                  title: t("settings.gpuRestartTitle"),
+                  okLabel: t("settings.gpuRestartNow"),
+                  cancelLabel: t("settings.gpuRestartLater"),
+                  kind: "info",
+                });
+                if (confirmed) {
+                  await relaunchApp();
+                }
+              } catch (e) { console.error("[GPU] dialog/relaunch failed:", e); }
             }}
           />
           <Label htmlFor="gpu-acceleration" className="text-sm cursor-pointer">

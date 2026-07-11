@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Crosshair } from "@/types/config";
 import { buildShapes, colorToCss } from "@/lib/shapes";
 import { useI18n } from "@/lib/i18n";
@@ -11,6 +11,18 @@ interface PreviewProps {
 export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [, forceTick] = useState(0);
+
+  // 监听容器尺寸变化（窗口拖拽、缩放等），强制重绘预览。
+  const [sizeTick, setSizeTick] = useState(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSizeTick((n) => n + 1));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -132,14 +144,16 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
     }
 
     ctx.restore();
-  }, [crosshair, aspectRatio]);
+  }, [crosshair, aspectRatio, t, sizeTick]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="w-full h-full rounded-md"
-      style={{ imageRendering: "auto" }}
-    />
+    <div ref={containerRef} className="w-full h-full">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full rounded-md"
+        style={{ imageRendering: "auto" }}
+      />
+    </div>
   );
 }
 

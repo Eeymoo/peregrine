@@ -43,6 +43,10 @@
     "autoSwitchAsk": "每次询问",
     "gpuAcceleration": "GPU 硬件加速",
     "gpuAccelerationHint": "关闭可降低约 60MB 内存占用，重启窗口后生效",
+    "gpuRestartTitle": "GPU 加速设置已更改",
+    "gpuRestartDesc": "GPU 加速设置需要重启应用后才能生效。是否立即重启？",
+    "gpuRestartNow": "立即重启",
+    "gpuRestartLater": "稍后手动重启",
     "about": {
       "title": "关于 Peregrine",
       "description": "Peregrine 是一款专注于缓解 3D 眩晕（Motion Sickness）的桌面工具。它通过在屏幕上提供可定制的视觉锚点（如十字准星、边框、边缘箭头等），帮助玩家在快速转动视角或复杂场景中保持视觉稳定，减轻前庭-视觉冲突带来的恶心、头晕症状。让你能够正常游玩《半条命 2》《镜之边缘》《消逝的光芒》《无人深空》等容易引发眩晕的游戏。",

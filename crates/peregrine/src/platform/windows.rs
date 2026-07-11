@@ -365,8 +365,8 @@ pub async fn follow_target_window(
     let mut visible = true;
     let mut interval = tokio::time::interval(Duration::from_millis(16));
 
-    // 全屏模式下只需设一次位置/尺寸。
-    let mut fullscreen_set = false;
+    // 全屏模式下记录上次屏幕尺寸，变化时（分辨率/DPI 缩放调整）立即更新 overlay。
+    let mut last_screen_size: Option<(i32, i32)> = None;
 
     // 拖拽延迟：矩形变化后记录时间，稳定超过阈值才恢复显示。
     let drag_delay = Duration::from_millis(1200);
@@ -378,15 +378,16 @@ pub async fn follow_target_window(
             _ = &mut stop_rx => return Err(OverlayError::Cancelled),
             _ = interval.tick() => {
                 unsafe {
-                    // 全屏模式：不检测目标窗口，overlay 始终覆盖全屏。
+                    // 全屏模式：检测屏幕尺寸变化（分辨率/DPI 缩放调整），即时更新 overlay。
                     if fullscreen {
-                        if !fullscreen_set {
-                            let screen_w = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
-                                windows::Win32::UI::WindowsAndMessaging::SM_CXSCREEN,
-                            );
-                            let screen_h = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
-                                windows::Win32::UI::WindowsAndMessaging::SM_CYSCREEN,
-                            );
+                        let screen_w = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                            windows::Win32::UI::WindowsAndMessaging::SM_CXSCREEN,
+                        );
+                        let screen_h = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                            windows::Win32::UI::WindowsAndMessaging::SM_CYSCREEN,
+                        );
+                        let need_update = last_screen_size != Some((screen_w, screen_h));
+                        if need_update {
                             SetWindowPos(
                                 overlay.0,
                                 HWND_TOPMOST,
@@ -396,10 +397,9 @@ pub async fn follow_target_window(
                                 screen_h,
                                 SWP_NOACTIVATE | SWP_NOOWNERZORDER,
                             )?;
-                            fullscreen_set = true;
-                            tracing::debug!(screen_w, screen_h, "set overlay to fullscreen");
+                            last_screen_size = Some((screen_w, screen_h));
+                            tracing::debug!(screen_w, screen_h, "update overlay to fullscreen");
                         }
-                        // 全屏模式始终显示，不做任何隐藏逻辑。
                         continue;
                     }
 

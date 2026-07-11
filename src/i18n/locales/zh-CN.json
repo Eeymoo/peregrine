@@ -95,7 +95,6 @@
     "radiusMax": "最大半径",
     "barHeight": "矩形条高度",
     "borderStyle": "边框样式",
-    "borderGap": "四边中缝缺口（20%）",
     "arrowSize": "箭头尺寸",
     "arrowWidth": "箭头宽度（0 为等宽）",
     "tailPerEdge": "分别设置尾部长度",

@@ -6,6 +6,18 @@
 
 ---
 
+## [v0.1.3-alpha.4] — 2026-07-11
+
+### 变更
+
+- 移除「边框」样式的「四边中缝缺口（20%）」选项（`border_gap` 字段），该选项无实际渲染效果，属于死代码。
+- 暂时隐藏「自定义图片」准心样式（`custom_image`），存在已知问题待修复。
+- 未选择目标窗口时「开始覆盖」按钮禁用，防止用户误触。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
 ## [v0.1.3-alpha.3] — 2026-07-11
 
 ### 变更
@@ -190,6 +202,7 @@
 
 ---
 
+[v0.1.3-alpha.4]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.4
 [v0.1.3-alpha.3]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.3
 [v0.1.3-alpha.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.2
 [v0.1.3-alpha.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.1

@@ -37,7 +37,7 @@ const STYLES: CrosshairStyle[] = [
   "custom_orb",
   "random_orb",
   "border_frame",
-  "custom_image",
+  // "custom_image", // 暂时隐藏，存在问题
   "edge_arrows",
 ];
 
@@ -305,7 +305,7 @@ export default function ConfigApp() {
                 ■ {t("config.stopOverlay")}
               </Button>
             ) : (
-              <Button className="w-full h-8 text-sm" onClick={handleStartOverlay}>
+              <Button className="w-full h-8 text-sm" onClick={handleStartOverlay} disabled={!profile.target_window}>
                 ▶ {t("config.startOverlay")}
               </Button>
             )}

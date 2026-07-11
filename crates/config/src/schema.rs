@@ -129,9 +129,6 @@ pub struct Crosshair {
     /// 边框：样式变体。
     #[serde(default)]
     pub border_frame_style: BorderFrameStyle,
-    /// 边框：四边中间是否留 20% 缺口。
-    #[serde(default)]
-    pub border_gap: bool,
     /// 边框：矩形条是否位于屏幕内侧。
     #[serde(default = "default_border_inset")]
     pub border_inset: bool,
@@ -473,7 +470,6 @@ impl Crosshair {
             random_orb_x: 0.0,
             random_orb_y: 0.0,
             border_frame_style: BorderFrameStyle::default(),
-            border_gap: false,
             border_inset: true,
             custom_orb_top_count: default_custom_orb_count(),
             custom_orb_bottom_count: default_custom_orb_count(),
@@ -729,7 +725,6 @@ mod tests {
     fn border_frame_defaults() {
         let ch = Crosshair::default_crosshair();
         assert!(ch.border_inset);
-        assert!(!ch.border_gap);
         assert_eq!(ch.border_frame_style, BorderFrameStyle::Solid);
     }
 
@@ -808,7 +803,6 @@ mod tests {
             "random_orb_x": 0.0,
             "random_orb_y": 0.0,
             "border_frame_style": "solid",
-            "border_gap": false,
             "border_inset": true,
             "custom_orb_top_count": 3,
             "custom_orb_bottom_count": 3,
@@ -888,7 +882,6 @@ mod tests {
             "random_orb_x": 0.0,
             "random_orb_y": 0.0,
             "border_frame_style": "solid",
-            "border_gap": false,
             "border_inset": true,
             "custom_orb_top_count": 3,
             "custom_orb_bottom_count": 3,
@@ -953,8 +946,7 @@ mod tests {
                         "random_orb_x": 0.0,
                         "random_orb_y": 0.0,
                         "border_frame_style": "solid",
-                        "border_gap": false,
-                        "border_inset": true,
+                                    "border_inset": true,
                         "custom_orb_top_count": 3,
                         "custom_orb_bottom_count": 3,
                         "custom_orb_left_count": 3,

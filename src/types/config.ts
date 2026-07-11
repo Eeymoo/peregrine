@@ -43,7 +43,6 @@ export interface Crosshair {
   random_orb_x: number;
   random_orb_y: number;
   border_frame_style: BorderFrameStyle;
-  border_gap: boolean;
   border_inset: boolean;
   custom_orb_top_count: number;
   custom_orb_bottom_count: number;

@@ -182,10 +182,6 @@ function BorderFrameFields({ crosshair, onChange }: StyleFieldsProps) {
           </SelectContent>
         </Select>
       </div>
-      <div className="flex items-center gap-3">
-        <Checkbox id="border_gap" checked={crosshair.border_gap} onCheckedChange={(v) => onChange({ border_gap: !!v })} />
-        <Label htmlFor="border_gap" className="text-sm">{t("fields.borderGap")}</Label>
-      </div>
     </div>
   );
 }

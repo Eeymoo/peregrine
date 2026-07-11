@@ -95,7 +95,6 @@
     "radiusMax": "Max radius",
     "barHeight": "Bar height",
     "borderStyle": "Border style",
-    "borderGap": "20% mid-edge gap",
     "arrowSize": "Arrow size",
     "arrowWidth": "Arrow width (0 = equal)",
     "tailPerEdge": "Set tail length per edge",

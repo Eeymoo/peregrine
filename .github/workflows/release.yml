@@ -68,6 +68,20 @@ jobs:
           node -e "const fs=require('fs');const p=require('./package.json');p.version='$VERSION';fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
           node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
 
+      - name: Debug signing env
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is EMPTY or not set"
+          else
+            echo "TAURI_SIGNING_PRIVATE_KEY is set (length: $(echo -n '${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}' | wc -c))"
+          fi
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY_PASSWORD is EMPTY or not set"
+          else
+            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is set"
+          fi
+
       - name: Build Tauri release (NSIS + 签名)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

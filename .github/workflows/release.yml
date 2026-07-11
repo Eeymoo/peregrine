@@ -87,7 +87,19 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         shell: bash
-        run: npx tauri build --target ${{ matrix.target }} --bundles nsis
+        run: |
+          echo "Signing key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
+          echo "Password length: ${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD}"
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "Key starts with: ${TAURI_SIGNING_PRIVATE_KEY:0:20}..."
+          else
+            echo "ERROR: TAURI_SIGNING_PRIVATE_KEY is empty!"
+          fi
+          npx tauri build --target ${{ matrix.target }} --bundles nsis --verbose 2>&1 | tee build.log
+          echo "=== Checking for .sig files ==="
+          find target/${{ matrix.target }}/release/bundle/nsis/ -name "*.sig" -exec echo "Found: {}" \; || echo "No .sig files found"
+          echo "=== NSIS dir contents ==="
+          ls -la target/${{ matrix.target }}/release/bundle/nsis/ || true
 
       - name: Rename NSIS installer
         shell: pwsh

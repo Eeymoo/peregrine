@@ -355,6 +355,7 @@ pub fn run() {
                                     fullscreen_overlay: Some(!is_window_mode),
                                     live_drag_preview: None,
                                     gpu_acceleration: None,
+                                    update_channel: None,
                                 },
                             )
                             .await;

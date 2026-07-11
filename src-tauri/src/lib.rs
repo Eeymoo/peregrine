@@ -582,6 +582,7 @@ struct PreferencesPatch {
     fullscreen_overlay: Option<bool>,
     live_drag_preview: Option<bool>,
     gpu_acceleration: Option<bool>,
+    update_channel: Option<String>,
 }
 
 /// 更新偏好设置的共享逻辑，供 Tauri command 和托盘菜单事件复用。
@@ -621,6 +622,9 @@ async fn update_preferences_inner(
     }
     if let Some(gpu) = preferences.gpu_acceleration {
         config.settings.gpu_acceleration = gpu;
+    }
+    if let Some(channel) = &preferences.update_channel {
+        config.settings.update_channel = channel.clone();
     }
 
     config.validate().map_err(|e| e.to_string())?;
@@ -681,6 +685,7 @@ async fn update_preferences_inner(
         "fullscreen_overlay": snapshot.as_ref().settings.fullscreen_overlay,
         "live_drag_preview": snapshot.as_ref().settings.live_drag_preview,
         "gpu_acceleration": snapshot.as_ref().settings.gpu_acceleration,
+        "update_channel": snapshot.as_ref().settings.update_channel,
     });
     app.emit("peregrine:settings-changed", &settings_json)
         .map_err(|e| e.to_string())?;

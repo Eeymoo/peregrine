@@ -40,6 +40,10 @@ pub struct AppSettings {
     /// 默认 false：关闭 GPU 加速以降低内存占用（GPU 进程 ~80MB → ~15MB）。
     #[serde(default)]
     pub gpu_acceleration: bool,
+    /// 自动更新通道：`"stable"`（正式版，偶数版本号）或 `"prerelease"`（尝鲜版，奇数/预发布）。
+    /// 默认 `"stable"`。
+    #[serde(default = "default_update_channel")]
+    pub update_channel: String,
 }
 
 fn default_auto_switch_on_overlay() -> String {
@@ -54,6 +58,10 @@ fn default_fullscreen_overlay() -> bool {
     true
 }
 
+fn default_update_channel() -> String {
+    "stable".to_string()
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -62,6 +70,7 @@ impl Default for AppSettings {
             fullscreen_overlay: default_fullscreen_overlay(),
             live_drag_preview: false,
             gpu_acceleration: false,
+            update_channel: default_update_channel(),
         }
     }
 }
@@ -924,6 +933,7 @@ mod tests {
         assert!(s.fullscreen_overlay);
         assert!(!s.live_drag_preview);
         assert!(!s.gpu_acceleration);
+        assert_eq!(s.update_channel, "stable");
     }
 
     #[test]
@@ -934,6 +944,7 @@ mod tests {
             fullscreen_overlay: false,
             live_drag_preview: true,
             gpu_acceleration: true,
+            update_channel: "prerelease".to_string(),
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -991,5 +1002,6 @@ mod tests {
         assert!(restored.settings.fullscreen_overlay);
         assert!(!restored.settings.live_drag_preview);
         assert!(!restored.settings.gpu_acceleration);
+        assert_eq!(restored.settings.update_channel, "stable");
     }
 }

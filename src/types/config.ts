@@ -88,4 +88,5 @@ export interface AppSettings {
   fullscreen_overlay: boolean;
   live_drag_preview: boolean;
   gpu_acceleration: boolean;
+  update_channel: string;
 }

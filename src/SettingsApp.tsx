@@ -49,8 +49,9 @@ export default function SettingsApp() {
           fullscreen_overlay?: boolean;
           live_drag_preview?: boolean;
           gpu_acceleration?: boolean;
+          update_channel?: string;
         }>("peregrine:settings-changed", (event) => {
-          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration } = event.payload;
+          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration, update_channel } = event.payload;
           if (auto_switch_on_overlay !== undefined) {
             setAutoSwitchState(auto_switch_on_overlay);
           }
@@ -68,6 +69,9 @@ export default function SettingsApp() {
             }
             if (gpu_acceleration !== undefined) {
               settings.gpu_acceleration = gpu_acceleration;
+            }
+            if (update_channel !== undefined) {
+              settings.update_channel = update_channel;
             }
             return { ...prev, settings };
           });
@@ -208,6 +212,33 @@ export default function SettingsApp() {
 
       <Separator className="my-4" />
 
+      {/* 更新通道 + 检查更新 */}
+      <div className="space-y-2">
+        <Label className="text-sm">{t("settings.updateChannel")}</Label>
+        <Select
+          value={config?.settings?.update_channel ?? "stable"}
+          onValueChange={(v) => {
+            if (!config) return;
+            const newConfig: AppConfig = {
+              ...config,
+              settings: { ...config.settings, update_channel: v },
+            };
+            setConfig(newConfig);
+            updatePreferences({ update_channel: v }).catch(console.error);
+          }}
+        >
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="stable" className="text-sm">{t("settings.updateChannelStable")}</SelectItem>
+            <SelectItem value="prerelease" className="text-sm">{t("settings.updateChannelPrerelease")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Separator className="my-4" />
+
       <div className="space-y-3">
         <h2 className="text-lg font-medium">{t("settings.about.title")}</h2>
         <p className="text-sm text-muted-foreground">
@@ -228,7 +259,8 @@ export default function SettingsApp() {
           onClick={async () => {
             setUpdateState({ status: "checking" });
             try {
-              const result = await checkForUpdate();
+              const channel = config?.settings?.update_channel ?? "stable";
+              const result = await checkForUpdate(channel);
               if (result.available) {
                 setUpdateState({ status: "available", version: result.version, body: result.body });
               } else {

@@ -1,0 +1,129 @@
+{
+  "app": {
+    "title": "Peregrine",
+    "version": "Version"
+  },
+  "config": {
+    "title": "Config",
+    "loading": "Loading…",
+    "style": "Style",
+    "opacity": "Opacity",
+    "color": "Color",
+    "targetWindow": "Target window",
+    "refresh": "Refresh",
+    "none": "(none)",
+    "startOverlay": "Start overlay",
+    "stopOverlay": "Stop overlay"
+  },
+  "overlay": {
+    "autoSwitchTitle": "Hide config window and switch to game?",
+    "autoSwitchDesc": "After starting the overlay, the config window will be hidden and focus will switch to the target game window. You can restore it from the tray.",
+    "rememberChoice": "Remember my choice",
+    "switchYes": "Yes, hide and switch",
+    "switchNo": "No, keep config window visible",
+    "switchToGame": "Switch and hide config window",
+    "keepConfig": "Keep config window",
+    "confirm": "Confirm"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "More settings will be added in future versions.",
+    "language": "Language",
+    "autoSwitch": "Switch to game on overlay start",
+    "autoSwitchHint": "Hide config window and focus the target window",
+    "autoSwitchAsk": "Ask every time",
+    "about": {
+      "title": "About Peregrine",
+      "description": "Peregrine is a desktop tool focused on reducing 3D motion sickness. It provides customizable visual anchors (such as crosshairs, border frames, edge arrows) on your screen to help you keep visual stability during fast camera turns or complex scenes, easing nausea and dizziness caused by vestibular-visual conflict. So you can play games like Half-Life 2, Mirror's Edge, Dying Light, and No Man's Sky that tend to trigger motion sickness.",
+      "version": "Version",
+      "license": "License",
+      "repository": "Repository"
+    }
+  },
+  "styles": {
+    "edge_rect": "Edge Rectangle",
+    "cross": "Crosshair",
+    "large_cross": "Large Crosshair",
+    "corner_dots4": "4 Corner Markers",
+    "corner_dots6": "6 Corner Markers",
+    "corner_dots8": "8 Corner Markers",
+    "ring": "Center Ring",
+    "custom_orb": "Custom Edge Markers",
+    "random_orb": "Random Edge Markers",
+    "border_frame": "Border Frame",
+    "custom_image": "Custom Image",
+    "edge_arrows": "Edge Arrows"
+  },
+  "anchors": {
+    "top": "Top",
+    "bottom": "Bottom",
+    "left": "Left",
+    "right": "Right",
+    "center": "Center"
+  },
+  "ringStyles": {
+    "solid": "Solid",
+    "dashed": "Dashed",
+    "double": "Double"
+  },
+  "borderStyles": {
+    "solid": "Solid",
+    "gap": "Gap"
+  },
+  "fields": {
+    "width": "Width",
+    "height": "Height",
+    "cornerRadius": "Corner radius",
+    "anchor": "Anchor",
+    "margin": "Margin",
+    "armLength": "Arm length",
+    "lineWidth": "Line width",
+    "centerGap": "Center gap",
+    "offset": "Offset distance",
+    "radius": "Radius",
+    "radiusAuto": "Radius (0 = auto)",
+    "lineWidthAuto": "Line width (used when radius is auto)",
+    "ringRadiusPct": "Ring radius (% of screen height)",
+    "ringStyle": "Ring style",
+    "countTop": "Top count",
+    "countBottom": "Bottom count",
+    "countLeft": "Left count",
+    "countRight": "Right count",
+    "perEdgeCount": "Count per edge",
+    "positionJitter": "Position jitter",
+    "radiusMin": "Min radius",
+    "radiusMax": "Max radius",
+    "barHeight": "Bar height",
+    "borderStyle": "Border style",
+    "arrowSize": "Arrow size",
+    "arrowWidth": "Arrow width (0 = equal)",
+    "tailPerEdge": "Set tail length per edge",
+    "tailTop": "Top",
+    "tailBottom": "Bottom",
+    "tailLeft": "Left",
+    "tailRight": "Right",
+    "tailLength": "Tail length",
+    "file": "File",
+    "imagePathPlaceholder": "PNG file path",
+    "browse": "Browse…",
+    "imageScale": "Scale",
+    "imageOffsetX": "Horizontal offset",
+    "imageOffsetY": "Vertical offset",
+    "enabled": "Enabled",
+    "top": "T",
+    "bottom": "B",
+    "left": "L",
+    "right": "R"
+  },
+  "preview": {
+    "placeholder": "Please select a PNG file"
+  },
+  "tray": {
+    "config": "Config",
+    "settings": "Settings",
+    "quit": "Quit"
+  },
+  "license": {
+    "polyform": "PolyForm Noncommercial · free for personal use · commercial resale prohibited"
+  }
+}

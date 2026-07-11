@@ -1,0 +1,129 @@
+{
+  "app": {
+    "title": "Peregrine",
+    "version": "版本"
+  },
+  "config": {
+    "title": "配置",
+    "loading": "加载中…",
+    "style": "类型",
+    "opacity": "透明度",
+    "color": "颜色",
+    "targetWindow": "目标窗口",
+    "refresh": "刷新",
+    "none": "（未选择）",
+    "startOverlay": "开始覆盖",
+    "stopOverlay": "停止覆盖"
+  },
+  "overlay": {
+    "autoSwitchTitle": "是否自动隐藏配置窗口并切换到游戏？",
+    "autoSwitchDesc": "开始覆盖后将隐藏配置窗口并将焦点切换到目标游戏窗口，需要时可从托盘恢复。",
+    "rememberChoice": "下次记住选择",
+    "switchYes": "是，自动隐藏并切换",
+    "switchNo": "否，保持配置窗口显示",
+    "switchToGame": "切换并隐藏配置窗口",
+    "keepConfig": "保持配置窗口",
+    "confirm": "确定"
+  },
+  "settings": {
+    "title": "设置",
+    "description": "更多设置项将在后续版本加入。",
+    "language": "语言",
+    "autoSwitch": "开始覆盖时自动切换到游戏",
+    "autoSwitchHint": "隐藏配置窗口并将焦点切到目标窗口",
+    "autoSwitchAsk": "每次询问",
+    "about": {
+      "title": "关于 Peregrine",
+      "description": "Peregrine 是一款专注于缓解 3D 眩晕（Motion Sickness）的桌面工具。它通过在屏幕上提供可定制的视觉锚点（如十字准星、边框、边缘箭头等），帮助玩家在快速转动视角或复杂场景中保持视觉稳定，减轻前庭-视觉冲突带来的恶心、头晕症状。让你能够正常游玩《半条命 2》《镜之边缘》《消逝的光芒》《无人深空》等容易引发眩晕的游戏。",
+      "version": "版本",
+      "license": "许可",
+      "repository": "仓库"
+    }
+  },
+  "styles": {
+    "edge_rect": "边缘矩形",
+    "cross": "十字准星",
+    "large_cross": "大型十字准星",
+    "corner_dots4": "四角标记",
+    "corner_dots6": "六角标记",
+    "corner_dots8": "八角标记",
+    "ring": "中心圆环",
+    "custom_orb": "自定义边缘标记",
+    "random_orb": "随机边缘标记",
+    "border_frame": "边框",
+    "custom_image": "自定义图片",
+    "edge_arrows": "边缘箭头"
+  },
+  "anchors": {
+    "top": "顶部",
+    "bottom": "底部",
+    "left": "左侧",
+    "right": "右侧",
+    "center": "居中"
+  },
+  "ringStyles": {
+    "solid": "实线",
+    "dashed": "虚线",
+    "double": "双线"
+  },
+  "borderStyles": {
+    "solid": "完整",
+    "gap": "缺口"
+  },
+  "fields": {
+    "width": "宽度",
+    "height": "高度",
+    "cornerRadius": "圆角半径",
+    "anchor": "锚点",
+    "margin": "边距",
+    "armLength": "臂长",
+    "lineWidth": "线宽",
+    "centerGap": "中心间隙",
+    "offset": "偏移距离",
+    "radius": "半径",
+    "radiusAuto": "半径（0 为自动）",
+    "lineWidthAuto": "线宽（自动半径时生效）",
+    "ringRadiusPct": "圆环半径占屏高比例",
+    "ringStyle": "圆环样式",
+    "countTop": "顶部数量",
+    "countBottom": "底部数量",
+    "countLeft": "左侧数量",
+    "countRight": "右侧数量",
+    "perEdgeCount": "每边数量",
+    "positionJitter": "位置扰动",
+    "radiusMin": "最小半径",
+    "radiusMax": "最大半径",
+    "barHeight": "矩形条高度",
+    "borderStyle": "边框样式",
+    "arrowSize": "箭头尺寸",
+    "arrowWidth": "箭头宽度（0 为等宽）",
+    "tailPerEdge": "分别设置尾部长度",
+    "tailTop": "上",
+    "tailBottom": "下",
+    "tailLeft": "左",
+    "tailRight": "右",
+    "tailLength": "尾部长度",
+    "file": "文件",
+    "imagePathPlaceholder": "PNG 文件路径",
+    "browse": "浏览…",
+    "imageScale": "缩放比例",
+    "imageOffsetX": "水平偏移",
+    "imageOffsetY": "垂直偏移",
+    "enabled": "启用",
+    "top": "上",
+    "bottom": "下",
+    "left": "左",
+    "right": "右"
+  },
+  "preview": {
+    "placeholder": "请选择 PNG 文件"
+  },
+  "tray": {
+    "config": "配置",
+    "settings": "设置",
+    "quit": "退出"
+  },
+  "license": {
+    "polyform": "PolyForm Noncommercial · 个人免费 · 禁止商业贩卖"
+  }
+}

@@ -14,8 +14,8 @@ permissions:
   contents: write
 
 env:
-  # 二进制包名（与 crates/peregrine 中的 [[bin]] name 保持一致）。
-  BIN_NAME: peregrine
+  # 新 Tauri 二进制包名。
+  BIN_NAME: peregrine-tauri
 
 jobs:
   # 构建 release 产物（Windows 多平台）。
@@ -29,15 +29,12 @@ jobs:
           - os: windows-latest
             target: i686-pc-windows-msvc
             asset_name: windows-x86
-            archive: zip
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             asset_name: windows-x64
-            archive: zip
           - os: windows-latest
             target: aarch64-pc-windows-msvc
             asset_name: windows-arm64
-            archive: zip
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,61 +49,30 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Build release binary
-        run: cargo build --release --locked -p peregrine --target ${{ matrix.target }}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
-      # 验证 exe 不再依赖 VC 运行时 DLL（VCRUNTIME140.dll 等）。
-      # +crt-static 会把这些静态链入；若此步骤失败，说明静态链接未生效，
-      # 分发给用户的 exe 会出现"找不到 VCRUNTIME140.dll"错误。
-      - name: Verify no VC runtime DLL dependency
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Tauri release (no-bundle，仅编译 exe)
+        run: npx tauri build --target ${{ matrix.target }} --no-bundle
+
+      # 将编译产物 exe 打包为便携 zip，用户下载解压即可运行，无需安装。
+      - name: Create portable zip
         shell: pwsh
         run: |
-          $exe = "target/${{ matrix.target }}/release/$env:BIN_NAME.exe"
-
-          # 定位 dumpbin.exe（windows-latest 默认未加入 PATH）。
-          # Hostx64\x64 版本的 dumpbin 可读取任意目标架构 exe 的导入表。
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vsPath = & $vswhere -latest -property installationPath
-          $dumpbin = Get-ChildItem "$vsPath\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1 -ExpandProperty FullName
-          if (-not $dumpbin) {
-            Write-Error "未找到 dumpbin.exe"
-            exit 1
-          }
-
-          $deps = & $dumpbin /dependents $exe 2>$null | Select-String -Pattern '\.dll' -CaseSensitive:$false
-          $forbidden = @(
-            'VCRUNTIME140.dll', 'VCRUNTIME140_1.dll', 'MSVCP140.dll',
-            'CONCRT140.dll', 'VCAMP140.dll', 'VCCORLIB140.dll'
-          )
-          $found = @()
-          foreach ($d in $deps) {
-            foreach ($f in $forbidden) {
-              if ($d -match $f) { $found += $f }
-            }
-          }
-          if ($found.Count -gt 0) {
-            Write-Error "exe 仍依赖 VC 运行时 DLL: $($found -join ', ')"
-            exit 1
-          }
-          Write-Host "✓ 无 VC 运行时 DLL 依赖"
-
-      # Windows 打包为 zip。
-      - name: Package (Windows)
-        shell: pwsh
-        run: |
-          $staging = "$env:BIN_NAME-$env:GITHUB_REF_NAME-${{ matrix.asset_name }}"
-          New-Item -ItemType Directory -Force -Path $staging | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/$env:BIN_NAME.exe" $staging
-          if (Test-Path README.md) { Copy-Item README.md $staging }
-          if (Test-Path LICENSE)   { Copy-Item LICENSE   $staging }
-          Compress-Archive -Path $staging -DestinationPath "${staging}.zip"
-          "ASSET=${staging}.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $exe = "target/${{ matrix.target }}/release/peregrine-tauri.exe"
+          $zip = "peregrine-${{ matrix.asset_name }}.zip"
+          Compress-Archive -Path $exe -DestinationPath $zip
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: ${{ env.ASSET }}
+          path: peregrine-${{ matrix.asset_name }}.zip
           if-no-files-found: error
 
   # 汇总产物并创建 GitHub Release。

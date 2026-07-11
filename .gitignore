@@ -27,6 +27,10 @@ Icon
 .env
 .env.local
 
+# 前端依赖与构建产物
+node_modules/
+dist/
+
 # 文档站点依赖与构建产物
 docs/node_modules
 docs/.vitepress/dist

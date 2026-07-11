@@ -6,6 +6,103 @@
 
 ---
 
+## [v0.1.3-alpha.4] — 2026-07-11
+
+### 变更
+
+- 移除「边框」样式的「四边中缝缺口（20%）」选项（`border_gap` 字段），该选项无实际渲染效果，属于死代码。
+- 暂时隐藏「自定义图片」准心样式（`custom_image`），存在已知问题待修复。
+- 未选择目标窗口时「开始覆盖」按钮禁用，防止用户误触。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
+## [v0.1.3-alpha.3] — 2026-07-11
+
+### 变更
+
+- 发布产物从 NSIS 安装程序（`*-setup.exe`）改回便携 zip 压缩包：每个架构单独打包为 `peregrine-windows-x86.zip` / `peregrine-windows-x64.zip` / `peregrine-windows-arm64.zip`，下载解压即可运行，无需安装。
+
+### 修复
+
+- 修复托盘菜单语言跟随系统语言失效：Windows 上 `LANG` 环境变量通常不存在，改用 Win32 API `GetUserDefaultLocaleName` 检测系统语言。
+- 修复「开始覆盖后自动隐藏并切换到游戏」功能失效：`SetForegroundWindow` 受前台锁定限制，改用 `AttachThreadInput` + `BringWindowToTop` 组合可靠切换。
+- 修复设置窗口修改「自动切换」偏好后配置窗口未同步：新增 `peregrine:settings-changed` 事件广播，两窗口 React state 实时同步。
+- 修复配置预览棋盘格背景错乱：`%` 运算符优先级高于 `+` 导致格子交替模式错乱。
+
+### 优化
+
+- 图标清晰度大幅提升：生成脚本改用 8x 超采样抗锯齿，ICO 包含 16/32/48/64/128/256 六档，托盘与窗口标题栏使用 1024x1024 高分辨率 PNG 源图，高 DPI 下清晰锐利。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
+## [v0.1.3-alpha.2] — 2026-07-10
+
+### 修复
+
+- 修复 `Locale` 类型包含 `"auto"` 后与 `localeMap` 索引类型不匹配导致的 TypeScript 编译失败，CI 构建中断。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
+## [v0.1.3-alpha.1] — 2026-07-10
+
+### 新增
+
+- 语言设置新增「跟随系统」选项，默认根据系统语言自动选择简体中文或英文。
+- 设置页新增「开始覆盖时自动切换到游戏」偏好：每次询问 / 是 / 否。
+- 首次点击「开始覆盖」时弹出确认对话框，可选择是否记住该选择。
+
+### 变更
+
+- 语言与自动切换偏好统一持久化到 `config.json` 的 `settings` 中，移除前端的 `localStorage` 依赖，跨窗口同步更可靠。
+- 托盘菜单文本在应用启动时即根据当前语言初始化。
+
+### 修复
+
+- 修复 `npm ci` 时 `picomatch` 版本与 `package-lock.json` 不一致导致的安装失败。
+- 修复 alpha 预发布版本号无法打包 MSI 的问题：发布产物改用 NSIS（`*-setup.exe`）。
+- 修复 overlay 事件循环在非主线程创建时缺少 `with_any_thread(true)` 导致的 panic。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
+## [v0.1.3-alpha.0] — 2026-07-10
+
+### 新增
+
+- 应用国际化：支持简体中文与英文，在「设置 → 语言」中切换，窗口标题、托盘菜单、错误提示同步切换。
+- 文档站点增加完整英文版。
+- 新增「术语表」页面（中英文），强制统一核心概念与 12 种视觉锚点样式名称。
+
+### 修复
+
+- 修复 `RandomOrb` 样式在前端预览与 Rust 覆盖层之间的 RNG 不一致，统一为相同 64-bit LCG，确保随机边缘标记位置一致。
+- 清理 `shapes.rs` / `overlay_renderer.rs` 中残留的 egui / settings_ui 时代注释。
+
+### 文档
+
+- 统一 `docs/`、`README.md`、`HELP.md` 中的中英文术语：视觉锚点、覆盖层、配置窗口、边缘矩形、十字准星、边缘标记、中心圆环等。
+- 更新构建说明为 Tauri 流程（`npm install` + `npx tauri dev/build`）。
+- 补全 `docs/en/guide/config.md` 英文版配置说明。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
+## [v0.2.0-alpha.2] — 2026-07-08
+
+### 修复
+
+- 十字准星（Cross）调整间距时整体向左上偏移：左臂与顶臂多减了一个半间距，导致左侧/上方间距是右侧/下方的两倍。修正为以中心对称展开，间距两侧均等。
+
+---
+
 ## [v0.1.1-alpha.1] — 2026-07-07
 
 ### 修复
@@ -105,6 +202,12 @@
 
 ---
 
+[v0.1.3-alpha.4]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.4
+[v0.1.3-alpha.3]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.3
+[v0.1.3-alpha.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.2
+[v0.1.3-alpha.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.1
+[v0.1.3-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.0
+[v0.2.0-alpha.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.2.0-alpha.2
 [v0.1.1-alpha.1]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.1-alpha.1
 [v0.2.0-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.2.0-alpha.0
 [v0.1.0-alpha.12]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.0-alpha.12

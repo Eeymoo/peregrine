@@ -12,6 +12,40 @@ pub struct AppConfig {
     pub active_profile: String,
     /// 所有可用 Profile，按名称索引。
     pub profiles: std::collections::HashMap<String, Profile>,
+    /// 应用级 UI 设置（非 Profile 绑定的全局偏好）。
+    #[serde(default)]
+    pub settings: AppSettings,
+}
+
+/// 应用级 UI 设置（全局偏好，不随 Profile 切换）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AppSettings {
+    /// 开始覆盖时是否自动隐藏配置窗口并切换到目标窗口。
+    /// - `"yes"`: 自动隐藏并切换
+    /// - `"no"`: 保持配置窗口显示
+    /// - `"ask"`: 每次询问
+    #[serde(default = "default_auto_switch_on_overlay")]
+    pub auto_switch_on_overlay: String,
+    /// UI 语言（`"zh-CN"` / `"en"`），`"auto"` 表示跟随系统语言。
+    #[serde(default = "default_locale")]
+    pub locale: String,
+}
+
+fn default_auto_switch_on_overlay() -> String {
+    "ask".to_string()
+}
+
+fn default_locale() -> String {
+    "auto".to_string()
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            auto_switch_on_overlay: default_auto_switch_on_overlay(),
+            locale: default_locale(),
+        }
+    }
 }
 
 /// 单个 Profile 配置。
@@ -35,10 +69,10 @@ pub struct Crosshair {
     /// 辅助贴图样式类型。
     pub style: CrosshairStyle,
     /// 贴图主尺寸，单位像素。
-    /// 卫生纸用做宽度；准星用做十字臂长；定位球用于限制半径/偏移上限。
+    /// 贴边矩形用做宽度；准星用做十字臂长；定位球用于限制半径/偏移上限。
     pub size: f32,
     /// 贴图次尺寸，单位像素。
-    /// 卫生纸用做高度；其他样式可忽略。
+    /// 贴边矩形用做高度；其他样式可忽略。
     #[serde(default = "default_secondary_size")]
     pub secondary_size: f32,
     /// 贴图线条/圆形厚度，单位像素。
@@ -56,13 +90,13 @@ pub struct Crosshair {
     pub opacity: f32,
     /// 中心点间隙，单位像素（准星等样式用到）。
     pub gap: f32,
-    /// 矩形贴图圆角半径，单位像素（卫生纸用到）。
+    /// 矩形贴图圆角半径，单位像素（贴边矩形用到）。
     #[serde(default = "default_corner_radius")]
     pub corner_radius: f32,
-    /// 矩形贴图（卫生纸）的贴边位置。
+    /// 矩形贴图（贴边矩形）的贴边位置。
     #[serde(default)]
     pub anchor: Anchor,
-    /// 矩形贴图（卫生纸）与贴边外侧的边距，单位像素。
+    /// 矩形贴图（贴边矩形）与贴边外侧的边距，单位像素。
     #[serde(default = "default_margin")]
     pub margin: f32,
     /// 中心环：环半径占屏幕高度的比例。
@@ -95,9 +129,6 @@ pub struct Crosshair {
     /// 边框：样式变体。
     #[serde(default)]
     pub border_frame_style: BorderFrameStyle,
-    /// 边框：四边中间是否留 20% 缺口。
-    #[serde(default)]
-    pub border_gap: bool,
     /// 边框：矩形条是否位于屏幕内侧。
     #[serde(default = "default_border_inset")]
     pub border_inset: bool,
@@ -206,7 +237,7 @@ fn default_border_inset() -> bool {
     true
 }
 
-/// 矩形贴图（卫生纸）可贴靠的屏幕边缘位置。
+/// 矩形贴图（贴边矩形）可贴靠的屏幕边缘位置。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Anchor {
@@ -227,8 +258,9 @@ pub enum Anchor {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CrosshairStyle {
-    /// 卫生纸：屏幕中心一定尺寸的白色半透明矩形，模拟贴了一张卫生纸。
-    ToiletPaper,
+    /// 贴边矩形：可贴靠屏幕四边或居中的半透明矩形，作为固定视觉锚点。
+    #[serde(alias = "toilet_paper")]
+    EdgeRect,
     /// 准星：屏幕中心十字线。
     Cross,
     /// 大准星：从屏幕边缘延伸到屏幕中心的水平线与垂直线。
@@ -353,6 +385,7 @@ impl AppConfig {
         Self {
             active_profile: "default".to_string(),
             profiles,
+            settings: AppSettings::default(),
         }
     }
 
@@ -412,10 +445,10 @@ impl Profile {
 }
 
 impl Crosshair {
-    /// 生成默认辅助贴图配置：卫生纸样式，尺寸 120x80、厚度 2、白色、透明度 60%。
+    /// 生成默认辅助贴图配置：贴边矩形样式，尺寸 120x80、厚度 2、白色、透明度 60%。
     pub fn default_crosshair() -> Self {
         Self {
-            style: CrosshairStyle::ToiletPaper,
+            style: CrosshairStyle::EdgeRect,
             size: 120.0,
             secondary_size: 80.0,
             thickness: 2.0,
@@ -437,7 +470,6 @@ impl Crosshair {
             random_orb_x: 0.0,
             random_orb_y: 0.0,
             border_frame_style: BorderFrameStyle::default(),
-            border_gap: false,
             border_inset: true,
             custom_orb_top_count: default_custom_orb_count(),
             custom_orb_bottom_count: default_custom_orb_count(),
@@ -693,7 +725,6 @@ mod tests {
     fn border_frame_defaults() {
         let ch = Crosshair::default_crosshair();
         assert!(ch.border_inset);
-        assert!(!ch.border_gap);
         assert_eq!(ch.border_frame_style, BorderFrameStyle::Solid);
     }
 
@@ -733,6 +764,7 @@ mod tests {
     #[test]
     fn all_new_styles_serialize_roundtrip() {
         for style in [
+            CrosshairStyle::EdgeRect,
             CrosshairStyle::Ring,
             CrosshairStyle::CustomOrb,
             CrosshairStyle::RandomOrb,
@@ -744,6 +776,44 @@ mod tests {
             let restored: Crosshair = serde_json::from_str(&json).unwrap();
             assert_eq!(restored.style, style);
         }
+    }
+
+    #[test]
+    fn edge_rect_alias_loads_old_toilet_paper() {
+        let json = r#"{
+            "style": "toilet_paper",
+            "size": 120.0,
+            "secondary_size": 80.0,
+            "thickness": 2.0,
+            "radius": 0.0,
+            "offset": 0.0,
+            "color": [1.0, 1.0, 1.0, 1.0],
+            "opacity": 0.6,
+            "gap": 4.0,
+            "corner_radius": 4.0,
+            "anchor": "top",
+            "margin": 0.0,
+            "ring_radius_pct": 0.05,
+            "ring_style": "solid",
+            "orb_positions": 3,
+            "random_mode": "lock_on_start",
+            "random_center_deviation": 0.2,
+            "random_radius_min": 4.0,
+            "random_radius_max": 12.0,
+            "random_orb_x": 0.0,
+            "random_orb_y": 0.0,
+            "border_frame_style": "solid",
+            "border_inset": true,
+            "custom_orb_top_count": 3,
+            "custom_orb_bottom_count": 3,
+            "custom_orb_left_count": 3,
+            "custom_orb_right_count": 3,
+            "random_orb_count": 3,
+            "random_orb_offset": 100.0,
+            "random_orb_jitter": 40.0
+        }"#;
+        let restored: Crosshair = serde_json::from_str(json).unwrap();
+        assert_eq!(restored.style, CrosshairStyle::EdgeRect);
     }
 
     #[test]
@@ -812,7 +882,6 @@ mod tests {
             "random_orb_x": 0.0,
             "random_orb_y": 0.0,
             "border_frame_style": "solid",
-            "border_gap": false,
             "border_inset": true,
             "custom_orb_top_count": 3,
             "custom_orb_bottom_count": 3,
@@ -827,5 +896,73 @@ mod tests {
         assert_eq!(restored.image_scale, 1.0);
         assert_eq!(restored.image_offset_x, 0.0);
         assert_eq!(restored.image_offset_y, 0.0);
+    }
+
+    #[test]
+    fn app_settings_defaults() {
+        let s = AppSettings::default();
+        assert_eq!(s.auto_switch_on_overlay, "ask");
+        assert_eq!(s.locale, "auto");
+    }
+
+    #[test]
+    fn app_settings_roundtrip() {
+        let s = AppSettings {
+            auto_switch_on_overlay: "yes".to_string(),
+            locale: "en".to_string(),
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let restored: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, s);
+    }
+
+    #[test]
+    fn old_config_without_settings_loads() {
+        // 模拟旧配置文件（无 settings 字段），serde 应回退到 AppSettings::default()。
+        let json = r#"{
+            "active_profile": "default",
+            "profiles": {
+                "default": {
+                    "crosshair": {
+                        "style": "cross",
+                        "size": 10.0,
+                        "secondary_size": 48.0,
+                        "thickness": 2.0,
+                        "radius": 0.0,
+                        "offset": 0.0,
+                        "color": [1.0, 1.0, 1.0, 1.0],
+                        "opacity": 0.8,
+                        "gap": 4.0,
+                        "corner_radius": 4.0,
+                        "anchor": "center",
+                        "margin": 0.0,
+                        "ring_radius_pct": 0.05,
+                        "ring_style": "solid",
+                        "orb_positions": 3,
+                        "random_mode": "lock_on_start",
+                        "random_center_deviation": 0.2,
+                        "random_radius_min": 4.0,
+                        "random_radius_max": 12.0,
+                        "random_orb_x": 0.0,
+                        "random_orb_y": 0.0,
+                        "border_frame_style": "solid",
+                                    "border_inset": true,
+                        "custom_orb_top_count": 3,
+                        "custom_orb_bottom_count": 3,
+                        "custom_orb_left_count": 3,
+                        "custom_orb_right_count": 3,
+                        "random_orb_count": 3,
+                        "random_orb_offset": 100.0,
+                        "random_orb_jitter": 40.0
+                    },
+                    "trigger": { "enabled": true, "process_names": [] },
+                    "settings_hotkey": "F10",
+                    "target_window": ""
+                }
+            }
+        }"#;
+        let restored: AppConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(restored.settings.auto_switch_on_overlay, "ask");
+        assert_eq!(restored.settings.locale, "auto");
     }
 }

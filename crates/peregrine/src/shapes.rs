@@ -1,11 +1,11 @@
 //! 准心几何计算共享模块。
 //!
-//! 预览（egui）与覆盖层（softbuffer）使用同一套几何公式，
+//! 预览（React Canvas）与覆盖层（softbuffer）使用同一套几何公式，
 //! 确保用户所见即所得：预览中准心的大小、位置与最终 overlay 完全一致。
 //!
 //! 使用方式：
 //! 1. 调用 [`build_shapes`] 得到一组 [`Shape`]（矩形、圆、圆环等）；
-//! 2. 预览用 egui painter 绘制；overlay 用 CPU 像素光栅化绘制。
+//! 2. 前端预览用 Canvas 2D 绘制；overlay 用 CPU 像素光栅化绘制。
 //! 3. 两者输入相同（`RectF` + `Crosshair`），输出形状完全一致。
 
 use peregrine_config::{
@@ -86,9 +86,9 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
             let arm = crosshair.size;
             let half_gap = crosshair.gap / 2.0;
             let thickness = crosshair.thickness;
-            // 四条臂。
+            // 四条臂（以中心为原点对称展开，间距两侧均等）。
             shapes.push(Shape::Rect {
-                x: cx - arm - half_gap,
+                x: cx - arm,
                 y: cy - thickness / 2.0,
                 w: arm - half_gap,
                 h: thickness,
@@ -101,7 +101,7 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
             });
             shapes.push(Shape::Rect {
                 x: cx - thickness / 2.0,
-                y: cy - arm - half_gap,
+                y: cy - arm,
                 w: thickness,
                 h: arm - half_gap,
             });
@@ -127,7 +127,7 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                 h: screen.height(),
             });
         }
-        CrosshairStyle::ToiletPaper => {
+        CrosshairStyle::EdgeRect => {
             let w = crosshair.size;
             let h = crosshair.secondary_size;
             let margin = crosshair.margin;
@@ -495,7 +495,7 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
     shapes
 }
 
-/// 在一条边上均匀分布绘制圆点（与 overlay_renderer / settings_ui 的逻辑一致）。
+/// 在一条边上均匀分布绘制圆点（与 overlay_renderer / 前端 Preview 的逻辑一致）。
 fn edge_orb_shapes(
     shapes: &mut Vec<Shape>,
     x0: f32,

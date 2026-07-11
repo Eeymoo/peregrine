@@ -215,6 +215,7 @@ export default function SettingsApp() {
         </p>
         <ul className="text-sm space-y-1 text-muted-foreground">
           <li>{t("settings.about.version")}：{version || "..."}</li>
+          <li>{t("settings.about.publisher")}：Eeymoo</li>
           <li>{t("settings.about.license")}：{t("license.mit")}</li>
           <li>{t("settings.about.repository")}：https://github.com/Eeymoo/peregrine</li>
         </ul>

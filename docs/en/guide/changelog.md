@@ -6,7 +6,9 @@ For full stable release notes, see [GitHub Releases](https://github.com/Eeymoo/p
 
 ---
 
-## v0.1.4-alpha.0 — 2026-07-11
+## v0.1.4 — 2026-07-11 (Stable)
+
+License changed to MIT — fully open source. New fullscreen/window overlay modes, GPU acceleration toggle, screen scaling adaptation, and major memory/CPU optimizations.
 
 ### Changed
 
@@ -14,25 +16,29 @@ For full stable release notes, see [GitHub Releases](https://github.com/Eeymoo/p
 
 ### New
 
-- **Fullscreen / Window overlay mode**: In fullscreen mode, the overlay covers the entire screen without needing to select a target window. In window mode, the overlay only covers the target window area. Toggle via the "Window Mode" checkbox in the config page or the tray menu — both stay in sync.
-- **Live drag preview setting**: In Settings, you can enable "Live Drag Preview". When enabled, the overlay follows the window in real time during dragging. When disabled (default), the overlay reappears ~1200ms after dragging stops, reducing CPU usage.
-- **GPU hardware acceleration toggle**: In Settings, you can enable GPU hardware acceleration (disabled by default). When off, pure CPU rendering is used to reduce GPU process memory usage.
-- **Automated version numbering**: The version number is now read dynamically from the git tag. CI builds sync it automatically — no more manual maintenance.
+- **Fullscreen / Window overlay mode**: Fullscreen mode (default) covers the entire screen without needing a target window. Window mode covers only the target window area. Toggle via config page or tray menu — both stay in sync.
+- **Live drag preview setting**: Enable in Settings for real-time overlay following during window drag. When off (default), overlay reappears ~1200ms after dragging stops.
+- **GPU hardware acceleration toggle**: Enable in Settings (off by default). A restart confirmation dialog appears when toggled.
+- **Automated version numbering**: Version read dynamically from git tag, synced automatically during CI builds.
 
 ### Optimizations
 
-- **Preview scale fix**: The preview area now builds crosshair shapes at real resolution then scales down proportionally. What you see is what you get — no more distorted proportions from canvas size mismatch.
-- **Static crosshairs no longer redraw continuously**: A dirty-flag mechanism skips per-frame redraws for stationary crosshairs, significantly reducing overlay CPU usage.
-- Capped overlay render rate to 60 FPS, eliminating busy-loop redraws.
-- Closing config/settings windows now truly destroys WebView2 instead of hiding to tray, freeing memory.
-- Settings window is no longer pre-created at startup — created on demand to reduce startup memory.
+- **Preview scale fix**: Preview builds crosshair shapes at real resolution then scales proportionally — WYSIWYG.
+- **Static crosshairs no longer redraw continuously**: Dirty-flag mechanism significantly reduces overlay CPU usage.
+- **Screen scaling adaptation**: Fullscreen overlay follows resolution/DPI changes instantly.
+- **Real-time preview refresh**: ResizeObserver triggers immediate redraw on window resize.
+- **Debounced config saving**: Continuous operations write only once 300ms after the last change.
+- Closing windows now truly destroys WebView2 instead of hiding to tray.
+- Release zip now includes `peregrine-v*.exe`, `README.md`, and `LICENSE`.
 
 ### Fixes
 
-- Fixed incorrect overlay position in fullscreen mode: initial placement was missing.
-- Fixed overlay status showing incorrectly when opening the config page: `get_overlay_active` now reads the atomic state directly.
-- Fixed ESC dialog behavior: ESC cancel now equals stop overlay + close dialog; keeping the config window no longer stops the overlay.
-- Fixed tray "Exit" not working: a `quitting` flag now distinguishes explicit exit from window close.
+- Fixed incorrect overlay position in fullscreen mode.
+- Fixed overlay status showing incorrectly when opening config page.
+- Fixed ESC dialog behavior.
+- Fixed WebView2 process memory not released after window close.
+- Fixed tray "Exit" not working.
+- Fixed documentation deployment CI failure.
 
 ---
 

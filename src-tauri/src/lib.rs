@@ -10,10 +10,12 @@
 use peregrine_config::{ConfigNotifier, ConfigSnapshot, ConfigStorage};
 use std::sync::{Arc, Mutex, mpsc};
 use tauri::{
-    Emitter, Manager, State, WindowEvent,
+    Emitter, Manager, State,
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder},
+    WebviewUrl,
+    webview::WebviewWindowBuilder,
 };
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -114,6 +116,8 @@ pub struct AppState {
     pub overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
     /// 当前 UI 语言，用于后端错误提示国际化。
     pub locale: Mutex<String>,
+    /// 标记是否由托盘「退出」主动触发，避免阻止真正的退出流程。
+    pub quitting: std::sync::atomic::AtomicBool,
 }
 
 /// 托盘菜单项句柄，用于运行时更新菜单文本。
@@ -121,6 +125,55 @@ pub struct TrayMenuState {
     pub config_item: MenuItem<tauri::Wry>,
     pub settings_item: MenuItem<tauri::Wry>,
     pub quit_item: MenuItem<tauri::Wry>,
+}
+
+/// 创建配置窗口（config），并在关闭时真正销毁 WebView2。
+fn create_config_window(app: &impl tauri::Manager<tauri::Wry>) -> tauri::Result<tauri::WebviewWindow> {
+    let win_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))
+        .expect("failed to load window icon");
+    let window = WebviewWindowBuilder::new(app, "config", WebviewUrl::App("index.html".into()))
+        .title("Peregrine 配置")
+        .inner_size(1080.0, 720.0)
+        .min_inner_size(900.0, 600.0)
+        .resizable(true)
+        .decorations(true)
+        .center()
+        .skip_taskbar(false)
+        .build()?;
+    let _ = window.set_icon(win_icon);
+    Ok(window)
+}
+
+/// 创建设置窗口（settings），并在关闭时真正销毁 WebView2。
+fn create_settings_window(app: &impl tauri::Manager<tauri::Wry>) -> tauri::Result<tauri::WebviewWindow> {
+    let win_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))
+        .expect("failed to load window icon");
+    let window = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()))
+        .title("Peregrine 设置")
+        .inner_size(600.0, 420.0)
+        .min_inner_size(480.0, 360.0)
+        .resizable(true)
+        .decorations(true)
+        .center()
+        .skip_taskbar(false)
+        .visible(false)
+        .build()?;
+    let _ = window.set_icon(win_icon);
+    Ok(window)
+}
+
+/// 恢复或重新创建指定标签的窗口。
+fn show_or_recreate_window<F>(app: &tauri::AppHandle, label: &str, create: F)
+where
+    F: FnOnce(&tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow>,
+{
+    if let Some(window) = app.get_webview_window(label) {
+        let _ = window.show();
+        let _ = window.set_focus();
+    } else if let Ok(window) = create(app) {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 }
 
 /// 启动 Tauri 应用。
@@ -180,6 +233,7 @@ pub fn run() {
         config: shared_config,
         overlay_cmd_tx,
         locale: Mutex::new(initial_locale.clone()),
+        quitting: std::sync::atomic::AtomicBool::new(false),
     };
 
     tauri::Builder::default()
@@ -215,66 +269,38 @@ pub fn run() {
             let _tray = tray_builder
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "config" => {
-                        if let Some(window) = app.get_webview_window("config") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+                        show_or_recreate_window(app, "config", create_config_window);
                     }
                     "settings" => {
-                        if let Some(window) = app.get_webview_window("settings") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+                        show_or_recreate_window(app, "settings", create_settings_window);
                     }
                     "quit" => {
+                        // 标记主动退出，避免 ExitRequested 被阻止。
+                        let state = app.state::<AppState>();
+                        state
+                            .quitting
+                            .store(true, std::sync::atomic::Ordering::SeqCst);
                         app.exit(0);
                     }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    // 左键点击托盘图标恢复配置窗口。
+                    // 左键点击托盘图标恢复配置窗口（不存在则重新创建）。
                     if let tauri::tray::TrayIconEvent::Click {
                         button: MouseButton::Left,
                         ..
                     } = event
                     {
                         let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("config") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+                        show_or_recreate_window(app, "config", create_config_window);
                     }
                 })
                 .build(app)?;
 
-            // 启动时确保配置窗口可见并前置。
-            let config_window = app.get_webview_window("config").unwrap();
-            // 设置高分辨率窗口图标（标题栏 + 任务栏）。
-            let win_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))
-                .expect("failed to load window icon");
-            let _ = config_window.set_icon(win_icon.clone());
+            // 启动时只创建配置窗口并前置；设置窗口按需创建，不占用启动内存。
+            let config_window = create_config_window(app)?;
             let _ = config_window.show();
             let _ = config_window.set_focus();
-
-            // 关闭配置窗口时隐藏到托盘，而不是退出。
-            let config_clone = config_window.clone();
-            config_window.on_window_event(move |event| {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let _ = config_clone.hide();
-                }
-            });
-
-            // 关闭设置窗口时同样隐藏到托盘。
-            let settings_window = app.get_webview_window("settings").unwrap();
-            let _ = settings_window.set_icon(win_icon);
-            let settings_clone = settings_window.clone();
-            settings_window.on_window_event(move |event| {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let _ = settings_clone.hide();
-                }
-            });
 
             Ok(())
         })
@@ -289,19 +315,27 @@ pub fn run() {
             update_preferences,
             focus_target_window,
         ])
-        .on_window_event(|_app_handle, event| {
-            // 窗口关闭时隐藏到托盘（双重保险）。
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-            }
-        })
         .build(tauri::generate_context!())
         .expect("build tauri app")
         .run(|_app_handle, event| {
-            if let tauri::RunEvent::Exit = event {
-                // 退出时通知 overlay 线程停止。
-                let state = _app_handle.state::<AppState>();
-                let _ = state.overlay_cmd_tx.send(overlay::OverlayCommand::Stop);
+            match event {
+                tauri::RunEvent::ExitRequested { api, .. } => {
+                    // 窗口关闭时只销毁 WebView，不退出应用；
+                    // 托盘点「退出」会设置 quitting 标志，此时允许退出。
+                    let state = _app_handle.state::<AppState>();
+                    if !state
+                        .quitting
+                        .load(std::sync::atomic::Ordering::SeqCst)
+                    {
+                        api.prevent_exit();
+                    }
+                }
+                tauri::RunEvent::Exit => {
+                    // 退出时通知 overlay 线程停止。
+                    let state = _app_handle.state::<AppState>();
+                    let _ = state.overlay_cmd_tx.send(overlay::OverlayCommand::Stop);
+                }
+                _ => {}
             }
         });
 }

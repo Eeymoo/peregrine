@@ -6,6 +6,22 @@
 
 ---
 
+## [v0.1.4-alpha.0] — 2026-07-11
+
+### 优化
+
+- 限制 overlay 渲染帧率为 60 FPS：消除 `about_to_wait` 与 `RedrawRequested` 重复渲染导致的忙循环，显著降低「开始覆盖」后的 CPU 占用。
+- 关闭配置/设置窗口时真正销毁 WebView2：不再隐藏到托盘占内存，托盘点「配置」「设置」时再重新创建。
+- 启动时不预创建「设置」窗口：按需创建，进一步降低启动内存。
+
+### 修复
+
+- 修复托盘「退出」失效：`RunEvent::ExitRequested` 全局阻止退出会拦截 `app.exit(0)`，改为通过 `quitting` 标志区分主动退出与窗口关闭。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
 ## [v0.1.3-alpha.4] — 2026-07-11
 
 ### 变更
@@ -202,6 +218,7 @@
 
 ---
 
+[v0.1.4-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.4-alpha.0
 [v0.1.3-alpha.4]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.4
 [v0.1.3-alpha.3]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.3
 [v0.1.3-alpha.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.2

@@ -9,6 +9,7 @@ use peregrine::overlay_renderer;
 use peregrine::platform;
 use peregrine_config::ConfigSnapshot;
 use std::sync::{Arc, Mutex, mpsc};
+use std::time::{Duration, Instant};
 #[cfg(windows)]
 use winit::application::ApplicationHandler;
 #[cfg(windows)]
@@ -90,6 +91,10 @@ struct OverlayApp {
     overlay_active: bool,
     target_title: String,
     follower_stop: Option<tokio::sync::oneshot::Sender<()>>,
+    /// 上一帧渲染时间，用于限制 overlay 帧率避免空转占 CPU。
+    last_render: Option<Instant>,
+    /// 目标帧间隔（60 FPS ≈ 16.6 ms）。
+    frame_interval: Duration,
 }
 
 #[cfg(windows)]
@@ -102,6 +107,8 @@ impl OverlayApp {
             overlay_active: false,
             target_title: String::new(),
             follower_stop: None,
+            last_render: None,
+            frame_interval: Duration::from_nanos(16_666_667),
         }
     }
 
@@ -250,7 +257,7 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
 
     fn window_event(
         &mut self,
-        _event_loop: &ActiveEventLoop,
+        event_loop: &ActiveEventLoop,
         _window_id: WindowId,
         event: WindowEvent,
     ) {
@@ -265,20 +272,40 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
                 }
             }
             WindowEvent::RedrawRequested => {
+                // 额外兜底：防止外部事件在短时间内触发多次重绘。
+                let now = Instant::now();
+                if let Some(last) = self.last_render {
+                    if now.saturating_duration_since(last) < self.frame_interval {
+                        return;
+                    }
+                }
                 if let Some(renderer) = self.renderer.as_mut() {
                     renderer.render_overlay();
+                    self.last_render = Some(now);
                 }
+                event_loop.set_control_flow(ControlFlow::WaitUntil(now + self.frame_interval));
             }
             _ => {}
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(renderer) = self.renderer.as_mut() {
-            renderer.render_overlay();
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(window) = self.window.as_ref() else {
+            // overlay 未运行时避免用旧的 WaitUntil 空转。
+            event_loop.set_control_flow(ControlFlow::Wait);
+            return;
+        };
+
+        // 限制帧率：静态准心不需要无限制重绘，60 FPS 足够覆盖 RandomOrb 动画。
+        let now = Instant::now();
+        if let Some(last) = self.last_render {
+            let elapsed = now.saturating_duration_since(last);
+            if elapsed < self.frame_interval {
+                event_loop.set_control_flow(ControlFlow::WaitUntil(last + self.frame_interval));
+                return;
+            }
         }
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+
+        window.request_redraw();
     }
 }

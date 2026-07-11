@@ -32,7 +32,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/Eeymoo/peregrine/releases/download/v0.1.5-alpha.14/prerelease.json"
+        "https://github.com/Eeymoo/peregrine/releases/latest/download/stable.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJGRDMyRTkxNjFBREVDMTQKUldRVTdLMWhrUzdUdndXQmZSSWFCUnowYnhQWHd4MTJjdjNjaUIvNWpOQkVzTjNKWmtqVWR5eDgK"
     }

@@ -4,6 +4,37 @@
 
 ---
 
+## [v0.1.5] — 2026-07-11
+
+正式版本。新增 NSIS 安装程序与内置自动更新功能，支持正式版（stable）与尝鲜版（prerelease）双通道检测。
+
+### 新增
+
+- **NSIS 安装程序**：提供 `setup.exe` 安装包，安装后支持自动更新；便携 zip 仍保留。
+- **内置自动更新**：设置页「检查更新」按钮，自动检测并下载安装新版本；下载进度条实时显示。
+- **启动自动检测**：打开配置页面时延迟 3 秒自动检测新版本，发现后弹窗提示。
+- **双通道更新**：正式版（stable）走 `releases/latest/download/stable.json`，尝鲜版（prerelease）走对应 tag 的 `prerelease.json`，用户可在设置中切换更新通道。
+- **关于页面发行者信息**：关于对话框显示发行者（Eeymoo）、许可（MIT）、仓库链接与动态版本号。
+
+### 修复
+
+- 修复点击更新后弹窗未清除导致重复检测。
+- 修复 `PreferencesPatch` 缺少 `update_channel` 字段导致 CI 编译失败。
+- 修复 CI 签名缺失时未报错退出的问题。
+- 移除设置页面冗余提示文案。
+
+### 构建
+
+- CI 启用 `createUpdaterArtifacts`，自动为 NSIS 安装包生成 `.sig` 签名文件。
+- CI 清理调试日志，精简构建步骤。
+
+### 下载
+
+- Windows x86 / x86_64 / ARM64 NSIS 安装包（支持自动更新）见 Release Assets。
+- Windows x86 / x86_64 / ARM64 便携 zip 见 Release Assets。
+
+---
+
 ## [v0.1.4] — 2026-07-11
 
 正式版本。协议变更为 MIT 完全开源；新增全屏/窗口覆盖模式、GPU 加速开关、屏幕缩放自适应；大幅优化内存占用与 CPU 消耗。
@@ -172,6 +203,7 @@
 
 ---
 
+[v0.1.5]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.5
 [v0.1.4]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.4
 [v0.1.3]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3
 [v0.1.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.2

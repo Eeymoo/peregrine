@@ -68,38 +68,17 @@ jobs:
           node -e "const fs=require('fs');const p=require('./package.json');p.version='$VERSION';fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
           node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
 
-      - name: Debug signing env
-        shell: bash
-        run: |
-          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
-            echo "::error::TAURI_SIGNING_PRIVATE_KEY is EMPTY or not set"
-          else
-            echo "TAURI_SIGNING_PRIVATE_KEY is set (length: $(echo -n '${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}' | wc -c))"
-          fi
-          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}" ]; then
-            echo "::warning::TAURI_SIGNING_PRIVATE_KEY_PASSWORD is EMPTY or not set"
-          else
-            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is set"
-          fi
-
       - name: Build Tauri release (NSIS + 签名)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         shell: bash
         run: |
-          echo "Signing key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
-          echo "Password length: ${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD}"
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "Key starts with: ${TAURI_SIGNING_PRIVATE_KEY:0:20}..."
-          else
-            echo "ERROR: TAURI_SIGNING_PRIVATE_KEY is empty!"
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set"
+            exit 1
           fi
-          npx tauri build --target ${{ matrix.target }} --bundles nsis --verbose 2>&1 | tee build.log
-          echo "=== Checking for .sig files ==="
-          find target/${{ matrix.target }}/release/bundle/nsis/ -name "*.sig" -exec echo "Found: {}" \; || echo "No .sig files found"
-          echo "=== NSIS dir contents ==="
-          ls -la target/${{ matrix.target }}/release/bundle/nsis/ || true
+          npx tauri build --target ${{ matrix.target }} --bundles nsis
 
       - name: Rename NSIS installer
         shell: pwsh
@@ -110,7 +89,6 @@ jobs:
           if ($setup) {
             $dst = "peregrine-v${VERSION}-${{ matrix.asset_name }}-setup.exe"
             Copy-Item $setup.FullName $dst
-            Write-Host "Renamed to $dst"
           } else {
             Write-Host "No NSIS installer found"
             exit 1
@@ -119,11 +97,8 @@ jobs:
           if ($sig) {
             $sigDst = "peregrine-v${VERSION}-${{ matrix.asset_name }}-setup.exe.sig"
             Copy-Item $sig.FullName $sigDst
-            Write-Host "Copied signature to $sigDst"
-            Write-Host "Sig content preview: $((Get-Content $sigDst -Raw).Substring(0, [Math]::Min(80, (Get-Content $sigDst -Raw).Length)))"
           } else {
             Write-Host "::error::No .sig file found — check TAURI_SIGNING_PRIVATE_KEY secret"
-            Get-ChildItem $nsisDir | ForEach-Object { Write-Host "  $($_.Name)" }
             exit 1
           }
 

@@ -6,6 +6,16 @@
 
 ---
 
+## [v0.1.3-beta.0] — 2026-07-11
+
+### 变更
+
+- 基于 main 分支发布第一个 v0.1.3 预发布测试包，合并 alpha 阶段全部改进。
+
+> 更新者：Eeymoo（Peregrine 维护者）
+
+---
+
 ## [v0.1.3-alpha.4] — 2026-07-11
 
 ### 变更
@@ -202,6 +212,7 @@
 
 ---
 
+[v0.1.3-beta.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-beta.0
 [v0.1.3-alpha.4]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.4
 [v0.1.3-alpha.3]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.3
 [v0.1.3-alpha.2]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.2

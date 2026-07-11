@@ -1,8 +1,8 @@
 name: Release
 
 # 在推送形如 v* 的标签时触发，构建 Windows 产物并发布。
-#   - 带预发布后缀的标签（如 v0.0.0-alpha.0）→ 打包为「测试包」，发布为 GitHub Pre-release。
-#   - 纯版本号标签（如 v0.0.0）→ 打包为「正式版本」，发布为正式 Release。
+#   - 带预发布后缀的标签（如 v0.0.0-alpha.0）→ 发布为 GitHub Pre-release。
+#   - 纯版本号标签（如 v0.0.0）→ 发布为正式 Release。
 # 判定依据为 SemVer 规范：版本号中带 `-` 的即为预发布版本。
 on:
   push:
@@ -14,7 +14,6 @@ permissions:
   contents: write
 
 env:
-  # 新 Tauri 二进制包名。
   BIN_NAME: peregrine-tauri
 
 jobs:
@@ -29,12 +28,15 @@ jobs:
           - os: windows-latest
             target: i686-pc-windows-msvc
             asset_name: windows-x86
+            updater_arch: i686
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             asset_name: windows-x64
+            updater_arch: x86_64
           - os: windows-latest
             target: aarch64-pc-windows-msvc
             asset_name: windows-arm64
+            updater_arch: aarch64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,8 +59,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      # 从 git tag 提取版本号，自动同步到 Cargo.toml / package.json / tauri.conf.json，
-      # 确保三个版本来源一致，无需手动维护。
+      # 从 git tag 提取版本号，自动同步到 Cargo.toml / package.json / tauri.conf.json。
       - name: Sync version from tag
         shell: bash
         run: |
@@ -69,8 +70,36 @@ jobs:
           node -e "const fs=require('fs');const p=require('./package.json');p.version='$VERSION';fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
           node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
 
-      - name: Build Tauri release (no-bundle，仅编译 exe)
-        run: npx tauri build --target ${{ matrix.target }} --no-bundle
+      # 构建 NSIS 安装包（自动签名），同时生成便携 zip。
+      - name: Build Tauri release (NSIS + 签名)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: npx tauri build --target ${{ matrix.target }} --bundles nsis
+
+      # 重命名 NSIS 安装包为带版本号的文件名。
+      - name: Rename NSIS installer
+        shell: pwsh
+        run: |
+          $VERSION = "${{ env.RELEASE_VERSION }}"
+          $nsisDir = "target/${{ matrix.target }}/release/bundle/nsis"
+          $setup = Get-ChildItem "$nsisDir/*-setup.exe" | Select-Object -First 1
+          if ($setup) {
+            $dst = "peregrine-v${VERSION}-${{ matrix.asset_name }}-setup.exe"
+            Copy-Item $setup.FullName $dst
+            Write-Host "Renamed to $dst"
+          } else {
+            Write-Host "No NSIS installer found"
+            exit 1
+          }
+          # 复制签名文件
+          $sig = Get-ChildItem "$nsisDir/*-setup.exe.sig" | Select-Object -First 1
+          if ($sig) {
+            $sigDst = "peregrine-v${VERSION}-${{ matrix.asset_name }}-setup.exe.sig"
+            Copy-Item $sig.FullName $sigDst
+            Write-Host "Copied signature to $sigDst"
+          }
 
       # 将编译产物 exe 重命名（带版本号），连同 README、LICENSE 打包为便携 zip。
       - name: Create portable zip
@@ -87,7 +116,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: peregrine-v${{ env.RELEASE_VERSION }}-${{ matrix.asset_name }}.zip
+          path: |
+            peregrine-v${{ env.RELEASE_VERSION }}-${{ matrix.asset_name }}-setup.exe
+            peregrine-v${{ env.RELEASE_VERSION }}-${{ matrix.asset_name }}-setup.exe.sig
+            peregrine-v${{ env.RELEASE_VERSION }}-${{ matrix.asset_name }}.zip
           if-no-files-found: error
 
   # 汇总产物并创建 GitHub Release。
@@ -109,7 +141,7 @@ jobs:
           path: dist
           merge-multiple: true
 
-      # 根据标签是否包含 `-` 判定预发布：v0.0.0-alpha.0 → true；v0.0.0 → false。
+      # 根据标签是否包含 `-` 判定预发布。
       - name: Resolve release type
         id: meta
         run: |
@@ -121,7 +153,7 @@ jobs:
             echo "channel=正式版本 (Release)" >> "$GITHUB_OUTPUT"
           fi
 
-      # 获取 tag 消息作为 Release body（优先 annotated tag，fallback 到 commit message）。
+      # 获取 tag 消息作为 Release body。
       - name: Get release body
         id: body
         run: |
@@ -135,6 +167,45 @@ jobs:
             git log -1 --format="%B" "${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
             echo "EOF" >> "$GITHUB_OUTPUT"
           fi
+
+      # 生成 latest.json 清单供 Tauri updater 使用。
+      - name: Generate latest.json
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          VERSION_NUM="${VERSION#v}"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          TAG_MSG=$(git tag -l --format='%(contents)' "${{ github.ref_name }}")
+          # 读取三个架构的签名文件
+          SIG_X86=$(cat "dist/peregrine-v${VERSION_NUM}-windows-x86-setup.exe.sig" 2>/dev/null || echo "")
+          SIG_X64=$(cat "dist/peregrine-v${VERSION_NUM}-windows-x64-setup.exe.sig" 2>/dev/null || echo "")
+          SIG_ARM64=$(cat "dist/peregrine-v${VERSION_NUM}-windows-arm64-setup.exe.sig" 2>/dev/null || echo "")
+
+          DOWNLOAD_BASE="https://github.com/Eeymoo/peregrine/releases/download/${VERSION}"
+
+          cat > dist/latest.json << JSONEOF
+          {
+            "version": "${VERSION_NUM}",
+            "notes": $(echo "$TAG_MSG" | head -100 | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))' 2>/dev/null || echo '""'),
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "windows-i686": {
+                "signature": "${SIG_X86}",
+                "url": "${DOWNLOAD_BASE}/peregrine-v${VERSION_NUM}-windows-x86-setup.exe"
+              },
+              "windows-x86_64": {
+                "signature": "${SIG_X64}",
+                "url": "${DOWNLOAD_BASE}/peregrine-v${VERSION_NUM}-windows-x64-setup.exe"
+              },
+              "windows-aarch64": {
+                "signature": "${SIG_ARM64}",
+                "url": "${DOWNLOAD_BASE}/peregrine-v${VERSION_NUM}-windows-arm64-setup.exe"
+              }
+            }
+          }
+          JSONEOF
+          echo "Generated latest.json:"
+          cat dist/latest.json
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

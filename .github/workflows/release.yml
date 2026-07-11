@@ -84,14 +84,21 @@ jobs:
           if ($setup) {
             $dst = "peregrine-v${VERSION}-${{ matrix.asset_name }}-setup.exe"
             Copy-Item $setup.FullName $dst
+            Write-Host "Renamed to $dst"
           } else {
             Write-Host "No NSIS installer found"
             exit 1
           }
-          $sig = Get-ChildItem "$nsisDir/*-setup.exe.sig" | Select-Object -First 1
+          $sig = Get-ChildItem "$nsisDir/*-setup.exe.sig" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($sig) {
             $sigDst = "peregrine-v${VERSION}-${{ matrix.asset_name }}-setup.exe.sig"
             Copy-Item $sig.FullName $sigDst
+            Write-Host "Copied signature to $sigDst"
+            Write-Host "Sig content preview: $((Get-Content $sigDst -Raw).Substring(0, [Math]::Min(80, (Get-Content $sigDst -Raw).Length)))"
+          } else {
+            Write-Host "::error::No .sig file found — check TAURI_SIGNING_PRIVATE_KEY secret"
+            Get-ChildItem $nsisDir | ForEach-Object { Write-Host "  $($_.Name)" }
+            exit 1
           }
 
       - name: Create portable zip

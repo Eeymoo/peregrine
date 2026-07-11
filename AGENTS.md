@@ -4,9 +4,9 @@
 
 ## 项目概述
 
-Peregrine 是一个桌面辅助贴图（准心 / 覆盖层）工具，**主要用途是防 3D 眩晕**：在屏幕中心或边缘绘制半透明的视觉锚点，为玩家在 3D 游戏中提供固定参照物，缓解眩晕感。
+Peregrine 是一个桌面视觉锚点（覆盖层）工具，**主要用途是防 3D 眩晕**：在屏幕中心或边缘绘制半透明的视觉锚点，为玩家在 3D 游戏中提供固定参照物，缓解眩晕感。
 
-- 语言 / 生态：**Rust**，Cargo **workspace**（`resolver = "3"`，`edition = "2024"`，`rust-version = 1.85`，PolyForm Noncommercial 许可）。
+- 语言 / 生态：**Rust**，Cargo **workspace**（`resolver = "3"`，`edition = "2024"`，`rust-version = 1.85`，MIT 许可）。
 - 图形栈：**Tauri**（设置窗口 Webview）+ **React + Tailwind + shadcn/ui**（设置面板），覆盖层仍用 `winit` + `softbuffer`；原 `wgpu` + `egui` 实现已移除。
 - 异步运行时：`tokio`（配置读写、文件热重载、后台跟随任务）。
 - 目标平台：**Windows**（x86 / x86_64 / ARM64）。CI 同时在 macOS / Linux 做编译验证，但 overlay 的透明 / 穿透 / 跟随能力仅 Windows 实现。

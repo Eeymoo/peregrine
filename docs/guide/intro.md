@@ -57,19 +57,13 @@ Peregrine 使用 Rust 编写，以下是主要依赖及其用途：
 
 ## 开源说明
 
-Peregrine 使用 [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/) 许可发布。
+Peregrine 使用 [MIT](https://opensource.org/licenses/MIT) 许可发布，完全开源。
 
 **这意味着你可以：**
 
-- ✅ 个人非商业用途自由使用、修改、分发
+- ✅ 自由使用、修改、分发（包括商业用途）
 - ✅ 阅读和学习全部源码
 - ✅ 提交 Issue 和 Pull Request 参与改进
-
-**但你不能：**
-
-- ❌ 将 Peregrine 或其衍生作品用于商业目的（销售、捆绑销售、商业服务、内部商业工具等）
-
-如果你对商业用途有需求，欢迎通过 [GitHub Issues](https://github.com/eeymoo/peregrine/issues) 联系作者协商商业授权。
 
 ### 参与贡献
 

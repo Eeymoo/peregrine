@@ -69,7 +69,7 @@ export default withMermaid(defineConfig({
         ],
 
         footer: {
-          message: '基于 PolyForm Noncommercial 许可发布',
+          message: '基于 MIT 许可发布',
           copyright: 'Copyright © 2025 Peregrine 贡献者'
         }
       }
@@ -112,7 +112,7 @@ export default withMermaid(defineConfig({
         ],
 
         footer: {
-          message: 'Released under the PolyForm Noncommercial License',
+          message: 'Released under the MIT License',
           copyright: 'Copyright © 2025 Peregrine Contributors'
         }
       }

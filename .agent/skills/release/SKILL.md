@@ -71,7 +71,7 @@ Peregrine v<版本号>
 
 许可
 
-• 采用 PolyForm Noncommercial 1.0.0 协议。
+• 采用 MIT 协议。
 
 下载
 

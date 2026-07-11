@@ -57,19 +57,13 @@ All dependency versions are declared in the root `Cargo.toml` under `[workspace.
 
 ## Open Source Notes
 
-Peregrine is released under the [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/) license.
+Peregrine is released under the [MIT](https://opensource.org/licenses/MIT) license, fully open source.
 
 **This means you may:**
 
-- ✅ Freely use, modify, and distribute Peregrine for personal non-commercial purposes
+- ✅ Freely use, modify, and distribute Peregrine (including commercial use)
 - ✅ Read and learn from the full source code
 - ✅ Submit Issues and Pull Requests to help improve the project
-
-**But you may not:**
-
-- ❌ Use Peregrine or derivative works for commercial purposes (selling, bundling, commercial services, internal business tools, etc.)
-
-If you have commercial use needs, feel free to contact the author via [GitHub Issues](https://github.com/eeymoo/peregrine/issues) to discuss commercial licensing.
 
 ### Contributing
 

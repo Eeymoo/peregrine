@@ -5,7 +5,7 @@ members = ["crates/config", "crates/peregrine", "src-tauri"]
 [workspace.package]
 version = "0.1.4-alpha.0"
 edition = "2024"
-license = "PolyForm-Noncommercial-1.0.0"
+license = "MIT"
 authors = ["Peregrine Contributors"]
 rust-version = "1.85"
 

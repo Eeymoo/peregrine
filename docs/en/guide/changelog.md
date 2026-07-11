@@ -8,6 +8,10 @@ For full stable release notes, see [GitHub Releases](https://github.com/Eeymoo/p
 
 ## v0.1.4-alpha.0 — 2026-07-11
 
+### Changed
+
+- **License changed to MIT**: Switched from PolyForm Noncommercial 1.0.0 to MIT — fully open source, commercial use allowed.
+
 ### New
 
 - **Fullscreen / Window overlay mode**: In fullscreen mode, the overlay covers the entire screen without needing to select a target window. In window mode, the overlay only covers the target window area. Toggle via the "Window Mode" checkbox in the config page or the tray menu — both stay in sync.

@@ -65,7 +65,7 @@ cargo clippy -p peregrine_config -- -D warnings
 
 ## 技术栈
 
-- **语言 / 生态**：Rust，Cargo workspace（`edition = "2024"`，`rust-version = 1.85`，PolyForm Noncommercial 许可）。
+- **语言 / 生态**：Rust，Cargo workspace（`edition = "2024"`，`rust-version = 1.85`，MIT 许可）。
 - **配置界面**：[Tauri](https://tauri.app/) 2.x + [React](https://react.dev/) 18 + [Tailwind CSS](https://tailwindcss.com/) 3 + [shadcn/ui](https://ui.shadcn.com/)。
 - **覆盖层**：[winit](https://github.com/rust-windowing/winit)（窗口 / 事件循环）+ [softbuffer](https://github.com/rust-windowing/softbuffer)（CPU 像素光栅化）。
 - **异步运行时**：[tokio](https://github.com/tokio-rs/tokio)（配置读写、文件热重载、后台跟随任务）。
@@ -158,4 +158,4 @@ UI 改动 / 外部编辑文件
 
 ## 许可
 
-PolyForm Noncommercial License 1.0.0。
+MIT License。

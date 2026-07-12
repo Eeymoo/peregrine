@@ -47,23 +47,23 @@ export default function SettingsApp() {
       .catch(console.error);
     getAppVersion().then(setVersion).catch(() => {});
 
-    // 简体中文用户首次启动自动设为 Gitee 源（仅初始化一次，不覆盖用户选择）。
-    const initSource = async () => {
+    // 简体中文用户首次启动自动启用中国大陆加速镜像（仅初始化一次，不覆盖用户选择）。
+    const initMirror = async () => {
       try {
-        const initialized = localStorage.getItem("update_source_initialized");
+        const initialized = localStorage.getItem("cn_mirror_initialized");
         if (!initialized) {
           const cfg = await getConfig();
-          const locale = cfg.settings?.locale ?? "auto";
-          const isZh = locale === "zh-CN" ||
-            (locale === "auto" && navigator.language.toLowerCase().startsWith("zh"));
+          const localeVal = cfg.settings?.locale ?? "auto";
+          const isZh = localeVal === "zh-CN" ||
+            (localeVal === "auto" && navigator.language.toLowerCase().startsWith("zh"));
           if (isZh) {
-            await updatePreferences({ update_source: "gitee" });
+            await updatePreferences({ cn_mirror: true });
           }
-          localStorage.setItem("update_source_initialized", "1");
+          localStorage.setItem("cn_mirror_initialized", "1");
         }
       } catch { /* 静默失败 */ }
     };
-    initSource();
+    initMirror();
 
     // 启动时自动检测更新（静默，发现新版本才提示）。延迟 3 秒避免抢焦点。
     const autoCheck = async () => {
@@ -71,8 +71,9 @@ export default function SettingsApp() {
         await new Promise((r) => setTimeout(r, 3000));
         const cfg = await getConfig();
         const channel = cfg.settings?.update_channel ?? "stable";
-        const source = cfg.settings?.update_source ?? "github";
-        const result = await checkForUpdate(source, channel);
+        const cnMirror = cfg.settings?.cn_mirror ?? false;
+        const mirrorUrl = cfg.settings?.mirror_url ?? "https://v4.gh-proxy.org";
+        const result = await checkForUpdate(channel, cnMirror, mirrorUrl);
         if (result.available) {
           setUpdateState({ status: "available", version: result.version, body: result.body });
         }
@@ -94,9 +95,10 @@ export default function SettingsApp() {
           live_drag_preview?: boolean;
           gpu_acceleration?: boolean;
           update_channel?: string;
-          update_source?: string;
+          cn_mirror?: boolean;
+          mirror_url?: string;
         }>("peregrine:settings-changed", (event) => {
-          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration, update_channel, update_source } = event.payload;
+          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration, update_channel, cn_mirror, mirror_url } = event.payload;
           if (auto_switch_on_overlay !== undefined) {
             setAutoSwitchState(auto_switch_on_overlay);
           }
@@ -118,8 +120,11 @@ export default function SettingsApp() {
             if (update_channel !== undefined) {
               settings.update_channel = update_channel;
             }
-            if (update_source !== undefined) {
-              settings.update_source = update_source;
+            if (cn_mirror !== undefined) {
+              settings.cn_mirror = cn_mirror;
+            }
+            if (mirror_url !== undefined) {
+              settings.mirror_url = mirror_url;
             }
             return { ...prev, settings };
           });
@@ -162,15 +167,15 @@ export default function SettingsApp() {
                 <Select value={locale} onValueChange={(v) => {
                   const next = v as Locale;
                   setLocale(next);
-                  // 非中文语言强制设为 github 源。
+                  // 非中文语言强制关闭中国大陆加速镜像。
                   const resolved = next === "auto" ? detectLocale() : next;
                   if (resolved !== "zh-CN" && config) {
                     const newConfig: AppConfig = {
                       ...config,
-                      settings: { ...config.settings, update_source: "github" },
+                      settings: { ...config.settings, cn_mirror: false },
                     };
                     setConfig(newConfig);
-                    updatePreferences({ update_source: "github" }).catch(console.error);
+                    updatePreferences({ cn_mirror: false }).catch(console.error);
                   }
                 }}>
                   <SelectTrigger className="w-40 h-8 text-xs">
@@ -279,31 +284,111 @@ export default function SettingsApp() {
         <TabsContent value="update" className="flex-1 overflow-y-auto m-0 p-6">
           <Card>
             <CardContent className="space-y-6 pt-6">
-              {/* 更新源（仅中文显示） */}
+              {/* 中国大陆加速（仅中文显示） */}
               {resolvedLocale === "zh-CN" && (
-                <div className="flex items-center justify-between gap-4">
-                  <Label className="text-sm font-medium">{t("settings.updateSource")}</Label>
-                  <Select
-                    value={config?.settings?.update_source ?? "github"}
-                    onValueChange={(v) => {
-                      if (!config) return;
-                      const newConfig: AppConfig = {
-                        ...config,
-                        settings: { ...config.settings, update_source: v },
-                      };
-                      setConfig(newConfig);
-                      updatePreferences({ update_source: v }).catch(console.error);
-                    }}
-                  >
-                    <SelectTrigger className="w-40 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gitee">{t("settings.updateSourceGitee")}</SelectItem>
-                      <SelectItem value="github">{t("settings.updateSourceGithub")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">{t("settings.cnMirror")}</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {t("settings.cnMirrorHint")}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config?.settings?.cn_mirror ?? false}
+                      onCheckedChange={(v) => {
+                        if (!config) return;
+                        const newConfig: AppConfig = {
+                          ...config,
+                          settings: { ...config.settings, cn_mirror: v },
+                        };
+                        setConfig(newConfig);
+                        updatePreferences({ cn_mirror: v }).catch(console.error);
+                      }}
+                    />
+                  </div>
+
+                  {/* 加速站选择 */}
+                  {config?.settings?.cn_mirror && (
+                    <div className="flex items-center justify-between gap-4">
+                      <Label className="text-sm font-medium">{t("settings.mirrorSite")}</Label>
+                      <Select
+                        value={(() => {
+                          const url = config?.settings?.mirror_url ?? "https://v4.gh-proxy.org";
+                          const presets = [
+                            "https://gh-proxy.org",
+                            "https://v4.gh-proxy.org",
+                            "https://v6.gh-proxy.org",
+                            "https://cdn.gh-proxy.org",
+                          ];
+                          return presets.includes(url) ? url : "__custom__";
+                        })()}
+                        onValueChange={(v) => {
+                          if (!config) return;
+                          if (v === "__custom__") {
+                            // 选「自定义」时清空 mirror_url，触发输入框显示。
+                            const newConfig: AppConfig = {
+                              ...config,
+                              settings: { ...config.settings, mirror_url: "" },
+                            };
+                            setConfig(newConfig);
+                            return;
+                          }
+                          const newConfig: AppConfig = {
+                            ...config,
+                            settings: { ...config.settings, mirror_url: v },
+                          };
+                          setConfig(newConfig);
+                          updatePreferences({ mirror_url: v }).catch(console.error);
+                        }}
+                      >
+                        <SelectTrigger className="w-48 h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="https://gh-proxy.org">gh-proxy.org</SelectItem>
+                          <SelectItem value="https://v4.gh-proxy.org">v4.gh-proxy.org（推荐）</SelectItem>
+                          <SelectItem value="https://v6.gh-proxy.org">v6.gh-proxy.org</SelectItem>
+                          <SelectItem value="https://cdn.gh-proxy.org">cdn.gh-proxy.org</SelectItem>
+                          <SelectItem value="__custom__">{t("settings.mirrorCustom")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* 自定义镜像地址输入 */}
+                  {config?.settings?.cn_mirror &&
+                    ![
+                      "https://gh-proxy.org",
+                      "https://v4.gh-proxy.org",
+                      "https://v6.gh-proxy.org",
+                      "https://cdn.gh-proxy.org",
+                    ].includes(config?.settings?.mirror_url ?? "") && (
+                    <div className="flex items-center justify-between gap-4">
+                      <Label className="text-sm font-medium">{t("settings.mirrorCustomUrl")}</Label>
+                      <input
+                        type="text"
+                        className="flex h-8 w-48 rounded-md border border-input bg-background px-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        value={config?.settings?.mirror_url ?? ""}
+                        placeholder="https://your-mirror.example.com"
+                        onChange={(e) => {
+                          if (!config) return;
+                          const newConfig: AppConfig = {
+                            ...config,
+                            settings: { ...config.settings, mirror_url: e.target.value },
+                          };
+                          setConfig(newConfig);
+                        }}
+                        onBlur={(e) => {
+                          const val = e.target.value.trim();
+                          if (val && config) {
+                            updatePreferences({ mirror_url: val }).catch(console.error);
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+                </>
               )}
 
               {/* 更新通道 */}
@@ -340,8 +425,9 @@ export default function SettingsApp() {
                   setUpdateState({ status: "checking" });
                   try {
                     const channel = config?.settings?.update_channel ?? "stable";
-                    const source = config?.settings?.update_source ?? "github";
-                    const result = await checkForUpdate(source, channel);
+                    const cnMirror = config?.settings?.cn_mirror ?? false;
+                    const mirrorUrl = config?.settings?.mirror_url ?? "https://v4.gh-proxy.org";
+                    const result = await checkForUpdate(channel, cnMirror, mirrorUrl);
                     if (result.available) {
                       setUpdateState({ status: "available", version: result.version, body: result.body });
                     } else {
@@ -404,9 +490,10 @@ export default function SettingsApp() {
                       onClick={async () => {
                         setUpdateState({ status: "updating", progress: 0 });
                         try {
-                          const source = config?.settings?.update_source ?? "github";
                           const channel = config?.settings?.update_channel ?? "stable";
-                          await downloadAndInstallUpdate(source, channel, (downloaded, total) => {
+                          const cnMirror = config?.settings?.cn_mirror ?? false;
+                          const mirrorUrl = config?.settings?.mirror_url ?? "https://v4.gh-proxy.org";
+                          await downloadAndInstallUpdate(channel, cnMirror, mirrorUrl, (downloaded, total) => {
                             if (total > 0) {
                               const pct = Math.min(100, Math.round((downloaded / total) * 100));
                               setUpdateState((s) => ({ ...s, progress: pct }));

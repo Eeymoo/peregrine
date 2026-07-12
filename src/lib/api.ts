@@ -51,27 +51,29 @@ export async function relaunchApp(): Promise<void> {
 }
 
 /** 检查是否有可用更新。
- * source: "github" 或 "gitee"。
  * channel: "stable"（正式版）或 "prerelease"（尝鲜版）。
- * 通过 Rust 自定义 command 实现动态 endpoint 切换。
+ * cn_mirror: 是否使用中国大陆加速镜像。
+ * mirror_url: 镜像站地址（如 "https://v4.gh-proxy.org"）。
  */
 export async function checkForUpdate(
-  source: string = "github",
-  channel: string = "stable"
+  channel: string = "stable",
+  cnMirror: boolean = false,
+  mirrorUrl: string = ""
 ): Promise<{ available: boolean; version?: string; body?: string }> {
   return invoke<{ available: boolean; version?: string; body?: string }>(
     "check_update",
-    { source, channel }
+    { channel, cnMirror, mirrorUrl }
   );
 }
 
 /** 下载并安装更新，完成后自动重启。
- * source/channel 决定从哪个源下载。
+ * channel 决定更新通道，cnMirror/mirrorUrl 决定加速镜像。
  * onProgress: 可选回调，接收已下载字节数和总字节数。
  */
 export async function downloadAndInstallUpdate(
-  source: string,
   channel: string,
+  cnMirror: boolean,
+  mirrorUrl: string,
   onProgress?: (downloaded: number, total: number) => void
 ): Promise<void> {
   const { Channel } = await import("@tauri-apps/api/core");
@@ -96,8 +98,9 @@ export async function downloadAndInstallUpdate(
     if (onProgress) onProgress(downloaded, total);
   };
   await invoke("download_install_update", {
-    source,
     channel,
+    cnMirror,
+    mirrorUrl,
     onEvent: channel_,
   });
 }

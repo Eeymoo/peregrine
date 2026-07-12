@@ -356,7 +356,8 @@ pub fn run() {
                                     live_drag_preview: None,
                                     gpu_acceleration: None,
                                     update_channel: None,
-                                    update_source: None,
+                                    cn_mirror: None,
+                                    mirror_url: None,
                                 },
                             )
                             .await;
@@ -587,7 +588,8 @@ struct PreferencesPatch {
     live_drag_preview: Option<bool>,
     gpu_acceleration: Option<bool>,
     update_channel: Option<String>,
-    update_source: Option<String>,
+    cn_mirror: Option<bool>,
+    mirror_url: Option<String>,
 }
 
 /// 更新偏好设置的共享逻辑，供 Tauri command 和托盘菜单事件复用。
@@ -631,8 +633,11 @@ async fn update_preferences_inner(
     if let Some(channel) = &preferences.update_channel {
         config.settings.update_channel = channel.clone();
     }
-    if let Some(source) = &preferences.update_source {
-        config.settings.update_source = source.clone();
+    if let Some(cn) = preferences.cn_mirror {
+        config.settings.cn_mirror = cn;
+    }
+    if let Some(mirror) = &preferences.mirror_url {
+        config.settings.mirror_url = mirror.clone();
     }
 
     config.validate().map_err(|e| e.to_string())?;
@@ -694,7 +699,8 @@ async fn update_preferences_inner(
         "live_drag_preview": snapshot.as_ref().settings.live_drag_preview,
         "gpu_acceleration": snapshot.as_ref().settings.gpu_acceleration,
         "update_channel": snapshot.as_ref().settings.update_channel,
-        "update_source": snapshot.as_ref().settings.update_source,
+        "cn_mirror": snapshot.as_ref().settings.cn_mirror,
+        "mirror_url": snapshot.as_ref().settings.mirror_url,
     });
     app.emit("peregrine:settings-changed", &settings_json)
         .map_err(|e| e.to_string())?;
@@ -770,30 +776,32 @@ fn focus_target_window(target_window: String) -> Result<(), String> {
 
 // ===== 自定义更新检查与下载 =====
 
-/// GitHub / Gitee 仓库标识。
+/// GitHub 仓库标识。
 const GITHUB_OWNER_REPO: &str = "Eeymoo/peregrine";
-const GITEE_OWNER_REPO: &str = "eeymoo/peregrine";
 
-/// 从指定源和通道解析 updater manifest JSON 的 URL。
+/// 从通道解析 GitHub manifest JSON 的原始 URL，再根据 `cn_mirror` 决定是否加镜像前缀。
 ///
-/// - GitHub stable: `releases/latest/download/stable.json`（直接可用）
-/// - GitHub prerelease: 调 GitHub API 找最新 prerelease tag → 拼 URL
-/// - Gitee stable: 调 Gitee API 拿 latest release tag → 拼 URL
-/// - Gitee prerelease: 调 Gitee API 列出 releases 找 prerelease tag → 拼 URL
-async fn resolve_manifest_url(source: &str, channel: &str) -> Result<String, String> {
+/// - stable: `releases/latest/download/stable.json`
+/// - prerelease: 调 GitHub API 找最新 prerelease tag → 拼 URL
+///
+/// 启用镜像时，URL 前面加上 `mirror_url/`（如 `https://v4.gh-proxy.org/`）。
+async fn resolve_manifest_url(
+    channel: &str,
+    cn_mirror: bool,
+    mirror_url: &str,
+) -> Result<String, String> {
     let client = reqwest::Client::builder()
         .user_agent("peregrine-updater")
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))?;
 
-    match (source, channel) {
-        ("github", "stable") => Ok(format!(
+    let raw_url = match channel {
+        "stable" => format!(
             "https://github.com/{}/releases/latest/download/stable.json",
             GITHUB_OWNER_REPO
-        )),
-        ("github", "prerelease") => {
-            // 调 GitHub API 找最新 prerelease。
+        ),
+        "prerelease" => {
             let url = format!(
                 "https://api.github.com/repos/{}/releases",
                 GITHUB_OWNER_REPO
@@ -812,104 +820,51 @@ async fn resolve_manifest_url(source: &str, channel: &str) -> Result<String, Str
                 .await
                 .map_err(|e| format!("解析 GitHub API 响应失败: {e}"))?;
             let arr = releases.as_array().ok_or("GitHub API 响应不是数组")?;
+            let mut tag = None;
             for r in arr {
                 if r.get("prerelease")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false)
                 {
-                    let tag = r
+                    tag = r
                         .get("tag_name")
                         .and_then(|v| v.as_str())
-                        .ok_or("GitHub prerelease 缺少 tag_name")?;
-                    return Ok(format!(
-                        "https://github.com/{}/releases/download/{}/prerelease.json",
-                        GITHUB_OWNER_REPO, tag
-                    ));
+                        .map(|s| s.to_string());
+                    break;
                 }
             }
-            Err("未找到 GitHub prerelease".to_string())
+            let tag = tag.ok_or("未找到 GitHub prerelease")?;
+            format!(
+                "https://github.com/{}/releases/download/{}/prerelease.json",
+                GITHUB_OWNER_REPO, tag
+            )
         }
-        ("gitee", _) => {
-            // 调 Gitee API 拿 latest release（stable）或列表（prerelease）。
-            if channel == "stable" {
-                let url = format!(
-                    "https://gitee.com/api/v5/repos/{}/releases/latest",
-                    GITEE_OWNER_REPO
-                );
-                let resp = client
-                    .get(&url)
-                    .send()
-                    .await
-                    .map_err(|e| format!("Gitee API 请求失败: {e}"))?;
-                if !resp.status().is_success() {
-                    return Err(format!("Gitee API 返回 {}", resp.status()));
-                }
-                let release: serde_json::Value = resp
-                    .json()
-                    .await
-                    .map_err(|e| format!("解析 Gitee API 响应失败: {e}"))?;
-                let tag = release
-                    .get("tag_name")
-                    .and_then(|v| v.as_str())
-                    .ok_or("Gitee latest release 缺少 tag_name")?;
-                Ok(format!(
-                    "https://gitee.com/{}/releases/download/{}/stable.json",
-                    GITEE_OWNER_REPO, tag
-                ))
-            } else {
-                // prerelease: 列出所有 releases 找第一个 prerelease。
-                let url = format!(
-                    "https://gitee.com/api/v5/repos/{}/releases",
-                    GITEE_OWNER_REPO
-                );
-                let resp = client
-                    .get(&url)
-                    .send()
-                    .await
-                    .map_err(|e| format!("Gitee API 请求失败: {e}"))?;
-                if !resp.status().is_success() {
-                    return Err(format!("Gitee API 返回 {}", resp.status()));
-                }
-                let releases: serde_json::Value = resp
-                    .json()
-                    .await
-                    .map_err(|e| format!("解析 Gitee API 响应失败: {e}"))?;
-                let arr = releases.as_array().ok_or("Gitee API 响应不是数组")?;
-                for r in arr {
-                    if r.get("prerelease")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false)
-                    {
-                        let tag = r
-                            .get("tag_name")
-                            .and_then(|v| v.as_str())
-                            .ok_or("Gitee prerelease 缺少 tag_name")?;
-                        return Ok(format!(
-                            "https://gitee.com/{}/releases/download/{}/prerelease.json",
-                            GITEE_OWNER_REPO, tag
-                        ));
-                    }
-                }
-                Err("未找到 Gitee prerelease".to_string())
-            }
-        }
-        _ => Err(format!("未知的更新源/通道: {source}/{channel}")),
+        _ => return Err(format!("未知的更新通道: {channel}")),
+    };
+
+    if cn_mirror {
+        let base = mirror_url.trim_end_matches('/');
+        Ok(format!("{}/{}", base, raw_url))
+    } else {
+        Ok(raw_url)
     }
 }
 
 /// 检查是否有可用更新。
 ///
-/// - `source`: `"github"` 或 `"gitee"`
 /// - `channel`: `"stable"` 或 `"prerelease"`
+/// - `cn_mirror`: 是否使用中国大陆加速镜像
+/// - `mirror_url`: 镜像站地址（如 `https://v4.gh-proxy.org`）
 ///
 /// 返回 `{ available, version, body }`。
 #[tauri::command]
 async fn check_update(
     app: tauri::AppHandle,
-    source: String,
     channel: String,
+    cn_mirror: bool,
+    mirror_url: String,
 ) -> Result<serde_json::Value, String> {
-    let manifest_url = resolve_manifest_url(&source, &channel).await?;
+    let manifest_url = resolve_manifest_url(&channel, cn_mirror, &mirror_url).await?;
     let url: url::Url = manifest_url
         .parse()
         .map_err(|e| format!("无效的 URL: {e}"))?;
@@ -940,11 +895,12 @@ async fn check_update(
 #[tauri::command]
 async fn download_install_update(
     app: tauri::AppHandle,
-    source: String,
     channel: String,
+    cn_mirror: bool,
+    mirror_url: String,
     on_event: tauri::ipc::Channel<serde_json::Value>,
 ) -> Result<(), String> {
-    let manifest_url = resolve_manifest_url(&source, &channel).await?;
+    let manifest_url = resolve_manifest_url(&channel, cn_mirror, &mirror_url).await?;
     let url: url::Url = manifest_url
         .parse()
         .map_err(|e| format!("无效的 URL: {e}"))?;

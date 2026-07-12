@@ -89,5 +89,6 @@ export interface AppSettings {
   live_drag_preview: boolean;
   gpu_acceleration: boolean;
   update_channel: string;
-  update_source: string;
+  cn_mirror: boolean;
+  mirror_url: string;
 }

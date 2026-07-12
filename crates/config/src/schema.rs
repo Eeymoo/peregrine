@@ -44,10 +44,14 @@ pub struct AppSettings {
     /// 默认 `"stable"`。
     #[serde(default = "default_update_channel")]
     pub update_channel: String,
-    /// 自动更新源：`"github"` 或 `"gitee"`。默认 `"github"`。
-    /// 简体中文用户首次启动时由前端自动设为 `"gitee"`。
-    #[serde(default = "default_update_source")]
-    pub update_source: String,
+    /// 是否使用中国大陆加速镜像（gh-proxy）访问 GitHub Release。
+    /// 默认 `false`；简体中文用户首次启动时由前端自动设为 `true`。
+    #[serde(default)]
+    pub cn_mirror: bool,
+    /// 加速镜像站地址，默认 `"https://v4.gh-proxy.org"`。
+    /// 用户可在设置中自定义。
+    #[serde(default = "default_mirror_url")]
+    pub mirror_url: String,
 }
 
 fn default_auto_switch_on_overlay() -> String {
@@ -66,8 +70,8 @@ fn default_update_channel() -> String {
     "stable".to_string()
 }
 
-fn default_update_source() -> String {
-    "github".to_string()
+fn default_mirror_url() -> String {
+    "https://v4.gh-proxy.org".to_string()
 }
 
 impl Default for AppSettings {
@@ -79,7 +83,8 @@ impl Default for AppSettings {
             live_drag_preview: false,
             gpu_acceleration: false,
             update_channel: default_update_channel(),
-            update_source: default_update_source(),
+            cn_mirror: false,
+            mirror_url: default_mirror_url(),
         }
     }
 }
@@ -943,7 +948,8 @@ mod tests {
         assert!(!s.live_drag_preview);
         assert!(!s.gpu_acceleration);
         assert_eq!(s.update_channel, "stable");
-        assert_eq!(s.update_source, "github");
+        assert!(!s.cn_mirror);
+        assert_eq!(s.mirror_url, "https://v4.gh-proxy.org");
     }
 
     #[test]
@@ -955,7 +961,8 @@ mod tests {
             live_drag_preview: true,
             gpu_acceleration: true,
             update_channel: "prerelease".to_string(),
-            update_source: "gitee".to_string(),
+            cn_mirror: true,
+            mirror_url: "https://gh-proxy.org".to_string(),
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();

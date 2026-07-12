@@ -78,8 +78,9 @@ export default function ConfigApp() {
         await new Promise((r) => setTimeout(r, 3000));
         const cfg = await getConfig();
         const channel = cfg.settings?.update_channel ?? "stable";
-        const source = cfg.settings?.update_source ?? "github";
-        const result = await checkForUpdate(source, channel);
+        const cnMirror = cfg.settings?.cn_mirror ?? false;
+        const mirrorUrl = cfg.settings?.mirror_url ?? "https://v4.gh-proxy.org";
+        const result = await checkForUpdate(channel, cnMirror, mirrorUrl);
         if (result.available) {
           setUpdateAvailable({ version: result.version || "", body: result.body });
         }
@@ -99,10 +100,11 @@ export default function ConfigApp() {
           locale?: string;
           fullscreen_overlay?: boolean;
           live_drag_preview?: boolean;
-          update_source?: string;
+          cn_mirror?: boolean;
+          mirror_url?: string;
           update_channel?: string;
         }>("peregrine:settings-changed", (event) => {
-          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, update_source, update_channel } = event.payload;
+          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, cn_mirror, mirror_url, update_channel } = event.payload;
           setConfig((prev) => {
             if (!prev) return prev;
             const settings = { ...prev.settings };
@@ -115,8 +117,11 @@ export default function ConfigApp() {
             if (live_drag_preview !== undefined) {
               settings.live_drag_preview = live_drag_preview;
             }
-            if (update_source !== undefined) {
-              settings.update_source = update_source;
+            if (cn_mirror !== undefined) {
+              settings.cn_mirror = cn_mirror;
+            }
+            if (mirror_url !== undefined) {
+              settings.mirror_url = mirror_url;
             }
             if (update_channel !== undefined) {
               settings.update_channel = update_channel;
@@ -460,9 +465,10 @@ export default function ConfigApp() {
                 setUpdating(true);
                 setUpdateProgress(0);
                 try {
-                  const source = config?.settings?.update_source ?? "github";
                   const channel = config?.settings?.update_channel ?? "stable";
-                  await downloadAndInstallUpdate(source, channel, (downloaded, total) => {
+                  const cnMirror = config?.settings?.cn_mirror ?? false;
+                  const mirrorUrl = config?.settings?.mirror_url ?? "https://v4.gh-proxy.org";
+                  await downloadAndInstallUpdate(channel, cnMirror, mirrorUrl, (downloaded, total) => {
                     if (total > 0) {
                       setUpdateProgress(Math.min(100, Math.round((downloaded / total) * 100)));
                     }

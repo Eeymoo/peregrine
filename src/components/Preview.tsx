@@ -109,6 +109,9 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
 
     // 应用缩放变换：虚拟坐标 → 预览区域
     ctx.save();
+    ctx.beginPath();
+    ctx.rect(px, py, pw, ph);
+    ctx.clip();
     ctx.translate(px, py);
     ctx.scale(sx, sy);
 

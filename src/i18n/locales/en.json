@@ -36,10 +36,33 @@
     "antialiasing": "Anti-aliasing",
     "antialiasingHint": "Smooths curved edges on circles and triangles. Disable to slightly reduce CPU usage"
   },
+  "quickColors": {
+    "title": "Quick Colors",
+    "hint": "Click swatches to quickly change crosshair color. Customizable here."
+  },
+  "hotkeys": {
+    "title": "Hotkeys",
+    "hint": "Click the input, then press a key combination. Press Esc to clear.",
+    "placeholder": "Click to set…",
+    "clear": "Clear"
+  },
+  "hotkeyActions": {
+    "toggle_overlay": "Toggle Overlay",
+    "start_overlay": "Start Overlay",
+    "stop_overlay": "Stop Overlay",
+    "cycle_color_next": "Next Color",
+    "cycle_color_prev": "Previous Color",
+    "set_color_1": "Color 1",
+    "set_color_2": "Color 2",
+    "set_color_3": "Color 3",
+    "set_color_4": "Color 4",
+    "set_color_5": "Color 5"
+  },
   "settings": {
     "title": "Settings",
     "sectionGeneral": "General",
     "sectionOverlay": "Overlay",
+    "sectionHotkeys": "Hotkeys",
     "sectionUpdate": "Update",
     "sectionAbout": "About",
     "generalDesc": "Language and performance settings",
@@ -93,7 +116,8 @@
     "random_orb": "Random Edge Markers",
     "border_frame": "Border Frame",
     "custom_image": "Custom Image",
-    "edge_arrows": "Edge Arrows"
+    "edge_arrows": "Edge Arrows",
+    "grid": "Grid"
   },
   "anchors": {
     "top": "Top",
@@ -110,6 +134,10 @@
   "borderStyles": {
     "solid": "Solid",
     "gap": "Gap"
+  },
+  "gridAlignments": {
+    "center": "Center",
+    "edge": "Edge"
   },
   "fields": {
     "width": "Width",
@@ -154,7 +182,10 @@
     "top": "T",
     "bottom": "B",
     "left": "L",
-    "right": "R"
+    "right": "R",
+    "gridCells": "Grid Cells",
+    "gridSize": "Cell Width",
+    "gridAlignment": "Alignment"
   },
   "preview": {
     "placeholder": "Please select a PNG file"

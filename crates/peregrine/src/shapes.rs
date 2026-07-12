@@ -9,7 +9,7 @@
 //! 3. 两者输入相同（`RectF` + `Crosshair`），输出形状完全一致。
 
 use peregrine_config::{
-    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, OrbPosition, RingStyle,
+    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, GridAlignment, OrbPosition, RingStyle,
 };
 
 // ===== 对外类型 =====
@@ -490,6 +490,75 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
         }
         // CustomImage 不生成矢量图元，由各渲染器单独处理图片加载与 blit。
         CrosshairStyle::CustomImage => {}
+        // 网格：全屏棋盘式格子，按单格宽度等分屏幕。
+        CrosshairStyle::Grid => {
+            let cell = crosshair.grid_size.max(10.0);
+            let thickness = crosshair.thickness;
+            let half_t = thickness / 2.0;
+            let cols = ((screen.width() / cell).ceil() as u32).max(1);
+            let rows = ((screen.height() / cell).ceil() as u32).max(1);
+
+            // 贴边模式：格宽/格高根据屏幕实际拉伸，确保完全覆盖边缘无空隙。
+            // 居中模式：保持正方形格子居中。
+            let (cell_w, cell_h, offset_x, offset_y, total_w, total_h) =
+                if matches!(crosshair.grid_alignment, GridAlignment::Edge) {
+                    // 贴边：拉伸填满整个屏幕，无空隙。
+                    (screen.width() / cols as f32, screen.height() / rows as f32, 0.0, 0.0, screen.width(), screen.height())
+                } else {
+                    // 居中：正方形格子居中。
+                    let tw = cell * cols as f32;
+                    let th = cell * rows as f32;
+                    (cell, cell, (screen.width() - tw) / 2.0, (screen.height() - th) / 2.0, tw, th)
+                };
+
+            match crosshair.grid_alignment {
+                GridAlignment::Center => {
+                    // 竖线
+                    for i in 1..cols {
+                        let x = screen.min_x + offset_x + cell_w * i as f32;
+                        shapes.push(Shape::Rect {
+                            x: x - half_t,
+                            y: screen.min_y + offset_y,
+                            w: thickness,
+                            h: total_h,
+                        });
+                    }
+                    // 横线
+                    for i in 1..rows {
+                        let y = screen.min_y + offset_y + cell_h * i as f32;
+                        shapes.push(Shape::Rect {
+                            x: screen.min_x + offset_x,
+                            y: y - half_t,
+                            w: total_w,
+                            h: thickness,
+                        });
+                    }
+                }
+                GridAlignment::Edge => {
+                    // 贴边：含外边缘线，格宽/格高拉伸填满屏幕。
+                    // 竖线（含左右边缘）
+                    for i in 0..=cols {
+                        let x = screen.min_x + cell_w * i as f32;
+                        shapes.push(Shape::Rect {
+                            x: x - half_t,
+                            y: screen.min_y,
+                            w: thickness,
+                            h: screen.height(),
+                        });
+                    }
+                    // 横线（含上下边缘）
+                    for i in 0..=rows {
+                        let y = screen.min_y + cell_h * i as f32;
+                        shapes.push(Shape::Rect {
+                            x: screen.min_x,
+                            y: y - half_t,
+                            w: screen.width(),
+                            h: thickness,
+                        });
+                    }
+                }
+            }
+        }
     }
 
     shapes

@@ -104,3 +104,10 @@ export async function downloadAndInstallUpdate(
     onEvent: channel_,
   });
 }
+
+/** 设置当前 active profile 的准心颜色（快捷键颜色切换共用此逻辑）。 */
+export async function setCrosshairColor(
+  color: [number, number, number, number]
+): Promise<void> {
+  return invoke("set_crosshair_color", { color });
+}

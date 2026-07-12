@@ -13,13 +13,28 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { Kbd } from "@/components/ui/kbd";
 import {
   Card,
   CardContent,
 } from "@/components/ui/card";
 import appIcon from "../assets/icon.png";
 import { getConfig, updatePreferences, getAppVersion, relaunchApp, checkForUpdate, downloadAndInstallUpdate } from "@/lib/api";
-import type { AppConfig } from "@/types/config";
+import type { AppConfig, HotkeyAction, HotkeyBindings } from "@/types/config";
+
+/** 所有可绑定的快捷键动作（与 Rust HotkeyAction 枚举一一对应）。 */
+const HOTKEY_ACTIONS: HotkeyAction[] = [
+  "toggle_overlay",
+  "start_overlay",
+  "stop_overlay",
+  "cycle_color_next",
+  "cycle_color_prev",
+  "set_color_1",
+  "set_color_2",
+  "set_color_3",
+  "set_color_4",
+  "set_color_5",
+];
 
 export default function SettingsApp() {
   const { t, locale, setLocale, resolvedLocale } = useI18n();
@@ -98,8 +113,10 @@ export default function SettingsApp() {
           cn_mirror?: boolean;
           mirror_url?: string;
           antialiasing?: boolean;
+          quick_colors?: [number, number, number, number][];
+          hotkey_bindings?: [string, string][];
         }>("peregrine:settings-changed", (event) => {
-          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration, update_channel, cn_mirror, mirror_url, antialiasing } = event.payload;
+          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration, update_channel, cn_mirror, mirror_url, antialiasing, quick_colors, hotkey_bindings } = event.payload;
           if (auto_switch_on_overlay !== undefined) {
             setAutoSwitchState(auto_switch_on_overlay);
           }
@@ -130,6 +147,12 @@ export default function SettingsApp() {
             if (antialiasing !== undefined) {
               settings.antialiasing = antialiasing;
             }
+            if (quick_colors !== undefined) {
+              settings.quick_colors = quick_colors;
+            }
+            if (hotkey_bindings !== undefined) {
+              settings.hotkey_bindings = hotkey_bindings as any;
+            }
             return { ...prev, settings };
           });
         });
@@ -153,9 +176,10 @@ export default function SettingsApp() {
     <div className="h-screen flex flex-col bg-background text-foreground">
       <Tabs defaultValue="general" className="flex flex-col h-full">
         <div className="px-6 pt-5">
-          <TabsList className="grid grid-cols-4 w-full">
+          <TabsList className="grid grid-cols-5 w-full">
             <TabsTrigger value="general">{t("settings.sectionGeneral")}</TabsTrigger>
             <TabsTrigger value="overlay">{t("settings.sectionOverlay")}</TabsTrigger>
+            <TabsTrigger value="hotkeys">{t("settings.sectionHotkeys")}</TabsTrigger>
             <TabsTrigger value="update">{t("settings.sectionUpdate")}</TabsTrigger>
             <TabsTrigger value="about">{t("settings.sectionAbout")}</TabsTrigger>
           </TabsList>
@@ -231,8 +255,6 @@ export default function SettingsApp() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        {/* ===== 覆盖层 ===== */}
         <TabsContent value="overlay" className="flex-1 overflow-y-auto m-0 p-6">
           <Card>
             <CardContent className="space-y-6 pt-6">
@@ -302,6 +324,79 @@ export default function SettingsApp() {
                     updatePreferences({ antialiasing: v }).catch(console.error);
                   }}
                 />
+              </div>
+
+              {/* 快捷颜色 */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  {t("quickColors.title")}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t("quickColors.hint")}
+                </p>
+                <div className="flex gap-3 pt-1">
+                  {(config?.settings?.quick_colors ?? [
+                    [1, 1, 1, 1], [0, 1, 0, 1], [0.2, 0.5, 1, 1], [1, 0, 0, 1], [1, 0.5, 0, 1],
+                  ]).map((qc, i) => {
+                    const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;
+                    const hex = `#${Math.round(qc[0] * 255).toString(16).padStart(2, "0")}${Math.round(qc[1] * 255).toString(16).padStart(2, "0")}${Math.round(qc[2] * 255).toString(16).padStart(2, "0")}`;
+                    return (
+                      <div key={i} className="flex flex-col items-center gap-1">
+                        <input
+                          type="color"
+                          value={hex}
+                          onChange={(e) => {
+                            if (!config) return;
+                            const h = e.target.value;
+                            const r = parseInt(h.slice(1, 3), 16) / 255;
+                            const g = parseInt(h.slice(3, 5), 16) / 255;
+                            const b = parseInt(h.slice(5, 7), 16) / 255;
+                            const newColors = [...(config.settings.quick_colors ?? [])];
+                            newColors[i] = [r, g, b, 1];
+                            const newConfig: AppConfig = {
+                              ...config,
+                              settings: { ...config.settings, quick_colors: newColors },
+                            };
+                            setConfig(newConfig);
+                            updatePreferences({ quick_colors: newColors }).catch(console.error);
+                          }}
+                          className="w-8 h-8 rounded-full cursor-pointer border-2"
+                          style={{ backgroundColor: css }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===== 快捷键 ===== */}
+        <TabsContent value="hotkeys" className="flex-1 overflow-y-auto m-0 p-6">
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">{t("hotkeys.title")}</Label>
+                <p className="text-xs text-muted-foreground">{t("hotkeys.hint")}</p>
+              </div>
+              <div className="space-y-1.5">
+                {HOTKEY_ACTIONS.map((action) => (
+                  <HotkeyRow
+                    key={action}
+                    action={action}
+                    bindings={config?.settings?.hotkey_bindings ?? []}
+                    onChange={(newBindings) => {
+                      if (!config) return;
+                      const newConfig: AppConfig = {
+                        ...config,
+                        settings: { ...config.settings, hotkey_bindings: newBindings },
+                      };
+                      setConfig(newConfig);
+                      updatePreferences({ hotkey_bindings: newBindings }).catch(console.error);
+                    }}
+                  />
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -608,6 +703,84 @@ export default function SettingsApp() {
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/** 快捷键录制行：点击输入框 → 按下组合键捕获 → Esc 清除。 */
+function HotkeyRow({
+  action,
+  bindings,
+  onChange,
+}: {
+  action: HotkeyAction;
+  bindings: HotkeyBindings;
+  onChange: (bindings: HotkeyBindings) => void;
+}) {
+  const { t } = useI18n();
+  const [recording, setRecording] = useState(false);
+
+  const currentValue = bindings.find(([a]) => a === action)?.[1] ?? "";
+  const keyParts = currentValue ? currentValue.split("+") : [];
+
+  const updateBinding = (key: string) => {
+    // 移除同 action 的旧绑定和同 key 的其他绑定（避免重复）。
+    let next = bindings.filter(([a, k]) => a !== action && k !== key);
+    if (key) {
+      next = [...next, [action, key] as [HotkeyAction, string]];
+    }
+    onChange(next);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") {
+      updateBinding("");
+      setRecording(false);
+      return;
+    }
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.altKey) parts.push("Alt");
+    if (e.metaKey) parts.push("Super");
+    let keyName = e.key;
+    if (keyName === " ") keyName = "Space";
+    else if (keyName.length === 1) keyName = keyName.toUpperCase();
+    if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return;
+    if (parts.length === 0) return;
+    parts.push(keyName);
+    updateBinding(parts.join("+"));
+    setRecording(false);
+  };
+
+  return (
+    <div className="flex items-center justify-between">
+      <Label className="text-sm">{t(`hotkeyActions.${action}`)}</Label>
+      {/* 录入区域：点击聚焦进入录入模式，显示 Kbd 标签 */}
+      <div
+        tabIndex={0}
+        onFocus={() => setRecording(true)}
+        onBlur={() => setRecording(false)}
+        onKeyDown={handleKeyDown}
+        className={`flex items-center gap-1 min-h-7 min-w-32 px-2 py-1 rounded-md cursor-pointer transition-colors ${
+          recording ? "border border-primary bg-primary/10" : "border border-transparent hover:bg-muted"
+        }`}
+      >
+        {recording ? (
+          <span className="text-xs text-muted-foreground animate-pulse">按下组合键…</span>
+        ) : keyParts.length > 0 ? (
+          keyParts.map((part, i) => (
+            <span key={i} className="flex items-center gap-1">
+              {i > 0 && <span className="text-xs text-muted-foreground">+</span>}
+              <Kbd>{part}</Kbd>
+            </span>
+          ))
+        ) : (
+          <span className="text-xs text-muted-foreground">{t("hotkeys.placeholder")}</span>
+        )}
+      </div>
     </div>
   );
 }

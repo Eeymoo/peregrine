@@ -7,7 +7,7 @@
 //! - 使用 Tauri tray 图标管理「配置」「设置」「退出」菜单
 //! - 管理「配置窗口」（准心参数）与「设置窗口」（关于等）两个 Webview 窗口
 
-use peregrine_config::{ConfigNotifier, ConfigSnapshot, ConfigStorage};
+use peregrine_config::{ConfigNotifier, ConfigSnapshot, ConfigStorage, HotkeyAction};
 use std::sync::{Arc, Mutex, mpsc};
 use tauri::{
     Emitter, Manager, State, WebviewUrl,
@@ -272,6 +272,32 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(move |app, shortcut, event| {
+                    if event.state() != tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        return;
+                    }
+                    let state = app.state::<AppState>();
+                    // 查找此快捷键对应的 action。
+                    let action = {
+                        let cfg = state.config.lock().expect("config lock");
+                        cfg.as_ref()
+                            .settings
+                            .hotkey_bindings
+                            .iter()
+                            .find(|(_, key)| {
+                                tauri_plugin_global_shortcut::Shortcut::try_from(key.as_str())
+                                    .map(|s| &s == shortcut)
+                                    .unwrap_or(false)
+                            })
+                            .map(|(a, _)| *a)
+                    };
+                    let Some(action) = action else { return };
+                    execute_hotkey_action(app, action);
+                })
+                .build(),
+        )
         .manage(state)
         .on_window_event(|window, event| {
             // 关闭窗口时真正销毁 WebView2 渲染进程（~30-50MB/窗口），
@@ -359,6 +385,8 @@ pub fn run() {
                                     cn_mirror: None,
                                     mirror_url: None,
                                     antialiasing: None,
+                                    quick_colors: None,
+                                    hotkey_bindings: None,
                                 },
                             )
                             .await;
@@ -392,6 +420,10 @@ pub fn run() {
             let _ = config_window.show();
             let _ = config_window.set_focus();
 
+            // 注册全局快捷键。
+            let app_handle = app.app_handle();
+            register_hotkeys(&app_handle, &snapshot.settings.hotkey_bindings);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -408,6 +440,7 @@ pub fn run() {
             relaunch_app,
             check_update,
             download_install_update,
+            set_crosshair_color,
         ])
         .build(tauri::generate_context!())
         .expect("build tauri app")
@@ -580,6 +613,147 @@ async fn update_preferences(
     update_preferences_inner(app, preferences).await
 }
 
+/// 注册全局快捷键。先清除所有旧绑定，再逐个注册新绑定。
+fn register_hotkeys(app: &tauri::AppHandle, bindings: &[(HotkeyAction, String)]) {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let gs = app.global_shortcut();
+    let _ = gs.unregister_all();
+    for (_action, key) in bindings {
+        if key.is_empty() {
+            continue;
+        }
+        match tauri_plugin_global_shortcut::Shortcut::try_from(key.as_str()) {
+            Ok(shortcut) => {
+                if let Err(e) = gs.register(shortcut) {
+                    tracing::warn!("快捷键注册失败: {} - {}", key, e);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("快捷键解析失败: {} - {}", key, e);
+            }
+        }
+    }
+    tracing::info!("已注册 {} 个快捷键", bindings.len());
+}
+
+/// 执行快捷键动作。
+fn execute_hotkey_action(app: &tauri::AppHandle, action: HotkeyAction) {
+    let state = app.state::<AppState>();
+    match action {
+        HotkeyAction::ToggleOverlay => {
+            let _ = state
+                .overlay_cmd_tx
+                .send(overlay::OverlayCommand::ToggleOverlay);
+        }
+        HotkeyAction::StartOverlay => {
+            let title = {
+                let cfg = state.config.lock().expect("config lock");
+                cfg.as_ref()
+                    .active_profile()
+                    .map(|p| p.target_window.clone())
+                    .unwrap_or_default()
+            };
+            let _ = state
+                .overlay_cmd_tx
+                .send(overlay::OverlayCommand::Start(title));
+        }
+        HotkeyAction::StopOverlay => {
+            let _ = state.overlay_cmd_tx.send(overlay::OverlayCommand::Stop);
+        }
+        HotkeyAction::CycleColorNext | HotkeyAction::CycleColorPrev => {
+            // 读取 quick_colors 和当前颜色，计算下一个/上一个。
+            let (new_color, quick_colors, current_color) = {
+                let cfg = state.config.lock().expect("config lock");
+                let cfg = cfg.as_ref();
+                let qc = cfg.settings.quick_colors;
+                let active = cfg.active_profile();
+                let current = active
+                    .map(|p| p.crosshair.color)
+                    .unwrap_or([1.0, 1.0, 1.0, 1.0]);
+                let idx = qc
+                    .iter()
+                    .position(|c| {
+                        (c[0] - current[0]).abs() < 0.01
+                            && (c[1] - current[1]).abs() < 0.01
+                            && (c[2] - current[2]).abs() < 0.01
+                    })
+                    .map(|i| i as i32)
+                    .unwrap_or(-1);
+                let next_idx = if action == HotkeyAction::CycleColorNext {
+                    ((idx + 1) % 5 as i32).max(0) as usize
+                } else {
+                    if idx <= 0 { 4 } else { (idx - 1) as usize }
+                };
+                let new_color = qc[next_idx];
+                (new_color.to_vec(), qc, current)
+            };
+            let _ = new_color;
+            tracing::debug!(
+                "切换颜色: {:?} -> {:?}",
+                current_color,
+                quick_colors
+            );
+            // 通过 Tauri command 逻辑设置颜色。
+            let app_clone = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = set_crosshair_color_inner(app_clone.state::<AppState>(), new_color).await;
+            });
+        }
+        HotkeyAction::SetColor1
+        | HotkeyAction::SetColor2
+        | HotkeyAction::SetColor3
+        | HotkeyAction::SetColor4
+        | HotkeyAction::SetColor5 => {
+            let idx = match action {
+                HotkeyAction::SetColor1 => 0,
+                HotkeyAction::SetColor2 => 1,
+                HotkeyAction::SetColor3 => 2,
+                HotkeyAction::SetColor4 => 3,
+                HotkeyAction::SetColor5 => 4,
+                _ => return,
+            };
+            let color = {
+                let cfg = state.config.lock().expect("config lock");
+                cfg.as_ref().settings.quick_colors[idx]
+            };
+            let app_clone = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = set_crosshair_color_inner(app_clone.state::<AppState>(), color.to_vec())
+                    .await;
+            });
+        }
+    }
+}
+
+/// set_crosshair_color 的内部逻辑，供 command 和快捷键共用。
+async fn set_crosshair_color_inner(
+    state: State<'_, AppState>,
+    color: Vec<f32>,
+) -> Result<(), String> {
+    if color.len() != 4 {
+        return Err("color must have 4 channels".to_string());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if let Some(profile) = config.active_profile_mut() {
+        profile.crosshair.color = [color[0], color[1], color[2], color[3]];
+    }
+    config.validate().map_err(|e| e.to_string())?;
+    state.storage.save(&config).await.map_err(|e| e.to_string())?;
+    state
+        .notifier
+        .update(config.clone())
+        .map_err(|e| e.to_string())?;
+    let snapshot: ConfigSnapshot = Arc::new(config);
+    *state.config.lock().map_err(|e| e.to_string())? = snapshot.clone();
+    let _ = state
+        .overlay_cmd_tx
+        .send(overlay::OverlayCommand::UpdateConfig(snapshot));
+    Ok(())
+}
+
 #[derive(serde::Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
 struct PreferencesPatch {
@@ -592,6 +766,8 @@ struct PreferencesPatch {
     cn_mirror: Option<bool>,
     mirror_url: Option<String>,
     antialiasing: Option<bool>,
+    quick_colors: Option<Vec<[f32; 4]>>,
+    hotkey_bindings: Option<Vec<(HotkeyAction, String)>>,
 }
 
 /// 更新偏好设置的共享逻辑，供 Tauri command 和托盘菜单事件复用。
@@ -643,6 +819,18 @@ async fn update_preferences_inner(
     }
     if let Some(aa) = preferences.antialiasing {
         config.settings.antialiasing = aa;
+    }
+    if let Some(qc) = &preferences.quick_colors {
+        if qc.len() == 5 {
+            let mut arr = [[0.0f32; 4]; 5];
+            for (i, c) in qc.iter().enumerate().take(5) {
+                arr[i] = [c[0], c[1], c[2], c[3]];
+            }
+            config.settings.quick_colors = arr;
+        }
+    }
+    if let Some(hk) = &preferences.hotkey_bindings {
+        config.settings.hotkey_bindings = hk.clone();
     }
 
     config.validate().map_err(|e| e.to_string())?;
@@ -696,6 +884,11 @@ async fn update_preferences_inner(
         let _ = tray_state.window_mode_item.set_checked(!fs);
     }
 
+    // 快捷键变更后重新注册。
+    if preferences.hotkey_bindings.is_some() {
+        register_hotkeys(&app, &snapshot.as_ref().settings.hotkey_bindings);
+    }
+
     // 广播 settings 变更，让所有窗口的 React state 同步更新。
     let settings_json = serde_json::json!({
         "auto_switch_on_overlay": snapshot.as_ref().settings.auto_switch_on_overlay,
@@ -707,6 +900,8 @@ async fn update_preferences_inner(
         "cn_mirror": snapshot.as_ref().settings.cn_mirror,
         "mirror_url": snapshot.as_ref().settings.mirror_url,
         "antialiasing": snapshot.as_ref().settings.antialiasing,
+        "quick_colors": snapshot.as_ref().settings.quick_colors,
+        "hotkey_bindings": snapshot.as_ref().settings.hotkey_bindings,
     });
     app.emit("peregrine:settings-changed", &settings_json)
         .map_err(|e| e.to_string())?;
@@ -949,4 +1144,13 @@ async fn download_install_update(
         .map_err(|e| format!("下载安装失败: {e}"))?;
 
     app.restart();
+}
+
+/// 设置当前 active profile 的准心颜色（快捷键颜色切换共用此逻辑）。
+#[tauri::command]
+async fn set_crosshair_color(
+    state: State<'_, AppState>,
+    color: Vec<f32>,
+) -> Result<(), String> {
+    set_crosshair_color_inner(state, color).await
 }

@@ -113,10 +113,11 @@ export default function SettingsApp() {
           cn_mirror?: boolean;
           mirror_url?: string;
           antialiasing?: boolean;
+          renderer_backend?: "cpu" | "svg";
           quick_colors?: [number, number, number, number][];
           hotkey_bindings?: [string, string][];
         }>("peregrine:settings-changed", (event) => {
-          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration, update_channel, cn_mirror, mirror_url, antialiasing, quick_colors, hotkey_bindings } = event.payload;
+          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration, update_channel, cn_mirror, mirror_url, antialiasing, renderer_backend, quick_colors, hotkey_bindings } = event.payload;
           if (auto_switch_on_overlay !== undefined) {
             setAutoSwitchState(auto_switch_on_overlay);
           }
@@ -146,6 +147,9 @@ export default function SettingsApp() {
             }
             if (antialiasing !== undefined) {
               settings.antialiasing = antialiasing;
+            }
+            if (renderer_backend !== undefined) {
+              settings.renderer_backend = renderer_backend;
             }
             if (quick_colors !== undefined) {
               settings.quick_colors = quick_colors;
@@ -324,6 +328,43 @@ export default function SettingsApp() {
                     updatePreferences({ antialiasing: v }).catch(console.error);
                   }}
                 />
+              </div>
+
+              {/* 渲染后端 */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">
+                    {t("overlaySettings.rendererBackend")}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t("overlaySettings.rendererBackendHint")}
+                  </p>
+                </div>
+                <Select
+                  value={config?.settings?.renderer_backend ?? "cpu"}
+                  onValueChange={(v) => {
+                    if (!config) return;
+                    const backend = v as "cpu" | "svg";
+                    const newConfig: AppConfig = {
+                      ...config,
+                      settings: { ...config.settings, renderer_backend: backend },
+                    };
+                    setConfig(newConfig);
+                    updatePreferences({ renderer_backend: backend }).catch(console.error);
+                  }}
+                >
+                  <SelectTrigger className="w-32 h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cpu">
+                      {t("overlaySettings.rendererBackendCpu")}
+                    </SelectItem>
+                    <SelectItem value="svg">
+                      {t("overlaySettings.rendererBackendSvg")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* 快捷颜色 */}

@@ -15,6 +15,9 @@ peregrine_config = { path = "../config" }
 winit = { workspace = true }
 softbuffer = { workspace = true }
 png = { workspace = true }
+resvg = { workspace = true }
+usvg = { workspace = true }
+tiny-skia = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }

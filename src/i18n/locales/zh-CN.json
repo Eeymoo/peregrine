@@ -34,7 +34,11 @@
     "liveDragPreviewHint": "关闭后，窗口拖拽期间隐藏准心，停止拖拽 1200ms 后恢复",
     "fullscreenOnlyHint": "仅窗口模式下可用",
     "antialiasing": "抗锯齿",
-    "antialiasingHint": "平滑圆形和三角形等曲线边缘，关闭可略微降低 CPU 开销"
+    "antialiasingHint": "平滑圆形和三角形等曲线边缘，关闭可略微降低 CPU 开销",
+    "rendererBackend": "渲染后端",
+    "rendererBackendHint": "SVG 模式抗锯齿质量更高；CPU 模式无需额外依赖",
+    "rendererBackendCpu": "CPU（默认）",
+    "rendererBackendSvg": "SVG"
   },
   "quickColors": {
     "title": "快捷颜色",

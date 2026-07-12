@@ -5,3 +5,4 @@
 pub mod overlay_renderer;
 pub mod platform;
 pub mod shapes;
+pub mod svg_renderer;

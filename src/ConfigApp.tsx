@@ -105,10 +105,11 @@ export default function ConfigApp() {
           mirror_url?: string;
           update_channel?: string;
           antialiasing?: boolean;
+          renderer_backend?: "cpu" | "svg";
           quick_colors?: [number, number, number, number][];
           hotkey_bindings?: [string, string][];
         }>("peregrine:settings-changed", (event) => {
-          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, cn_mirror, mirror_url, update_channel, antialiasing, quick_colors, hotkey_bindings } = event.payload;
+          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, cn_mirror, mirror_url, update_channel, antialiasing, renderer_backend, quick_colors, hotkey_bindings } = event.payload;
           setConfig((prev) => {
             if (!prev) return prev;
             const settings = { ...prev.settings };
@@ -132,6 +133,9 @@ export default function ConfigApp() {
             }
             if (antialiasing !== undefined) {
               settings.antialiasing = antialiasing;
+            }
+            if (renderer_backend !== undefined) {
+              settings.renderer_backend = renderer_backend;
             }
             if (quick_colors !== undefined) {
               settings.quick_colors = quick_colors;

@@ -503,12 +503,26 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
             let (cell_w, cell_h, offset_x, offset_y, total_w, total_h) =
                 if matches!(crosshair.grid_alignment, GridAlignment::Edge) {
                     // 贴边：拉伸填满整个屏幕，无空隙。
-                    (screen.width() / cols as f32, screen.height() / rows as f32, 0.0, 0.0, screen.width(), screen.height())
+                    (
+                        screen.width() / cols as f32,
+                        screen.height() / rows as f32,
+                        0.0,
+                        0.0,
+                        screen.width(),
+                        screen.height(),
+                    )
                 } else {
                     // 居中：正方形格子居中。
                     let tw = cell * cols as f32;
                     let th = cell * rows as f32;
-                    (cell, cell, (screen.width() - tw) / 2.0, (screen.height() - th) / 2.0, tw, th)
+                    (
+                        cell,
+                        cell,
+                        (screen.width() - tw) / 2.0,
+                        (screen.height() - th) / 2.0,
+                        tw,
+                        th,
+                    )
                 };
 
             match crosshair.grid_alignment {

@@ -34,7 +34,11 @@
     "liveDragPreviewHint": "When off, the crosshair is hidden during window drag and restored 1200ms after dragging stops",
     "fullscreenOnlyHint": "Only available in window mode",
     "antialiasing": "Anti-aliasing",
-    "antialiasingHint": "Smooths curved edges on circles and triangles. Disable to slightly reduce CPU usage"
+    "antialiasingHint": "Smooths curved edges on circles and triangles. Disable to slightly reduce CPU usage",
+    "rendererBackend": "Renderer Backend",
+    "rendererBackendHint": "SVG mode has higher AA quality; CPU mode requires no extra dependencies",
+    "rendererBackendCpu": "CPU (Default)",
+    "rendererBackendSvg": "SVG"
   },
   "quickColors": {
     "title": "Quick Colors",

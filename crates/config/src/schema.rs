@@ -57,6 +57,11 @@ pub struct AppSettings {
     /// 关闭可略微降低 CPU 开销（低性能设备适用）。
     #[serde(default = "default_antialiasing")]
     pub antialiasing: bool,
+    /// 覆盖层渲染后端。
+    /// - `"cpu"`：手写 CPU 像素光栅化（默认，零额外依赖）
+    /// - `"svg"`：将图元转为 SVG 由 resvg/tiny-skia 光栅化（抗锯齿质量更高）
+    #[serde(default = "default_renderer_backend")]
+    pub renderer_backend: RendererBackend,
     /// 快捷颜色预设（5 色，默认白绿蓝红橙）。
     /// 配置页点击色块可一键切换准心颜色，设置页可自定义。
     #[serde(default = "default_quick_colors")]
@@ -92,14 +97,19 @@ fn default_antialiasing() -> bool {
     true
 }
 
+/// 渲染后端默认为 CPU。
+fn default_renderer_backend() -> RendererBackend {
+    RendererBackend::Cpu
+}
+
 /// 默认快捷颜色预设：白、绿、蓝、红、橙。
 fn default_quick_colors() -> [[f32; 4]; 5] {
     [
-        [1.0, 1.0, 1.0, 1.0],  // 白
-        [0.0, 1.0, 0.0, 1.0],  // 绿
-        [0.2, 0.5, 1.0, 1.0],  // 蓝
-        [1.0, 0.0, 0.0, 1.0],  // 红
-        [1.0, 0.5, 0.0, 1.0],  // 橙
+        [1.0, 1.0, 1.0, 1.0], // 白
+        [0.0, 1.0, 0.0, 1.0], // 绿
+        [0.2, 0.5, 1.0, 1.0], // 蓝
+        [1.0, 0.0, 0.0, 1.0], // 红
+        [1.0, 0.5, 0.0, 1.0], // 橙
     ]
 }
 
@@ -115,6 +125,7 @@ impl Default for AppSettings {
             cn_mirror: false,
             mirror_url: default_mirror_url(),
             antialiasing: default_antialiasing(),
+            renderer_backend: default_renderer_backend(),
             quick_colors: default_quick_colors(),
             hotkey_bindings: default_hotkey_bindings(),
         }
@@ -334,6 +345,17 @@ pub enum Anchor {
     /// 屏幕正中心（默认）。
     #[default]
     Center,
+}
+
+/// 覆盖层渲染后端。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RendererBackend {
+    /// 手写 CPU 像素光栅化（默认，零额外依赖）。
+    #[default]
+    Cpu,
+    /// 将图元转为 SVG 字符串，由 resvg/tiny-skia 光栅化（抗锯齿质量更高）。
+    Svg,
 }
 
 /// 支持的辅助贴图样式。
@@ -1066,6 +1088,7 @@ mod tests {
             cn_mirror: true,
             mirror_url: "https://gh-proxy.org".to_string(),
             antialiasing: false,
+            renderer_backend: RendererBackend::Cpu,
             quick_colors: default_quick_colors(),
             hotkey_bindings: default_hotkey_bindings(),
         };
@@ -1252,6 +1275,7 @@ mod tests {
             cn_mirror: false,
             mirror_url: "https://v4.gh-proxy.org".to_string(),
             antialiasing: true,
+            renderer_backend: RendererBackend::Cpu,
             quick_colors: [
                 [0.1, 0.2, 0.3, 1.0],
                 [0.4, 0.5, 0.6, 1.0],
@@ -1307,6 +1331,7 @@ mod tests {
             cn_mirror: false,
             mirror_url: "https://v4.gh-proxy.org".to_string(),
             antialiasing: true,
+            renderer_backend: RendererBackend::Cpu,
             quick_colors: default_quick_colors(),
             hotkey_bindings: bindings.clone(),
         };

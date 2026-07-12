@@ -11,7 +11,7 @@ pub mod watcher;
 pub use notifier::{ConfigNotifier, ConfigSnapshot};
 pub use schema::{
     Anchor, AppConfig, AppSettings, BorderFrameStyle, Crosshair, CrosshairStyle, GridAlignment,
-    HotkeyAction, OrbPosition, Profile, RandomOrbMode, RingStyle,
+    HotkeyAction, OrbPosition, Profile, RandomOrbMode, RendererBackend, RingStyle,
 };
 pub use storage::ConfigStorage;
 pub use watcher::ConfigWatcher;

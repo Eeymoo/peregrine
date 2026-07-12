@@ -12,7 +12,7 @@
 // 像素光栅化原语参数较多（坐标、尺寸、颜色等），允许超过 clippy 默认限制。
 #![allow(clippy::too_many_arguments)]
 
-use peregrine_config::{Crosshair, CrosshairStyle};
+use peregrine_config::{Crosshair, CrosshairStyle, RendererBackend};
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 use winit::window::Window;
@@ -98,6 +98,7 @@ impl OverlayRenderer {
             .map(|p| p.crosshair.clone())
             .unwrap_or_else(Crosshair::default_crosshair);
         let antialiasing = config.settings.antialiasing;
+        let renderer_backend = config.settings.renderer_backend;
         drop(config);
 
         // 在像素缓冲区上绘制准心。
@@ -156,12 +157,48 @@ impl OverlayRenderer {
                     opacity,
                 );
             }
+        } else if renderer_backend == RendererBackend::Svg {
+            // SVG 后端：将图元转为 SVG 由 resvg/tiny-skia 光栅化。
+            // CustomImage 已在上面单独处理，此分支仅处理矢量图元。
+            let ok = crate::svg_renderer::render_shapes_to_buffer(
+                &mut buffer,
+                width,
+                height,
+                scale,
+                &rect,
+                &crosshair,
+            );
+            if !ok {
+                // SVG 光栅化失败时回退到 CPU 路径。
+                tracing::warn!("SVG 光栅化失败，回退到 CPU 渲染");
+                let color = make_color(&crosshair.color, crosshair.opacity);
+                let shapes = crate::shapes::build_shapes(&rect, &crosshair);
+                for shape in shapes {
+                    rasterize_shape(
+                        &mut buffer,
+                        width,
+                        height,
+                        scale,
+                        &shape,
+                        color,
+                        antialiasing,
+                    );
+                }
+            }
         } else {
-            // 使用共享几何模块生成图元，确保预览与覆盖层完全一致。
+            // CPU 后端：手写像素光栅化（默认）。
             let color = make_color(&crosshair.color, crosshair.opacity);
             let shapes = crate::shapes::build_shapes(&rect, &crosshair);
             for shape in shapes {
-                rasterize_shape(&mut buffer, width, height, scale, &shape, color, antialiasing);
+                rasterize_shape(
+                    &mut buffer,
+                    width,
+                    height,
+                    scale,
+                    &shape,
+                    color,
+                    antialiasing,
+                );
             }
         }
 

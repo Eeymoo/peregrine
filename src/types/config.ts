@@ -111,6 +111,7 @@ export interface AppSettings {
   cn_mirror: boolean;
   mirror_url: string;
   antialiasing: boolean;
+  renderer_backend: "cpu" | "svg";
   quick_colors: [number, number, number, number][];
   hotkey_bindings: HotkeyBindings;
 }

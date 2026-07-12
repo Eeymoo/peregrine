@@ -7,7 +7,9 @@
 //! - 使用 Tauri tray 图标管理「配置」「设置」「退出」菜单
 //! - 管理「配置窗口」（准心参数）与「设置窗口」（关于等）两个 Webview 窗口
 
-use peregrine_config::{ConfigNotifier, ConfigSnapshot, ConfigStorage, HotkeyAction};
+use peregrine_config::{
+    ConfigNotifier, ConfigSnapshot, ConfigStorage, HotkeyAction, RendererBackend,
+};
 use std::sync::{Arc, Mutex, mpsc};
 use tauri::{
     Emitter, Manager, State, WebviewUrl,
@@ -385,6 +387,7 @@ pub fn run() {
                                     cn_mirror: None,
                                     mirror_url: None,
                                     antialiasing: None,
+                                    renderer_backend: None,
                                     quick_colors: None,
                                     hotkey_bindings: None,
                                 },
@@ -688,11 +691,7 @@ fn execute_hotkey_action(app: &tauri::AppHandle, action: HotkeyAction) {
                 (new_color.to_vec(), qc, current)
             };
             let _ = new_color;
-            tracing::debug!(
-                "切换颜色: {:?} -> {:?}",
-                current_color,
-                quick_colors
-            );
+            tracing::debug!("切换颜色: {:?} -> {:?}", current_color, quick_colors);
             // 通过 Tauri command 逻辑设置颜色。
             let app_clone = app.clone();
             tauri::async_runtime::spawn(async move {
@@ -718,8 +717,8 @@ fn execute_hotkey_action(app: &tauri::AppHandle, action: HotkeyAction) {
             };
             let app_clone = app.clone();
             tauri::async_runtime::spawn(async move {
-                let _ = set_crosshair_color_inner(app_clone.state::<AppState>(), color.to_vec())
-                    .await;
+                let _ =
+                    set_crosshair_color_inner(app_clone.state::<AppState>(), color.to_vec()).await;
             });
         }
     }
@@ -741,7 +740,11 @@ async fn set_crosshair_color_inner(
         profile.crosshair.color = [color[0], color[1], color[2], color[3]];
     }
     config.validate().map_err(|e| e.to_string())?;
-    state.storage.save(&config).await.map_err(|e| e.to_string())?;
+    state
+        .storage
+        .save(&config)
+        .await
+        .map_err(|e| e.to_string())?;
     state
         .notifier
         .update(config.clone())
@@ -766,6 +769,7 @@ struct PreferencesPatch {
     cn_mirror: Option<bool>,
     mirror_url: Option<String>,
     antialiasing: Option<bool>,
+    renderer_backend: Option<RendererBackend>,
     quick_colors: Option<Vec<[f32; 4]>>,
     hotkey_bindings: Option<Vec<(HotkeyAction, String)>>,
 }
@@ -819,6 +823,9 @@ async fn update_preferences_inner(
     }
     if let Some(aa) = preferences.antialiasing {
         config.settings.antialiasing = aa;
+    }
+    if let Some(rb) = preferences.renderer_backend {
+        config.settings.renderer_backend = rb;
     }
     if let Some(qc) = &preferences.quick_colors {
         if qc.len() == 5 {
@@ -900,6 +907,7 @@ async fn update_preferences_inner(
         "cn_mirror": snapshot.as_ref().settings.cn_mirror,
         "mirror_url": snapshot.as_ref().settings.mirror_url,
         "antialiasing": snapshot.as_ref().settings.antialiasing,
+        "renderer_backend": snapshot.as_ref().settings.renderer_backend,
         "quick_colors": snapshot.as_ref().settings.quick_colors,
         "hotkey_bindings": snapshot.as_ref().settings.hotkey_bindings,
     });
@@ -1148,9 +1156,6 @@ async fn download_install_update(
 
 /// 设置当前 active profile 的准心颜色（快捷键颜色切换共用此逻辑）。
 #[tauri::command]
-async fn set_crosshair_color(
-    state: State<'_, AppState>,
-    color: Vec<f32>,
-) -> Result<(), String> {
+async fn set_crosshair_color(state: State<'_, AppState>, color: Vec<f32>) -> Result<(), String> {
     set_crosshair_color_inner(state, color).await
 }

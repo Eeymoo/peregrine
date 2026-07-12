@@ -32,7 +32,9 @@
     "windowModeHint": "仅覆盖目标窗口客户区",
     "liveDragPreview": "拖拽时实时显示",
     "liveDragPreviewHint": "关闭后，窗口拖拽期间隐藏准心，停止拖拽 1200ms 后恢复",
-    "fullscreenOnlyHint": "仅窗口模式下可用"
+    "fullscreenOnlyHint": "仅窗口模式下可用",
+    "antialiasing": "抗锯齿",
+    "antialiasingHint": "平滑圆形和三角形等曲线边缘，关闭可略微降低 CPU 开销"
   },
   "settings": {
     "title": "设置",

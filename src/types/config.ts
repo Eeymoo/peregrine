@@ -91,4 +91,5 @@ export interface AppSettings {
   update_channel: string;
   cn_mirror: boolean;
   mirror_url: string;
+  antialiasing: boolean;
 }

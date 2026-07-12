@@ -52,6 +52,11 @@ pub struct AppSettings {
     /// 用户可在设置中自定义。
     #[serde(default = "default_mirror_url")]
     pub mirror_url: String,
+    /// 是否启用覆盖层抗锯齿。
+    /// 默认 true：开启后圆形、圆环、三角形等曲线边缘更平滑；
+    /// 关闭可略微降低 CPU 开销（低性能设备适用）。
+    #[serde(default = "default_antialiasing")]
+    pub antialiasing: bool,
 }
 
 fn default_auto_switch_on_overlay() -> String {
@@ -74,6 +79,11 @@ fn default_mirror_url() -> String {
     "https://v4.gh-proxy.org".to_string()
 }
 
+/// 抗锯齿默认开启。
+fn default_antialiasing() -> bool {
+    true
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -85,6 +95,7 @@ impl Default for AppSettings {
             update_channel: default_update_channel(),
             cn_mirror: false,
             mirror_url: default_mirror_url(),
+            antialiasing: default_antialiasing(),
         }
     }
 }
@@ -950,6 +961,7 @@ mod tests {
         assert_eq!(s.update_channel, "stable");
         assert!(!s.cn_mirror);
         assert_eq!(s.mirror_url, "https://v4.gh-proxy.org");
+        assert!(s.antialiasing);
     }
 
     #[test]
@@ -963,6 +975,7 @@ mod tests {
             update_channel: "prerelease".to_string(),
             cn_mirror: true,
             mirror_url: "https://gh-proxy.org".to_string(),
+            antialiasing: false,
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -1021,5 +1034,6 @@ mod tests {
         assert!(!restored.settings.live_drag_preview);
         assert!(!restored.settings.gpu_acceleration);
         assert_eq!(restored.settings.update_channel, "stable");
+        assert!(restored.settings.antialiasing);
     }
 }

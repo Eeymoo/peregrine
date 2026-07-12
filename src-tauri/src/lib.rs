@@ -358,6 +358,7 @@ pub fn run() {
                                     update_channel: None,
                                     cn_mirror: None,
                                     mirror_url: None,
+                                    antialiasing: None,
                                 },
                             )
                             .await;
@@ -590,6 +591,7 @@ struct PreferencesPatch {
     update_channel: Option<String>,
     cn_mirror: Option<bool>,
     mirror_url: Option<String>,
+    antialiasing: Option<bool>,
 }
 
 /// 更新偏好设置的共享逻辑，供 Tauri command 和托盘菜单事件复用。
@@ -638,6 +640,9 @@ async fn update_preferences_inner(
     }
     if let Some(mirror) = &preferences.mirror_url {
         config.settings.mirror_url = mirror.clone();
+    }
+    if let Some(aa) = preferences.antialiasing {
+        config.settings.antialiasing = aa;
     }
 
     config.validate().map_err(|e| e.to_string())?;
@@ -701,6 +706,7 @@ async fn update_preferences_inner(
         "update_channel": snapshot.as_ref().settings.update_channel,
         "cn_mirror": snapshot.as_ref().settings.cn_mirror,
         "mirror_url": snapshot.as_ref().settings.mirror_url,
+        "antialiasing": snapshot.as_ref().settings.antialiasing,
     });
     app.emit("peregrine:settings-changed", &settings_json)
         .map_err(|e| e.to_string())?;

@@ -97,6 +97,7 @@ impl OverlayRenderer {
             .active_profile()
             .map(|p| p.crosshair.clone())
             .unwrap_or_else(Crosshair::default_crosshair);
+        let antialiasing = config.settings.antialiasing;
         drop(config);
 
         // 在像素缓冲区上绘制准心。
@@ -160,7 +161,7 @@ impl OverlayRenderer {
             let color = make_color(&crosshair.color, crosshair.opacity);
             let shapes = crate::shapes::build_shapes(&rect, &crosshair);
             for shape in shapes {
-                rasterize_shape(&mut buffer, width, height, scale, &shape, color);
+                rasterize_shape(&mut buffer, width, height, scale, &shape, color, antialiasing);
             }
         }
 
@@ -235,6 +236,7 @@ fn rasterize_shape(
     scale: f32,
     shape: &crate::shapes::Shape,
     color: u32,
+    antialiasing: bool,
 ) {
     use crate::shapes::Shape;
     match shape {
@@ -242,7 +244,11 @@ fn rasterize_shape(
             draw_rect(buffer, pixel_w, pixel_h, scale, *x, *y, *w, *h, color);
         }
         Shape::Circle { cx, cy, radius } => {
-            draw_circle(buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, color);
+            if antialiasing {
+                draw_circle(buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, color);
+            } else {
+                draw_circle_fast(buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, color);
+            }
         }
         Shape::CircleStroke {
             cx,
@@ -250,9 +256,15 @@ fn rasterize_shape(
             radius,
             thickness,
         } => {
-            draw_circle_stroke(
-                buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, *thickness, color,
-            );
+            if antialiasing {
+                draw_circle_stroke(
+                    buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, *thickness, color,
+                );
+            } else {
+                draw_circle_stroke_fast(
+                    buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, *thickness, color,
+                );
+            }
         }
         Shape::DashedCircle {
             cx,
@@ -262,10 +274,17 @@ fn rasterize_shape(
             dash_len,
             gap_len,
         } => {
-            draw_dashed_circle(
-                buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, *thickness, *dash_len,
-                *gap_len, color,
-            );
+            if antialiasing {
+                draw_dashed_circle(
+                    buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, *thickness, *dash_len,
+                    *gap_len, color,
+                );
+            } else {
+                draw_dashed_circle_fast(
+                    buffer, pixel_w, pixel_h, scale, *cx, *cy, *radius, *thickness, *dash_len,
+                    *gap_len, color,
+                );
+            }
         }
         Shape::Triangle {
             x1,
@@ -275,16 +294,42 @@ fn rasterize_shape(
             x3,
             y3,
         } => {
-            draw_triangle(
-                buffer, pixel_w, pixel_h, scale, *x1, *y1, *x2, *y2, *x3, *y3, color,
-            );
+            if antialiasing {
+                draw_triangle(
+                    buffer, pixel_w, pixel_h, scale, *x1, *y1, *x2, *y2, *x3, *y3, color,
+                );
+            } else {
+                draw_triangle_fast(
+                    buffer, pixel_w, pixel_h, scale, *x1, *y1, *x2, *y2, *x3, *y3, color,
+                );
+            }
         }
     }
 }
 
-// ===== 像素光栅化原语 =====
+/// 把颜色分量按覆盖率混合写入像素缓冲区（前景预乘 alpha，背景透明）。
+///
+/// 由于覆盖层背景始终透明（0x00000000），混合结果为预乘值：
+/// `out = fg_premul * coverage + bg * (1 - coverage)`。
+/// 背景为 0 时简化为 `out = fg_premul * coverage`。
+fn blend_pixel(buffer: &mut [u32], idx: usize, color: u32, coverage: f32) {
+    if coverage <= 0.0 || idx >= buffer.len() {
+        return;
+    }
+    let cov = coverage.min(1.0);
+    // 颜色已经是预乘 alpha 格式，直接按覆盖率缩放各分量。
+    let ai = ((color >> 24) & 0xFF) as f32 * cov;
+    let ri = ((color >> 16) & 0xFF) as f32 * cov;
+    let gi = ((color >> 8) & 0xFF) as f32 * cov;
+    let bi = (color & 0xFF) as f32 * cov;
+    buffer[idx] = ((ai as u32) << 24) | ((ri as u32) << 16) | ((gi as u32) << 8) | (bi as u32);
+}
 
-/// 绘制填充三角形（逻辑坐标，重心坐标法光栅化）。
+/// 绘制填充三角形（逻辑坐标，边距离抗锯齿）。
+///
+/// 使用三条边的有符号距离（重心坐标）判断像素在三角形内/外的程度：
+/// 三条边线函数同号 → 内部；覆盖率取最接近 0 的边线值的平滑映射，
+/// 在边缘 1 像素范围内平滑过渡。
 fn draw_triangle(
     buffer: &mut [u32],
     pixel_w: u32,
@@ -311,31 +356,54 @@ fn draw_triangle(
 
     let x0 = min_x.max(0);
     let y0 = min_y.max(0);
-    let x1_clip = max_x.min(pixel_w as i32);
-    let y1_clip = max_y.min(pixel_h as i32);
+    let x1_clip = (max_x + 1).min(pixel_w as i32);
+    let y1_clip = (max_y + 1).min(pixel_h as i32);
 
-    // 三角形面积（2 倍）。
+    // 三角形面积（2 倍），用于确定绕序方向。
     let area = (px2 - px1) * (py3 - py1) - (px3 - px1) * (py2 - py1);
     if area.abs() < 0.01 {
         return;
     }
+    // sign > 0 表示逆时针，sign < 0 表示顺时针。
+    // 标准化：使所有内部像素的 w0/w1/w2 ≥ 0。
+    let sign = if area > 0.0 { 1.0 } else { -1.0 };
+
+    // 三条边的向量长度，用于将边线函数值归一化为像素距离。
+    let len_e0 = ((px3 - px2).powi(2) + (py3 - py2).powi(2)).sqrt();
+    let len_e1 = ((px1 - px3).powi(2) + (py1 - py3).powi(2)).sqrt();
+    let len_e2 = ((px2 - px1).powi(2) + (py2 - py1).powi(2)).sqrt();
 
     for py in y0..y1_clip {
         for px in x0..x1_clip {
             let pxc = px as f32 + 0.5;
             let pyc = py as f32 + 0.5;
-            // 重心坐标判断点是否在三角形内。
-            let w0 = (px2 - pxc) * (py3 - pyc) - (px3 - pxc) * (py2 - pyc);
-            let w1 = (px3 - pxc) * (py1 - pyc) - (px1 - pxc) * (py3 - pyc);
-            let w2 = (px1 - pxc) * (py2 - pyc) - (px2 - pxc) * (py1 - pyc);
-            // 判断三个重心坐标同号。
-            let inside =
-                (w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0) || (w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0);
-            if inside {
-                let idx = (py as u32) * pixel_w + (px as u32);
-                if (idx as usize) < buffer.len() {
-                    buffer[idx as usize] = color;
+            // 三条边线函数（乘以 sign 使内部为正）。
+            let w0 = sign * ((px2 - pxc) * (py3 - pyc) - (px3 - pxc) * (py2 - pyc));
+            let w1 = sign * ((px3 - pxc) * (py1 - pyc) - (px1 - pxc) * (py3 - pyc));
+            let w2 = sign * ((px1 - pxc) * (py2 - pyc) - (px2 - pxc) * (py1 - pyc));
+
+            // 完全在外（任一边线为负且距离 > 1px）→ 跳过。
+            if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
+                // 近似：如果最大负值对应边线距离 > 1 像素则跳过。
+                let min_w = w0.min(w1).min(w2);
+                let max_len = len_e0.max(len_e1).max(len_e2);
+                if min_w < -max_len {
+                    continue;
                 }
+            }
+
+            // 将边线函数归一化为到边的距离（除以边长）。
+            let d0 = w0 / len_e0;
+            let d1 = w1 / len_e1;
+            let d2 = w2 / len_e2;
+
+            // 覆盖率 = 最小边距的平滑映射（在 0~1px 过渡）。
+            let min_d = d0.min(d1).min(d2);
+            let coverage = (min_d + 0.5).clamp(0.0, 1.0);
+
+            if coverage > 0.0 {
+                let idx = (py as u32) * pixel_w + (px as u32);
+                blend_pixel(buffer, idx as usize, color, coverage);
             }
         }
     }
@@ -371,7 +439,11 @@ fn draw_rect(
     }
 }
 
-/// 绘制填充圆（逻辑坐标）。
+/// 绘制填充圆（逻辑坐标，距离场抗锯齿）。
+///
+/// 使用像素中心到圆心的距离与半径的关系计算覆盖率：
+/// `coverage = clamp(radius + 0.5 - dist, 0, 1)`，
+/// 在边缘 1 像素范围内平滑过渡，消除锯齿。
 fn draw_circle(
     buffer: &mut [u32],
     pixel_w: u32,
@@ -382,29 +454,34 @@ fn draw_circle(
     radius: f32,
     color: u32,
 ) {
-    let pcx = (cx * scale).round() as i32;
-    let pcy = (cy * scale).round() as i32;
-    let pr = (radius * scale).round() as i32;
-    let pr_sq = (pr * pr) as f32;
-    let x0 = (pcx - pr).max(0);
-    let y0 = (pcy - pr).max(0);
-    let x1 = (pcx + pr).min(pixel_w as i32);
-    let y1 = (pcy + pr).min(pixel_h as i32);
+    let pcx = cx * scale;
+    let pcy = cy * scale;
+    let pr = radius * scale;
+    // 包围盒扩展 1px 以覆盖抗锯齿过渡区域。
+    let x0 = ((pcx - pr - 1.0).floor() as i32).max(0);
+    let y0 = ((pcy - pr - 1.0).floor() as i32).max(0);
+    let x1 = ((pcx + pr + 1.0).ceil() as i32).min(pixel_w as i32);
+    let y1 = ((pcy + pr + 1.0).ceil() as i32).min(pixel_h as i32);
     for py in y0..y1 {
         for px in x0..x1 {
-            let dx = px - pcx;
-            let dy = py - pcy;
-            if (dx * dx + dy * dy) as f32 <= pr_sq {
+            let dx = px as f32 + 0.5 - pcx;
+            let dy = py as f32 + 0.5 - pcy;
+            let dist = (dx * dx + dy * dy).sqrt();
+            let coverage = (pr + 0.5 - dist).clamp(0.0, 1.0);
+            if coverage > 0.0 {
                 let idx = (py as u32) * pixel_w + (px as u32);
-                if (idx as usize) < buffer.len() {
-                    buffer[idx as usize] = color;
-                }
+                blend_pixel(buffer, idx as usize, color, coverage);
             }
         }
     }
 }
 
-/// 绘制圆环描边（逻辑坐标）。
+/// 绘制圆环描边（逻辑坐标，距离场抗锯齿）。
+///
+/// 使用圆环的 SDF（有符号距离场）计算覆盖率：
+/// `sdf = |dist - center_r| - half_thickness`
+/// `coverage = clamp(0.5 - sdf, 0, 1)`，
+/// 在内外边缘各 1 像素范围内平滑过渡。
 fn draw_circle_stroke(
     buffer: &mut [u32],
     pixel_w: u32,
@@ -416,26 +493,27 @@ fn draw_circle_stroke(
     thickness: f32,
     color: u32,
 ) {
-    let pcx = (cx * scale).round() as i32;
-    let pcy = (cy * scale).round() as i32;
-    let outer_r = ((radius + thickness / 2.0) * scale).round() as i32;
-    let inner_r = ((radius - thickness / 2.0) * scale).round().max(0.0) as i32;
-    let outer_sq = (outer_r * outer_r) as f32;
-    let inner_sq = (inner_r * inner_r) as f32;
-    let x0 = (pcx - outer_r).max(0);
-    let y0 = (pcy - outer_r).max(0);
-    let x1 = (pcx + outer_r).min(pixel_w as i32);
-    let y1 = (pcy + outer_r).min(pixel_h as i32);
+    let pcx = cx * scale;
+    let pcy = cy * scale;
+    let center_r = radius * scale;
+    let half_t = thickness * scale / 2.0;
+    let outer_r = center_r + half_t;
+    // 包围盒扩展 1px 以覆盖抗锯齿过渡区域。
+    let x0 = ((pcx - outer_r - 1.0).floor() as i32).max(0);
+    let y0 = ((pcy - outer_r - 1.0).floor() as i32).max(0);
+    let x1 = ((pcx + outer_r + 1.0).ceil() as i32).min(pixel_w as i32);
+    let y1 = ((pcy + outer_r + 1.0).ceil() as i32).min(pixel_h as i32);
     for py in y0..y1 {
         for px in x0..x1 {
-            let dx = px - pcx;
-            let dy = py - pcy;
-            let d_sq = (dx * dx + dy * dy) as f32;
-            if d_sq <= outer_sq && d_sq >= inner_sq {
+            let dx = px as f32 + 0.5 - pcx;
+            let dy = py as f32 + 0.5 - pcy;
+            let dist = (dx * dx + dy * dy).sqrt();
+            // 圆环 SDF：到中心半径的距离减去半厚度。
+            let sdf = (dist - center_r).abs() - half_t;
+            let coverage = (0.5 - sdf).clamp(0.0, 1.0);
+            if coverage > 0.0 {
                 let idx = (py as u32) * pixel_w + (px as u32);
-                if (idx as usize) < buffer.len() {
-                    buffer[idx as usize] = color;
-                }
+                blend_pixel(buffer, idx as usize, color, coverage);
             }
         }
     }
@@ -484,6 +562,172 @@ fn draw_dashed_circle(
                 thickness / 2.0,
                 color,
             );
+        }
+    }
+}
+
+// ===== 关闭抗锯齿时的快速路径（硬二值光栅化，无 sqrt） =====
+
+/// 绘制填充圆（无抗锯齿）。
+fn draw_circle_fast(
+    buffer: &mut [u32],
+    pixel_w: u32,
+    pixel_h: u32,
+    scale: f32,
+    cx: f32,
+    cy: f32,
+    radius: f32,
+    color: u32,
+) {
+    let pcx = (cx * scale).round() as i32;
+    let pcy = (cy * scale).round() as i32;
+    let pr = (radius * scale).round() as i32;
+    let pr_sq = (pr * pr) as f32;
+    let x0 = (pcx - pr).max(0);
+    let y0 = (pcy - pr).max(0);
+    let x1 = (pcx + pr).min(pixel_w as i32);
+    let y1 = (pcy + pr).min(pixel_h as i32);
+    for py in y0..y1 {
+        for px in x0..x1 {
+            let dx = px - pcx;
+            let dy = py - pcy;
+            if (dx * dx + dy * dy) as f32 <= pr_sq {
+                let idx = (py as u32) * pixel_w + (px as u32);
+                if (idx as usize) < buffer.len() {
+                    buffer[idx as usize] = color;
+                }
+            }
+        }
+    }
+}
+
+/// 绘制圆环描边（无抗锯齿）。
+fn draw_circle_stroke_fast(
+    buffer: &mut [u32],
+    pixel_w: u32,
+    pixel_h: u32,
+    scale: f32,
+    cx: f32,
+    cy: f32,
+    radius: f32,
+    thickness: f32,
+    color: u32,
+) {
+    let pcx = (cx * scale).round() as i32;
+    let pcy = (cy * scale).round() as i32;
+    let outer_r = ((radius + thickness / 2.0) * scale).round() as i32;
+    let inner_r = ((radius - thickness / 2.0) * scale).round().max(0.0) as i32;
+    let outer_sq = (outer_r * outer_r) as f32;
+    let inner_sq = (inner_r * inner_r) as f32;
+    let x0 = (pcx - outer_r).max(0);
+    let y0 = (pcy - outer_r).max(0);
+    let x1 = (pcx + outer_r).min(pixel_w as i32);
+    let y1 = (pcy + outer_r).min(pixel_h as i32);
+    for py in y0..y1 {
+        for px in x0..x1 {
+            let dx = px - pcx;
+            let dy = py - pcy;
+            let d_sq = (dx * dx + dy * dy) as f32;
+            if d_sq <= outer_sq && d_sq >= inner_sq {
+                let idx = (py as u32) * pixel_w + (px as u32);
+                if (idx as usize) < buffer.len() {
+                    buffer[idx as usize] = color;
+                }
+            }
+        }
+    }
+}
+
+/// 绘制虚线圆（无抗锯齿）。
+fn draw_dashed_circle_fast(
+    buffer: &mut [u32],
+    pixel_w: u32,
+    pixel_h: u32,
+    scale: f32,
+    cx: f32,
+    cy: f32,
+    radius: f32,
+    thickness: f32,
+    dash_len: f32,
+    gap_len: f32,
+    color: u32,
+) {
+    let circumference = 2.0 * std::f32::consts::PI * radius;
+    let unit = dash_len + gap_len;
+    let segments = (circumference / unit).ceil() as usize;
+    let step_angle = 2.0 * std::f32::consts::PI / segments as f32;
+    let dash_angle = step_angle * (dash_len / unit);
+    for i in 0..segments {
+        let a0 = i as f32 * step_angle;
+        let a1 = a0 + dash_angle;
+        let steps = ((a1 - a0) * radius).ceil() as usize + 1;
+        for s in 0..steps {
+            let t = if steps > 0 {
+                s as f32 / steps as f32
+            } else {
+                0.0
+            };
+            let a = a0 + (a1 - a0) * t;
+            let x = cx + radius * a.cos();
+            let y = cy + radius * a.sin();
+            draw_circle_fast(
+                buffer,
+                pixel_w,
+                pixel_h,
+                scale,
+                x,
+                y,
+                thickness / 2.0,
+                color,
+            );
+        }
+    }
+}
+
+/// 绘制填充三角形（无抗锯齿，重心坐标法）。
+fn draw_triangle_fast(
+    buffer: &mut [u32],
+    pixel_w: u32,
+    pixel_h: u32,
+    scale: f32,
+    x1: f32,
+    y1: f32,
+    x2: f32,
+    y2: f32,
+    x3: f32,
+    y3: f32,
+    color: u32,
+) {
+    let (px1, py1) = (x1 * scale, y1 * scale);
+    let (px2, py2) = (x2 * scale, y2 * scale);
+    let (px3, py3) = (x3 * scale, y3 * scale);
+    let min_x = px1.min(px2).min(px3).floor() as i32;
+    let max_x = px1.max(px2).max(px3).ceil() as i32;
+    let min_y = py1.min(py2).min(py3).floor() as i32;
+    let max_y = py1.max(py2).max(py3).ceil() as i32;
+    let x0 = min_x.max(0);
+    let y0 = min_y.max(0);
+    let x1_clip = max_x.min(pixel_w as i32);
+    let y1_clip = max_y.min(pixel_h as i32);
+    let area = (px2 - px1) * (py3 - py1) - (px3 - px1) * (py2 - py1);
+    if area.abs() < 0.01 {
+        return;
+    }
+    for py in y0..y1_clip {
+        for px in x0..x1_clip {
+            let pxc = px as f32 + 0.5;
+            let pyc = py as f32 + 0.5;
+            let w0 = (px2 - pxc) * (py3 - pyc) - (px3 - pxc) * (py2 - pyc);
+            let w1 = (px3 - pxc) * (py1 - pyc) - (px1 - pxc) * (py3 - pyc);
+            let w2 = (px1 - pxc) * (py2 - pyc) - (px2 - pxc) * (py1 - pyc);
+            let inside =
+                (w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0) || (w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0);
+            if inside {
+                let idx = (py as u32) * pixel_w + (px as u32);
+                if (idx as usize) < buffer.len() {
+                    buffer[idx as usize] = color;
+                }
+            }
         }
     }
 }

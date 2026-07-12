@@ -32,7 +32,9 @@
     "windowModeHint": "Cover only the target window client area",
     "liveDragPreview": "Live Drag Preview",
     "liveDragPreviewHint": "When off, the crosshair is hidden during window drag and restored 1200ms after dragging stops",
-    "fullscreenOnlyHint": "Only available in window mode"
+    "fullscreenOnlyHint": "Only available in window mode",
+    "antialiasing": "Anti-aliasing",
+    "antialiasingHint": "Smooths curved edges on circles and triangles. Disable to slightly reduce CPU usage"
   },
   "settings": {
     "title": "Settings",

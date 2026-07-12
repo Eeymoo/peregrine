@@ -97,8 +97,9 @@ export default function SettingsApp() {
           update_channel?: string;
           cn_mirror?: boolean;
           mirror_url?: string;
+          antialiasing?: boolean;
         }>("peregrine:settings-changed", (event) => {
-          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration, update_channel, cn_mirror, mirror_url } = event.payload;
+          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, gpu_acceleration, update_channel, cn_mirror, mirror_url, antialiasing } = event.payload;
           if (auto_switch_on_overlay !== undefined) {
             setAutoSwitchState(auto_switch_on_overlay);
           }
@@ -125,6 +126,9 @@ export default function SettingsApp() {
             }
             if (mirror_url !== undefined) {
               settings.mirror_url = mirror_url;
+            }
+            if (antialiasing !== undefined) {
+              settings.antialiasing = antialiasing;
             }
             return { ...prev, settings };
           });
@@ -264,7 +268,6 @@ export default function SettingsApp() {
                 </div>
                 <Switch
                   checked={config?.settings?.live_drag_preview ?? false}
-                  disabled={config?.settings?.fullscreen_overlay ?? true}
                   onCheckedChange={(v) => {
                     if (!config) return;
                     const newConfig: AppConfig = {
@@ -273,6 +276,30 @@ export default function SettingsApp() {
                     };
                     setConfig(newConfig);
                     updatePreferences({ live_drag_preview: v }).catch(console.error);
+                  }}
+                />
+              </div>
+
+              {/* 抗锯齿 */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">
+                    {t("overlaySettings.antialiasing")}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t("overlaySettings.antialiasingHint")}
+                  </p>
+                </div>
+                <Switch
+                  checked={config?.settings?.antialiasing ?? true}
+                  onCheckedChange={(v) => {
+                    if (!config) return;
+                    const newConfig: AppConfig = {
+                      ...config,
+                      settings: { ...config.settings, antialiasing: v },
+                    };
+                    setConfig(newConfig);
+                    updatePreferences({ antialiasing: v }).catch(console.error);
                   }}
                 />
               </div>

@@ -43,6 +43,7 @@ const STYLES: CrosshairStyle[] = [
   "border_frame",
   // "custom_image", // 暂时隐藏，存在问题
   "edge_arrows",
+  "grid",
 ];
 
 export default function ConfigApp() {
@@ -103,8 +104,12 @@ export default function ConfigApp() {
           cn_mirror?: boolean;
           mirror_url?: string;
           update_channel?: string;
+          antialiasing?: boolean;
+          renderer_backend?: "cpu" | "svg";
+          quick_colors?: [number, number, number, number][];
+          hotkey_bindings?: [string, string][];
         }>("peregrine:settings-changed", (event) => {
-          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, cn_mirror, mirror_url, update_channel } = event.payload;
+          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, cn_mirror, mirror_url, update_channel, antialiasing, renderer_backend, quick_colors, hotkey_bindings } = event.payload;
           setConfig((prev) => {
             if (!prev) return prev;
             const settings = { ...prev.settings };
@@ -125,6 +130,18 @@ export default function ConfigApp() {
             }
             if (update_channel !== undefined) {
               settings.update_channel = update_channel;
+            }
+            if (antialiasing !== undefined) {
+              settings.antialiasing = antialiasing;
+            }
+            if (renderer_backend !== undefined) {
+              settings.renderer_backend = renderer_backend;
+            }
+            if (quick_colors !== undefined) {
+              settings.quick_colors = quick_colors;
+            }
+            if (hotkey_bindings !== undefined) {
+              settings.hotkey_bindings = hotkey_bindings as any;
             }
             return { ...prev, settings };
           });
@@ -330,6 +347,26 @@ export default function ConfigApp() {
                 }}
                 className="h-8 w-14 rounded border bg-transparent cursor-pointer"
               />
+              {/* 快捷颜色色块 */}
+              <div className="flex gap-1">
+                {(config.settings.quick_colors ?? []).map((qc, i) => {
+                  const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;
+                  const isActive = crosshair.color[0] === qc[0] && crosshair.color[1] === qc[1] && crosshair.color[2] === qc[2];
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      title={css}
+                      onClick={() => updateCrosshair({ color: [...qc] })}
+                      className="w-5 h-5 rounded-full border-2 transition-colors"
+                      style={{
+                        backgroundColor: css,
+                        borderColor: isActive ? "hsl(var(--primary))" : "hsl(var(--border))",
+                      }}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

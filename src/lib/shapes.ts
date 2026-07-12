@@ -232,6 +232,42 @@ export function buildShapes(screen: RectF, crosshair: Crosshair): Shape[] {
       break;
     }
     case "custom_image":
+      break;
+    case "grid": {
+      const cell = Math.max(crosshair.grid_size ?? 80, 10);
+      const thickness = crosshair.thickness;
+      const halfT = thickness / 2;
+      const cols = Math.max(1, Math.ceil((screen.maxX - screen.minX) / cell));
+      const rows = Math.max(1, Math.ceil((screen.maxY - screen.minY) / cell));
+      if (crosshair.grid_alignment === "edge") {
+        // 贴边：拉伸填满整个屏幕，无空隙。
+        const cellW = (screen.maxX - screen.minX) / cols;
+        const cellH = (screen.maxY - screen.minY) / rows;
+        for (let i = 0; i <= cols; i++) {
+          const x = screen.minX + cellW * i;
+          shapes.push({ type: "rect", x: x - halfT, y: screen.minY, w: thickness, h: screen.maxY - screen.minY });
+        }
+        for (let i = 0; i <= rows; i++) {
+          const y = screen.minY + cellH * i;
+          shapes.push({ type: "rect", x: screen.minX, y: y - halfT, w: screen.maxX - screen.minX, h: thickness });
+        }
+      } else {
+        // 居中：正方形格子居中。
+        const totalW = cell * cols;
+        const totalH = cell * rows;
+        const offsetX = ((screen.maxX - screen.minX) - totalW) / 2;
+        const offsetY = ((screen.maxY - screen.minY) - totalH) / 2;
+        for (let i = 1; i < cols; i++) {
+          const x = screen.minX + offsetX + cell * i;
+          shapes.push({ type: "rect", x: x - halfT, y: screen.minY + offsetY, w: thickness, h: totalH });
+        }
+        for (let i = 1; i < rows; i++) {
+          const y = screen.minY + offsetY + cell * i;
+          shapes.push({ type: "rect", x: screen.minX + offsetX, y: y - halfT, w: totalW, h: thickness });
+        }
+      }
+      break;
+    }
     default:
       break;
   }

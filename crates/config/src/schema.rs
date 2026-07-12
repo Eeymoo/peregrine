@@ -40,7 +40,7 @@ pub struct AppSettings {
     /// 默认 false：关闭 GPU 加速以降低内存占用（GPU 进程 ~80MB → ~15MB）。
     #[serde(default)]
     pub gpu_acceleration: bool,
-    /// 自动更新通道：`"stable"`（正式版，偶数版本号）或 `"prerelease"`（尝鲜版，奇数/预发布）。
+    /// 自动更新通道：`"stable"`（正式版，奇数版本号）或 `"prerelease"`（尝鲜版，偶数/预发布）。
     /// 默认 `"stable"`。
     #[serde(default = "default_update_channel")]
     pub update_channel: String,
@@ -52,6 +52,24 @@ pub struct AppSettings {
     /// 用户可在设置中自定义。
     #[serde(default = "default_mirror_url")]
     pub mirror_url: String,
+    /// 是否启用覆盖层抗锯齿。
+    /// 默认 true：开启后圆形、圆环、三角形等曲线边缘更平滑；
+    /// 关闭可略微降低 CPU 开销（低性能设备适用）。
+    #[serde(default = "default_antialiasing")]
+    pub antialiasing: bool,
+    /// 覆盖层渲染后端。
+    /// - `"cpu"`：手写 CPU 像素光栅化（默认，零额外依赖）
+    /// - `"svg"`：将图元转为 SVG 由 resvg/tiny-skia 光栅化（抗锯齿质量更高）
+    #[serde(default = "default_renderer_backend")]
+    pub renderer_backend: RendererBackend,
+    /// 快捷颜色预设（5 色，默认白绿蓝红橙）。
+    /// 配置页点击色块可一键切换准心颜色，设置页可自定义。
+    #[serde(default = "default_quick_colors")]
+    pub quick_colors: [[f32; 4]; 5],
+    /// 快捷键绑定（action → 快捷键字符串）。
+    /// Vec<(action, key)> 保证序列化稳定，运行时可转 HashMap 查找。
+    #[serde(default = "default_hotkey_bindings")]
+    pub hotkey_bindings: Vec<(HotkeyAction, String)>,
 }
 
 fn default_auto_switch_on_overlay() -> String {
@@ -74,6 +92,27 @@ fn default_mirror_url() -> String {
     "https://v4.gh-proxy.org".to_string()
 }
 
+/// 抗锯齿默认开启。
+fn default_antialiasing() -> bool {
+    true
+}
+
+/// 渲染后端默认为 CPU。
+fn default_renderer_backend() -> RendererBackend {
+    RendererBackend::Cpu
+}
+
+/// 默认快捷颜色预设：白、绿、蓝、红、橙。
+fn default_quick_colors() -> [[f32; 4]; 5] {
+    [
+        [1.0, 1.0, 1.0, 1.0], // 白
+        [0.0, 1.0, 0.0, 1.0], // 绿
+        [0.2, 0.5, 1.0, 1.0], // 蓝
+        [1.0, 0.0, 0.0, 1.0], // 红
+        [1.0, 0.5, 0.0, 1.0], // 橙
+    ]
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -85,6 +124,10 @@ impl Default for AppSettings {
             update_channel: default_update_channel(),
             cn_mirror: false,
             mirror_url: default_mirror_url(),
+            antialiasing: default_antialiasing(),
+            renderer_backend: default_renderer_backend(),
+            quick_colors: default_quick_colors(),
+            hotkey_bindings: default_hotkey_bindings(),
         }
     }
 }
@@ -227,6 +270,12 @@ pub struct Crosshair {
     /// 箭头：右边尾巴长度。
     #[serde(default)]
     pub arrow_tail_right: f32,
+    /// 网格：单格宽度（像素），横竖格数根据屏幕宽高 / grid_size 自动计算。默认 80。
+    #[serde(default = "default_grid_size")]
+    pub grid_size: f32,
+    /// 网格：对齐方式（居中 / 贴边），默认居中。
+    #[serde(default)]
+    pub grid_alignment: GridAlignment,
 }
 
 fn default_secondary_size() -> f32 {
@@ -274,6 +323,9 @@ fn default_image_scale() -> f32 {
 fn default_arrow_distance() -> f32 {
     0.0
 }
+fn default_grid_size() -> f32 {
+    80.0
+}
 fn default_border_inset() -> bool {
     true
 }
@@ -293,6 +345,17 @@ pub enum Anchor {
     /// 屏幕正中心（默认）。
     #[default]
     Center,
+}
+
+/// 覆盖层渲染后端。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RendererBackend {
+    /// 手写 CPU 像素光栅化（默认，零额外依赖）。
+    #[default]
+    Cpu,
+    /// 将图元转为 SVG 字符串，由 resvg/tiny-skia 光栅化（抗锯齿质量更高）。
+    Svg,
 }
 
 /// 支持的辅助贴图样式。
@@ -324,6 +387,8 @@ pub enum CrosshairStyle {
     CustomImage,
     /// 箭头：屏幕四边中点各一个指向中心的三角形箭头。
     EdgeArrows,
+    /// 网格：全屏棋盘式格子（类似围棋棋盘），用格子数与线宽控制。
+    Grid,
 }
 
 /// 中心环线型样式。
@@ -407,6 +472,53 @@ pub enum BorderFrameStyle {
     Solid,
     /// 四边中间留空，避免遮挡小地图/状态栏。
     Gap,
+}
+
+/// 网格对齐方式：决定线条在屏幕内的定位策略。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GridAlignment {
+    /// 居中分布（默认）：线条均匀分布在屏幕中间区域，不贴边。
+    #[default]
+    Center,
+    /// 贴边分布：含屏幕外边缘线，格子完整覆盖整个屏幕。
+    Edge,
+}
+
+/// 快捷键可触发的动作类型，新增功能时只需在此枚举追加变体。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HotkeyAction {
+    /// 切换覆盖层显示。
+    ToggleOverlay,
+    /// 开启覆盖层。
+    StartOverlay,
+    /// 关闭覆盖层。
+    StopOverlay,
+    /// 切换到下一个颜色预设。
+    CycleColorNext,
+    /// 切换到上一个颜色预设。
+    CycleColorPrev,
+    /// 设置颜色 1。
+    #[serde(rename = "set_color_1")]
+    SetColor1,
+    /// 设置颜色 2。
+    #[serde(rename = "set_color_2")]
+    SetColor2,
+    /// 设置颜色 3。
+    #[serde(rename = "set_color_3")]
+    SetColor3,
+    /// 设置颜色 4。
+    #[serde(rename = "set_color_4")]
+    SetColor4,
+    /// 设置颜色 5。
+    #[serde(rename = "set_color_5")]
+    SetColor5,
+}
+
+/// 快捷键绑定默认值：仅绑定 ToggleOverlay。
+fn default_hotkey_bindings() -> Vec<(HotkeyAction, String)> {
+    vec![(HotkeyAction::ToggleOverlay, "Ctrl+Alt+O".to_string())]
 }
 
 /// 触发规则：决定辅助贴图何时显示。
@@ -530,6 +642,8 @@ impl Crosshair {
             arrow_tail_bottom: 0.0,
             arrow_tail_left: 0.0,
             arrow_tail_right: 0.0,
+            grid_size: default_grid_size(),
+            grid_alignment: GridAlignment::default(),
         }
     }
 
@@ -631,6 +745,11 @@ impl Crosshair {
         if matches!(self.style, CrosshairStyle::CustomImage) && self.image_path.trim().is_empty() {
             return Err(crate::ConfigError::Validation(
                 "image_path must not be empty when style is CustomImage".to_string(),
+            ));
+        }
+        if self.grid_size < 10.0 || self.grid_size > 500.0 {
+            return Err(crate::ConfigError::Validation(
+                "grid_size must be in [10, 500]".to_string(),
             ));
         }
         Ok(())
@@ -950,6 +1069,11 @@ mod tests {
         assert_eq!(s.update_channel, "stable");
         assert!(!s.cn_mirror);
         assert_eq!(s.mirror_url, "https://v4.gh-proxy.org");
+        assert!(s.antialiasing);
+        assert_eq!(s.quick_colors.len(), 5);
+        assert_eq!(s.quick_colors[0], [1.0, 1.0, 1.0, 1.0]); // 白
+        assert_eq!(s.hotkey_bindings.len(), 1);
+        assert_eq!(s.hotkey_bindings[0].0, HotkeyAction::ToggleOverlay);
     }
 
     #[test]
@@ -963,6 +1087,10 @@ mod tests {
             update_channel: "prerelease".to_string(),
             cn_mirror: true,
             mirror_url: "https://gh-proxy.org".to_string(),
+            antialiasing: false,
+            renderer_backend: RendererBackend::Cpu,
+            quick_colors: default_quick_colors(),
+            hotkey_bindings: default_hotkey_bindings(),
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -1021,5 +1149,214 @@ mod tests {
         assert!(!restored.settings.live_drag_preview);
         assert!(!restored.settings.gpu_acceleration);
         assert_eq!(restored.settings.update_channel, "stable");
+        assert!(restored.settings.antialiasing);
+    }
+
+    #[test]
+    fn grid_style_defaults_and_validation() {
+        let mut ch = Crosshair::default_crosshair();
+        ch.style = CrosshairStyle::Grid;
+        // 默认值检查。
+        assert_eq!(ch.grid_size, 80.0);
+        assert_eq!(ch.grid_alignment, GridAlignment::Center);
+        assert!(ch.validate().is_ok());
+
+        // grid_size 超出范围 → 校验失败。
+        ch.grid_size = 5.0;
+        assert!(ch.validate().is_err());
+        ch.grid_size = 600.0;
+        assert!(ch.validate().is_err());
+
+        // 正常值。
+        ch.grid_size = 100.0;
+        ch.grid_alignment = GridAlignment::Edge;
+        assert!(ch.validate().is_ok());
+    }
+
+    #[test]
+    fn grid_style_roundtrip() {
+        let mut ch = Crosshair::default_crosshair();
+        ch.style = CrosshairStyle::Grid;
+        ch.grid_size = 120.0;
+        ch.grid_alignment = GridAlignment::Edge;
+        ch.thickness = 3.0;
+
+        let json = serde_json::to_string(&ch).unwrap();
+        let restored: Crosshair = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.style, CrosshairStyle::Grid);
+        assert_eq!(restored.grid_size, 120.0);
+        assert_eq!(restored.grid_alignment, GridAlignment::Edge);
+        assert_eq!(restored.thickness, 3.0);
+    }
+
+    #[test]
+    fn grid_style_serializes_as_snake_case() {
+        let json = serde_json::to_string(&CrosshairStyle::Grid).unwrap();
+        assert_eq!(json, "\"grid\"");
+
+        let restored: CrosshairStyle = serde_json::from_str("\"grid\"").unwrap();
+        assert_eq!(restored, CrosshairStyle::Grid);
+    }
+
+    #[test]
+    fn grid_alignment_serializes_as_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&GridAlignment::Center).unwrap(),
+            "\"center\""
+        );
+        assert_eq!(
+            serde_json::to_string(&GridAlignment::Edge).unwrap(),
+            "\"edge\""
+        );
+    }
+
+    #[test]
+    fn old_config_without_grid_fields_loads() {
+        // 旧配置文件中没有 grid_size / grid_alignment 字段，serde 应回退到默认值。
+        let json = r#"{
+            "style": "grid",
+            "size": 10.0,
+            "secondary_size": 48.0,
+            "thickness": 2.0,
+            "radius": 0.0,
+            "offset": 0.0,
+            "color": [1.0, 1.0, 1.0, 1.0],
+            "opacity": 0.8,
+            "gap": 4.0,
+            "corner_radius": 4.0,
+            "anchor": "center",
+            "margin": 0.0,
+            "ring_radius_pct": 0.05,
+            "ring_style": "solid",
+            "orb_positions": 3,
+            "random_mode": "lock_on_start",
+            "random_center_deviation": 0.2,
+            "random_radius_min": 4.0,
+            "random_radius_max": 12.0,
+            "random_orb_x": 0.0,
+            "random_orb_y": 0.0,
+            "border_frame_style": "solid",
+            "border_inset": true,
+            "custom_orb_top_count": 3,
+            "custom_orb_bottom_count": 3,
+            "custom_orb_left_count": 3,
+            "custom_orb_right_count": 3,
+            "random_orb_count": 3,
+            "random_orb_offset": 100.0,
+            "random_orb_jitter": 40.0
+        }"#;
+        let restored: Crosshair = serde_json::from_str(json).unwrap();
+        assert_eq!(restored.style, CrosshairStyle::Grid);
+        assert_eq!(restored.grid_size, 80.0); // 默认值
+        assert_eq!(restored.grid_alignment, GridAlignment::Center); // 默认值
+    }
+
+    #[test]
+    fn quick_colors_defaults() {
+        let s = AppSettings::default();
+        assert_eq!(s.quick_colors.len(), 5);
+        // 白绿蓝红橙。
+        assert_eq!(s.quick_colors[0], [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(s.quick_colors[1], [0.0, 1.0, 0.0, 1.0]);
+        assert_eq!(s.quick_colors[2], [0.2, 0.5, 1.0, 1.0]);
+        assert_eq!(s.quick_colors[3], [1.0, 0.0, 0.0, 1.0]);
+        assert_eq!(s.quick_colors[4], [1.0, 0.5, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn quick_colors_roundtrip() {
+        let s = AppSettings {
+            auto_switch_on_overlay: "ask".to_string(),
+            locale: "auto".to_string(),
+            fullscreen_overlay: true,
+            live_drag_preview: false,
+            gpu_acceleration: false,
+            update_channel: "stable".to_string(),
+            cn_mirror: false,
+            mirror_url: "https://v4.gh-proxy.org".to_string(),
+            antialiasing: true,
+            renderer_backend: RendererBackend::Cpu,
+            quick_colors: [
+                [0.1, 0.2, 0.3, 1.0],
+                [0.4, 0.5, 0.6, 1.0],
+                [0.7, 0.8, 0.9, 1.0],
+                [0.0, 0.0, 0.0, 1.0],
+                [1.0, 1.0, 0.0, 1.0],
+            ],
+            hotkey_bindings: default_hotkey_bindings(),
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let restored: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.quick_colors, s.quick_colors);
+    }
+
+    #[test]
+    fn hotkey_bindings_defaults() {
+        let s = AppSettings::default();
+        assert_eq!(s.hotkey_bindings.len(), 1);
+        assert_eq!(s.hotkey_bindings[0].0, HotkeyAction::ToggleOverlay);
+        assert_eq!(s.hotkey_bindings[0].1, "Ctrl+Alt+O");
+    }
+
+    #[test]
+    fn hotkey_action_serializes_as_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&HotkeyAction::ToggleOverlay).unwrap(),
+            "\"toggle_overlay\""
+        );
+        assert_eq!(
+            serde_json::to_string(&HotkeyAction::CycleColorNext).unwrap(),
+            "\"cycle_color_next\""
+        );
+        assert_eq!(
+            serde_json::to_string(&HotkeyAction::SetColor3).unwrap(),
+            "\"set_color_3\""
+        );
+    }
+
+    #[test]
+    fn hotkey_bindings_roundtrip() {
+        let bindings = vec![
+            (HotkeyAction::ToggleOverlay, "Ctrl+Alt+O".to_string()),
+            (HotkeyAction::CycleColorNext, "Ctrl+Shift+Tab".to_string()),
+            (HotkeyAction::SetColor1, "Alt+1".to_string()),
+        ];
+        let s = AppSettings {
+            auto_switch_on_overlay: "ask".to_string(),
+            locale: "auto".to_string(),
+            fullscreen_overlay: true,
+            live_drag_preview: false,
+            gpu_acceleration: false,
+            update_channel: "stable".to_string(),
+            cn_mirror: false,
+            mirror_url: "https://v4.gh-proxy.org".to_string(),
+            antialiasing: true,
+            renderer_backend: RendererBackend::Cpu,
+            quick_colors: default_quick_colors(),
+            hotkey_bindings: bindings.clone(),
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let restored: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.hotkey_bindings, bindings);
+    }
+
+    #[test]
+    fn old_settings_without_hotkey_bindings_loads() {
+        // 旧配置没有 hotkey_bindings / quick_colors 字段，应回退到默认值。
+        let json = r#"{
+            "auto_switch_on_overlay": "ask",
+            "locale": "auto",
+            "fullscreen_overlay": true,
+            "live_drag_preview": false,
+            "gpu_acceleration": false,
+            "update_channel": "stable",
+            "cn_mirror": false,
+            "mirror_url": "https://v4.gh-proxy.org",
+            "antialiasing": true
+        }"#;
+        let restored: AppSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(restored.hotkey_bindings.len(), 1);
+        assert_eq!(restored.hotkey_bindings[0].0, HotkeyAction::ToggleOverlay);
+        assert_eq!(restored.quick_colors.len(), 5);
     }
 }

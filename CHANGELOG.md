@@ -4,6 +4,30 @@
 
 ---
 
+## [v0.1.9] — 2026-07-13
+
+正式版本。新增 SVG 矢量渲染后端、网格准心样式、全局快捷键与快捷颜色预设，覆盖层抗锯齿默认开启。
+
+### 新增
+
+- **SVG 渲染后端**：覆盖层新增可选 SVG 渲染后端（基于 resvg + tiny-skia），在「设置 → 覆盖层 → 渲染后端」中切换。SVG 模式抗锯齿质量更高；CPU 模式（默认）零额外依赖、更轻量。两套方案并行，SVG 光栅化失败时自动回退到 CPU 渲染。 @Eeymoo
+- **网格准心样式**：新增 `Grid` 准心样式，可调整网格行列数、线宽与颜色，为需要规则参照的用户提供更多选择。 @Eeymoo
+- **全局快捷键体系**：支持为「开始/停止覆盖」等功能绑定全局热键，可在「设置 → 快捷键」中配置。 @Eeymoo
+- **快捷颜色预设**：颜色选择器新增常用预设，一键切换准心颜色。 @Eeymoo
+- **覆盖层抗锯齿**：CPU 渲染模式新增抗锯齿开关，默认开启，边缘更平滑；需要最低延迟时可关闭。 @Eeymoo
+- **滚动条样式优化**：自定义滚动条样式，默认透明、悬停淡入，6px 宽圆角，与整体界面风格统一。 @Eeymoo
+
+### 修复
+
+- 移除拖拽实时显示在某些场景下被强制禁用的限制，交互更连贯。 @Eeymoo
+
+### 下载
+
+- Windows x86 / x86_64 / ARM64 NSIS 安装包（支持自动更新）见 Release Assets。
+- Windows x86 / x86_64 / ARM64 便携 zip 见 Release Assets。
+
+---
+
 ## [v0.1.7] — 2026-07-12
 
 正式版本。移除 Gitee 镜像改用 gh-proxy 加速代理；新增 GitHub Releases 自动更新、GPU 硬件加速开关与窗口模式优化。
@@ -228,6 +252,7 @@
 
 ---
 
+[v0.1.9]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.9
 [v0.1.5]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.5
 [v0.1.4]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.4
 [v0.1.3]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3

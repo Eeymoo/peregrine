@@ -4,6 +4,10 @@
 
 use crate::schema::AppConfig;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicU64;
+
+/// 临时文件名计数器，保证同进程并发 save 使用不同临时文件。
+static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// 配置文件读写器。
 ///
@@ -81,14 +85,26 @@ impl ConfigStorage {
     /// 把无法解析的配置文件重命名为 `<name>.bak`，尽力而为，失败仅告警。
     ///
     /// 采用重命名而非删除，避免丢失用户既有配置，便于事后人工恢复。
+    /// 若 `.bak` 已存在，则追加数字后缀（`.bak.2`、`.bak.3`…）避免覆盖。
     async fn backup_broken_config(&self) {
         let mut backup = self.config_path.clone();
         let file_name = backup
             .file_name()
             .map(|n| n.to_os_string())
             .unwrap_or_default();
-        let mut backup_name = file_name;
+
+        // 查找第一个不存在的备份文件名。
+        let mut backup_name = file_name.clone();
         backup_name.push(".bak");
+        let mut seq = 2u32;
+        while tokio::fs::metadata(backup.with_file_name(&backup_name))
+            .await
+            .is_ok()
+        {
+            backup_name = file_name.clone();
+            backup_name.push(format!(".bak.{}", seq));
+            seq += 1;
+        }
         backup.set_file_name(backup_name);
 
         match tokio::fs::rename(&self.config_path, &backup).await {
@@ -118,9 +134,18 @@ impl ConfigStorage {
 
         let content = serde_json::to_string_pretty(config)?;
         // 临时文件与目标文件放在同一目录，保证 rename 原子且跨文件系统可靠。
-        let temp_path = parent.join(format!(".config.tmp.{}", std::process::id()));
+        // 文件名含 PID + 原子计数器，避免同进程并发 save 时冲突。
+        let temp_path = parent.join(format!(
+            ".config.tmp.{}.{}",
+            std::process::id(),
+            TMP_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
         tokio::fs::write(&temp_path, content).await?;
-        tokio::fs::rename(&temp_path, &self.config_path).await?;
+        if let Err(e) = tokio::fs::rename(&temp_path, &self.config_path).await {
+            // rename 失败时尽力清理临时文件，避免残留。
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            return Err(e.into());
+        }
         Ok(())
     }
 }
@@ -147,12 +172,15 @@ mod dirs {
         }
         #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         {
-            // Linux / FreeBSD 等：遵循 XDG Base Directory。
+            // Linux / FreeBSD 等：遵循 XDG Base Directory 规范。
+            // XDG 规范要求：XDG_CONFIG_HOME 必须为绝对路径，否则忽略并回退到 ~/.config。
             if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
-                Some(PathBuf::from(xdg))
-            } else {
-                home_dir()?.join(".config").into()
+                let p = PathBuf::from(&xdg);
+                if p.is_absolute() {
+                    return Some(p);
+                }
             }
+            home_dir()?.join(".config").into()
         }
     }
 

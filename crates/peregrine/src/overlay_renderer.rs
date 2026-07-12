@@ -202,13 +202,15 @@ impl OverlayRenderer {
             }
         }
 
-        // 诊断：统计非透明像素数量。
-        let non_transparent = buffer.iter().filter(|&&p| p != 0x00000000).count();
-        tracing::debug!(
-            non_transparent,
-            total = buffer.len(),
-            "overlay pixel stats after drawing"
-        );
+        // 诊断：统计非透明像素数量（仅在 debug 级别启用时才遍历）。
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            let non_transparent = buffer.iter().filter(|&&p| p != 0x00000000).count();
+            tracing::debug!(
+                non_transparent,
+                total = buffer.len(),
+                "overlay pixel stats after drawing"
+            );
+        }
 
         if let Err(e) = buffer.present() {
             tracing::error!("softbuffer present failed: {}", e);
@@ -344,22 +346,36 @@ fn rasterize_shape(
     }
 }
 
-/// 把颜色分量按覆盖率混合写入像素缓冲区（前景预乘 alpha，背景透明）。
+/// 把颜色分量按覆盖率混合写入像素缓冲区（src-over 合成）。
 ///
-/// 由于覆盖层背景始终透明（0x00000000），混合结果为预乘值：
-/// `out = fg_premul * coverage + bg * (1 - coverage)`。
-/// 背景为 0 时简化为 `out = fg_premul * coverage`。
+/// 前景颜色为预乘 alpha 格式，背景为缓冲区中已有的预乘 alpha 像素。
+/// 合成公式：`out = fg + bg * (1 - fg_alpha)`。
 fn blend_pixel(buffer: &mut [u32], idx: usize, color: u32, coverage: f32) {
     if coverage <= 0.0 || idx >= buffer.len() {
         return;
     }
     let cov = coverage.min(1.0);
-    // 颜色已经是预乘 alpha 格式，直接按覆盖率缩放各分量。
-    let ai = ((color >> 24) & 0xFF) as f32 * cov;
-    let ri = ((color >> 16) & 0xFF) as f32 * cov;
-    let gi = ((color >> 8) & 0xFF) as f32 * cov;
-    let bi = (color & 0xFF) as f32 * cov;
-    buffer[idx] = ((ai as u32) << 24) | ((ri as u32) << 16) | ((gi as u32) << 8) | (bi as u32);
+    // 前景各分量（预乘 alpha），按覆盖率缩放。
+    let fa = ((color >> 24) & 0xFF) as f32 * cov / 255.0;
+    let fr = ((color >> 16) & 0xFF) as f32 / 255.0;
+    let fg = ((color >> 8) & 0xFF) as f32 / 255.0;
+    let fb = (color & 0xFF) as f32 / 255.0;
+    // 背景各分量（预乘 alpha，归一化）。
+    let bg_val = buffer[idx];
+    let ba = ((bg_val >> 24) & 0xFF) as f32 / 255.0;
+    let br = ((bg_val >> 16) & 0xFF) as f32 / 255.0;
+    let bg_g = ((bg_val >> 8) & 0xFF) as f32 / 255.0;
+    let bb = (bg_val & 0xFF) as f32 / 255.0;
+    // src-over 合成（预乘 alpha）。
+    let inv = 1.0 - fa;
+    let out_a = fa + ba * inv;
+    let out_r = fr + br * inv;
+    let out_g = fg + bg_g * inv;
+    let out_b = fb + bb * inv;
+    buffer[idx] = ((out_a * 255.0) as u32) << 24
+        | ((out_r * 255.0) as u32) << 16
+        | ((out_g * 255.0) as u32) << 8
+        | ((out_b * 255.0) as u32);
 }
 
 /// 绘制填充三角形（逻辑坐标，边距离抗锯齿）。
@@ -572,7 +588,10 @@ fn draw_dashed_circle(
 ) {
     let circumference = 2.0 * std::f32::consts::PI * radius;
     let unit = dash_len + gap_len;
-    let segments = (circumference / unit).ceil() as usize;
+    if unit <= 0.0 {
+        return;
+    }
+    let segments = ((circumference / unit).ceil() as usize).max(1);
     let step_angle = 2.0 * std::f32::consts::PI / segments as f32;
     let dash_angle = step_angle * (dash_len / unit);
     for i in 0..segments {
@@ -619,7 +638,7 @@ fn draw_circle_fast(
     let pcx = (cx * scale).round() as i32;
     let pcy = (cy * scale).round() as i32;
     let pr = (radius * scale).round() as i32;
-    let pr_sq = (pr * pr) as f32;
+    let pr_sq = (pr as f32) * (pr as f32);
     let x0 = (pcx - pr).max(0);
     let y0 = (pcy - pr).max(0);
     let x1 = (pcx + pr).min(pixel_w as i32);
@@ -654,8 +673,8 @@ fn draw_circle_stroke_fast(
     let pcy = (cy * scale).round() as i32;
     let outer_r = ((radius + thickness / 2.0) * scale).round() as i32;
     let inner_r = ((radius - thickness / 2.0) * scale).round().max(0.0) as i32;
-    let outer_sq = (outer_r * outer_r) as f32;
-    let inner_sq = (inner_r * inner_r) as f32;
+    let outer_sq = (outer_r as f32) * (outer_r as f32);
+    let inner_sq = (inner_r as f32) * (inner_r as f32);
     let x0 = (pcx - outer_r).max(0);
     let y0 = (pcy - outer_r).max(0);
     let x1 = (pcx + outer_r).min(pixel_w as i32);
@@ -691,7 +710,10 @@ fn draw_dashed_circle_fast(
 ) {
     let circumference = 2.0 * std::f32::consts::PI * radius;
     let unit = dash_len + gap_len;
-    let segments = (circumference / unit).ceil() as usize;
+    if unit <= 0.0 {
+        return;
+    }
+    let segments = ((circumference / unit).ceil() as usize).max(1);
     let step_angle = 2.0 * std::f32::consts::PI / segments as f32;
     let dash_angle = step_angle * (dash_len / unit);
     for i in 0..segments {
@@ -788,8 +810,9 @@ fn load_png(
     let w = info.width as usize;
     let h = info.height as usize;
 
-    // 根据 PNG 的颜色类型转换为统一的 RGBA 元组。
-    let pixels: Vec<(u8, u8, u8, u8)> = match info.color_type {
+    // 根据解码后实际输出的颜色类型（png crate 会自动转换调色板等格式）转换为统一 RGBA。
+    let out_color = frame.color_type;
+    let pixels: Vec<(u8, u8, u8, u8)> = match out_color {
         png::ColorType::Rgba => bytes
             .chunks_exact(4)
             .map(|c| (c[0], c[1], c[2], c[3]))
@@ -807,8 +830,8 @@ fn load_png(
             .map(|c| (c[0], c[0], c[0], c[1]))
             .collect(),
         png::ColorType::Indexed => {
-            // 调色板模式：reader 已将输出转为 RGBA（png crate 的 output 转换），
-            // 但如果 output 仍为 indexed，则按 RGB 处理。
+            // png crate 通常会将 Indexed 自动转为 RGB/RGBA 输出，
+            // 此分支仅作为兜底，按 RGB 处理。
             bytes
                 .chunks_exact(3)
                 .map(|c| (c[0], c[1], c[2], 255))

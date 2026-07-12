@@ -123,7 +123,7 @@ pub struct AppState {
     /// 标记是否由托盘「退出」主动触发，避免阻止真正的退出流程。
     pub quitting: std::sync::atomic::AtomicBool,
     /// overlay 是否活跃，供前端查询按钮状态。
-    pub overlay_active: std::sync::atomic::AtomicBool,
+    pub overlay_active: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// 托盘菜单项句柄，用于运行时更新菜单文本与勾选状态。
@@ -224,8 +224,10 @@ pub fn run() {
     // 启动 overlay 管理线程（独立的 winit 事件循环）。
     let (overlay_cmd_tx, overlay_cmd_rx) = mpsc::channel();
     let overlay_config = shared_config.clone();
+    let overlay_active = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let overlay_active_for_thread = overlay_active.clone();
     std::thread::spawn(move || {
-        overlay::run_overlay_loop(overlay_config, overlay_cmd_rx);
+        overlay::run_overlay_loop(overlay_config, overlay_cmd_rx, overlay_active_for_thread);
     });
 
     // 启动 watcher 任务，把 notifier 变更同步到共享快照。
@@ -268,7 +270,7 @@ pub fn run() {
         overlay_cmd_tx,
         locale: Mutex::new(initial_locale.clone()),
         quitting: std::sync::atomic::AtomicBool::new(false),
-        overlay_active: std::sync::atomic::AtomicBool::new(false),
+        overlay_active,
     };
 
     tauri::Builder::default()

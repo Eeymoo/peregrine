@@ -54,7 +54,6 @@ impl ConfigWatcher {
             .unwrap_or_else(|| config_path.clone());
 
         // 使用 `spawn_blocking` 包装同步文件系统 watcher，避免阻塞异步 runtime。
-        let _parent_dir_for_spawn = parent_dir.clone();
         let mut watcher = tokio::task::spawn_blocking(move || {
             RecommendedWatcher::new(
                 move |res| {
@@ -75,8 +74,6 @@ impl ConfigWatcher {
 
         // 记录是否有一个待处理的重载请求。
         let mut pending_reload = false;
-        // 最后一次重载时间，用于跳过事件风暴。
-        let mut last_reload = tokio::time::Instant::now();
 
         loop {
             tokio::select! {
@@ -99,12 +96,8 @@ impl ConfigWatcher {
                 }
                 _ = debounce.tick() => {
                     if pending_reload {
-                        let now = tokio::time::Instant::now();
-                        if now.duration_since(last_reload) >= DEBOUNCE_INTERVAL {
-                            self.reload_and_notify().await;
-                            last_reload = now;
-                        }
                         pending_reload = false;
+                        self.reload_and_notify().await;
                     }
                 }
             }

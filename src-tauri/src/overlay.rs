@@ -47,6 +47,7 @@ pub fn run_overlay_loop(
     #[cfg(windows)] config: Arc<Mutex<ConfigSnapshot>>,
     #[cfg(not(windows))] _config: Arc<Mutex<ConfigSnapshot>>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
+    overlay_active: Arc<std::sync::atomic::AtomicBool>,
 ) {
     #[cfg(not(windows))]
     {
@@ -55,13 +56,14 @@ pub fn run_overlay_loop(
         return;
     }
     #[cfg(windows)]
-    run_overlay_loop_windows(config, cmd_rx);
+    run_overlay_loop_windows(config, cmd_rx, overlay_active);
 }
 
 #[cfg(windows)]
 fn run_overlay_loop_windows(
     config: Arc<Mutex<ConfigSnapshot>>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
+    overlay_active: Arc<std::sync::atomic::AtomicBool>,
 ) {
     use winit::platform::windows::EventLoopBuilderExtWindows;
 
@@ -81,7 +83,7 @@ fn run_overlay_loop_windows(
         }
     });
 
-    let mut app = OverlayApp::new(config);
+    let mut app = OverlayApp::new(config, overlay_active);
     event_loop
         .run_app(&mut app)
         .expect("run overlay event loop");
@@ -93,6 +95,8 @@ struct OverlayApp {
     window: Option<Arc<Window>>,
     renderer: Option<overlay_renderer::OverlayRenderer>,
     overlay_active: bool,
+    /// 共享的 overlay 活跃状态（供前端查询）。
+    shared_active: Arc<std::sync::atomic::AtomicBool>,
     target_title: String,
     follower_stop: Option<tokio::sync::oneshot::Sender<()>>,
     /// 上一帧渲染时间，用于限制 overlay 帧率避免空转占 CPU。
@@ -105,12 +109,16 @@ struct OverlayApp {
 
 #[cfg(windows)]
 impl OverlayApp {
-    fn new(config: Arc<Mutex<ConfigSnapshot>>) -> Self {
+    fn new(
+        config: Arc<Mutex<ConfigSnapshot>>,
+        shared_active: Arc<std::sync::atomic::AtomicBool>,
+    ) -> Self {
         Self {
             config,
             window: None,
             renderer: None,
             overlay_active: false,
+            shared_active,
             target_title: String::new(),
             follower_stop: None,
             last_render: None,
@@ -139,13 +147,12 @@ impl OverlayApp {
             }
             OverlayCommand::UpdateConfig(snap) => {
                 // 检测 fullscreen_overlay / live_drag_preview 是否变化，需要重启 follower。
-                let old_fullscreen = {
+                let (old_fullscreen, old_live_drag) = {
                     let cfg = self.config.lock().expect("config lock");
-                    cfg.settings.fullscreen_overlay
-                };
-                let old_live_drag = {
-                    let cfg = self.config.lock().expect("config lock");
-                    cfg.settings.live_drag_preview
+                    (
+                        cfg.settings.fullscreen_overlay,
+                        cfg.settings.live_drag_preview,
+                    )
                 };
 
                 let need_restart_follower = self.overlay_active
@@ -295,6 +302,8 @@ impl OverlayApp {
         self.window = Some(window.clone());
         self.renderer = Some(renderer);
         self.overlay_active = true;
+        self.shared_active
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         self.target_title = title.clone();
         self.needs_redraw = true;
 
@@ -311,6 +320,8 @@ impl OverlayApp {
         self.renderer = None;
         self.window = None;
         self.overlay_active = false;
+        self.shared_active
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         self.target_title.clear();
     }
 
@@ -356,6 +367,8 @@ impl OverlayApp {
             let (tx, rx) = tokio::sync::oneshot::channel();
             self.follower_stop = Some(tx);
 
+            let shared_active = self.shared_active.clone();
+
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("create tokio runtime");
                 rt.block_on(async move {
@@ -368,7 +381,9 @@ impl OverlayApp {
                     )
                     .await
                     {
+                        // 目标窗口销毁等异常导致 follower 结束，标记 overlay 不再活跃。
                         tracing::info!("overlay follower ended: {}", e);
+                        shared_active.store(false, std::sync::atomic::Ordering::SeqCst);
                     }
                 });
             });

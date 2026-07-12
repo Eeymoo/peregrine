@@ -565,6 +565,7 @@ impl AppConfig {
                 crate::ConfigError::Validation(format!("profile '{}': {}", name, e))
             })?;
         }
+        self.settings.validate()?;
         Ok(())
     }
 
@@ -697,6 +698,30 @@ impl Crosshair {
                 "margin must be non-negative".to_string(),
             ));
         }
+        if self.corner_radius < 0.0 {
+            return Err(crate::ConfigError::Validation(
+                "corner_radius must be non-negative".to_string(),
+            ));
+        }
+        if self.arrow_width < 0.0 {
+            return Err(crate::ConfigError::Validation(
+                "arrow_width must be non-negative".to_string(),
+            ));
+        }
+        if self.arrow_distance < 0.0 {
+            return Err(crate::ConfigError::Validation(
+                "arrow_distance must be non-negative".to_string(),
+            ));
+        }
+        if self.arrow_tail_top < 0.0
+            || self.arrow_tail_bottom < 0.0
+            || self.arrow_tail_left < 0.0
+            || self.arrow_tail_right < 0.0
+        {
+            return Err(crate::ConfigError::Validation(
+                "arrow_tail_* must be non-negative".to_string(),
+            ));
+        }
         if !(0.03..=0.08).contains(&self.ring_radius_pct) {
             return Err(crate::ConfigError::Validation(
                 "ring_radius_pct must be in [0.03, 0.08]".to_string(),
@@ -751,6 +776,24 @@ impl Crosshair {
             return Err(crate::ConfigError::Validation(
                 "grid_size must be in [10, 500]".to_string(),
             ));
+        }
+        Ok(())
+    }
+}
+
+impl AppSettings {
+    /// 校验设置字段范围。
+    pub fn validate(&self) -> crate::Result<()> {
+        // 校验快捷颜色预设的 RGBA 分量范围。
+        for (i, color) in self.quick_colors.iter().enumerate() {
+            for (j, &ch) in color.iter().enumerate() {
+                if !(0.0..=1.0).contains(&ch) {
+                    return Err(crate::ConfigError::Validation(format!(
+                        "quick_colors[{}].{} must be in [0.0, 1.0]",
+                        i, j
+                    )));
+                }
+            }
         }
         Ok(())
     }

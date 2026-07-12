@@ -40,7 +40,7 @@ pub struct AppSettings {
     /// 默认 false：关闭 GPU 加速以降低内存占用（GPU 进程 ~80MB → ~15MB）。
     #[serde(default)]
     pub gpu_acceleration: bool,
-    /// 自动更新通道：`"stable"`（正式版，偶数版本号）或 `"prerelease"`（尝鲜版，奇数/预发布）。
+    /// 自动更新通道：`"stable"`（正式版，奇数版本号）或 `"prerelease"`（尝鲜版，偶数/预发布）。
     /// 默认 `"stable"`。
     #[serde(default = "default_update_channel")]
     pub update_channel: String,

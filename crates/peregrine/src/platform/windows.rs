@@ -379,7 +379,36 @@ pub async fn follow_target_window(
             _ = &mut stop_rx => return Err(OverlayError::Cancelled),
             _ = interval.tick() => {
                 unsafe {
-                    // 检测目标窗口状态（全屏与窗口模式共用）。
+                    // 全屏模式：无目标窗口概念，只检测屏幕尺寸变化来更新 overlay。
+                    if fullscreen {
+                        let screen_w = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                            windows::Win32::UI::WindowsAndMessaging::SM_CXSCREEN,
+                        );
+                        let screen_h = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                            windows::Win32::UI::WindowsAndMessaging::SM_CYSCREEN,
+                        );
+                        let need_update = last_screen_size != Some((screen_w, screen_h));
+                        if need_update {
+                            SetWindowPos(
+                                overlay.0,
+                                HWND_TOPMOST,
+                                0,
+                                0,
+                                screen_w,
+                                screen_h,
+                                SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+                            )?;
+                            last_screen_size = Some((screen_w, screen_h));
+                            tracing::debug!(screen_w, screen_h, "update overlay to fullscreen");
+                        }
+                        if !visible {
+                            let _ = ShowWindow(overlay.0, SW_SHOWNA);
+                            visible = true;
+                        }
+                        continue;
+                    }
+
+                    // 窗口模式：检测目标窗口状态。
 
                     // 目标窗口已销毁/关闭：结束跟随。
                     if !IsWindow(target.0).as_bool() {
@@ -406,69 +435,64 @@ pub async fn follow_target_window(
                         continue;
                     }
 
-                    // 全屏模式：仅需保证 overlay 可见，不跟随目标窗口位置。
-                    if fullscreen {
-                        // 屏幕尺寸变化时更新 overlay 覆盖范围。
-                        let screen_w = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
-                            windows::Win32::UI::WindowsAndMessaging::SM_CXSCREEN,
-                        );
-                        let screen_h = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
-                            windows::Win32::UI::WindowsAndMessaging::SM_CYSCREEN,
-                        );
-                        let need_update = last_screen_size != Some((screen_w, screen_h));
-                        if need_update {
-                            SetWindowPos(
-                                overlay.0,
-                                HWND_TOPMOST,
-                                0,
-                                0,
-                                screen_w,
-                                screen_h,
-                                SWP_NOACTIVATE | SWP_NOOWNERZORDER,
-                            )?;
-                            last_screen_size = Some((screen_w, screen_h));
-                            tracing::debug!(screen_w, screen_h, "update overlay to fullscreen");
+                    // 窗口模式：跟随目标窗口客户区。
+                    let rect = match get_target_rect(target.0) {
+                        Ok(r) => r,
+                        Err(e) => {
+                            tracing::debug!("get_target_rect failed: {}, checking if window still exists", e);
+                            if !IsWindow(target.0).as_bool() {
+                                tracing::info!("target window no longer exists, ending follow");
+                                let _ = ShowWindow(overlay.0, SW_HIDE);
+                                return Err(OverlayError::Cancelled);
+                            }
+                            continue;
                         }
-                    } else {
-                        // 窗口模式：跟随目标窗口客户区。
-                        let rect = match get_target_rect(target.0) {
-                            Ok(r) => r,
-                            Err(e) => {
-                                tracing::debug!("get_target_rect failed: {}, checking if window still exists", e);
-                                if !IsWindow(target.0).as_bool() {
-                                    tracing::info!("target window no longer exists, ending follow");
-                                    let _ = ShowWindow(overlay.0, SW_HIDE);
-                                    return Err(OverlayError::Cancelled);
-                                }
-                                continue;
+                    };
+
+                    let rect_changed = !rect_eq(&rect, &last_rect);
+
+                    if rect_changed {
+                        if !live_drag {
+                            // 拖拽延迟模式：矩形正在变化，隐藏 overlay。
+                            if visible && !dragging_hidden {
+                                let _ = ShowWindow(overlay.0, SW_HIDE);
+                                dragging_hidden = true;
+                                visible = false;
                             }
-                        };
+                            last_change_time = Some(tokio::time::Instant::now());
+                            last_rect = rect;
+                            continue;
+                        }
 
-                        let rect_changed = !rect_eq(&rect, &last_rect);
-
-                        if rect_changed {
-                            if !live_drag {
-                                // 拖拽延迟模式：矩形正在变化，隐藏 overlay。
-                                if visible && !dragging_hidden {
-                                    let _ = ShowWindow(overlay.0, SW_HIDE);
-                                    dragging_hidden = true;
-                                    visible = false;
-                                }
-                                last_change_time = Some(tokio::time::Instant::now());
-                                last_rect = rect;
-                                continue;
-                            }
-
-                            // 实时跟随：直接更新 overlay 位置。
+                        // 实时跟随：直接更新 overlay 位置。
+                        let width = rect.right - rect.left;
+                        let height = rect.bottom - rect.top;
+                        tracing::debug!(
+                            left = rect.left,
+                            top = rect.top,
+                            width,
+                            height,
+                            "follow target window"
+                        );
+                        SetWindowPos(
+                            overlay.0,
+                            HWND_TOPMOST,
+                            rect.left,
+                            rect.top,
+                            width,
+                            height,
+                            SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+                        )?;
+                        last_rect = rect;
+                    } else if !live_drag && dragging_hidden {
+                        // 拖拽延迟模式：矩形已停止变化，检查是否超过延迟。
+                        let ready = last_change_time
+                            .map(|t| t.elapsed() >= drag_delay)
+                            .unwrap_or(true);
+                        if ready {
+                            // 恢复显示。
                             let width = rect.right - rect.left;
                             let height = rect.bottom - rect.top;
-                            tracing::debug!(
-                                left = rect.left,
-                                top = rect.top,
-                                width,
-                                height,
-                                "follow target window"
-                            );
                             SetWindowPos(
                                 overlay.0,
                                 HWND_TOPMOST,
@@ -478,30 +502,10 @@ pub async fn follow_target_window(
                                 height,
                                 SWP_NOACTIVATE | SWP_NOOWNERZORDER,
                             )?;
-                            last_rect = rect;
-                        } else if !live_drag && dragging_hidden {
-                            // 拖拽延迟模式：矩形已停止变化，检查是否超过延迟。
-                            let ready = last_change_time
-                                .map(|t| t.elapsed() >= drag_delay)
-                                .unwrap_or(true);
-                            if ready {
-                                // 恢复显示。
-                                let width = rect.right - rect.left;
-                                let height = rect.bottom - rect.top;
-                                SetWindowPos(
-                                    overlay.0,
-                                    HWND_TOPMOST,
-                                    rect.left,
-                                    rect.top,
-                                    width,
-                                    height,
-                                    SWP_NOACTIVATE | SWP_NOOWNERZORDER,
-                                )?;
-                                dragging_hidden = false;
-                                visible = false; // 下面的 !visible 逻辑会重新 show
-                            } else {
-                                continue;
-                            }
+                            dragging_hidden = false;
+                            visible = false; // 下面的 !visible 逻辑会重新 show
+                        } else {
+                            continue;
                         }
                     }
 

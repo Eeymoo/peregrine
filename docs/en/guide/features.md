@@ -59,6 +59,8 @@ The following settings are located in the separate Settings window (not profile-
 - **GPU Hardware Acceleration**: When enabled, activates WebView2 GPU rendering (disabled by default). When off, pure CPU rendering is used to reduce GPU process memory usage.
 - **Auto-switch to game on overlay start**: Ask / Yes / No.
 - **Language**: Simplified Chinese / English / Follow System.
+- **China Acceleration** (Chinese only): Speeds up GitHub Release downloads via gh-proxy. Enabled by default for zh-CN users; selectable mirror (v4 / v6 / cdn / custom).
+- **Update Channel**: Stable / Prerelease.
 
 ## Process Trigger (Placeholder)
 

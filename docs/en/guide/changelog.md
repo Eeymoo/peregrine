@@ -6,6 +6,39 @@ For full stable release notes, see [GitHub Releases](https://github.com/Eeymoo/p
 
 ---
 
+## v0.1.7 — 2026-07-12 (Stable)
+
+Removed Gitee mirror in favor of gh-proxy acceleration; added GitHub Releases auto-update; fixed settings window crash on minimize.
+
+### New
+
+- **GitHub Releases auto-update**: Built-in update check and download/install with stable and prerelease channels.
+- **China acceleration proxy**: GitHub downloads accelerated via gh-proxy. Enabled by default for zh-CN users; selectable mirror (v4 / v6 / cdn / custom).
+- **GPU hardware acceleration toggle**: Toggle WebView2 GPU acceleration in settings; disabling saves ~60MB memory.
+
+### Fixes
+
+- Fixed settings window crash on minimize.
+
+### Refactor
+
+- Renamed default style "Toilet Paper" to "Edge Rectangle" with updated documentation terminology.
+
+---
+
+## v0.1.5 — 2026-07-11 (Stable)
+
+NSIS installer with built-in auto-update, supporting stable and prerelease channels.
+
+### New
+
+- **NSIS installer**: `setup.exe` installer with auto-update support; portable zip still available.
+- **Built-in auto-update**: "Check for Updates" button in settings; download progress bar.
+- **Startup auto-check**: Config page auto-checks for updates 3 seconds after launch.
+- **About page info**: Shows publisher (Eeymoo), license (MIT), repo link, and dynamic version.
+
+---
+
 ## v0.1.4 — 2026-07-11 (Stable)
 
 License changed to MIT — fully open source. New fullscreen/window overlay modes, GPU acceleration toggle, screen scaling adaptation, and major memory/CPU optimizations.

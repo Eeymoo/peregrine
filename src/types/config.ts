@@ -10,7 +10,8 @@ export type CrosshairStyle =
   | "random_orb"
   | "border_frame"
   | "custom_image"
-  | "edge_arrows";
+  | "edge_arrows"
+  | "grid";
 
 export type Anchor = "top" | "bottom" | "left" | "right" | "center";
 
@@ -19,6 +20,22 @@ export type RingStyle = "solid" | "dashed" | "double";
 export type BorderFrameStyle = "solid" | "gap";
 
 export type RandomOrbMode = "lock_on_start" | "reshuffle";
+
+export type GridAlignment = "center" | "edge";
+
+export type HotkeyAction =
+  | "toggle_overlay"
+  | "start_overlay"
+  | "stop_overlay"
+  | "cycle_color_next"
+  | "cycle_color_prev"
+  | "set_color_1"
+  | "set_color_2"
+  | "set_color_3"
+  | "set_color_4"
+  | "set_color_5";
+
+export type HotkeyBindings = [HotkeyAction, string][];
 
 export interface Crosshair {
   style: CrosshairStyle;
@@ -62,6 +79,8 @@ export interface Crosshair {
   arrow_tail_bottom: number;
   arrow_tail_left: number;
   arrow_tail_right: number;
+  grid_size: number;
+  grid_alignment: GridAlignment;
 }
 
 export interface TriggerRule {
@@ -91,4 +110,8 @@ export interface AppSettings {
   update_channel: string;
   cn_mirror: boolean;
   mirror_url: string;
+  antialiasing: boolean;
+  renderer_backend: "cpu" | "svg";
+  quick_colors: [number, number, number, number][];
+  hotkey_bindings: HotkeyBindings;
 }

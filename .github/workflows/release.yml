@@ -1,8 +1,8 @@
 name: Release
 
 # 在推送形如 v* 的标签时触发，构建 Windows 产物并发布。
-#   - 纯版本号（如 v0.1.5）→ 正式版（stable 通道），生成 stable.json。
-#   - 带预发布后缀（如 v0.1.5-alpha.0）→ 尝鲜版（prerelease 通道），生成 prerelease.json。
+#   - 纯版本号（如 v0.1.7）→ 正式版（stable 通道），奇数版本号。
+#   - 带预发布后缀（如 v0.1.8-alpha.0）→ 尝鲜版（prerelease 通道），偶数/预发布。
 # 正式版发布后 releases/latest 指向它，stable.json 可通过 releases/latest/download/ 访问。
 # 尝鲜版只能通过具体 tag 访问 prerelease.json。
 on:

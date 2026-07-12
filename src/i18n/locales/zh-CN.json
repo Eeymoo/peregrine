@@ -32,12 +32,41 @@
     "windowModeHint": "仅覆盖目标窗口客户区",
     "liveDragPreview": "拖拽时实时显示",
     "liveDragPreviewHint": "关闭后，窗口拖拽期间隐藏准心，停止拖拽 1200ms 后恢复",
-    "fullscreenOnlyHint": "仅窗口模式下可用"
+    "fullscreenOnlyHint": "仅窗口模式下可用",
+    "antialiasing": "抗锯齿",
+    "antialiasingHint": "平滑圆形和三角形等曲线边缘，关闭可略微降低 CPU 开销",
+    "rendererBackend": "渲染后端",
+    "rendererBackendHint": "SVG 模式抗锯齿质量更高；CPU 模式无需额外依赖",
+    "rendererBackendCpu": "CPU（默认）",
+    "rendererBackendSvg": "SVG"
+  },
+  "quickColors": {
+    "title": "快捷颜色",
+    "hint": "点击色块快速切换准心颜色，可在设置中自定义"
+  },
+  "hotkeys": {
+    "title": "快捷键",
+    "hint": "点击输入框后按下组合键，再按 Esc 清除",
+    "placeholder": "点击设置…",
+    "clear": "清除"
+  },
+  "hotkeyActions": {
+    "toggle_overlay": "切换覆盖层",
+    "start_overlay": "开启覆盖层",
+    "stop_overlay": "关闭覆盖层",
+    "cycle_color_next": "下一个颜色",
+    "cycle_color_prev": "上一个颜色",
+    "set_color_1": "颜色 1",
+    "set_color_2": "颜色 2",
+    "set_color_3": "颜色 3",
+    "set_color_4": "颜色 4",
+    "set_color_5": "颜色 5"
   },
   "settings": {
     "title": "设置",
     "sectionGeneral": "通用",
     "sectionOverlay": "覆盖层",
+    "sectionHotkeys": "快捷键",
     "sectionUpdate": "更新",
     "sectionAbout": "关于",
     "generalDesc": "语言与性能相关设置",
@@ -91,7 +120,8 @@
     "random_orb": "随机边缘标记",
     "border_frame": "边框",
     "custom_image": "自定义图片",
-    "edge_arrows": "边缘箭头"
+    "edge_arrows": "边缘箭头",
+    "grid": "网格"
   },
   "anchors": {
     "top": "顶部",
@@ -108,6 +138,10 @@
   "borderStyles": {
     "solid": "完整",
     "gap": "缺口"
+  },
+  "gridAlignments": {
+    "center": "居中",
+    "edge": "贴边"
   },
   "fields": {
     "width": "宽度",
@@ -152,7 +186,10 @@
     "top": "上",
     "bottom": "下",
     "left": "左",
-    "right": "右"
+    "right": "右",
+    "gridCells": "格子数",
+    "gridSize": "格子宽度",
+    "gridAlignment": "对齐方式"
   },
   "preview": {
     "placeholder": "请选择 PNG 文件"

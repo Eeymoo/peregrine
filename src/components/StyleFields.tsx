@@ -11,11 +11,12 @@ import {
 } from "@/components/ui/select";
 import { useI18n } from "@/lib/i18n";
 import { pickImagePath } from "@/lib/api";
-import type { Crosshair, Anchor, RingStyle, BorderFrameStyle } from "@/types/config";
+import type { Crosshair, Anchor, RingStyle, BorderFrameStyle, GridAlignment } from "@/types/config";
 
 const ANCHORS: Anchor[] = ["top", "bottom", "left", "right", "center"];
 const RING_STYLES: RingStyle[] = ["solid", "dashed", "double"];
 const BORDER_STYLES: BorderFrameStyle[] = ["solid", "gap"];
+const GRID_ALIGNMENTS: GridAlignment[] = ["center", "edge"];
 
 interface StyleFieldsProps {
   crosshair: Crosshair;
@@ -47,6 +48,8 @@ export function StyleFields({ crosshair, onChange }: StyleFieldsProps) {
       return <CustomImageFields crosshair={crosshair} onChange={onChange} />;
     case "edge_arrows":
       return <EdgeArrowsFields crosshair={crosshair} onChange={onChange} />;
+    case "grid":
+      return <GridFields crosshair={crosshair} onChange={onChange} />;
     default:
       return null;
   }
@@ -208,6 +211,26 @@ function EdgeArrowsFields({ crosshair, onChange }: StyleFieldsProps) {
         <SliderField label={t("fields.tailLength")} value={crosshair.arrow_distance} min={0} max={500} step={1} onChange={(v) => onChange({ arrow_distance: v })} />
       )}
       <OrbPositionCheck crosshair={crosshair} onChange={onChange} />
+    </div>
+  );
+}
+
+/** 网格。 */
+function GridFields({ crosshair, onChange }: StyleFieldsProps) {
+  const { t } = useI18n();
+  return (
+    <div className="space-y-2">
+      <SliderField label={t("fields.gridSize")} value={crosshair.grid_size ?? 80} min={10} max={500} step={5} onChange={(v) => onChange({ grid_size: v })} />
+      <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={1} max={20} onChange={(v) => onChange({ thickness: v })} />
+      <div className="space-y-2">
+        <Label className="text-sm">{t("fields.gridAlignment")}</Label>
+        <Select value={crosshair.grid_alignment ?? "center"} onValueChange={(v) => onChange({ grid_alignment: v as GridAlignment })}>
+          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {GRID_ALIGNMENTS.map((a) => <SelectItem key={a} value={a} className="text-sm">{t(`gridAlignments.${a}`)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }

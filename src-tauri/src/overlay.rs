@@ -26,6 +26,8 @@ pub enum OverlayCommand {
     Start(String),
     /// 停止并销毁 overlay。
     Stop,
+    /// 切换 overlay 显示状态：活跃时停止，非活跃时用配置中的 target_window 启动。
+    ToggleOverlay,
     /// 更新当前配置快照。
     UpdateConfig(ConfigSnapshot),
     /// 查询是否活跃（用于 heartbeat）。
@@ -121,6 +123,20 @@ impl OverlayApp {
         match cmd {
             OverlayCommand::Start(title) => self.create_overlay(event_loop, title),
             OverlayCommand::Stop => self.destroy_overlay(),
+            OverlayCommand::ToggleOverlay => {
+                if self.overlay_active {
+                    self.destroy_overlay();
+                } else {
+                    // 从配置快照中读取目标窗口标题。
+                    let title = {
+                        let cfg = self.config.lock().expect("config lock");
+                        cfg.active_profile()
+                            .map(|p| p.target_window.clone())
+                            .unwrap_or_default()
+                    };
+                    self.create_overlay(event_loop, title);
+                }
+            }
             OverlayCommand::UpdateConfig(snap) => {
                 // 检测 fullscreen_overlay / live_drag_preview 是否变化，需要重启 follower。
                 let old_fullscreen = {

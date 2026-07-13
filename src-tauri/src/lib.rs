@@ -273,6 +273,10 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // 单例模式：第二个实例启动时聚焦已有窗口，不重复运行。
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_or_recreate_window(app, "config", create_config_window);
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()

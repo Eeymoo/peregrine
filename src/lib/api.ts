@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { AppConfig } from "@/types/config";
+
+export { getCurrentWebviewWindow };
 
 export async function getConfig(): Promise<AppConfig> {
   return invoke<AppConfig>("get_config");

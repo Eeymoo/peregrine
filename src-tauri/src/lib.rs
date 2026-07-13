@@ -1125,11 +1125,20 @@ async fn download_install_update(
         .build()
         .map_err(|e| format!("构建 updater 失败: {e}"))?;
 
-    let update = updater
+    let mut update = updater
         .check()
         .await
         .map_err(|e| format!("检查更新失败: {e}"))?
         .ok_or("没有可用更新")?;
+
+    // 如果启用了中国大陆镜像且下载链接指向 GitHub，则把安装包下载链接也套上镜像前缀。
+    if cn_mirror && update.download_url.host_str() == Some("github.com") {
+        let mirror_base = mirror_url.trim_end_matches('/');
+        let proxied = format!("{}/{}", mirror_base, update.download_url);
+        update.download_url = proxied
+            .parse()
+            .map_err(|e| format!("镜像下载链接无效: {e}"))?;
+    }
 
     let mut first_chunk = true;
     let on_event_progress = on_event.clone();

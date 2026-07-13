@@ -200,6 +200,9 @@
     "quit": "退出",
     "windowMode": "窗口模式"
   },
+  "common": {
+    "close": "关闭"
+  },
   "license": {
     "mit": "MIT · 开源 · 自由使用"
   }

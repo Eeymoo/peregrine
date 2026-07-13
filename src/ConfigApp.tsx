@@ -1,9 +1,23 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useState } from "react";
+import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Preview } from "@/components/Preview";
+import { StyleFields } from "@/components/StyleFields";
+import { AutoSwitchDialog } from "@/components/config/AutoSwitchDialog";
+import { UpdateDialog } from "@/components/config/UpdateDialog";
+import { UpdateProgress } from "@/components/config/UpdateProgress";
+import { TargetWindowSelect } from "@/components/config/TargetWindowSelect";
+import { useConfigAppState } from "@/hooks/useConfigAppState";
+import { useConfigSave } from "@/hooks/useConfigSave";
+import { useOverlayActions } from "@/hooks/useOverlayActions";
+import { useUpdate } from "@/hooks/useUpdate";
+import { updatePreferences, getCurrentWebviewWindow } from "@/lib/api";
+import type { CrosshairStyle } from "@/types/config";
+
 import {
   Select,
   SelectContent,
@@ -11,24 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Preview } from "@/components/Preview";
-import { StyleFields } from "@/components/StyleFields";
-import { useI18n } from "@/lib/i18n";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import {
-  getConfig,
-  saveConfig,
-  listWindowTitles,
-  startOverlay,
-  stopOverlay,
-  focusTargetWindow,
-  updatePreferences,
-  getAppVersion,
-  getOverlayActive,
-  checkForUpdate,
-  downloadAndInstallUpdate,
-} from "@/lib/api";
-import type { AppConfig, Crosshair, CrosshairStyle } from "@/types/config";
 
 const STYLES: CrosshairStyle[] = [
   "edge_rect",
@@ -48,235 +44,27 @@ const STYLES: CrosshairStyle[] = [
 
 export default function ConfigApp() {
   const { t } = useI18n();
-
-  useEffect(() => {
-    getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("config.title")}`).catch(() => {});
-  }, [t]);
-
-  const [config, setConfig] = useState<AppConfig | null>(null);
-  const [windows, setWindows] = useState<string[]>([]);
-  const [overlayActive, setOverlayActive] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { config, setConfig, overlayActive, setOverlayActive, loading, version } =
+    useConfigAppState();
   const [showAutoSwitchDialog, setShowAutoSwitchDialog] = useState(false);
-  const [rememberChoice, setRememberChoice] = useState(false);
-  const [version, setVersion] = useState("");
-  const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body?: string } | null>(null);
-  const [updating, setUpdating] = useState(false);
-  const [updateProgress, setUpdateProgress] = useState(0);
+  const { profile, crosshair, updateCrosshair, updateProfileTargetWindow, colorCss } =
+    useConfigSave(config, setConfig);
+  const { handleStartOverlay, handleStopOverlay, saveAutoSwitchPreference } =
+    useOverlayActions(config, setOverlayActive, () => setShowAutoSwitchDialog(true));
 
-  useEffect(() => {
-    getConfig()
-      .then(setConfig)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-    refreshWindows();
-    getAppVersion().then(setVersion).catch(() => {});
-    getOverlayActive().then(setOverlayActive).catch(() => {});
+  const {
+    updateAvailable,
+    updating,
+    updateProgress,
+    setUpdateAvailable,
+    startUpdate,
+  } = useUpdate(config);
 
-    // 启动时自动检测更新（静默，发现新版本才弹窗）。延迟 3 秒避免抢焦点。
-    const autoCheck = async () => {
-      try {
-        await new Promise((r) => setTimeout(r, 3000));
-        const cfg = await getConfig();
-        const channel = cfg.settings?.update_channel ?? "stable";
-        const cnMirror = cfg.settings?.cn_mirror ?? false;
-        const mirrorUrl = cfg.settings?.mirror_url ?? "https://v4.gh-proxy.org";
-        const result = await checkForUpdate(channel, cnMirror, mirrorUrl);
-        if (result.available) {
-          setUpdateAvailable({ version: result.version || "", body: result.body });
-        }
-      } catch { /* 静默失败 */ }
-    };
-    autoCheck();
-  }, []);
-
-  /** 监听后端 settings 变更（来自托盘或设置窗口），同步 React state。 */
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    (async () => {
-      try {
-        const { listen } = await import("@tauri-apps/api/event");
-        unlisten = await listen<{
-          auto_switch_on_overlay?: string;
-          locale?: string;
-          fullscreen_overlay?: boolean;
-          live_drag_preview?: boolean;
-          cn_mirror?: boolean;
-          mirror_url?: string;
-          update_channel?: string;
-          antialiasing?: boolean;
-          renderer_backend?: "cpu" | "svg";
-          quick_colors?: [number, number, number, number][];
-          hotkey_bindings?: [string, string][];
-        }>("peregrine:settings-changed", (event) => {
-          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, cn_mirror, mirror_url, update_channel, antialiasing, renderer_backend, quick_colors, hotkey_bindings } = event.payload;
-          setConfig((prev) => {
-            if (!prev) return prev;
-            const settings = { ...prev.settings };
-            if (auto_switch_on_overlay !== undefined) {
-              settings.auto_switch_on_overlay = auto_switch_on_overlay;
-            }
-            if (fullscreen_overlay !== undefined) {
-              settings.fullscreen_overlay = fullscreen_overlay;
-            }
-            if (live_drag_preview !== undefined) {
-              settings.live_drag_preview = live_drag_preview;
-            }
-            if (cn_mirror !== undefined) {
-              settings.cn_mirror = cn_mirror;
-            }
-            if (mirror_url !== undefined) {
-              settings.mirror_url = mirror_url;
-            }
-            if (update_channel !== undefined) {
-              settings.update_channel = update_channel;
-            }
-            if (antialiasing !== undefined) {
-              settings.antialiasing = antialiasing;
-            }
-            if (renderer_backend !== undefined) {
-              settings.renderer_backend = renderer_backend;
-            }
-            if (quick_colors !== undefined) {
-              settings.quick_colors = quick_colors;
-            }
-            if (hotkey_bindings !== undefined) {
-              settings.hotkey_bindings = hotkey_bindings as any;
-            }
-            return { ...prev, settings };
-          });
-        });
-      } catch { /* 非 Tauri 环境忽略 */ }
-    })();
-    return () => unlisten?.();
-  }, []);
-
-  const profile = config?.profiles[config.active_profile];
-  const crosshair = profile?.crosshair;
-
-  /** 防抖保存配置：拖滑块等连续操作时只在停止后 300ms 写入一次。 */
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debouncedSave = useCallback((cfg: AppConfig) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveConfig(cfg).catch(console.error);
-    }, 300);
-  }, []);
-
-  const updateCrosshair = useCallback((patch: Partial<Crosshair>) => {
-    if (!config || !profile || !crosshair) return;
-    const newCrosshair = { ...crosshair, ...patch };
-    const newProfile = { ...profile, crosshair: newCrosshair };
-    const newConfig = {
-      ...config,
-      profiles: { ...config.profiles, [config.active_profile]: newProfile },
-    };
-    setConfig(newConfig);
-    debouncedSave(newConfig);
-  }, [config, profile, crosshair, debouncedSave]);
-
-  const refreshWindows = useCallback(() => {
-    listWindowTitles().then(setWindows).catch(console.error);
-  }, []);
-
-  /** 更新应用级偏好设置（仅更新指定字段，不覆盖整个配置）。 */
-  const updateSettings = useCallback((patch: Partial<AppConfig["settings"]>) => {
+  const updateSettings = (patch: Parameters<typeof updatePreferences>[0]) => {
     if (!config) return;
-    const newConfig = {
-      ...config,
-      settings: { ...config.settings, ...patch },
-    };
-    setConfig(newConfig);
+    setConfig({ ...config, settings: { ...config.settings, ...patch } });
     updatePreferences(patch).catch(console.error);
-  }, [config]);
-
-  /** 销毁配置窗口并切换焦点到目标游戏窗口。
-   *  使用 destroy 而非 hide，让 WebView2 渲染进程被回收（~30-50MB），
-   *  下次从托盘打开时由 show_or_recreate_window 重建。 */
-  const hideAndSwitch = useCallback(async (targetWindow: string) => {
-    focusTargetWindow(targetWindow).catch(console.error);
-    await getCurrentWebviewWindow().destroy();
-  }, []);
-
-  const handleStartOverlay = useCallback(async () => {
-    // 全屏模式不需要目标窗口；窗口模式需要。
-    const isFullscreen = config?.settings.fullscreen_overlay ?? true;
-    if (!isFullscreen && !profile?.target_window) return;
-    try {
-      await startOverlay(profile?.target_window ?? "");
-      setOverlayActive(true);
-
-      const pref = config?.settings.auto_switch_on_overlay ?? "ask";
-      if (pref === "yes") {
-        if (profile?.target_window) {
-          await hideAndSwitch(profile.target_window);
-        }
-      } else if (pref === "no") {
-        // 不隐藏，不做操作。
-      } else {
-        // 未设置偏好（ask），弹出对话框。
-        setShowAutoSwitchDialog(true);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [profile?.target_window, config?.settings.fullscreen_overlay, config?.settings.auto_switch_on_overlay, hideAndSwitch]);
-
-  /** 对话框确认：隐藏配置窗口并切换焦点，同时按勾选状态保存偏好。 */
-  const handleDialogConfirm = useCallback(async () => {
-    if (rememberChoice) {
-      updateSettings({ auto_switch_on_overlay: "yes" });
-    }
-    setShowAutoSwitchDialog(false);
-    if (profile?.target_window) {
-      await hideAndSwitch(profile.target_window);
-    }
-  }, [rememberChoice, profile?.target_window, hideAndSwitch, updateSettings]);
-
-  /** 对话框取消（保持配置窗口）：不停止覆盖，保持配置窗口显示，按勾选状态保存偏好。 */
-  const handleDialogCancel = useCallback(async () => {
-    if (rememberChoice) {
-      updateSettings({ auto_switch_on_overlay: "no" });
-    }
-    setShowAutoSwitchDialog(false);
-  }, [rememberChoice, updateSettings]);
-
-  /** ESC 键关闭对话框：停止覆盖（等同点击停止覆盖按钮）。 */
-  const handleDialogEsc = useCallback(async () => {
-    setShowAutoSwitchDialog(false);
-    try {
-      await stopOverlay();
-      setOverlayActive(false);
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
-
-  /** ESC 键监听：仅在对话框显示时生效。 */
-  useEffect(() => {
-    if (!showAutoSwitchDialog) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        handleDialogEsc();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showAutoSwitchDialog, handleDialogEsc]);
-
-  const handleStopOverlay = useCallback(async () => {
-    try {
-      await stopOverlay();
-      setOverlayActive(false);
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
-
-  const colorCss = useMemo(() => {
-    const [r, g, b] = crosshair?.color || [1, 1, 1];
-    return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
-  }, [crosshair?.color]);
+  };
 
   if (loading || !config || !crosshair) {
     return (
@@ -293,11 +81,10 @@ export default function ConfigApp() {
         <Preview crosshair={crosshair} />
       </div>
 
-      {/* 右侧设置面板：固定顶部与底部，中间样式配置自适应 */}
+      {/* 右侧设置面板 */}
       <div className="w-80 border-l bg-card p-4 flex flex-col gap-4 overflow-hidden">
         {/* 顶部固定区：样式 + 公共配置 */}
         <div className="space-y-3 shrink-0">
-          {/* 样式选择 */}
           <div className="space-y-2">
             <Label className="text-sm">{t("config.style")}</Label>
             <Select
@@ -317,12 +104,13 @@ export default function ConfigApp() {
             </Select>
           </div>
 
-          {/* 公共配置 */}
           <div className="space-y-3">
             <div className="space-y-2">
               <div className="flex justify-between">
                 <Label className="text-sm">{t("config.opacity")}</Label>
-                <span className="text-sm text-muted-foreground">{crosshair.opacity.toFixed(2)}</span>
+                <span className="text-sm text-muted-foreground">
+                  {crosshair.opacity.toFixed(2)}
+                </span>
               </div>
               <Slider
                 value={[crosshair.opacity]}
@@ -347,11 +135,13 @@ export default function ConfigApp() {
                 }}
                 className="h-8 w-14 rounded border bg-transparent cursor-pointer"
               />
-              {/* 快捷颜色色块 */}
               <div className="flex gap-1">
                 {(config.settings.quick_colors ?? []).map((qc, i) => {
                   const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;
-                  const isActive = crosshair.color[0] === qc[0] && crosshair.color[1] === qc[1] && crosshair.color[2] === qc[2];
+                  const isActive =
+                    crosshair.color[0] === qc[0] &&
+                    crosshair.color[1] === qc[1] &&
+                    crosshair.color[2] === qc[2];
                   return (
                     <button
                       key={i}
@@ -361,7 +151,9 @@ export default function ConfigApp() {
                       className="w-5 h-5 rounded-full border-2 transition-colors"
                       style={{
                         backgroundColor: css,
-                        borderColor: isActive ? "hsl(var(--primary))" : "hsl(var(--border))",
+                        borderColor: isActive
+                          ? "hsl(var(--primary))"
+                          : "hsl(var(--border))",
                       }}
                     />
                   );
@@ -373,16 +165,15 @@ export default function ConfigApp() {
 
         <Separator className="shrink-0" />
 
-        {/* 中间样式配置：默认随窗口高度自适应，内容过多时才滚动 */}
+        {/* 中间样式配置 */}
         <div className="flex-1 min-h-0 overflow-y-auto pr-1">
           <StyleFields crosshair={crosshair} onChange={updateCrosshair} />
         </div>
 
         <Separator className="shrink-0" />
 
-        {/* 底部固定区：覆盖模式 + 目标窗口 + 开始/停止覆盖 */}
+        {/* 底部固定区 */}
         <div className="space-y-3 shrink-0">
-          {/* 窗口模式勾选（默认全屏，勾选切换为窗口模式） */}
           <div className="flex items-center gap-2">
             <Checkbox
               id="window-mode"
@@ -394,156 +185,74 @@ export default function ConfigApp() {
             </Label>
           </div>
 
-          {/* 目标窗口（仅窗口模式时显示） */}
           {!config.settings.fullscreen_overlay && (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-sm">{t("config.targetWindow")}</Label>
-                <Button variant="ghost" size="sm" onClick={refreshWindows} className="h-8 text-sm px-2">
-                  {t("config.refresh")}
-                </Button>
-              </div>
-              <Select
-                value={profile.target_window || "__none__"}
-                onValueChange={(v) => {
-                  const newConfig = {
-                    ...config,
-                    profiles: {
-                      ...config.profiles,
-                      [config.active_profile]: {
-                        ...profile,
-                        target_window: v === "__none__" ? "" : v,
-                      },
-                    },
-                  };
-                  setConfig(newConfig);
-                  debouncedSave(newConfig);
-                }}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder={t("config.none")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__" className="text-sm">{t("config.none")}</SelectItem>
-                  {windows.map((w) => (
-                    <SelectItem key={w} value={w} className="text-sm">
-                      {w.length > 30 ? w.slice(0, 30) + "…" : w}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <TargetWindowSelect
+              value={profile?.target_window ?? ""}
+              onChange={(v) => updateProfileTargetWindow(v === "__none__" ? "" : v)}
+            />
           )}
 
-          {/* 开始/停止覆盖 */}
           <div>
             {overlayActive ? (
-              <Button variant="destructive" className="w-full h-8 text-sm" onClick={handleStopOverlay}>
+              <Button
+                variant="destructive"
+                className="w-full h-8 text-sm"
+                onClick={handleStopOverlay}
+              >
                 ■ {t("config.stopOverlay")}
               </Button>
             ) : (
-              <Button className="w-full h-8 text-sm" onClick={handleStartOverlay} disabled={!config.settings.fullscreen_overlay && !profile.target_window}>
+              <Button
+                className="w-full h-8 text-sm"
+                onClick={handleStartOverlay}
+                disabled={
+                  !config.settings.fullscreen_overlay && !profile?.target_window
+                }
+              >
                 ▶ {t("config.startOverlay")}
               </Button>
             )}
           </div>
 
-          {/* 底部信息 */}
           <div className="text-xs text-muted-foreground text-right">
             Peregrine v{version || "..."}
           </div>
         </div>
       </div>
 
-      {/* 自动切换确认对话框 */}
       {showAutoSwitchDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-card border rounded-lg shadow-lg p-6 max-w-sm w-full mx-4 space-y-4">
-            <h2 className="text-base font-semibold">{t("overlay.autoSwitchTitle")}</h2>
-            <p className="text-sm text-muted-foreground">{t("overlay.autoSwitchDesc")}</p>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="remember-choice"
-                checked={rememberChoice}
-                onCheckedChange={(v) => setRememberChoice(v === true)}
-              />
-              <Label htmlFor="remember-choice" className="text-sm cursor-pointer">
-                {t("overlay.rememberChoice")}
-              </Label>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={handleDialogCancel}>
-                {t("overlay.keepConfig")}
-              </Button>
-              <Button size="sm" onClick={handleDialogConfirm}>
-                {t("overlay.switchToGame")}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <AutoSwitchDialog
+          onConfirm={(remember) => {
+            setShowAutoSwitchDialog(false);
+            if (remember) {
+              saveAutoSwitchPreference("yes", profile?.target_window);
+            } else if (profile?.target_window) {
+              getCurrentWebviewWindow().destroy().catch(() => {});
+            }
+          }}
+          onCancel={(remember) => {
+            setShowAutoSwitchDialog(false);
+            if (remember) {
+              saveAutoSwitchPreference("no");
+            }
+          }}
+          onCloseByEsc={handleStopOverlay}
+        />
       )}
 
-      {/* 发现新版本对话框 */}
       {updateAvailable && !updating && (
-        <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
-          <p className="text-sm font-medium">
-            {t("settings.updateAvailable")}：v{updateAvailable.version}
-          </p>
-          {updateAvailable.body && (
-            <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">
-              {updateAvailable.body}
-            </p>
-          )}
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              onClick={async () => {
-                setUpdateAvailable(null);
-                setUpdating(true);
-                setUpdateProgress(0);
-                try {
-                  const channel = config?.settings?.update_channel ?? "stable";
-                  const cnMirror = config?.settings?.cn_mirror ?? false;
-                  const mirrorUrl = config?.settings?.mirror_url ?? "https://v4.gh-proxy.org";
-                  await downloadAndInstallUpdate(channel, cnMirror, mirrorUrl, (downloaded, total) => {
-                    if (total > 0) {
-                      setUpdateProgress(Math.min(100, Math.round((downloaded / total) * 100)));
-                    }
-                  });
-                } catch (e) {
-                  console.error("[Update] download failed:", e);
-                  setUpdating(false);
-                }
-              }}
-            >
-              {t("settings.updateNow")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setUpdateAvailable(null)}
-            >
-              {t("settings.updateLater")}
-            </Button>
-          </div>
-        </div>
+        <UpdateDialog
+          version={updateAvailable.version}
+          body={updateAvailable.body}
+          onUpdate={() => {
+            setUpdateAvailable(null);
+            startUpdate();
+          }}
+          onLater={() => setUpdateAvailable(null)}
+        />
       )}
 
-      {/* 更新下载进度 */}
-      {updating && (
-        <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
-          <p className="text-xs text-blue-500">{t("settings.updating")}</p>
-          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-blue-500 rounded-full transition-all"
-              style={{ width: `${updateProgress || 30}%` }}
-            />
-          </div>
-          {updateProgress > 0 && (
-            <p className="text-xs text-muted-foreground text-right">{updateProgress}%</p>
-          )}
-        </div>
-      )}
+      {updating && <UpdateProgress progress={updateProgress} />}
     </div>
   );
 }

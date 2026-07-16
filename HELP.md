@@ -149,6 +149,8 @@ All settings are saved as JSON in the system's standard directory:
 | macOS | `~/Library/Application Support/Peregrine/config.json` |
 | Linux | `~/.config/Peregrine/config.json` |
 
+> Peregrine is a Windows-only tool. The config paths above are listed because the configuration crate uses OS-standard directories; the overlay and core user-facing features are implemented only on Windows.
+
 - A default configuration is **generated automatically** on first launch, so manual editing is usually unnecessary.
 - You can also edit this file directly with a text editor. The app **automatically reloads** the configuration after you save (hot-reload), so no restart is needed.
 - Some advanced options (such as the Random Orb operating mode and Profile management) can currently only be changed in the configuration file.

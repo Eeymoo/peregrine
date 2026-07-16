@@ -8,11 +8,17 @@ For the stable release changelog, see **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
-## [Unreleased]
+## [v0.1.15-alpha.0] — 2026-07-17
+
+### Added
+
+- **Quick color reset**: Added a "Reset" button next to the quick color presets title that restores the 5 default colors in one click. [#3](https://github.com/Eeymoo/peregrine/issues/3)
+- **Per-style default crosshair presets**: Built-in crosshair styles now provide out-of-the-box default parameters (size, thickness, offset, opacity, etc.) instead of sharing one global default, so switching styles no longer yields invisible or unusable crosshairs. The frontend reverts to style-specific defaults when the user changes the style, keeping preview and overlay WYSIWYG. [#4](https://github.com/Eeymoo/peregrine/issues/4)
 
 ### Fixed
 
-- Fixed "Live Drag Preview" not updating the crosshair position in real time during window dragging: the follower thread moved the overlay window but never notified the renderer to refresh, so the crosshair stayed frozen until the mouse was released. The follower now requests a redraw via the event loop proxy whenever it repositions the overlay. [#5](https://github.com/Eeymoo/peregrine/issues/5)
+- Fixed "Live Drag Preview" not updating the crosshair position in real time during window dragging: the follower thread moved the overlay window but never notified the renderer to refresh, so the crosshair stayed frozen until the mouse was released. The follower now requests a redraw directly via `window.request_redraw()` whenever it repositions the overlay. [#5](https://github.com/Eeymoo/peregrine/issues/5)
+- Fixed window mode toggle desync when the overlay is active: Tauri v2's `CheckMenuItem` auto-toggles the checkbox before the menu event fires, so rejecting the switch left the tray checkbox out of sync with the actual config. The tray checkbox is now reverted when the guard blocks. Switching window mode (fullscreen/windowed) while the overlay is running is now blocked in the tray menu, the backend `update_preferences` command, and the frontend (checkbox disabled with tooltip). [#2](https://github.com/Eeymoo/peregrine/issues/2)
 
 ## [v0.1.9-alpha.0] — 2026-07-13
 

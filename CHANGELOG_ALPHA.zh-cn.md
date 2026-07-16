@@ -8,11 +8,17 @@
 
 ---
 
-## [Unreleased]
+## [v0.1.15-alpha.0] — 2026-07-17
+
+### 新增
+
+- **快捷颜色重置**：在快捷颜色标题右侧新增「重置」按钮，一键恢复 5 个默认色值。[#3](https://github.com/Eeymoo/peregrine/issues/3)
+- **各样式开箱即用默认参数**：内置准心样式现各自提供合理的默认参数（尺寸、厚度、偏移、透明度等），切换样式后即可直接看到效果，不再出现不可见或不可用的情况。前端切换样式时重置为对应样式默认值，保证预览与覆盖层 WYSIWYG。[#4](https://github.com/Eeymoo/peregrine/issues/4)
 
 ### 修复
 
-- 修复「拖拽时实时显示」开启后拖拽过程中准心位置不实时更新的问题：follower 线程在移动 overlay 窗口后未通知渲染线程刷新，导致准心位置静止、仅松开鼠标后才跳转。现已在每次调整 overlay 位置后通过事件循环代理请求重绘。[#5](https://github.com/Eeymoo/peregrine/issues/5)
+- 修复「拖拽时实时显示」开启后拖拽过程中准心位置不实时更新的问题：follower 线程在移动 overlay 窗口后未通知渲染线程刷新，导致准心位置静止、仅松开鼠标后才跳转。现已在每次调整 overlay 位置后直接调用 `window.request_redraw()` 请求重绘。[#5](https://github.com/Eeymoo/peregrine/issues/5)
+- 修复覆盖层活跃时切换窗口模式导致托盘勾选状态不同步的问题：Tauri v2 的 `CheckMenuItem` 在菜单事件触发前已自动切换勾选状态，拒绝切换时 checkbox 会与实际配置不一致。现已在 guard 阻断时回退勾选状态。覆盖层运行时切换窗口模式（全屏/窗口）现已在托盘菜单、后端 `update_preferences` 命令、前端（禁用复选框并提示）三处统一阻断。[#2](https://github.com/Eeymoo/peregrine/issues/2)
 
 ## [v0.1.9-alpha.0] — 2026-07-13
 

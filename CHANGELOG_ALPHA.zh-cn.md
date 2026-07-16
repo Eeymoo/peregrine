@@ -1,5 +1,7 @@
 # 测试版更新日志
 
+[English](CHANGELOG_ALPHA.md) · [简体中文](CHANGELOG_ALPHA.zh-cn.md)
+
 以下版本为正式版发布前的测试与开发迭代，仅供预览与反馈。
 
 正式版日志见 **[CHANGELOG.zh-cn.md](CHANGELOG.zh-cn.md)**。

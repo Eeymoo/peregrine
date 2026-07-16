@@ -1,5 +1,7 @@
 # Peregrine 使用帮助
 
+[English](HELP.md) · [简体中文](HELP.zh-cn.md)
+
 本文档面向**使用者**，介绍 Peregrine 是什么、怎么用，以及每种视觉锚点样式的作用和调节方法。开发相关信息请看 [README](README.zh-cn.md)。
 
 ---

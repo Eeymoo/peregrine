@@ -1,5 +1,7 @@
 # 更新日志
 
+[English](CHANGELOG.md) · [简体中文](CHANGELOG.zh-cn.md)
+
 仅记录正式版本发布。测试版 / 预览版本见 **[CHANGELOG_ALPHA.zh-cn.md](CHANGELOG_ALPHA.zh-cn.md)**。
 
 ---

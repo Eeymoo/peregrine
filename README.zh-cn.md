@@ -1,5 +1,7 @@
 # Peregrine
 
+[English](README.md) · [简体中文](README.zh-cn.md)
+
 [![下载](https://img.shields.io/github/v/release/Eeymoo/peregrine?style=for-the-badge&label=%E4%B8%8B%E8%BD%BD)](https://github.com/Eeymoo/peregrine/releases)
 
 Peregrine 是一款专注于缓解 3D 眩晕（Motion Sickness）的桌面工具。它通过在屏幕上提供可定制的视觉锚点（如十字准星、边框、边缘箭头等），帮助玩家在快速转动视角或复杂场景中保持视觉稳定，减轻前庭-视觉冲突带来的恶心、头晕症状。让你能够正常游玩《半条命 2》《镜之边缘》《消逝的光芒》《无人深空》等容易引发眩晕的游戏。

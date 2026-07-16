@@ -1,5 +1,7 @@
 # Changelog
 
+[English](CHANGELOG.md) · [简体中文](CHANGELOG.zh-cn.md)
+
 Only stable releases are recorded here. For beta / prerelease versions, see **[CHANGELOG_ALPHA.md](CHANGELOG_ALPHA.md)**.
 
 ---

@@ -1,5 +1,7 @@
 # Peregrine
 
+[English](README.md) · [简体中文](README.zh-cn.md)
+
 [![Download](https://img.shields.io/github/v/release/Eeymoo/peregrine?style=for-the-badge&label=Download)](https://github.com/Eeymoo/peregrine/releases)
 
 Peregrine is a desktop utility focused on relieving 3D motion sickness. It provides customizable visual anchors on your screen—such as crosshairs, borders, and edge arrows—to help players maintain visual stability during fast camera movement or complex scenes, reducing nausea and dizziness caused by vestibular-visual conflict. This lets you comfortably play games that often trigger motion sickness, such as *Half-Life 2*, *Mirror's Edge*, *Dying Light*, and *No Man's Sky*.

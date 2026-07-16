@@ -87,6 +87,7 @@ jobs:
         env:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
+          $VERSION = "$env:VERSION"
           $nsisDir = "target/${{ matrix.target }}/release/bundle/nsis"
           $setup = Get-ChildItem "$nsisDir/*-setup.exe" | Select-Object -First 1
           if ($setup) {
@@ -102,6 +103,7 @@ jobs:
         env:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
+          $VERSION = "$env:VERSION"
           $srcExe = "target/${{ matrix.target }}/release/peregrine-tauri.exe"
           $dstExe = "peregrine-${VERSION}.exe"
           Copy-Item $srcExe $dstExe

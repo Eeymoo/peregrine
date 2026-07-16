@@ -1,110 +1,110 @@
-# 缓解晕 3D
+# Relieving 3D Motion Sickness
 
-本页解释什么是 3D 眩晕、它为什么发生，以及如何缓解。Peregrine 提供的视觉锚点只是众多缓解手段中的一种，本章也会列出其他经过验证的方法，帮助你找到最适合自己的组合。
+This page explains what 3D motion sickness is, why it happens, and how to relieve it. The visual anchors provided by Peregrine are just one of many mitigation methods; this chapter also lists other proven methods to help you find the combination that works best for you.
 
-## 什么是 3D 眩晕
+## What Is 3D Motion Sickness
 
-玩第一人称（FPS）、第三人称 3D 游戏，或使用 VR 设备时，部分玩家会感到头晕、恶心、出冷汗、甚至呕吐。这种现象在医学上被称为**晕动症（Motion Sickness）**，当它由屏幕上的虚拟运动引发时，也被称为**模拟器眩晕（Simulator Sickness）**或**电子眩晕（Cybersickness）**[[1]](https://www.healthline.com/health/cybersickness)。
+When playing first-person (FPS), third-person 3D games, or using VR devices, some players feel dizzy, nauseous, sweaty, or even vomit. Medically, this is called **motion sickness**; when triggered by virtual movement on a screen, it is also called **simulator sickness** or **cybersickness**[[1]](https://www.healthline.com/health/cybersickness).
 
-简单来说，3D 眩晕和晕车、晕船、晕机是同一类反应，只是触发场景不同。
+In short, 3D motion sickness is the same type of reaction as carsickness, seasickness, and airsickness—only the trigger scenario is different.
 
-## 为什么会眩晕：感官冲突理论
+## Why Motion Sickness Happens: Sensory Conflict Theory
 
-目前最被广泛接受的解释是**感官冲突理论（Sensory Conflict Theory）**[[2]](https://cdnsciencepub.com/doi/10.1139/y90-044)[[3]](https://pmc.ncbi.nlm.nih.gov/articles/PMC12034809/)。
+The most widely accepted explanation is the **sensory conflict theory**[[2]](https://cdnsciencepub.com/doi/10.1139/y90-044)[[3]](https://pmc.ncbi.nlm.nih.gov/articles/PMC12034809/).
 
-人体维持平衡感依赖三套系统的协同：
+The human body maintains balance through the cooperation of three systems:
 
-- **视觉系统**（眼睛）——告诉我「我在往哪走、走多快」
-- **前庭系统**（内耳）——告诉我「我的头在怎样运动、是否在加速/旋转」
-- **本体感觉**（肌肉、关节）——告诉我「我的身体在什么姿势」
+- **Visual system** (eyes) — tells me "where I am going and how fast"
+- **Vestibular system** (inner ear) — tells me "how my head is moving and whether I am accelerating/rotating"
+- **Proprioception** (muscles, joints) — tells me "what posture my body is in"
 
-在现实世界里，这三套系统的信号几乎总是彼此吻合的。但在玩 3D 游戏时会出现矛盾：
+In the real world, signals from these three systems almost always match. But when playing 3D games, a contradiction occurs:
 
-> **眼睛看到**画面里的角色在奔跑、转身、下坠；
-> **内耳和身体却感到**自己稳稳地坐在椅子上，没有任何运动。
+> **The eyes see** the character running, turning, and falling on screen;
+> **The inner ear and body feel** firmly seated in a chair, with no movement at all.
 
-大脑接收到了互相矛盾的信息，无法判断「我到底有没有在动」，于是触发了古老的防御反应——**恶心和呕吐**。学术界推测，大脑把这种感官冲突当作「中毒导致神经信号错乱」的信号，于是通过催吐来自救[[2]](https://cdnsciencepub.com/doi/10.1139/y90-044)。
+The brain receives conflicting information and cannot determine "am I actually moving?", so it triggers an ancient defense response — **nausea and vomiting**. Academics speculate that the brain interprets this sensory conflict as a sign of "poisoning causing nerve signal confusion," and triggers vomiting to save itself[[2]](https://cdnsciencepub.com/doi/10.1139/y90-044).
 
-这也是为什么有些人更容易晕 3D：个体对感官冲突的敏感度不同，女性、偏头痛患者、有内耳问题的人通常更易感[[3]](https://pmc.ncbi.nlm.nih.gov/articles/PMC12034809/)。
+This is also why some people are more prone to 3D motion sickness: individual sensitivity to sensory conflict varies, and women, migraine sufferers, and people with inner ear problems are usually more susceptible[[3]](https://pmc.ncbi.nlm.nih.gov/articles/PMC12034809/).
 
-## 视觉锚点为什么有效
+## Why Visual Anchors Work
 
-缓解感官冲突的一个关键思路是：**给大脑提供一个稳定、静止的参照物**，让它确认「我其实没在动」。
+A key idea for relieving sensory conflict is: **provide the brain with a stable, stationary reference** so it can confirm "I am actually not moving."
 
-这就是 Peregrine 的核心原理——在屏幕上叠加一个**固定的视觉锚点**（十字准星、中心圆环、边缘标记等）。当游戏画面剧烈晃动时，这个锚点始终纹丝不动，眼睛会把它当作「地面」或「地平线」，从而减轻感官冲突。
+This is Peregrine's core principle — overlaying a **fixed visual anchor** on the screen (crosshair, center ring, edge markers, etc.). When the game screen shakes violently, this anchor stays completely still; the eyes treat it as "ground" or "horizon," reducing the sensory conflict.
 
-这一方法有学术证据支持。韩国 Seok 等人在 *JMIR Serious Games* 发表的研究发现：在 FPS 游戏中开启视觉锚点（视觉引导）能**显著降低** VR 眩晕症状，尤其是在使用手柄操作时；锚点尺寸为画面比例的 30% 左右、置于头部追踪方向时效果最好[[4]](https://games.jmir.org/2021/3/e18020/)。
+This method is backed by academic evidence. Seok et al. from Korea published a study in *JMIR Serious Games* finding that enabling visual anchors (visual guides) in FPS games can **significantly reduce** VR sickness symptoms, especially when using a controller; anchors sized at about 30% of the screen and placed in the head-tracking direction worked best[[4]](https://games.jmir.org/2021/3/e18020/).
 
-Peregrine 将这一原理做成了通用工具：不止十字准星，你可以选择边缘矩形、中心圆环、边缘标记、边框、边缘箭头甚至自定义图片，找到最适合你的锚点形态。
+Peregrine turns this principle into a general tool: beyond crosshairs, you can choose edge rectangles, center rings, edge markers, borders, edge arrows, or even custom images to find the anchor form that suits you best.
 
-## 缓解晕 3D 的方法
+## Methods to Relieve 3D Motion Sickness
 
-下面列出多种经过验证或普遍推荐的缓解方法，建议组合使用。Peregrine 对应其中的「视觉锚点」一项。
+Below are multiple validated or commonly recommended methods; using them in combination is suggested. Peregrine corresponds to the "visual anchor" item.
 
-### 1. 使用视觉锚点（Peregrine 的核心功能）
+### 1. Use Visual Anchors (Peregrine's Core Feature)
 
-在屏幕中心或边缘放置一个半透明、固定不动的参照物。这是 Peregrine 提供的主要手段，也是目前最便捷的软件级缓解方式[[4]](https://games.jmir.org/2021/3/e18020/)。
+Place a semi-transparent, fixed reference at the center or edge of the screen. This is the main method provided by Peregrine and currently the most convenient software-level mitigation[[4]](https://games.jmir.org/2021/3/e18020/).
 
-**Peregrine 使用建议：**
+**Peregrine usage suggestions:**
 
-- 优先尝试 `cross`（十字准星）或 `ring`（中心圆环），对多数人效果最好。
-- 锚点不要太大、不要太亮，半透明即可，避免遮挡游戏画面。
-- 如果中心十字准星影响瞄准，可以试试 `edge_rect`（边缘矩形）或 `border_frame`（边框），把锚点放在边缘。
+- Try `cross` (crosshair) or `ring` (center ring) first; these work best for most people.
+- The anchor should not be too large or too bright; semi-transparent is enough to avoid blocking the game screen.
+- If a center crosshair interferes with aiming, try `edge_rect` (edge rectangle) or `border_frame` (border frame) to place the anchor at the edges.
 
-### 2. 调整视野（FOV）
+### 2. Adjust Field of View (FOV)
 
-很多第一人称游戏默认的视野（Field of View）偏窄（60°–70°），会让大脑觉得「眼前的东西离我很近」，加剧眩晕。适当**调大 FOV**（通常建议 90°–110°）能给大脑更接近自然视角的画面，减轻不适[[5]](https://www.cise.ufl.edu/~eragan/papers/Benda_TVCG2023.pdf)。
+Many first-person games default to a narrow FOV (60°–70°), which makes the brain feel "everything is very close," worsening motion sickness. Increasing FOV (usually recommended to 90°–110°) gives the brain a more natural perspective and reduces discomfort[[5]](https://www.cise.ufl.edu/~eragan/papers/Benda_TVCG2023.pdf).
 
-> 注意：VR 场景下的 FOV 研究结论相反——过宽的 FOV 会**加重**眩晕，开发者常在快速移动时动态收窄 FOV 来缓解[[6]](https://www.researchgate.net/publication/354730991_Tunnel_Vision_-_Dynamic_Peripheral_Vision_Blocking_Glasses_for_Reducing_Motion_Sickness_Symptoms)。普通桌面显示器游戏一般调大 FOV 即可。
+> Note: VR research shows the opposite conclusion — an overly wide FOV can **worsen** motion sickness, so developers often dynamically narrow the FOV during fast movement to relieve it[[6]](https://www.researchgate.net/publication/354730991_Tunnel_Vision_-_Dynamic_Peripheral_Vision_Blocking_Glasses_for_Reducing_Motion_Sickness_Symptoms). For ordinary desktop monitor games, increasing FOV is generally fine.
 
-### 3. 提高帧率、降低延迟
+### 3. Increase Frame Rate and Reduce Latency
 
-低帧率和画面撕裂会让感官冲突更严重。尽量做到：
+Low frame rates and screen tearing worsen sensory conflict. Try to:
 
-- 游戏帧率稳定在 **60 FPS 以上**（高刷新率显示器更好）。
-- 关闭或降低动态模糊（Motion Blur）、镜头摇晃（Camera Shake）、色差（Chromatic Aberration）等特效。
-- 降低输入延迟，关闭垂直同步（V-Sync）如果帧率足够高[[7]](https://www.csit.carleton.ca/~rteather/pdfs/theses/thesis-yasinfarmani-final.pdf)。
+- Keep the game frame rate stable at **60 FPS or higher** (a high-refresh-rate monitor is even better).
+- Turn off or reduce motion blur, camera shake, chromatic aberration, and similar effects.
+- Reduce input latency; turn off V-Sync if the frame rate is high enough[[7]](https://www.csit.carleton.ca/~rteather/pdfs/theses/thesis-yasinfarmani-final.pdf).
 
-### 4. 调整坐姿与观看距离
+### 4. Adjust Posture and Viewing Distance
 
-- **坐远一点**：离屏幕越近，视野被游戏画面占据的比例越大，越容易眩晕。适当拉远距离能让余光看到周围的静止环境（桌面、墙壁），提供额外的稳定参照物[[8]](https://www.hyperoptic.com/broadband/explained/lifestyle-and-entertainment/the-top-10-tips-for-avoiding-simulation-sickness-when-gaming/)。
-- **开一盏灯**：不要在全黑环境里玩，保留环境光有助于大脑感知真实空间。
-- **使用更小的屏幕**：有建议认为较小的屏幕能减少感官矛盾[[8]](https://www.hyperoptic.com/broadband/explained/lifestyle-and-entertainment/the-top-10-tips-for-avoiding-simulation-sickness-when-gaming/)。
+- **Sit farther away**: the closer you are to the screen, the more of your field of view the game occupies, and the easier it is to feel sick. Increasing the distance lets your peripheral vision see the stationary surroundings (desk, walls), providing extra stable references[[8]](https://www.hyperoptic.com/broadband/explained/lifestyle-and-entertainment/the-top-10-tips-for-avoiding-simulation-sickness-when-gaming/).
+- **Keep a light on**: do not play in complete darkness; ambient light helps the brain perceive real space.
+- **Use a smaller screen**: some suggestions indicate that a smaller screen can reduce sensory conflict[[8]](https://www.hyperoptic.com/broadband/explained/lifestyle-and-entertainment/the-top-10-tips-for-avoiding-simulation-sickness-when-gaming/).
 
-### 5. 间歇休息、逐步适应
+### 5. Take Breaks and Adapt Gradually
 
-- 每玩 **30–45 分钟**就暂停，看远处或闭眼几分钟。
-- 眩晕是会累积的，**一旦感到不适立即停止**，不要硬撑——继续玩只会更难受。
-- 人体对感官冲突有**适应（Habituation）**能力，短时间内反复、少量地接触会逐渐减轻症状。可以从每次 10 分钟开始，逐日延长。
+- Pause every **30–45 minutes**, look into the distance, or close your eyes for a few minutes.
+- Motion sickness is **cumulative**; **stop immediately once you feel unwell** — pushing through will only make it worse.
+- The human body has the ability to **habituate** to sensory conflict; repeated, short exposures will gradually reduce symptoms. Start with 10 minutes at a time and extend day by day.
 
-### 6. 其他物理与饮食方法
+### 6. Other Physical and Dietary Methods
 
-这些方法同样适用于晕车，来自 NHS、UC Davis Health 等权威健康机构的建议[[9]](https://www.nhs.uk/conditions/motion-sickness/)[[10]](https://health.ucdavis.edu/blog/cultivating-health/motion-sickness-how-you-can-prevent-symptoms-and-enjoy-travel/2024/05)：
+These methods also apply to carsickness and come from authoritative health institutions such as the NHS and UC Davis Health[[9]](https://www.nhs.uk/conditions/motion-sickness/)[[10]](https://health.ucdavis.edu/blog/cultivating-health/motion-sickness-how-you-can-prevent-symptoms-and-enjoy-travel/2024/05):
 
-- **生姜**：有临床证据显示生姜能减轻晕动症引起的恶心，玩前喝姜茶或含姜片有一定帮助[[10]](https://health.ucdavis.edu/blog/cultivating-health/motion-sickness-how-you-can-prevent-symptoms-and-enjoy-travel/2024/05)。
-- **清淡饮食**：玩前避免油腻、辛辣、过饱，也不要空腹。
-- **通风、降温**：闷热会加重恶心感，开窗或开空调保持凉爽。
-- **避免玩时低头看手机或阅读**：额外的视觉运动冲突会雪上加霜[[9]](https://www.nhs.uk/conditions/motion-sickness/)。
+- **Ginger**: clinical evidence shows ginger can reduce nausea caused by motion sickness; drinking ginger tea or eating ginger slices before playing can help[[10]](https://health.ucdavis.edu/blog/cultivating-health/motion-sickness-how-you-can-prevent-symptoms-and-enjoy-travel/2024/05).
+- **Light meals**: avoid greasy, spicy, or overly heavy food before playing, and do not play on an empty stomach.
+- **Ventilation and cooling**: stuffiness worsens nausea; open a window or turn on air conditioning to stay cool.
+- **Avoid looking down at your phone or reading while playing**: extra visual motion conflict will make things worse[[9]](https://www.nhs.uk/conditions/motion-sickness/).
 
-### 7. 药物（严重情况）
+### 7. Medication (Severe Cases)
 
-如果上述方法都不够，可以考虑非处方晕车药（抗组胺类，如茶苯海明/乘晕宁）。但药物会带来嗜睡副作用，且效果因人而异，建议**咨询医生**后使用，不要依赖药物长期硬玩[[9]](https://www.nhs.uk/conditions/motion-sickness/)。
+If the above methods are not enough, consider over-the-counter motion sickness medicine (antihistamines such as dimenhydrinate/Dramamine). However, medication can cause drowsiness, and effects vary from person to person. It is recommended to **consult a doctor** before use and not to rely on medication to play through symptoms long-term[[9]](https://www.nhs.uk/conditions/motion-sickness/).
 
-## 总结
+## Summary
 
-| 方法 | 原理 | 是否需要工具 |
-|------|------|-------------|
-| 视觉锚点 | 提供静止参照物，减轻感官冲突 | ✅ Peregrine |
-| 调大 FOV | 让画面更接近自然视角 | 游戏设置 |
-| 提高帧率 | 减少画面撕裂和延迟 | 游戏设置 / 硬件 |
-| 坐远一点 / 开灯 | 用余光提供稳定环境参照 | 无 |
-| 间歇休息、逐步适应 | 利用人体适应能力 | 无 |
-| 生姜、清淡饮食、通风 | 减轻恶心反应 | 无 |
-| 晕车药 | 抑制前庭反应 | 需咨询医生 |
+| Method | Principle | Requires Tool |
+|--------|-----------|---------------|
+| Visual anchor | Provides a stationary reference to reduce sensory conflict | ✅ Peregrine |
+| Increase FOV | Makes the picture closer to a natural perspective | In-game settings |
+| Increase frame rate | Reduces screen tearing and latency | In-game settings / hardware |
+| Sit farther away / keep lights on | Uses peripheral vision to provide a stable environmental reference | None |
+| Take breaks and adapt gradually | Uses the body's ability to adapt | None |
+| Ginger, light meals, ventilation | Reduces nausea response | None |
+| Motion sickness medicine | Suppresses vestibular response | Consult a doctor |
 
-**推荐组合**：Peregrine 视觉锚点 + 调大 FOV + 稳定 60FPS + 适时休息，能覆盖大多数轻度到中度的 3D 眩晕场景。如果症状严重或持续不缓解，建议咨询医生排除前庭系统问题。
+**Recommended combination**: Peregrine visual anchor + increased FOV + stable 60 FPS + timely breaks can cover most mild to moderate 3D motion sickness scenarios. If symptoms are severe or persist, consult a doctor to rule out vestibular system problems.
 
-## 参考资料
+## References
 
 - [[1] Healthline — Cybersickness: What It Is, Symptoms, Causes, and Treatments](https://www.healthline.com/health/cybersickness)
 - [[2] Reason, J. T., & Brand, J. J. — Motion sickness: a synthesis and evaluation of the sensory conflict theory (Canadian Science Publishing)](https://cdnsciencepub.com/doi/10.1139/y90-044)

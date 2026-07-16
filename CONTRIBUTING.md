@@ -1,130 +1,130 @@
-# 贡献指南
+# Contributing Guide
 
-感谢你考虑为 Peregrine 贡献代码！本文档说明了参与项目的流程与规范。
-
----
-
-## 快速开始
-
-1. Fork 本仓库。
-2. 创建功能分支：`git checkout -b feat/your-feature-name`。
-3. 在本地开发和测试。
-4. 确保所有测试通过：`cargo test`。
-5. 提交 Pull Request。
+Thank you for considering contributing to Peregrine! This document explains the process and guidelines for participating in the project.
 
 ---
 
-## 分支命名规范
+## Quick Start
 
-| 前缀 | 用途 |
+1. Fork this repository.
+2. Create a feature branch: `git checkout -b feat/your-feature-name`.
+3. Develop and test locally.
+4. Make sure all tests pass: `cargo test`.
+5. Submit a Pull Request.
+
+---
+
+## Branch Naming Conventions
+
+| Prefix | Purpose |
 | --- | --- |
-| `feat/` | 新功能（如 `feat/add-linux-support`） |
-| `fix/` | 修复 bug（如 `fix/overlay-crash`） |
-| `refactor/` | 代码重构（如 `refactor/render-pipeline`） |
-| `docs/` | 文档更新（如 `docs/contributing-guide`） |
-| `ci/` | CI/CD 配置变更（如 `ci/add-macos-builder`） |
-| `chore/` | 杂项（依赖更新、构建脚本等） |
+| `feat/` | New feature (e.g. `feat/add-linux-support`) |
+| `fix/` | Bug fix (e.g. `fix/overlay-crash`) |
+| `refactor/` | Code refactoring (e.g. `refactor/render-pipeline`) |
+| `docs/` | Documentation updates (e.g. `docs/contributing-guide`) |
+| `ci/` | CI/CD configuration changes (e.g. `ci/add-macos-builder`) |
+| `chore/` | Miscellaneous (dependency updates, build scripts, etc.) |
 
-请保持分支名简短且有描述性。
+Please keep branch names short and descriptive.
 
 ---
 
-## 提交信息规范
+## Commit Message Conventions
 
-遵循 [Conventional Commits](https://www.conventionalcommits.org/) 格式：
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
 
 ```
-<type>(<scope>): <简短描述>
+<type>(<scope>): <short description>
 
-<详细说明（可选）>
+<detailed description (optional)>
 ```
 
-### type（必填）
+### type (required)
 
-| 类型 | 说明 |
+| Type | Description |
 | --- | --- |
-| `feat` | 新功能 |
-| `fix` | 修复 bug |
-| `refactor` | 重构，不涉及功能变更 |
-| `docs` | 文档 |
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `refactor` | Refactoring without functional changes |
+| `docs` | Documentation |
 | `ci` | CI/CD |
-| `chore` | 杂项 |
-| `test` | 测试 |
+| `chore` | Miscellaneous |
+| `test` | Tests |
 
-### scope（可选）
+### scope (optional)
 
-指明影响范围，例如 `config`、`renderer`、`overlay`、`settings-ui`、`ci` 等。
+Indicates the affected scope, for example `config`, `renderer`, `overlay`, `settings-ui`, `ci`, etc.
 
-### 示例
+### Examples
 
 ```
-feat(overlay): 新增 softbuffer 像素缓冲区方案
-fix(renderer): 修复透明度在 sRGB 下失效
-docs: 添加贡献指南与启动说明
-ci(release): 仅构建并发布 Windows x86/x86_64/ARM64
+feat(overlay): add softbuffer pixel buffer approach
+fix(renderer): fix opacity failure under sRGB
+docs: add contributing guide and startup instructions
+ci(release): only build and release Windows x86/x86_64/ARM64
 ```
 
-提交信息使用**简体中文**描述内容，但 type/scope 保持英文。
+As the project is moving toward internationalization, commit message bodies should be written in **English**. `type` and `scope` remain in English.
 
 ---
 
-## 开发流程
+## Development Workflow
 
-1. 从 `main` 分支创建功能分支。
-2. 在分支上完成开发，**保持提交粒度合理**（不要一个提交塞太多改动）。
-3. 提交前运行：
+1. Create a feature branch from `main`.
+2. Develop on the branch, **keeping commits reasonably sized** (don't stuff too many changes into one commit).
+3. Before submitting, run:
    ```bash
-   cargo test          # 确保测试通过
-   cargo fmt           # 保持代码格式统一
-   cargo clippy        # 检查常见问题
+   cargo test          # make sure tests pass
+   cargo fmt           # keep code formatting consistent
+   cargo clippy        # check common issues
    ```
-4. 推送分支并创建 Pull Request 到 `main`。
-5. PR 标题使用与提交信息相同的风格（如 `feat(overlay): 新增 PNG 图片支持`）。
-6. 在 PR 描述中写明改动内容和测试方式。
-7. 等待 Code Review，根据反馈修改。
-8. 合并后分支会被删除。
+4. Push the branch and create a Pull Request to `main`.
+5. PR titles use the same style as commit messages (e.g. `feat(overlay): add PNG image support`).
+6. Describe the changes and how to test them in the PR description.
+7. Wait for Code Review and revise based on feedback.
+8. The branch will be deleted after merging.
 
 ---
 
-## 代码风格
+## Code Style
 
-- 遵循标准 Rust 风格（`cargo fmt` 默认配置）。
-- 所有公开项写中文文档注释（`///`），模块顶部用 `//!` 说明职责。
-- 错误处理：库层统一用 `thiserror` 定义的 `ConfigError`，不要在库中 `panic`/`unwrap`。
-- 日志使用 `tracing`，不要新增 `println!`/`eprintln!`。
-- 新增字段时务必加 `#[serde(default)]` 保持向后兼容。
-- 枚举序列化统一 `#[serde(rename_all = "snake_case")]`。
-
----
-
-## 测试要求
-
-- 新功能应附带对应的单元测试。
-- `schema.rs` 中的校验规则变更需同步更新测试。
-- 涉及配置结构改动后至少运行 `cargo test -p peregrine_config`。
-- 涉及 tokio 的测试使用 `#[tokio::test]`；涉及文件系统事件的用 `#[tokio::test(flavor = "multi_thread")]`。
+- Follow standard Rust style (`cargo fmt` default configuration).
+- As the project is internationalized, please write **English** documentation comments (`///`) for public items, and use `//!` at the top of modules to describe responsibilities.
+- Error handling: use `ConfigError` defined by `thiserror` at the library level; do not `panic`/`unwrap` in libraries.
+- Logging uses `tracing`; do not add new `println!`/`eprintln!`.
+- When adding new fields, be sure to add `#[serde(default)]` to maintain backward compatibility.
+- Enum serialization should uniformly use `#[serde(rename_all = "snake_case")]`.
 
 ---
 
-## Pull Request 流程
+## Testing Requirements
 
-1. **创建 PR**：提交到本仓库的 `main` 分支。
-2. **CI 检查**：提交后 GitHub Actions 会自动运行测试与 lint，必须全部通过。
-3. **Code Review**：至少一位维护者审核后方可合并。
-4. **合并方式**：采用 **Squash & Merge**，将分支上的多个提交压缩为一个提交合并到 `main`。
-
----
-
-## 报告问题
-
-提交 Issue 时请尽量包含以下信息：
-
-- Peregrine 版本（标签或 commit hash）
-- Windows 版本（如 Windows 10 / 11）
-- 复现步骤
-- 期望行为与实际行为
-- 日志或截图（如有）
+- New features should include corresponding unit tests.
+- Validation rule changes in `schema.rs` should be updated with tests.
+- After configuration structure changes, run at least `cargo test -p peregrine_config`.
+- Tests involving tokio use `#[tokio::test]`; tests involving filesystem events use `#[tokio::test(flavor = "multi_thread")]`.
 
 ---
 
-再次感谢你的贡献！
+## Pull Request Process
+
+1. **Create PR**: submit to the `main` branch of this repository.
+2. **CI Checks**: GitHub Actions will automatically run tests and lint after submission; all must pass.
+3. **Code Review**: requires approval from at least one maintainer before merging.
+4. **Merge Method**: use **Squash & Merge** to compress multiple commits on the branch into one commit when merging into `main`.
+
+---
+
+## Reporting Issues
+
+When submitting an Issue, please include the following information if possible:
+
+- Peregrine version (tag or commit hash)
+- Windows version (e.g. Windows 10 / 11)
+- Reproduction steps
+- Expected behavior and actual behavior
+- Logs or screenshots (if available)
+
+---
+
+Thank you again for your contribution!

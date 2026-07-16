@@ -189,7 +189,7 @@ cargo clippy
 
 ## 文档站点
 
-`docs/` 是基于 **VitePress** 的文档站点（`lang: zh-CN`，`base: /`，部署到自定义域名 `https://peregrine.eeymoo.com/`），含 mermaid 图表插件与 `vitepress-plugin-llms`（生成 `llms.txt` / `llms-full.txt`）。本地预览：`cd docs && npm ci && npm run docs:dev`。内容在 `docs/guide/`（使用说明、项目介绍、快速开始、功能特性、配置说明、开发构建）。
+`docs/` 是基于 **VitePress** 的文档站点（默认语言 `lang: en-US`，`base: /`，部署到自定义域名 `https://peregrine.eeymoo.com/`），含 mermaid 图表插件与 `vitepress-plugin-llms`（生成 `llms.txt` / `llms-full.txt`）。本地预览：`cd docs && npm ci && npm run docs:dev`。英文内容在 `docs/guide/`，简体中文内容在 `docs/zh-cn/`。
 
 ## 安全与注意事项
 

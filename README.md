@@ -153,11 +153,6 @@ UI change / external file edit
    → subscribers (shared snapshot read by the renderer)
 ```
 
-## Known Limitations
-
-- `TriggerRule` (process trigger) is still a **placeholder** and has not been wired to system APIs.
-- Overlay transparency, always-on-top, and following are currently implemented only on Windows; macOS / Linux compile but the overlay is a placeholder.
-
 ## License
 
 MIT License.

@@ -63,7 +63,7 @@ cargo clippy -p peregrine_config -- -D warnings
 - Real-time preview: see changes instantly as you adjust parameters in the settings panel.
 - Persistent configuration + hot-reload: changes made externally take effect automatically.
 - **Tauri + React settings UI**: the settings panel is built on Webview, making it easy to extend and theme.
-- **GitHub Actions automated builds**: cross-platform builds and releases for Windows x86 / x86_64 / ARM64.
+- **GitHub Actions automated builds**: Windows x86 / x86_64 / ARM64 builds and releases.
 
 ## Tech Stack
 
@@ -139,6 +139,8 @@ The configuration file is JSON. Its path depends on the OS standard directories:
 | Windows | `%APPDATA%/Peregrine/config.json` |
 | macOS | `~/Library/Application Support/Peregrine/config.json` |
 | Linux | `~/.config/Peregrine/config.json` |
+
+> Peregrine is a Windows-only tool. The config paths above are listed because the configuration crate uses OS-standard directories; the overlay and core user-facing features are implemented only on Windows.
 
 - The configuration root is `AppConfig` (`active_profile` + multiple named `Profile`s). A default configuration is generated automatically on first launch.
 - Writes are atomic (temp file in the same directory + `rename`), and validation is always performed before writing to avoid persisting invalid config.

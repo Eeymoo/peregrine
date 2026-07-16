@@ -6,6 +6,8 @@ The configuration file is in JSON format and is located at:
 - macOS: `~/Library/Application Support/Peregrine/config.json`
 - Linux: `~/.config/Peregrine/config.json`
 
+> Peregrine is a Windows-only tool. The config paths above are listed because the configuration crate uses OS-standard directories; the overlay and core user-facing features are implemented only on Windows.
+
 A default configuration is generated automatically on first launch. You can edit this file directly. After saving, the program will hot-reload after about 300 ms of debouncing, with no restart required.
 
 ## Configuration Structure

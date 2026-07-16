@@ -9,7 +9,7 @@ Peregrine is a desktop visual anchor (overlay) tool. **Its primary purpose is to
 - Language / ecosystem: **Rust**, Cargo **workspace** (`resolver = "3"`, `edition = "2024"`, `rust-version = 1.85`, MIT licensed).
 - Graphics stack: **Tauri** (settings window Webview) + **React + Tailwind + shadcn/ui** (settings panel). The overlay still uses `winit` + `softbuffer`; the original `wgpu` + `egui` implementation has been removed.
 - Async runtime: `tokio` (configuration read/write, file hot-reload, background follow task).
-- Target platform: **Windows** (x86 / x86_64 / ARM64). CI also performs compile verification on macOS / Linux, but overlay transparency / click-through / window-following capabilities are only implemented for Windows.
+- Target platform: **Windows** (x86 / x86_64 / ARM64). CI also performs compile verification on macOS / Linux to catch regressions in the shared crates, but overlay transparency / click-through / window-following capabilities are intentionally Windows-only and are not planned for other platforms.
 - Current status: **v0.1.0 stable released**. Windows transparent, always-on-top, click-through overlay; target window following; 12 crosshair styles; custom PNG decals; configuration hot-reload are all functional. "Process trigger" remains a configuration placeholder.
 
 All code comments and documentation use **Simplified Chinese**. Please continue writing new comments, documentation, and commit message bodies in Chinese for consistency.

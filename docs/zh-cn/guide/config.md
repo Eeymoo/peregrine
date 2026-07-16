@@ -6,6 +6,8 @@
 - macOS：`~/Library/Application Support/Peregrine/config.json`
 - Linux：`~/.config/Peregrine/config.json`
 
+> Peregrine 是仅面向 Windows 的工具。上表列出 macOS / Linux 路径是因为配置库按操作系统标准目录实现；覆盖层及核心功能仅在 Windows 上实现。
+
 首次运行会自动生成默认配置。你可以直接编辑该文件，保存后程序会在约 300ms 去抖后自动热重载，无需重启。
 
 ## 配置结构

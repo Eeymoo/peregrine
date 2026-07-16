@@ -63,7 +63,7 @@ cargo clippy -p peregrine_config -- -D warnings
 - 实时预览：在配置面板中调整参数即时看到效果。
 - 配置持久化 + 热重载：外部编辑配置文件后自动生效。
 - **Tauri + React 配置界面**：设置面板基于 Webview，易于扩展与主题化。
-- **GitHub Actions 自动构建**：Windows x86 / x86_64 / ARM64 跨平台构建与发布。
+- **GitHub Actions 自动构建**：Windows x86 / x86_64 / ARM64 构建与发布。
 
 ## 技术栈
 
@@ -139,6 +139,8 @@ peregrine/
 | Windows | `%APPDATA%/Peregrine/config.json` |
 | macOS | `~/Library/Application Support/Peregrine/config.json` |
 | Linux | `~/.config/Peregrine/config.json` |
+
+> Peregrine 是仅面向 Windows 的工具。上表列出 macOS / Linux 路径是因为配置库按操作系统标准目录实现；覆盖层及核心功能仅在 Windows 上实现。
 
 - 配置根为 `AppConfig`（`active_profile` + 多个命名 `Profile`）。首次运行会自动生成默认配置。
 - 写入为原子操作（同目录临时文件 + `rename`），写入前必先校验，避免落盘非法配置。

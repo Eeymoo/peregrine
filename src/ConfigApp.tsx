@@ -28,6 +28,7 @@ import {
   checkForUpdate,
   downloadAndInstallUpdate,
 } from "@/lib/api";
+import { getDefaultCrosshairForStyle } from "@/lib/presets";
 import type { AppConfig, Crosshair, CrosshairStyle } from "@/types/config";
 
 const STYLES: CrosshairStyle[] = [
@@ -163,9 +164,11 @@ export default function ConfigApp() {
     }, 300);
   }, []);
 
-  const updateCrosshair = useCallback((patch: Partial<Crosshair>) => {
+  const updateCrosshair = useCallback((patch: Partial<Crosshair>, options?: { resetDefaults?: boolean }) => {
     if (!config || !profile || !crosshair) return;
-    const newCrosshair = { ...crosshair, ...patch };
+    const newCrosshair = options?.resetDefaults && patch.style !== undefined
+      ? getDefaultCrosshairForStyle(patch.style)
+      : { ...crosshair, ...patch };
     const newProfile = { ...profile, crosshair: newCrosshair };
     const newConfig = {
       ...config,
@@ -302,7 +305,7 @@ export default function ConfigApp() {
             <Label className="text-sm">{t("config.style")}</Label>
             <Select
               value={crosshair.style}
-              onValueChange={(v) => updateCrosshair({ style: v as CrosshairStyle })}
+              onValueChange={(v) => updateCrosshair({ style: v as CrosshairStyle }, { resetDefaults: true })}
             >
               <SelectTrigger className="h-8 text-sm">
                 <SelectValue />

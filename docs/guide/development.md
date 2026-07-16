@@ -1,60 +1,60 @@
-# 开发构建
+# Development & Build
 
-## 环境要求
+## Requirements
 
-- Rust 1.85 或更高版本（edition 2024）
-- Node.js 20 或更高版本（前端构建）
-- Windows SDK（用于 Win32 API 与 `windows` crate）
+- Rust 1.85 or later (edition 2024)
+- Node.js 20 or later (for frontend builds)
+- Windows SDK (for Win32 API and the `windows` crate)
 - Cargo
 
-## 克隆仓库
+## Clone the Repository
 
 ```bash
 git clone https://github.com/eeymoo/peregrine.git
 cd peregrine
 ```
 
-## 构建
+## Build
 
 ```bash
-# 安装前端依赖
+# Install frontend dependencies
 npm install
 
-# 调试构建
+# Debug build
 cargo build
 
-# 发布构建（体积小、性能高）
+# Release build (smaller binary, better performance)
 cargo build --release
 
-# 运行 Tauri 开发版本（带热更新）
+# Run the Tauri development version (with hot reload)
 npx tauri dev
 
-# 构建 Tauri release 安装包
+# Build the Tauri release installer
 npx tauri build
 ```
 
-## 测试
+## Testing
 
 ```bash
-# 运行全部测试
+# Run all tests
 cargo test
 
-# 只运行配置库测试
+# Run only the config crate tests
 cargo test -p peregrine_config
 ```
 
-## 代码检查
+## Linting
 
 ```bash
 cargo fmt
 cargo clippy -p peregrine_config -- -D warnings
 ```
 
-## 发布产物
+## Release Artifacts
 
-`npx tauri build` 生成的 release 产物位于 `src-tauri/target/release/` 目录下，MSI 安装包位于 `src-tauri/target/release/bundle/msi/`。
+The release artifacts produced by `npx tauri build` are located under `src-tauri/target/release/`. The MSI installer is located at `src-tauri/target/release/bundle/msi/`.
 
-发布版本的编译选项已针对体积与性能优化：
+Release builds are optimized for size and performance:
 
 - `opt-level = "z"`
 - `lto = true`

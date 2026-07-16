@@ -1,204 +1,204 @@
-# 推荐配置
+# Recommended Configurations
 
-本页先介绍晕 3D 的常见常识，再针对不同类型的游戏给出 Peregrine 的参考配置。关于眩晕原理和通用缓解方法的完整说明，请先阅读 [缓解晕 3D](./motion-sickness.md)。
+This page first introduces common knowledge about 3D motion sickness, then provides Peregrine reference configurations for different types of games. For a complete explanation of the principles and general mitigation methods, please read [Relieving 3D Motion Sickness](./motion-sickness.md) first.
 
-> ⚠️ **声明**：以下所有推荐配置**仅为参考意见**，不是权威处方。每个人对感官冲突的敏感度不同，最佳配置因人而异。建议把推荐值作为起点，根据自身感受微调。
+> ⚠️ **Disclaimer**: All recommended configurations below are **reference opinions only**, not authoritative prescriptions. Everyone's sensitivity to sensory conflict is different, and the best configuration varies from person to person. Use the recommended values as a starting point and fine-tune based on how you feel.
 
-## 晕 3D 常见常识
+## Common Knowledge About 3D Motion Sickness
 
-### 哪些人更容易晕
+### Who Is More Prone to Motion Sickness
 
-3D 眩晕的易感程度因人而异，以下人群通常更容易出现症状[[1]](https://www.healthline.com/health/cybersickness)[[2]](https://pmc.ncbi.nlm.nih.gov/articles/PMC12034809/)：
+Susceptibility to 3D motion sickness varies from person to person. The following groups are usually more likely to experience symptoms[[1]](https://www.healthline.com/health/cybersickness)[[2]](https://pmc.ncbi.nlm.nih.gov/articles/PMC12034809/):
 
-- **女性**：统计上女性比男性更容易发生晕动症。
-- **偏头痛患者**：偏头痛患者的视觉-前庭系统更敏感。
-- **有内耳 / 前庭问题的人**：前庭系统本身已不平衡，更容易被虚拟运动干扰。
-- **有晕车 / 晕船 / 晕机史的人**：现实中容易晕的人，玩 3D 游戏通常也更容易晕。
-- **平时很少玩 3D 游戏的人**：缺乏适应，初次接触时症状更明显。
-- **儿童和青少年**：前庭系统尚未发育完全，对感官冲突更敏感。
+- **Women**: statistically, women are more likely to experience motion sickness than men.
+- **Migraine sufferers**: the visual-vestibular system is more sensitive in migraine patients.
+- **People with inner ear / vestibular problems**: the vestibular system is already imbalanced, making it easier to be disturbed by virtual movement.
+- **People with a history of carsickness, seasickness, or airsickness**: those who get motion sick in real life usually also get sick more easily in 3D games.
+- **People who rarely play 3D games**: lack of adaptation makes symptoms more obvious on first exposure.
+- **Children and teenagers**: the vestibular system is not yet fully developed, making them more sensitive to sensory conflict.
 
-### 哪些游戏因素会加重眩晕
+### Which Game Factors Worsen Motion Sickness
 
-很多游戏设置都会影响眩晕程度，以下是最常见的「加重因素」[[3]](https://www.alibaba.com/product-insights/why-do-i-get-motion-sickness-playing-fps-games-potential-fixes.html)[[4]](https://access-ability.uk/2022/04/25/gaming-with-motion-sickness/)[[5]](https://www.polygon.com/gaming/502730/indiana-jones-great-circle-motion-sick-settings-fix-head-bob/)：
+Many game settings affect the severity of motion sickness. The following are the most common "aggravating factors"[[3]](https://www.alibaba.com/product-insights/why-do-i-get-motion-sickness-playing-fps-games-potential-fixes.html)[[4]](https://access-ability.uk/2022/04/25/gaming-with-motion-sickness/)[[5]](https://www.polygon.com/gaming/502730/indiana-jones-great-circle-motion-sick-settings-fix-head-bob/):
 
-| 因素 | 说明 |
-|------|------|
-| **FOV 过窄** | 视野低于 90° 会产生「望远镜效应」，画面像在隧道里移动，大脑无法感知周围空间。 |
-| **帧率低 / 掉帧** | 低于 60 FPS 或不稳定帧率会让画面撕裂、卡顿，加剧感官冲突。 |
-| **动态模糊（Motion Blur）** | 模拟高速运动的模糊效果，但会让大脑误判运动方向。 |
-| **镜头摇晃 / 头部晃动（Head Bob）** | 模拟走路时的上下颠簸，对很多人是最强的眩晕触发器。 |
-| **镜头摇晃（Camera Shake）** | 爆炸、开火、重击等场景的镜头震动。 |
-| **色差 / 景深 / 暗角** | 后处理特效会让画面边缘变形或模糊，干扰空间感知。 |
-| **快速转身 / 高灵敏度** | 鼠标灵敏度过高导致画面快速旋转，是最常见的 FPS 眩晕诱因。 |
-| **垂直运动** | 爬山、飞行、坠落等大量上下视角变化比水平移动更容易引起眩晕。 |
-| **游戏内无明确参照物** | 浓雾、黑暗、广阔空旷的场景缺少视觉参照，大脑更难定位。 |
+| Factor | Description |
+|--------|-------------|
+| **Narrow FOV** | A field of view below 90° creates a "telescope effect," making the screen feel like it is moving through a tunnel; the brain cannot perceive surrounding space. |
+| **Low frame rate / frame drops** | Below 60 FPS or unstable frame rates cause screen tearing and stuttering, worsening sensory conflict. |
+| **Motion Blur** | Simulates the blur of high-speed movement, but can make the brain misjudge the direction of movement. |
+| **Head Bob / Camera Bob** | Simulates the up-and-down bumps of walking; for many people this is the strongest motion sickness trigger. |
+| **Camera Shake** | Screen shake from explosions, firing, heavy hits, etc. |
+| **Chromatic Aberration / Depth of Field / Vignette** | Post-processing effects deform or blur the edges of the screen, interfering with spatial perception. |
+| **Fast turning / high sensitivity** | Excessively high mouse sensitivity causes rapid screen rotation and is one of the most common FPS motion sickness triggers. |
+| **Vertical movement** | Climbing, flying, falling, and other large vertical view changes are more likely to cause sickness than horizontal movement. |
+| **Lack of clear references in-game** | Fog, darkness, and vast empty scenes lack visual references, making it harder for the brain to orient itself. |
 
-### 常见症状
+### Common Symptoms
 
-眩晕症状因人而异，通常会按以下顺序逐渐加重[[1]](https://www.healthline.com/health/cybersickness)：
+Symptoms vary from person to person and usually worsen gradually in the following order[[1]](https://www.healthline.com/health/cybersickness):
 
-1. **轻度**：轻微头晕、注意力难以集中、轻微出汗。
-2. **中度**：明显头晕、头痛、出汗增多、唾液增多、胃部不适。
-3. **重度**：恶心、想吐、面色苍白、冷汗、无法继续游戏。
+1. **Mild**: slight dizziness, difficulty concentrating, slight sweating.
+2. **Moderate**: obvious dizziness, headache, increased sweating, increased saliva, stomach discomfort.
+3. **Severe**: nausea, urge to vomit, pale complexion, cold sweat, unable to continue playing.
 
-### 眩晕会累积
+### Motion Sickness Is Cumulative
 
-3D 眩晕**不会在停止游戏后立刻消失**，症状通常会持续 10 分钟到数小时。而且同一天内多次接触会叠加——如果你上午已经晕过一次，晚上再玩会更快出现症状。因此：
+3D motion sickness **does not disappear immediately after stopping the game**; symptoms usually last from 10 minutes to several hours. And multiple exposures on the same day can stack — if you already felt sick in the morning, you will feel sick more quickly when playing again in the evening. Therefore:
 
-- **一旦感到不适，立即停止**，不要硬撑。
-- 症状消退前不要再次玩 3D 游戏。
-- 连续多天玩会逐渐减轻（适应效应），但中断后再玩可能重新出现。
+- **Stop immediately once you feel unwell**, do not push through.
+- Do not play 3D games again until symptoms subside.
+- Playing continuously over several days will gradually reduce symptoms (habituation effect), but symptoms may return after a break.
 
-## 分场景参考配置
+## Scenario-Based Reference Configurations
 
-### 场景一：FPS（第一人称射击）
+### Scenario 1: FPS (First-Person Shooter)
 
-**代表游戏**：CS2、Apex 英雄、使命召唤、守望先锋
+**Representative games**: CS2, Apex Legends, Call of Duty, Overwatch
 
-**眩晕特点**：FPS 是最容易引起眩晕的类型。第一人称视角 + 快速水平转身 + 开火时的镜头震动，三者叠加会让感官冲突非常强烈[[3]](https://www.alibaba.com/product-insights/why-do-i-get-motion-sickness-playing-fps-games-potential-fixes.html)。
+**Motion sickness characteristics**: FPS is the genre most likely to cause motion sickness. First-person perspective + fast horizontal turning + firing camera shake combine to create very strong sensory conflict[[3]](https://www.alibaba.com/product-insights/why-do-i-get-motion-sickness-playing-fps-games-potential-fixes.html).
 
-**推荐配置**：
+**Recommended configuration**:
 
-| 参数 | 推荐值 | 说明 |
-|------|--------|------|
-| 样式（style） | `cross` | 十字准星，提供精确的中心参照，不遮挡视野 |
-| 主尺寸（size） | `8`–`12` | 小而精确，避免遮挡画面 |
-| 厚度（thickness） | `2` | 细线即可，看得清又不抢眼 |
-| 间隙（gap） | `4`–`6` | 中心留空，不干扰瞄准 |
-| 不透明度（opacity） | `0.5`–`0.6` | 半透明，能看见但不刺眼 |
-| 颜色（color） | 绿色 `[0.2, 1.0, 0.2, 1.0]` 或青色 `[0.0, 1.0, 1.0, 1.0]` | 冷色调在大多数画面中辨识度高，不像白色那样容易融入天空 |
+| Parameter | Recommended Value | Description |
+|-----------|-------------------|-------------|
+| Style (`style`) | `cross` | Crosshair provides a precise center reference without blocking vision |
+| Main size (`size`) | `8`–`12` | Small and precise, avoids blocking the screen |
+| Thickness (`thickness`) | `2` | Thin lines are visible without being distracting |
+| Gap (`gap`) | `4`–`6` | Leaves the center empty so it does not interfere with aiming |
+| Opacity (`opacity`) | `0.5`–`0.6` | Semi-transparent, visible but not glaring |
+| Color (`color`) | Green `[0.2, 1.0, 0.2, 1.0]` or cyan `[0.0, 1.0, 1.0, 1.0]` | Cool colors are highly visible in most scenes and do not blend into the sky like white |
 
-**原理**：FPS 的核心眩晕来自快速水平转身。十字准星标记屏幕正中心，转身时眼睛可以锁定十字准星，让大脑确认「我其实没在转」。小尺寸是为了不遮挡敌人——FPS 需要时刻关注画面细节。
+**Principle**: The core source of FPS motion sickness is fast horizontal turning. The crosshair marks the exact center of the screen; when turning, the eyes can lock onto the crosshair, letting the brain confirm "I am actually not turning." The small size is to avoid blocking enemies — FPS requires constant attention to screen details.
 
-**额外建议**：务必调大游戏内 FOV（建议 90°–100°），降低鼠标灵敏度以减少快速转身。
-
----
-
-### 场景二：第三人称射击（TPS）
-
-**代表游戏**：PUBG、全境封锁、战争机器
-
-**眩晕特点**：第三人称视角比第一人称**相对不容易晕**，因为相机距离角色更远，视野更宽，镜头运动更稳定[[4]](https://access-ability.uk/2022/04/25/gaming-with-motion-sickness/)。但 PUBG 这类游戏有大量**跑步时的镜头晃动**和**开镜（ADS）时的视角缩放**，仍可能引起不适[[6]](https://forums.ea.com/discussions/battlefield-6-general-discussion-en/head-bobbing-and-camera-shake-causing-nausea/12760421)。
-
-**推荐配置**：
-
-| 参数 | 推荐值 | 说明 |
-|------|--------|------|
-| 样式（style） | `cross` 或 `ring` | 十字准星或中心圆环均可 |
-| 主尺寸（size） | `10`–`15`（cross）/ `ring_radius_pct: 0.04` | 比稍大，第三人称视野更宽，中心锚点可以大一点 |
-| 厚度（thickness） | `2`–`3` | 略粗以增加可见度 |
-| 间隙（gap） | `4`–`8` | |
-| 不透明度（opacity） | `0.4`–`0.5` | 第三人称比 FPS 更不易晕，锚点可以更淡 |
-| 颜色（color） | 白色 `[1.0, 1.0, 1.0, 1.0]` 或浅绿 `[0.3, 1.0, 0.3, 1.0]` | |
-
-**原理**：第三人称的眩晕主要来自**跑步晃动**和**视角缩放**。锚点的作用是在镜头晃动时提供一个稳定的「地平线」参照。中心圆环（`ring`）在 TPS 里效果尤其好，因为它不依赖精确瞄准，只需提供一个静止的圆心。
-
-**额外建议**：在游戏设置里关闭或降低「镜头晃动」「头部晃动」「开镜时的动画」选项。
+**Extra suggestions**: Be sure to increase the in-game FOV (recommended 90°–100°) and lower mouse sensitivity to reduce fast turning.
 
 ---
 
-### 场景三：跑酷 / 高速移动
+### Scenario 2: Third-Person Shooter (TPS)
 
-**代表游戏**：消逝的光芒、镜之边缘、泰坦陨落 2
+**Representative games**: PUBG, The Division, Gears of War
 
-**眩晕特点**：跑酷类游戏同时具备**高速移动 + 大量垂直运动（跳跃、滑铲、攀爬）+ 第一人称视角**，是最具挑战性的类型。消逝的光芒的开发者甚至在游戏中内置了「相机稳定性」选项来缓解眩晕[[7]](https://steelseries.com/blog/dying-light-the-beast-tips)。镜之_edge 的开发者则通过极简的白色城市设计来减少视觉干扰[[8]](https://www.notebookcheck.net/Devs-Mirror-s-Edge-s-clean-white-city-a-practical-fix-not-a-pure-artistic-vision.1208014.0.html)。
+**Motion sickness characteristics**: Third-person perspective is **relatively less likely** to cause sickness than first-person because the camera is farther from the character, the field of view is wider, and camera movement is more stable[[4]](https://access-ability.uk/2022/04/25/gaming-with-motion-sickness/). However, games like PUBG have a lot of **camera shake while running** and **ADS (aiming down sights) view zoom**, which can still cause discomfort[[6]](https://forums.ea.com/discussions/battlefield-6-general-discussion-en/head-bobbing-and-camera-shake-causing-nausea/12760421).
 
-**推荐配置**：
+**Recommended configuration**:
 
-| 参数 | 推荐值 | 说明 |
-|------|--------|------|
-| 样式（style） | `ring` 或 `edge_rect` | 中心圆环适合跳跃参照；边缘矩形提供额外的边缘参照 |
-| 主尺寸（size） | `ring_radius_pct: 0.05` / `edge_rect`: `size: 100, secondary_size: 60` | |
-| 厚度（thickness） | `2`–`3` | |
-| 不透明度（opacity） | `0.5`–`0.7` | 高速移动时画面变化快，锚点需要更明显 |
-| 锚点位置（anchor） | `top`（如果是 edge_rect） | 顶部锚点模拟「天花板参照」，跳跃时能快速感知高度变化 |
-| 颜色（color） | 高对比度，如亮绿 `[0.0, 1.0, 0.3, 1.0]` 或橙色 `[1.0, 0.6, 0.0, 1.0]` | 跑酷场景画面复杂，需要醒目的颜色 |
+| Parameter | Recommended Value | Description |
+|-----------|-------------------|-------------|
+| Style (`style`) | `cross` or `ring` | Crosshair or center ring both work |
+| Main size (`size`) | `10`–`15` (cross) / `ring_radius_pct: 0.04` | Slightly larger; third-person FOV is wider, so the center anchor can be bigger |
+| Thickness (`thickness`) | `2`–`3` | Slightly thicker for increased visibility |
+| Gap (`gap`) | `4`–`8` | |
+| Opacity (`opacity`) | `0.4`–`0.5` | TPS is less sickness-inducing than FPS, so the anchor can be more subtle |
+| Color (`color`) | White `[1.0, 1.0, 1.0, 1.0]` or light green `[0.3, 1.0, 0.3, 1.0]` | |
 
-**原理**：跑酷游戏的眩晕来自**多方向的剧烈运动**——水平跑动 + 垂直跳跃 + 镜头上下颠簸同时发生。中心圆环能在最混乱的时刻提供「我相对于地面的位置」参照。边缘矩形则模拟一个固定框架，让大脑在剧烈晃动中感知画面边界。
+**Principle**: TPS motion sickness mainly comes from **running shake** and **view zoom**. The anchor's role is to provide a stable "horizon" reference when the camera shakes. The center ring (`ring`) works especially well in TPS because it does not rely on precise aiming — it only needs to provide a stationary center.
 
-**额外建议**：务必关闭动态模糊和头部晃动；优先升级「稳定性 / 减震」类技能或装备（消逝的光芒的 Explorer 套装就有此效果）[[7]](https://steelseries.com/blog/dying-light-the-beast-tips)。
-
----
-
-### 场景四：横向移动为主
-
-**代表游戏**：2D 横版动作、平台跳跃、横版格斗
-
-**眩晕特点**：纯 2D 横版游戏很少引起眩晕，因为画面只有水平移动，没有深度欺骗。但如果玩的是 **3D 渲染的横版游戏**（如《三位一体》、《奥日》的部分场景），或者 2.5D 平台跳跃，仍然可能有轻微不适。
-
-**推荐配置**：
-
-| 参数 | 推荐值 | 说明 |
-|------|--------|------|
-| 样式（style） | `edge_rect`（anchor: `left` 或 `right`） | 侧边锚点，不干扰中心操作 |
-| 主尺寸（size） | `60`–`80` | |
-| 厚度（thickness） | `2` | |
-| 不透明度（opacity） | `0.3`–`0.4` | 横版眩晕本来就轻，锚点可以很淡 |
-| 锚点位置（anchor） | `left` 或 `right` | 放在移动方向的反方向，提供「固定背景」参照 |
-
-**原理**：横向移动时画面整体左右平移，大脑最容易丢失「我在哪」的感觉。侧边锚点相当于一个「墙」，当画面向右滚动时，锚点不动，大脑就能确认画面在动而我没动。
+**Extra suggestions**: In game settings, turn off or reduce "camera shake," "head bob," and "ADS animation" options.
 
 ---
 
-### 场景五：纵向移动为主
+### Scenario 3: Parkour / High-Speed Movement
 
-**代表游戏**：攀爬类、飞行模拟、垂直卷轴、坠落机制多的游戏
+**Representative games**: Dying Light, Mirror's Edge, Titanfall 2
 
-**眩晕特点**：**垂直运动比水平运动更容易引起眩晕**，因为内耳对上下加速度（重力方向）的感知更敏感[[2]](https://pmc.ncbi.nlm.nih.gov/articles/PMC12034809/)。大量上升、坠落、俯冲的场景会强烈刺激前庭系统的冲突感。
+**Motion sickness characteristics**: Parkour games combine **high-speed movement + large amounts of vertical movement (jumping, sliding, climbing) + first-person perspective**, making them the most challenging genre. The developers of Dying Light even built a "camera stability" option into the game to relieve motion sickness[[7]](https://steelseries.com/blog/dying-light-the-beast-tips). The developers of Mirror's Edge used a minimalist white city design to reduce visual clutter[[8]](https://www.notebookcheck.net/Devs-Mirror-s-Edge-s-clean-white-city-a-practical-fix-not-a-pure-artistic-vision.1208014.0.html).
 
-**推荐配置**：
+**Recommended configuration**:
 
-| 参数 | 推荐值 | 说明 |
-|------|--------|------|
-| 样式（style） | `large_cross` 或 `border_frame` | 大型十字准星提供完整的水平和垂直参照线；边框提供整体框架 |
-| 主尺寸（size） | `large_cross`: 屏幕半径 | 大型十字准星从中心延伸到边缘，提供完整的纵横参照 |
-| 厚度（thickness） | `1`–`2` | 细线避免遮挡过多画面 |
-| 不透明度（opacity） | `0.3`–`0.5` | 纵向场景眩晕重，但锚点也要避免太抢眼 |
-| 颜色（color） | 白色 `[1.0, 1.0, 1.0, 1.0]` 或浅蓝 `[0.3, 0.5, 1.0, 1.0]` | |
-| 边框缺口（border_gap） | `true`（如果用 border_frame） | 避免遮挡顶部状态栏和底部小地图 |
+| Parameter | Recommended Value | Description |
+|-----------|-------------------|-------------|
+| Style (`style`) | `ring` or `edge_rect` | Center ring is good for jump reference; edge rectangle provides extra edge reference |
+| Main size (`size`) | `ring_radius_pct: 0.05` / `edge_rect`: `size: 100, secondary_size: 60` | |
+| Thickness (`thickness`) | `2`–`3` | |
+| Opacity (`opacity`) | `0.5`–`0.7` | Fast movement means the screen changes quickly, so the anchor needs to be more obvious |
+| Anchor position (`anchor`) | `top` (if using `edge_rect`) | Top anchor simulates a "ceiling reference," helping quickly perceive height changes when jumping |
+| Color (`color`) | High contrast, such as bright green `[0.0, 1.0, 0.3, 1.0]` or orange `[1.0, 0.6, 0.0, 1.0]` | Parkour scenes are visually complex, so a vivid color is needed |
 
-**原理**：纵向运动时，画面整体上下移动，大脑最难判断「我是在上升还是下坠」。大型十字准星的垂直线就像一根**铅垂线**，无论画面怎么晃动，这根线始终垂直于地面，帮助大脑确认重力的真实方向。边框则像一个固定窗口，把整个画面框住。
+**Principle**: Parkour game motion sickness comes from **multi-directional intense movement** — horizontal running, vertical jumping, and camera bumps happening at the same time. The center ring provides a reference for "my position relative to the ground" even in the most chaotic moments. The edge rectangle simulates a fixed frame, letting the brain perceive the picture boundary during intense shaking.
 
-**额外建议**：如果游戏有坠落机制（如《只狼》的跳跃、《艾尔登法环》的下落），尽量控制下落速度，避免长时间自由落体。
+**Extra suggestions**: Be sure to turn off motion blur and head bob; prioritize upgrading skills or gear that improve "stability / shock absorption" (Dying Light's Explorer outfit has this effect)[[7]](https://steelseries.com/blog/dying-light-the-beast-tips).
 
-## 通用调参建议
+---
 
-### 锚点大小
+### Scenario 4: Horizontal Movement Mainly
 
-- **越小越好**，只要能看清就行。锚点太大反而会成为新的视觉干扰源。
-- FPS / 竞技类游戏优先小尺寸（8–15px），休闲 / 探索类可以稍大。
-- 如果看不清，先尝试**增加不透明度**而不是增大尺寸。
+**Representative games**: 2D side-scrolling action, platformers, side-scrolling fighters
 
-### 不透明度
+**Motion sickness characteristics**: Pure 2D side-scrolling games rarely cause motion sickness because the screen only moves horizontally with no depth deception. However, if you are playing a **3D-rendered side-scrolling game** (such as *Trine* or some scenes in *Ori*), or a 2.5D platformer, you may still feel mild discomfort.
 
-- 从 `0.4` 开始，逐步调整到「能注意到但不分散注意力」的程度。
-- 通常 `0.3`–`0.6` 是大多数人的舒适区间。
-- 画面整体偏暗的游戏（如恐怖游戏）可以适当提高不透明度。
+**Recommended configuration**:
 
-### 颜色
+| Parameter | Recommended Value | Description |
+|-----------|-------------------|-------------|
+| Style (`style`) | `edge_rect` (anchor: `left` or `right`) | Side anchor that does not interfere with center controls |
+| Main size (`size`) | `60`–`80` | |
+| Thickness (`thickness`) | `2` | |
+| Opacity (`opacity`) | `0.3`–`0.4` | Side-scrolling motion sickness is already mild, so the anchor can be very subtle |
+| Anchor position (`anchor`) | `left` or `right` | Place on the opposite side of the movement direction to provide a "fixed background" reference |
 
-- 选择与游戏主色调**对比度高**的颜色。
-  - 红色 / 橙色画面多的游戏（如战争、火焰场景）→ 用青色或绿色锚点。
-  - 绿色森林 / 草地多的游戏 → 用白色或红色锚点。
-  - 天空 / 海洋蓝色调多的游戏 → 用橙色或黄色锚点。
-- 白色是最通用的选择，但在明亮场景（雪地、天空）中可能融入背景。
-- 也可以使用自定义 PNG 贴图（`CustomImage` 样式）来实现更精细的视觉效果。
+**Principle**: During horizontal movement the whole screen pans left or right, and the brain most easily loses its sense of "where am I." A side anchor acts like a "wall"; when the screen scrolls to the right, the anchor stays still, letting the brain confirm that the screen is moving but I am not.
 
-### 位置
+---
 
-- **中心**（`Cross` / `Ring`）：最常见的选择，适合大多数场景。
-- **边缘**（`EdgeRect` / `BorderFrame`）：当你不想在画面正中央放东西时，边缘锚点可以提供框架感而不干扰操作。
-- **边缘标记**（`CornerDots`）：最不显眼的方案，只在四角放小点，提供最小限度的参照。
+### Scenario 5: Vertical Movement Mainly
 
-### 经验法则
+**Representative games**: climbing games, flight simulators, vertical scrollers, games with lots of falling mechanics
 
-1. **先从默认配置开始**，玩 5–10 分钟，感受是否有效。
-2. 如果仍然晕，**先尝试换样式**（cross → ring → edge_rect → border_frame），找到最适合自己的锚点类型。
-3. 找到合适的样式后，**再微调尺寸和不透明度**。
-4. **一次只改一个参数**，这样能判断是哪个改动起的作用。
-5. 记录下自己最舒适的配置组合，保存为 Profile 方便日后调用。
+**Motion sickness characteristics**: **Vertical movement is more likely to cause motion sickness than horizontal movement** because the inner ear is more sensitive to upward/downward acceleration (gravity direction)[[2]](https://pmc.ncbi.nlm.nih.gov/articles/PMC12034809/). Large amounts of ascending, falling, and diving scenes strongly stimulate the vestibular system's sense of conflict.
 
-## 参考资料
+**Recommended configuration**:
+
+| Parameter | Recommended Value | Description |
+|-----------|-------------------|-------------|
+| Style (`style`) | `large_cross` or `border_frame` | Large crosshair provides complete horizontal and vertical reference lines; border frame provides an overall frame |
+| Main size (`size`) | `large_cross`: screen radius | Large crosshair extends from the center to the edges, providing complete horizontal and vertical references |
+| Thickness (`thickness`) | `1`–`2` | Thin lines avoid blocking too much of the screen |
+| Opacity (`opacity`) | `0.3`–`0.5` | Vertical scenes can cause heavy sickness, but the anchor should also avoid being too eye-catching |
+| Color (`color`) | White `[1.0, 1.0, 1.0, 1.0]` or light blue `[0.3, 0.5, 1.0, 1.0]` | |
+| Border gap (`border_gap`) | `true` (if using `border_frame`) | Avoids blocking the top status bar and bottom mini-map |
+
+**Principle**: During vertical movement the whole screen moves up or down, and the brain has the hardest time judging "am I rising or falling." The vertical line of a large crosshair is like a **plumb line**; no matter how the screen shakes, this line stays perpendicular to the ground, helping the brain confirm the true direction of gravity. The border frame acts like a fixed window framing the entire picture.
+
+**Extra suggestions**: If the game has falling mechanics (such as jumping in *Sekiro* or falling in *Elden Ring*), try to control falling speed and avoid long free falls.
+
+## General Tuning Advice
+
+### Anchor Size
+
+- **Smaller is better**, as long as it is visible. An anchor that is too large can itself become a new source of visual distraction.
+- FPS / competitive games should prioritize small sizes (8–15 px); casual / exploration games can be slightly larger.
+- If you cannot see it clearly, try **increasing opacity** rather than increasing size.
+
+### Opacity
+
+- Start at `0.4` and adjust until it is "noticeable but not distracting."
+- Usually `0.3`–`0.6` is the comfortable range for most people.
+- For games with generally dark screens (such as horror games), opacity can be slightly increased.
+
+### Color
+
+- Choose a color with **high contrast** against the game's main color palette.
+  - Games with a lot of red / orange (war, fire scenes) → use cyan or green anchors.
+  - Games with green forests / grasslands → use white or red anchors.
+  - Games with sky / ocean blue tones → use orange or yellow anchors.
+- White is the most universal choice, but it can blend into bright scenes (snow, sky).
+- You can also use a custom PNG image (`CustomImage` style) for more refined visual effects.
+
+### Position
+
+- **Center** (`Cross` / `Ring`): the most common choice, suitable for most scenarios.
+- **Edges** (`EdgeRect` / `BorderFrame`): when you do not want anything in the center of the screen, edge anchors provide a framing feel without interfering with controls.
+- **Edge markers** (`CornerDots`): the least conspicuous option, placing small dots only in the four corners to provide minimal reference.
+
+### Rule of Thumb
+
+1. **Start from the default configuration**, play for 5–10 minutes, and see if it helps.
+2. If you still feel sick, **try changing the style first** (cross → ring → edge_rect → border_frame) to find the anchor type that suits you best.
+3. After finding the right style, **fine-tune size and opacity**.
+4. **Change only one parameter at a time**, so you can tell which change is having an effect.
+5. Record your most comfortable configuration combination and save it as a Profile for easy recall later.
+
+## References
 
 - [[1] Healthline — Cybersickness: What It Is, Symptoms, Causes, and Treatments](https://www.healthline.com/health/cybersickness)
 - [[2] Karmali, F. et al. — Validating sensory conflict theory and mitigating motion sickness (NIH PMC)](https://pmc.ncbi.nlm.nih.gov/articles/PMC12034809/)

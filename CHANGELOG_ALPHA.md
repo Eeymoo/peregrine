@@ -1,5 +1,7 @@
 # Alpha Changelog
 
+[English](CHANGELOG_ALPHA.md) · [简体中文](CHANGELOG_ALPHA.zh-cn.md)
+
 The following versions are preview and development iterations before the stable release. They are intended for testing and feedback only.
 
 For the stable release changelog, see **[CHANGELOG.md](CHANGELOG.md)**.

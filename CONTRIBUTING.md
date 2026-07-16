@@ -1,5 +1,7 @@
 # Contributing Guide
 
+[English](CONTRIBUTING.md) · [简体中文](CONTRIBUTING.zh-cn.md)
+
 Thank you for considering contributing to Peregrine! This document explains the process and guidelines for participating in the project.
 
 ---

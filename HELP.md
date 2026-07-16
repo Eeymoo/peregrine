@@ -1,5 +1,7 @@
 # Peregrine Help
 
+[English](HELP.md) · [简体中文](HELP.zh-cn.md)
+
 This document is for **end users**. It explains what Peregrine is, how to use it, and how each visual anchor style works and can be adjusted. For development-related information, see [README](README.md).
 
 ---

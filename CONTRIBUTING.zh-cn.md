@@ -1,5 +1,7 @@
 # 贡献指南
 
+[English](CONTRIBUTING.md) · [简体中文](CONTRIBUTING.zh-cn.md)
+
 感谢你考虑为 Peregrine 贡献代码！本文档说明了参与项目的流程与规范。
 
 ---

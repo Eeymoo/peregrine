@@ -18,6 +18,7 @@
   "overlay": {
     "autoSwitchTitle": "Hide config window and switch to game?",
     "autoSwitchDesc": "After starting the overlay, the config window will be hidden and focus will switch to the target game window. You can restore it from the tray.",
+    "windowModeBlockedHint": "Overlay is active. Stop the overlay before changing the mode.",
     "rememberChoice": "Remember my choice",
     "switchYes": "Yes, hide and switch",
     "switchNo": "No, keep config window visible",

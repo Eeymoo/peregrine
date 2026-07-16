@@ -385,14 +385,19 @@ export default function ConfigApp() {
 
         {/* 底部固定区：覆盖模式 + 目标窗口 + 开始/停止覆盖 */}
         <div className="space-y-3 shrink-0">
-          {/* 窗口模式勾选（默认全屏，勾选切换为窗口模式） */}
+          {/* 窗口模式勾选（默认全屏，勾选切换为窗口模式）。覆盖层激活时禁止切换，避免状态不一致。 */}
           <div className="flex items-center gap-2">
             <Checkbox
               id="window-mode"
               checked={!config.settings.fullscreen_overlay}
+              disabled={overlayActive}
+              title={overlayActive ? t("overlay.windowModeBlockedHint") : undefined}
               onCheckedChange={(v) => updateSettings({ fullscreen_overlay: !v })}
             />
-            <Label htmlFor="window-mode" className="text-sm cursor-pointer">
+            <Label
+              htmlFor="window-mode"
+              className={`text-sm ${overlayActive ? "text-muted-foreground cursor-not-allowed" : "cursor-pointer"}`}
+            >
               {t("overlaySettings.windowMode")}
             </Label>
           </div>

@@ -175,7 +175,12 @@ impl OverlayApp {
             OverlayCommand::QueryActive => {}
             OverlayCommand::Invalidate => {
                 // follower 调整了窗口位置，需要重绘一帧。
+                // 直接调用 request_redraw，避免依赖 about_to_wait 的隐式行为
+                // （与 create_overlay 中 needs_redraw + request_redraw 的写法保持一致）。
                 self.needs_redraw = true;
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
             }
         }
     }

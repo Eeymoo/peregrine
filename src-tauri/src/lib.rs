@@ -84,6 +84,12 @@ fn tr(locale: BackendLocale, key: &str) -> String {
     match (locale, key) {
         (BackendLocale::ZhCN, "target_window_required") => "未选择目标窗口".to_string(),
         (BackendLocale::En, "target_window_required") => "No target window selected".to_string(),
+        (BackendLocale::ZhCN, "overlay_active_cannot_change_mode") => {
+            "覆盖层运行中，请先停止覆盖层后再切换模式".to_string()
+        }
+        (BackendLocale::En, "overlay_active_cannot_change_mode") => {
+            "Overlay is active. Stop the overlay before changing the mode.".to_string()
+        }
         (BackendLocale::ZhCN, "png_filter") => "PNG 图片".to_string(),
         (BackendLocale::En, "png_filter") => "PNG images".to_string(),
         (BackendLocale::ZhCN, "tray.config") => "配置".to_string(),
@@ -370,6 +376,27 @@ pub fn run() {
                     }
                     "window_mode" => {
                         // 勾选 = 窗口模式（fullscreen_overlay=false），取消 = 全屏模式。
+                        // 覆盖层活跃时禁止切换，避免模式与运行中的 overlay 不一致。
+                        let state = app.state::<AppState>();
+                        if state
+                            .overlay_active
+                            .load(std::sync::atomic::Ordering::SeqCst)
+                        {
+                            let locale = current_locale(&state);
+                            tracing::warn!(
+                                "拒绝切换窗口模式：{}",
+                                tr(locale, "overlay_active_cannot_change_mode")
+                            );
+                            // Tauri v2 的 CheckMenuItem 在 on_menu_event 触发前已自动
+                            // 切换勾选状态，guard 早返回时需将其回退到切换前，否则托盘
+                            // 勾选框与实际配置会出现不一致。
+                            let tray_state = app.state::<TrayMenuState>();
+                            let is_window_mode =
+                                tray_state.window_mode_item.is_checked().unwrap_or(false);
+                            let _ = tray_state.window_mode_item.set_checked(!is_window_mode);
+                            return;
+                        }
+
                         let tray_state = app.state::<TrayMenuState>();
                         let is_window_mode =
                             tray_state.window_mode_item.is_checked().unwrap_or(false);
@@ -608,11 +635,25 @@ fn relaunch_app(app: tauri::AppHandle) {
 /// - 写入配置文件、更新内存快照、广播给 overlay。
 /// - locale 变化时更新托盘菜单文本并广播事件。
 /// - fullscreen_overlay / live_drag_preview 变化时同步托盘勾选状态。
+/// - 若 overlay 处于活跃状态且请求切换 fullscreen_overlay，则拒绝变更并返回错误，
+///   防止运行中的覆盖层与目标模式不一致。
 #[tauri::command]
 async fn update_preferences(
     app: tauri::AppHandle,
     preferences: PreferencesPatch,
 ) -> Result<(), String> {
+    // 覆盖层运行时禁止切换覆盖模式。
+    if preferences.fullscreen_overlay.is_some() {
+        let state = app.state::<AppState>();
+        if state
+            .overlay_active
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            let locale = current_locale(&state);
+            return Err(tr(locale, "overlay_active_cannot_change_mode"));
+        }
+    }
+
     update_preferences_inner(app, preferences).await
 }
 

@@ -18,6 +18,7 @@
   "overlay": {
     "autoSwitchTitle": "是否自动隐藏配置窗口并切换到游戏？",
     "autoSwitchDesc": "开始覆盖后将隐藏配置窗口并将焦点切换到目标游戏窗口，需要时可从托盘恢复。",
+    "windowModeBlockedHint": "覆盖层运行中，请先停止覆盖层再切换模式",
     "rememberChoice": "下次记住选择",
     "switchYes": "是，自动隐藏并切换",
     "switchNo": "否，保持配置窗口显示",

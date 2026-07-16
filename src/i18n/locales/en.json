@@ -42,7 +42,8 @@
   },
   "quickColors": {
     "title": "Quick Colors",
-    "hint": "Click swatches to quickly change crosshair color. Customizable here."
+    "hint": "Click swatches to quickly change crosshair color. Customizable here.",
+    "reset": "Reset"
   },
   "hotkeys": {
     "title": "Hotkeys",

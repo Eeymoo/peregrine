@@ -81,7 +81,9 @@ fn run_overlay_loop_windows(
         }
     });
 
-    let mut app = OverlayApp::new(config);
+    // 复制一份事件循环代理，用于 follower 线程在移动 overlay 后请求重绘。
+    let redraw_proxy = event_loop.create_proxy();
+    let mut app = OverlayApp::new(config, redraw_proxy);
     event_loop
         .run_app(&mut app)
         .expect("run overlay event loop");
@@ -95,6 +97,9 @@ struct OverlayApp {
     overlay_active: bool,
     target_title: String,
     follower_stop: Option<tokio::sync::oneshot::Sender<()>>,
+    /// 事件循环代理：follower 线程移动 overlay 窗口后，
+    /// 通过它把 `Invalidate` 命令转发回事件循环，触发重绘。
+    redraw_proxy: winit::event_loop::EventLoopProxy<UserEvent>,
     /// 上一帧渲染时间，用于限制 overlay 帧率避免空转占 CPU。
     last_render: Option<Instant>,
     /// 目标帧间隔（60 FPS ≈ 16.6 ms）。
@@ -105,7 +110,10 @@ struct OverlayApp {
 
 #[cfg(windows)]
 impl OverlayApp {
-    fn new(config: Arc<Mutex<ConfigSnapshot>>) -> Self {
+    fn new(
+        config: Arc<Mutex<ConfigSnapshot>>,
+        redraw_proxy: winit::event_loop::EventLoopProxy<UserEvent>,
+    ) -> Self {
         Self {
             config,
             window: None,
@@ -113,6 +121,7 @@ impl OverlayApp {
             overlay_active: false,
             target_title: String::new(),
             follower_stop: None,
+            redraw_proxy,
             last_render: None,
             frame_interval: Duration::from_nanos(16_666_667),
             needs_redraw: false,
@@ -356,6 +365,14 @@ impl OverlayApp {
             let (tx, rx) = tokio::sync::oneshot::channel();
             self.follower_stop = Some(tx);
 
+            // follower 线程在每次移动/调整 overlay 后通过事件循环代理请求重绘。
+            // 这保证了窗口仅移动（尺寸不变）时也能刷新画面，
+            // 修复了「拖拽实时显示」开启后准心位置不跟随更新的问题。
+            let redraw_proxy = self.redraw_proxy.clone();
+            let on_moved = move || {
+                let _ = redraw_proxy.send_event(UserEvent::Command(OverlayCommand::Invalidate));
+            };
+
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("create tokio runtime");
                 rt.block_on(async move {
@@ -365,6 +382,7 @@ impl OverlayApp {
                         fullscreen,
                         live_drag,
                         rx,
+                        on_moved,
                     )
                     .await
                     {

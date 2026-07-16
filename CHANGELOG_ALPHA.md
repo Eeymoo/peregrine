@@ -10,6 +10,10 @@ For the stable release changelog, see **[CHANGELOG.md](CHANGELOG.md)**.
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed "Live Drag Preview" not updating the crosshair position in real time during window dragging: the follower thread moved the overlay window but never notified the renderer to refresh, so the crosshair stayed frozen until the mouse was released. The follower now requests a redraw via the event loop proxy whenever it repositions the overlay. [#5](https://github.com/Eeymoo/peregrine/issues/5)
+
 ## [v0.1.9-alpha.0] — 2026-07-13
 
 Preview release for v0.1.9. Changes have been merged into the v0.1.9 stable release.

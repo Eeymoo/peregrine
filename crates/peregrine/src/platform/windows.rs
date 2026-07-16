@@ -349,6 +349,11 @@ unsafe impl Send for SendHwnd {}
 /// - 目标窗口最小化时隐藏 Overlay（`SW_HIDE`）。
 /// - 目标窗口恢复时重新显示 Overlay（`SW_SHOWNA`，不激活）。
 ///
+/// `on_moved` 回调在每次成功调整 overlay 位置/尺寸后调用，
+/// 用于通知渲染线程刷新一帧（拖拽实时显示时尤为重要：
+/// 窗口仅移动而不改变尺寸时不会产生 `Resized` 事件，
+/// 需要借助此回调触发重绘，避免准心位置停留在旧画面）。
+///
 /// 通过 `stop_rx` 可以优雅地终止轮询循环。
 ///
 /// # 错误
@@ -360,10 +365,12 @@ pub async fn follow_target_window(
     fullscreen: bool,
     live_drag: bool,
     mut stop_rx: oneshot::Receiver<()>,
+    on_moved: impl FnMut() + Send + 'static,
 ) -> Result<()> {
     let mut last_rect = RECT::default();
     let mut visible = true;
     let mut interval = tokio::time::interval(Duration::from_millis(16));
+    let mut on_moved = on_moved;
 
     // 全屏模式下记录上次屏幕尺寸，变化时（分辨率/DPI 缩放调整）立即更新 overlay。
     let mut last_screen_size: Option<(i32, i32)> = None;
@@ -399,6 +406,7 @@ pub async fn follow_target_window(
                             )?;
                             last_screen_size = Some((screen_w, screen_h));
                             tracing::debug!(screen_w, screen_h, "update overlay to fullscreen");
+                            on_moved();
                         }
                         continue;
                     }
@@ -479,6 +487,7 @@ pub async fn follow_target_window(
                             SWP_NOACTIVATE | SWP_NOOWNERZORDER,
                         )?;
                         last_rect = rect;
+                        on_moved();
                     } else if !live_drag && dragging_hidden {
                         // 拖拽延迟模式：矩形已停止变化，检查是否超过延迟。
                         let ready = last_change_time
@@ -499,6 +508,7 @@ pub async fn follow_target_window(
                             )?;
                             dragging_hidden = false;
                             visible = false; // 下面的 !visible 逻辑会重新 show
+                            on_moved();
                         } else {
                             continue;
                         }

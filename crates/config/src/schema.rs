@@ -598,11 +598,18 @@ impl Profile {
 }
 
 impl Crosshair {
-    /// 生成默认辅助贴图配置：贴边矩形样式，尺寸 120x80、厚度 2、白色、透明度 60%。
+    /// 生成默认辅助贴图配置：贴边矩形样式，白色、透明度 60%。
     pub fn default_crosshair() -> Self {
-        Self {
-            style: CrosshairStyle::EdgeRect,
-            size: 120.0,
+        Self::default_for_style(CrosshairStyle::EdgeRect)
+    }
+
+    /// 为指定样式生成一套开箱即用的默认参数。
+    ///
+    /// 切换样式时，前端/后端可调用此函数重置参数，避免旧样式的尺寸/偏移在新样式下不可用。
+    pub fn default_for_style(style: CrosshairStyle) -> Self {
+        let mut base = Self {
+            style,
+            size: 16.0,
             secondary_size: 80.0,
             thickness: 2.0,
             radius: 0.0,
@@ -613,38 +620,123 @@ impl Crosshair {
             corner_radius: 4.0,
             anchor: Anchor::Top,
             margin: 0.0,
-            ring_radius_pct: default_ring_radius_pct(),
+            ring_radius_pct: 0.05,
             ring_style: RingStyle::default(),
             orb_positions: OrbPosition::default(),
             random_mode: RandomOrbMode::default(),
-            random_center_deviation: default_random_center_deviation(),
-            random_radius_min: default_random_radius_min(),
-            random_radius_max: default_random_radius_max(),
+            random_center_deviation: 0.2,
+            random_radius_min: 4.0,
+            random_radius_max: 12.0,
             random_orb_x: 0.0,
             random_orb_y: 0.0,
             border_frame_style: BorderFrameStyle::default(),
             border_inset: true,
-            custom_orb_top_count: default_custom_orb_count(),
-            custom_orb_bottom_count: default_custom_orb_count(),
-            custom_orb_left_count: default_custom_orb_count(),
-            custom_orb_right_count: default_custom_orb_count(),
-            random_orb_count: default_random_orb_count(),
-            random_orb_offset: default_random_orb_offset(),
-            random_orb_jitter: default_random_orb_jitter(),
+            custom_orb_top_count: 3,
+            custom_orb_bottom_count: 3,
+            custom_orb_left_count: 3,
+            custom_orb_right_count: 3,
+            random_orb_count: 3,
+            random_orb_offset: 100.0,
+            random_orb_jitter: 40.0,
             image_path: String::new(),
-            image_scale: default_image_scale(),
+            image_scale: 1.0,
             image_offset_x: 0.0,
             image_offset_y: 0.0,
-            arrow_distance: default_arrow_distance(),
+            arrow_distance: 0.0,
             arrow_width: 0.0,
             arrow_tail_per_edge: false,
             arrow_tail_top: 0.0,
             arrow_tail_bottom: 0.0,
             arrow_tail_left: 0.0,
             arrow_tail_right: 0.0,
-            grid_size: default_grid_size(),
+            grid_size: 80.0,
             grid_alignment: GridAlignment::default(),
+        };
+
+        // 按样式设置开箱即用的推荐参数。
+        match style {
+            CrosshairStyle::EdgeRect => {
+                base.size = 180.0;
+                base.secondary_size = 24.0;
+                base.thickness = 4.0;
+                base.anchor = Anchor::Top;
+                base.margin = 16.0;
+                base.corner_radius = 12.0;
+            }
+            CrosshairStyle::Cross => {
+                base.size = 24.0;
+                base.thickness = 2.0;
+                base.gap = 4.0;
+                base.opacity = 0.8;
+            }
+            CrosshairStyle::LargeCross => {
+                base.thickness = 2.0;
+                base.opacity = 0.5;
+            }
+            CrosshairStyle::CornerDots4
+            | CrosshairStyle::CornerDots6
+            | CrosshairStyle::CornerDots8 => {
+                base.offset = 40.0;
+                base.thickness = 3.0;
+                base.radius = 0.0;
+                base.opacity = 0.7;
+            }
+            CrosshairStyle::Ring => {
+                base.thickness = 2.0;
+                base.ring_radius_pct = 0.06;
+                base.ring_style = RingStyle::Solid;
+                base.opacity = 0.8;
+            }
+            CrosshairStyle::CustomOrb => {
+                base.radius = 6.0;
+                base.offset = 30.0;
+                base.orb_positions = OrbPosition(OrbPosition::TOP | OrbPosition::BOTTOM);
+                base.custom_orb_top_count = 3;
+                base.custom_orb_bottom_count = 3;
+                base.custom_orb_left_count = 3;
+                base.custom_orb_right_count = 3;
+                base.opacity = 0.7;
+            }
+            CrosshairStyle::RandomOrb => {
+                base.random_orb_count = 3;
+                base.random_orb_offset = 80.0;
+                base.random_orb_jitter = 30.0;
+                base.random_radius_min = 4.0;
+                base.random_radius_max = 10.0;
+                base.opacity = 0.6;
+            }
+            CrosshairStyle::BorderFrame => {
+                base.thickness = 6.0;
+                base.offset = 24.0;
+                base.border_frame_style = BorderFrameStyle::Solid;
+                base.border_inset = false;
+                base.opacity = 0.5;
+            }
+            CrosshairStyle::EdgeArrows => {
+                base.size = 16.0;
+                base.arrow_distance = 60.0;
+                base.arrow_width = 0.0;
+                base.arrow_tail_per_edge = false;
+                base.orb_positions = OrbPosition(0);
+                base.opacity = 0.7;
+            }
+            CrosshairStyle::Grid => {
+                base.grid_size = 120.0;
+                base.thickness = 2.0;
+                base.grid_alignment = GridAlignment::Center;
+                base.opacity = 0.35;
+            }
+            // 自定义图片需要用户选择路径，保留最小化默认值。
+            CrosshairStyle::CustomImage => {
+                base.size = 64.0;
+                base.image_scale = 1.0;
+                base.image_offset_x = 0.0;
+                base.image_offset_y = 0.0;
+                base.opacity = 0.9;
+            }
         }
+
+        base
     }
 
     /// 校验准心字段范围。
@@ -781,6 +873,46 @@ mod tests {
         let cfg = AppConfig::default_config();
         assert!(cfg.validate().is_ok());
         assert_eq!(cfg.active_profile, "default");
+        let ch = &cfg.active_profile().unwrap().crosshair;
+        assert_eq!(ch.style, CrosshairStyle::EdgeRect);
+        assert_eq!(ch.size, 180.0);
+        assert_eq!(ch.secondary_size, 24.0);
+        assert_eq!(ch.thickness, 4.0);
+        assert_eq!(ch.margin, 16.0);
+        assert_eq!(ch.corner_radius, 12.0);
+    }
+
+    #[test]
+    fn default_for_all_styles_validates() {
+        for style in [
+            CrosshairStyle::EdgeRect,
+            CrosshairStyle::Cross,
+            CrosshairStyle::LargeCross,
+            CrosshairStyle::CornerDots4,
+            CrosshairStyle::CornerDots6,
+            CrosshairStyle::CornerDots8,
+            CrosshairStyle::Ring,
+            CrosshairStyle::CustomOrb,
+            CrosshairStyle::RandomOrb,
+            CrosshairStyle::BorderFrame,
+            CrosshairStyle::EdgeArrows,
+            CrosshairStyle::Grid,
+        ] {
+            let ch = Crosshair::default_for_style(style);
+            assert_eq!(ch.style, style);
+            assert!(
+                ch.validate().is_ok(),
+                "style {:?} 的默认参数校验失败",
+                style
+            );
+        }
+
+        // CustomImage 默认无图片路径，需额外设置后才可校验。
+        let mut ch = Crosshair::default_for_style(CrosshairStyle::CustomImage);
+        assert_eq!(ch.style, CrosshairStyle::CustomImage);
+        assert!(ch.validate().is_err());
+        ch.image_path = "/tmp/crosshair.png".to_string();
+        assert!(ch.validate().is_ok());
     }
 
     #[test]
@@ -821,15 +953,35 @@ mod tests {
     }
 
     #[test]
-    fn custom_orb_edge_counts_and_positions() {
-        let mut ch = Crosshair::default_crosshair();
-        ch.style = CrosshairStyle::CustomOrb;
-        ch.radius = 6.0;
-        ch.offset = 20.0;
-        ch.orb_positions = OrbPosition(OrbPosition::TOP | OrbPosition::BOTTOM);
-        ch.custom_orb_top_count = 3;
-        ch.custom_orb_bottom_count = 5;
+    fn default_ring_style_is_solid() {
+        let ch = Crosshair::default_for_style(CrosshairStyle::Ring);
+        assert_eq!(ch.ring_radius_pct, 0.06);
+        assert_eq!(ch.thickness, 2.0);
+        assert_eq!(ch.ring_style, RingStyle::Solid);
+        assert_eq!(ch.opacity, 0.8);
+    }
 
+    #[test]
+    fn default_cross_style_is_visible() {
+        let ch = Crosshair::default_for_style(CrosshairStyle::Cross);
+        assert_eq!(ch.size, 24.0);
+        assert_eq!(ch.thickness, 2.0);
+        assert_eq!(ch.gap, 4.0);
+        assert_eq!(ch.opacity, 0.8);
+    }
+
+    #[test]
+    fn custom_orb_edge_counts_and_positions() {
+        let mut ch = Crosshair::default_for_style(CrosshairStyle::CustomOrb);
+        assert_eq!(ch.radius, 6.0);
+        assert_eq!(ch.offset, 30.0);
+        assert_eq!(
+            ch.orb_positions,
+            OrbPosition(OrbPosition::TOP | OrbPosition::BOTTOM)
+        );
+        assert_eq!(ch.custom_orb_top_count, 3);
+        assert_eq!(ch.custom_orb_bottom_count, 3);
+        assert_eq!(ch.opacity, 0.7);
         assert!(ch.validate().is_ok());
 
         // 验证上边缘 3 个球均匀分布：首球在 1/4、尾球在 3/4 宽度处。
@@ -883,15 +1035,21 @@ mod tests {
 
     #[test]
     fn border_frame_defaults() {
-        let ch = Crosshair::default_crosshair();
-        assert!(ch.border_inset);
+        let ch = Crosshair::default_for_style(CrosshairStyle::BorderFrame);
+        assert!(!ch.border_inset);
         assert_eq!(ch.border_frame_style, BorderFrameStyle::Solid);
+        assert_eq!(ch.thickness, 6.0);
+        assert_eq!(ch.offset, 24.0);
+        assert_eq!(ch.opacity, 0.5);
+        assert!(ch.validate().is_ok());
     }
 
     #[test]
     fn border_frame_inset_offsets() {
-        let mut ch = Crosshair::default_crosshair();
-        ch.style = CrosshairStyle::BorderFrame;
+        let mut ch = Crosshair::default_for_style(CrosshairStyle::BorderFrame);
+        assert_eq!(ch.offset, 24.0);
+        assert_eq!(ch.thickness, 6.0);
+        assert!(!ch.border_inset);
         ch.offset = 30.0;
         ch.thickness = 10.0;
         ch.border_inset = true;
@@ -908,8 +1066,7 @@ mod tests {
 
     #[test]
     fn random_orb_lock_position_persists() {
-        let mut ch = Crosshair::default_crosshair();
-        ch.style = CrosshairStyle::RandomOrb;
+        let mut ch = Crosshair::default_for_style(CrosshairStyle::RandomOrb);
         ch.random_mode = RandomOrbMode::LockOnStart;
         ch.random_orb_x = 0.5;
         ch.random_orb_y = -0.3;
@@ -922,16 +1079,22 @@ mod tests {
     }
 
     #[test]
-    fn all_new_styles_serialize_roundtrip() {
+    fn all_styles_serialize_roundtrip() {
         for style in [
             CrosshairStyle::EdgeRect,
+            CrosshairStyle::Cross,
+            CrosshairStyle::LargeCross,
+            CrosshairStyle::CornerDots4,
+            CrosshairStyle::CornerDots6,
+            CrosshairStyle::CornerDots8,
             CrosshairStyle::Ring,
             CrosshairStyle::CustomOrb,
             CrosshairStyle::RandomOrb,
             CrosshairStyle::BorderFrame,
+            CrosshairStyle::EdgeArrows,
+            CrosshairStyle::Grid,
         ] {
-            let mut ch = Crosshair::default_crosshair();
-            ch.style = style;
+            let ch = Crosshair::default_for_style(style);
             let json = serde_json::to_string(&ch).unwrap();
             let restored: Crosshair = serde_json::from_str(&json).unwrap();
             assert_eq!(restored.style, style);
@@ -985,9 +1148,8 @@ mod tests {
         assert_eq!(ch.image_offset_x, 0.0);
         assert_eq!(ch.image_offset_y, 0.0);
 
-        // CustomImage 但 image_path 为空 → 校验失败。
-        let mut ch = Crosshair::default_crosshair();
-        ch.style = CrosshairStyle::CustomImage;
+        // CustomImage 默认 image_path 为空 → 校验失败。
+        let mut ch = Crosshair::default_for_style(CrosshairStyle::CustomImage);
         assert!(ch.validate().is_err());
 
         // 设置了路径 → 校验通过。
@@ -1154,11 +1316,12 @@ mod tests {
 
     #[test]
     fn grid_style_defaults_and_validation() {
-        let mut ch = Crosshair::default_crosshair();
-        ch.style = CrosshairStyle::Grid;
+        let mut ch = Crosshair::default_for_style(CrosshairStyle::Grid);
         // 默认值检查。
-        assert_eq!(ch.grid_size, 80.0);
+        assert_eq!(ch.grid_size, 120.0);
+        assert_eq!(ch.thickness, 2.0);
         assert_eq!(ch.grid_alignment, GridAlignment::Center);
+        assert_eq!(ch.opacity, 0.35);
         assert!(ch.validate().is_ok());
 
         // grid_size 超出范围 → 校验失败。
@@ -1175,18 +1338,14 @@ mod tests {
 
     #[test]
     fn grid_style_roundtrip() {
-        let mut ch = Crosshair::default_crosshair();
-        ch.style = CrosshairStyle::Grid;
-        ch.grid_size = 120.0;
-        ch.grid_alignment = GridAlignment::Edge;
-        ch.thickness = 3.0;
+        let ch = Crosshair::default_for_style(CrosshairStyle::Grid);
 
         let json = serde_json::to_string(&ch).unwrap();
         let restored: Crosshair = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.style, CrosshairStyle::Grid);
         assert_eq!(restored.grid_size, 120.0);
-        assert_eq!(restored.grid_alignment, GridAlignment::Edge);
-        assert_eq!(restored.thickness, 3.0);
+        assert_eq!(restored.grid_alignment, GridAlignment::Center);
+        assert_eq!(restored.thickness, 2.0);
     }
 
     #[test]

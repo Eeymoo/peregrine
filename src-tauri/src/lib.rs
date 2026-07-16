@@ -387,6 +387,13 @@ pub fn run() {
                                 "拒绝切换窗口模式：{}",
                                 tr(locale, "overlay_active_cannot_change_mode")
                             );
+                            // Tauri v2 的 CheckMenuItem 在 on_menu_event 触发前已自动
+                            // 切换勾选状态，guard 早返回时需将其回退到切换前，否则托盘
+                            // 勾选框与实际配置会出现不一致。
+                            let tray_state = app.state::<TrayMenuState>();
+                            let is_window_mode =
+                                tray_state.window_mode_item.is_checked().unwrap_or(false);
+                            let _ = tray_state.window_mode_item.set_checked(!is_window_mode);
                             return;
                         }
 

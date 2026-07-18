@@ -14,7 +14,8 @@ use windows::Win32::Foundation::{
     BOOL, GetLastError, HWND, LPARAM, POINT, RECT, SetLastError, WIN32_ERROR,
 };
 use windows::Win32::Graphics::Gdi::ClientToScreen;
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, GetCursorPos};
+use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetForegroundWindow, GetWindowLongPtrW,
     GetWindowRect, GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic,

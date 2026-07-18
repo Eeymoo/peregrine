@@ -1630,7 +1630,7 @@ async fn spawn_material_watcher(registry: MaterialRegistry, materials_dir: std::
             },
             NotifyConfig::default(),
         )
-        .and_then(|w| {
+        .and_then(|mut w| {
             w.watch(&dir_for_spawn, RecursiveMode::NonRecursive)
                 .map(|_| w)
         })

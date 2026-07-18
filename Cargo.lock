@@ -3167,6 +3167,7 @@ dependencies = [
 name = "peregrine-tauri"
 version = "0.2.0-alpha.0"
 dependencies = [
+ "notify",
  "peregrine",
  "peregrine_config",
  "peregrine_material",

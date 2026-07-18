@@ -250,7 +250,7 @@ pub fn run() {
     // 启动 overlay 管理线程（独立的 winit 事件循环）。
     let (overlay_cmd_tx, overlay_cmd_rx) = mpsc::channel();
     let overlay_config = shared_config.clone();
-    let overlay_registry = material_registry.clone();
+    let overlay_registry = Arc::new(material_registry.clone());
     std::thread::spawn(move || {
         overlay::run_overlay_loop(overlay_config, overlay_registry, overlay_cmd_rx);
     });
@@ -840,13 +840,17 @@ async fn set_crosshair_color_inner(
         let color_arr = [color[0], color[1], color[2], color[3]];
         if !profile.layers.is_empty() {
             // 新格式：更新第一个可见图层的颜色。
-            let target_layer = profile
+            // 注意：先用迭代器找到目标 id，再用 get_mut 更新，避免 borrow 冲突。
+            let target_id = profile
                 .layers
-                .iter_mut()
+                .iter()
                 .find(|l| l.visible)
-                .or_else(|| profile.layers.first_mut());
-            if let Some(layer) = target_layer {
-                layer.style.color = color_arr;
+                .or_else(|| profile.layers.first())
+                .map(|l| l.id.clone());
+            if let Some(id) = target_id {
+                if let Some(layer) = profile.layers.iter_mut().find(|l| l.id == id) {
+                    layer.style.color = color_arr;
+                }
             }
         } else if let Some(ref mut crosshair) = profile.crosshair {
             // 旧格式 fallback。

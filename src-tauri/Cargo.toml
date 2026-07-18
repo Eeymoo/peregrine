@@ -19,6 +19,7 @@ tauri-plugin-updater = { workspace = true }
 tauri-plugin-global-shortcut = "2"
 winit = { workspace = true }
 tokio = { workspace = true }
+notify = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }

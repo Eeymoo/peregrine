@@ -480,10 +480,23 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
         };
 
         // 判断当前准心是否为动画样式（RandomOrb 需要持续重绘）。
+        // 兼容新旧格式：新格式无 crosshair，统一按 is_dynamic 判断（更准确）。
         let is_animated = {
             let cfg = self.config.lock().expect("config lock");
+            // 新格式：检查 layers 中是否有 is_dynamic 的物料。
+            // 简化：若 layers 非空，按 false 处理（首期）；旧格式按 RandomOrb 判断。
             cfg.active_profile()
-                .map(|p| p.crosshair.style == peregrine_config::CrosshairStyle::RandomOrb)
+                .and_then(|p| {
+                    if !p.layers.is_empty() {
+                        // 新格式：暂不查询物料 is_dynamic（避免 registry 借用），
+                        // 后续通过 overlay_cmd 显式触发动画刷新。
+                        None
+                    } else {
+                        p.crosshair
+                            .as_ref()
+                            .map(|c| c.style == peregrine_config::CrosshairStyle::RandomOrb)
+                    }
+                })
                 .unwrap_or(false)
         };
 

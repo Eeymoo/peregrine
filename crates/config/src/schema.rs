@@ -133,18 +133,87 @@ impl Default for AppSettings {
 }
 
 /// 单个 Profile 配置。
+///
+/// 同时支持新格式（多图层）与旧格式（单 Crosshair），实现无缝迁移：
+/// - 加载旧 config.json 时 `crosshair` 字段存在，`layers` 为空。
+/// - 加载新 config.json 时 `layers` 有内容，`crosshair` 为 `None`。
+/// - 运行时若两者同时存在以 `layers` 为准（异常情况，记录警告）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Profile {
-    /// 辅助贴图配置。
-    pub crosshair: Crosshair,
+    /// 旧格式：单一辅助贴图配置。
+    ///
+    /// 新格式配置文件中此字段为 `None`（serde 默认值）。
+    /// 迁移完成后此字段从配置中消失，仅保留 `layers`。
+    #[serde(default)]
+    pub crosshair: Option<Crosshair>,
+
+    /// 新格式：图层列表。
+    ///
+    /// 渲染时按列表顺序绘制（前底层，后顶层）。
+    /// 旧格式配置加载后此字段为空，由迁移逻辑填充。
+    #[serde(default)]
+    pub layers: Vec<Layer>,
+
     /// 触发规则：在什么情况下显示辅助贴图。
     pub trigger: TriggerRule,
+
     /// 进入设置界面的热键字符串（仅做存储，解析由调用方负责）。
     pub settings_hotkey: String,
+
     /// 要跟随的目标窗口标识（空字符串表示不跟随特定窗口）。
     /// 当前仅做配置占位，实际窗口跟随由 Platform 层实现。
     #[serde(default)]
     pub target_window: String,
+}
+
+impl Profile {
+    /// 生成默认 Profile（新格式：单个 builtin.edge_rect 图层）。
+    pub fn default_profile() -> Self {
+        Self {
+            crosshair: None,
+            layers: vec![Layer::new(
+                "default",
+                "贴边矩形",
+                MaterialRef::Builtin {
+                    id: "builtin.edge_rect".to_string(),
+                },
+            )],
+            trigger: TriggerRule::default_rule(),
+            settings_hotkey: "F10".to_string(),
+            target_window: String::new(),
+        }
+    }
+
+    /// 生成旧格式默认 Profile（仅供迁移测试对照）。
+    pub fn legacy_default_profile() -> Self {
+        Self {
+            crosshair: Some(Crosshair::default_crosshair()),
+            layers: vec![],
+            trigger: TriggerRule::default_rule(),
+            settings_hotkey: "F10".to_string(),
+            target_window: String::new(),
+        }
+    }
+
+    /// 校验 Profile 内字段范围。
+    ///
+    /// 当 `layers` 非空时校验图层；否则回退到旧 `crosshair` 校验。
+    pub fn validate(&self) -> crate::Result<()> {
+        if !self.layers.is_empty() {
+            for (i, layer) in self.layers.iter().enumerate() {
+                layer.validate().map_err(|e| {
+                    crate::ConfigError::Validation(format!("layer[{}]: {}", i, e))
+                })?;
+            }
+            Ok(())
+        } else if let Some(crosshair) = &self.crosshair {
+            crosshair.validate()
+        } else {
+            Err(crate::ConfigError::Validation(
+                "profile has neither layers nor crosshair".to_string(),
+            ))
+        }
+    }
 }
 
 /// 辅助贴图整体配置。
@@ -542,6 +611,19 @@ impl AppConfig {
         }
     }
 
+    /// 生成旧格式默认配置（保留 crosshair 字段，layers 为空）。
+    ///
+    /// 仅供迁移测试与 serde 兼容性测试使用。
+    pub fn legacy_default_config() -> Self {
+        let mut profiles = std::collections::HashMap::new();
+        profiles.insert("default".to_string(), Profile::legacy_default_profile());
+        Self {
+            active_profile: "default".to_string(),
+            profiles,
+            settings: AppSettings::default(),
+        }
+    }
+
     /// 校验整个配置是否合法。
     ///
     /// 检查项：
@@ -576,24 +658,6 @@ impl AppConfig {
     /// 获取当前激活的 Profile 的不可变引用。
     pub fn active_profile(&self) -> Option<&Profile> {
         self.profiles.get(&self.active_profile)
-    }
-}
-
-impl Profile {
-    /// 生成默认 Profile。
-    pub fn default_profile() -> Self {
-        Self {
-            crosshair: Crosshair::default_crosshair(),
-            trigger: TriggerRule::default_rule(),
-            settings_hotkey: "F10".to_string(),
-            target_window: String::new(),
-        }
-    }
-
-    /// 校验 Profile 内字段范围。
-    pub fn validate(&self) -> crate::Result<()> {
-        self.crosshair.validate()?;
-        Ok(())
     }
 }
 
@@ -1155,6 +1219,39 @@ impl Layer {
             locked: false,
         }
     }
+
+    /// 校验图层字段范围。
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.id.trim().is_empty() {
+            return Err(crate::ConfigError::Validation(
+                "layer id must not be empty".to_string(),
+            ));
+        }
+        if self.name.trim().is_empty() {
+            return Err(crate::ConfigError::Validation(
+                "layer name must not be empty".to_string(),
+            ));
+        }
+        if !(0.0..=1.0).contains(&self.style.opacity) {
+            return Err(crate::ConfigError::Validation(
+                "layer style opacity must be in [0.0, 1.0]".to_string(),
+            ));
+        }
+        for (i, c) in self.style.color.iter().enumerate() {
+            if !(0.0..=1.0).contains(c) {
+                return Err(crate::ConfigError::Validation(format!(
+                    "layer style color channel {} must be in [0.0, 1.0]",
+                    i
+                )));
+            }
+        }
+        if self.transform.scale <= 0.0 {
+            return Err(crate::ConfigError::Validation(
+                "layer transform scale must be positive".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1166,13 +1263,17 @@ mod tests {
         let cfg = AppConfig::default_config();
         assert!(cfg.validate().is_ok());
         assert_eq!(cfg.active_profile, "default");
-        let ch = &cfg.active_profile().unwrap().crosshair;
-        assert_eq!(ch.style, CrosshairStyle::EdgeRect);
-        assert_eq!(ch.size, 180.0);
-        assert_eq!(ch.secondary_size, 24.0);
-        assert_eq!(ch.thickness, 4.0);
-        assert_eq!(ch.margin, 16.0);
-        assert_eq!(ch.corner_radius, 12.0);
+        // 新格式默认配置：layers 包含 1 个 edge_rect 图层。
+        let profile = cfg.active_profile().unwrap();
+        assert_eq!(profile.layers.len(), 1);
+        assert!(profile.crosshair.is_none());
+        let layer = &profile.layers[0];
+        assert_eq!(
+            layer.material,
+            MaterialRef::Builtin {
+                id: "builtin.edge_rect".to_string()
+            }
+        );
     }
 
     #[test]
@@ -1217,31 +1318,56 @@ mod tests {
 
     #[test]
     fn negative_size_fails() {
-        let mut cfg = AppConfig::default_config();
-        cfg.active_profile_mut().unwrap().crosshair.size = -1.0;
+        let mut cfg = AppConfig::legacy_default_config();
+        cfg.active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap()
+            .size = -1.0;
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn opacity_out_of_range_fails() {
-        let mut cfg = AppConfig::default_config();
-        cfg.active_profile_mut().unwrap().crosshair.opacity = 1.5;
+        let mut cfg = AppConfig::legacy_default_config();
+        cfg.active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap()
+            .opacity = 1.5;
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn ring_radius_pct_default_and_validation() {
-        let cfg = AppConfig::default_config();
-        let ch = &cfg.active_profile().unwrap().crosshair;
+        let cfg = AppConfig::legacy_default_config();
+        let ch = cfg
+            .active_profile()
+            .unwrap()
+            .crosshair
+            .as_ref()
+            .unwrap();
         assert_eq!(ch.ring_radius_pct, 0.05);
         assert!(ch.validate().is_ok());
 
-        let mut cfg = AppConfig::default_config();
-        cfg.active_profile_mut().unwrap().crosshair.ring_radius_pct = 0.02;
+        let mut cfg = AppConfig::legacy_default_config();
+        cfg.active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap()
+            .ring_radius_pct = 0.02;
         assert!(cfg.validate().is_err());
 
-        let mut cfg = AppConfig::default_config();
-        cfg.active_profile_mut().unwrap().crosshair.ring_radius_pct = 0.09;
+        let mut cfg = AppConfig::legacy_default_config();
+        cfg.active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap()
+            .ring_radius_pct = 0.09;
         assert!(cfg.validate().is_err());
     }
 
@@ -1303,25 +1429,48 @@ mod tests {
 
     #[test]
     fn random_orb_range_validation() {
-        let mut cfg = AppConfig::default_config();
-        let ch = &mut cfg.active_profile_mut().unwrap().crosshair;
+        let mut cfg = AppConfig::legacy_default_config();
+        let ch = cfg
+            .active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap();
         ch.style = CrosshairStyle::RandomOrb;
         ch.random_radius_min = 8.0;
         ch.random_radius_max = 4.0;
         assert!(cfg.validate().is_err());
 
-        let mut cfg = AppConfig::default_config();
-        let ch = &mut cfg.active_profile_mut().unwrap().crosshair;
+        let mut cfg = AppConfig::legacy_default_config();
+        let ch = cfg
+            .active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap();
+        ch.style = CrosshairStyle::RandomOrb;
         ch.random_radius_min = 0.0;
         assert!(cfg.validate().is_err());
 
-        let mut cfg = AppConfig::default_config();
-        let ch = &mut cfg.active_profile_mut().unwrap().crosshair;
+        let mut cfg = AppConfig::legacy_default_config();
+        let ch = cfg
+            .active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap();
+        ch.style = CrosshairStyle::RandomOrb;
         ch.random_orb_count = 0;
         assert!(cfg.validate().is_err());
 
-        let mut cfg = AppConfig::default_config();
-        let ch = &mut cfg.active_profile_mut().unwrap().crosshair;
+        let mut cfg = AppConfig::legacy_default_config();
+        let ch = cfg
+            .active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap();
+        ch.style = CrosshairStyle::RandomOrb;
         ch.random_orb_jitter = -1.0;
         assert!(cfg.validate().is_err());
     }

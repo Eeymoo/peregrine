@@ -3,6 +3,7 @@
 //! 职责：定义配置结构、持久化、文件热重载以及变更广播。
 //! 不包含任何 UI、GPU 或窗口平台代码。
 
+pub mod migration;
 pub mod notifier;
 pub mod rng;
 pub mod schema;

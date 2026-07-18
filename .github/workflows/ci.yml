@@ -34,7 +34,7 @@ jobs:
 
       # config 库有单元测试，跨平台可运行。
       - name: Run config tests
-        run: cargo test -p peregrine_config --locked
+        run: cargo test -p peregrine_config
 
       # 新 Tauri 入口：安装 Node 依赖、构建前端、验证 Rust 后端可编译。
       # CI 不打包 NSIS（避免签名密钥缺失导致 Windows 构建失败），由 release.yml 负责产物签名发布。

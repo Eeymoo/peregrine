@@ -320,10 +320,8 @@ export default function ConfigApp() {
     );
   }
 
-  // 新格式（有 layers 无 crosshair）自动切到 layersMode，避免旧 UI 访问 null crosshair 崩溃。
-  const shouldUseLayersMode = !crosshair && hasLayers;
-  if (shouldUseLayersMode && !layersMode) {
-    setLayersMode(true);
+  // 新格式但 layersMode 还没切过去：显示加载中（仅一帧）。
+  if (!crosshair && hasLayers && !layersMode) {
     return (
       <div className="h-screen flex items-center justify-center text-muted-foreground">
         <span className="text-lg">加载中…</span>
@@ -331,8 +329,7 @@ export default function ConfigApp() {
     );
   }
 
-  // 旧 UI 路径需要 crosshair。新格式走 layersMode，已通过上面的早 return 过滤。
-  // 这里 crosshair 仍为 null 表示异常情况（既没有 layers 也没有 crosshair）。
+  // 异常情况（既没有 crosshair 又没有 layers）：显示错误。
   if (!crosshair && !layersMode) {
     return (
       <div className="h-screen flex flex-col items-center justify-center text-muted-foreground gap-4">

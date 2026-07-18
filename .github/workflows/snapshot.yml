@@ -65,8 +65,7 @@ jobs:
         run: npm ci
 
       # 同步版本号到 Cargo.toml / package.json / tauri.conf.json。
-      # 同时关闭 createUpdaterArtifacts 并清空 updater pubkey：PR 快照不签名也不
-      # 走自动更新，必须关闭该项，否则 Tauri 检测到 pubkey 后会强制要求私钥而失败。
+      # 关闭 createUpdaterArtifacts（避免签名要求），但保留 updater pubkey（插件 init 必需）。
       - name: Sync version & disable updater signing
         shell: bash
         env:
@@ -75,7 +74,7 @@ jobs:
           echo "Syncing version: $VERSION"
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
           node -e "const fs=require('fs');const p=require('./package.json');p.version='$VERSION';fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
-          node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';p.bundle.createUpdaterArtifacts=false;delete p.plugins.updater.pubkey;fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
+          node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';p.bundle.createUpdaterArtifacts=false;fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
 
       # PR 构建不签名（不设置 TAURI_SIGNING_PRIVATE_KEY），仅产出未签名 NSIS。
       - name: Build Tauri (NSIS, unsigned)

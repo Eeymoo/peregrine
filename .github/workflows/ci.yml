@@ -1,12 +1,12 @@
 name: CI
 
-# 每次 push 到 main/master 分支或提交 PR 时触发，
-# 验证 Windows + macOS + Linux 三平台编译与测试通过。
+# 每次 push 到 main/master/dev 分支或提交 PR 时触发，
+# 验证 Windows 平台编译与测试通过。
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, dev]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, dev]
 
 env:
   CARGO_TERM_COLOR: always

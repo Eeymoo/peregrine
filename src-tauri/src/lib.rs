@@ -126,8 +126,8 @@ pub struct AppState {
     pub config: Arc<Mutex<ConfigSnapshot>>,
     /// 向 overlay 管理线程发送命令。
     pub overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
-    /// 物料注册表（内置 + 用户物料）。
-    pub material_registry: Arc<MaterialRegistry>,
+    /// 物料注册表（内置 + 用户物料）。内部 Arc<RwLock>，可热重载。
+    pub material_registry: MaterialRegistry,
     /// 当前 UI 语言，用于后端错误提示国际化。
     pub locale: Mutex<String>,
     /// 标记是否由托盘「退出」主动触发，避免阻止真正的退出流程。
@@ -231,22 +231,21 @@ pub fn run() {
     let snapshot = notifier.subscribe().borrow().clone();
     let shared_config = Arc::new(Mutex::new(snapshot.clone()));
 
-    // 加载物料注册表（内置 + 用户）。
-    let mut material_registry = MaterialRegistry::new();
+    // 加载物料注册表（内置 + 用户）。registry 内部 Arc<RwLock<...>>，可 Clone。
+    let material_registry = MaterialRegistry::new();
     material_registry
         .load_builtin()
         .expect("load builtin materials");
-    if let Some(materials_dir) = peregrine_config::ConfigStorage::default_path()
+    let materials_dir = peregrine_config::ConfigStorage::default_path()
         .ok()
         .map(|p| {
             p.parent()
                 .unwrap_or(std::path::Path::new("."))
                 .join("materials")
-        })
-    {
-        let _ = material_registry.load_user(&materials_dir);
+        });
+    if let Some(ref materials_dir) = materials_dir {
+        let _ = material_registry.load_user(materials_dir);
     }
-    let material_registry = Arc::new(material_registry);
 
     // 启动 overlay 管理线程（独立的 winit 事件循环）。
     let (overlay_cmd_tx, overlay_cmd_rx) = mpsc::channel();
@@ -255,6 +254,17 @@ pub fn run() {
     std::thread::spawn(move || {
         overlay::run_overlay_loop(overlay_config, overlay_registry, overlay_cmd_rx);
     });
+
+    // 启动物料目录 watcher（热重载）。
+    // 监视 %APPDATA%/Peregrine/materials/ 目录变化，自动调用 registry.load_user()。
+    // 重载后通过 app.emit 广播 peregrine:materials-changed 事件。
+    if let Some(ref materials_dir) = materials_dir {
+        let watcher_registry = material_registry.clone();
+        let materials_dir_clone = materials_dir.clone();
+        tauri::async_runtime::spawn(async move {
+            spawn_material_watcher(watcher_registry, materials_dir_clone).await;
+        });
+    }
 
     // 启动 watcher 任务，把 notifier 变更同步到共享快照。
     let watcher_storage = storage.clone();
@@ -1523,4 +1533,92 @@ fn uuid_like_id() -> String {
             .unwrap_or(0),
         n
     )
+}
+
+/// 物料目录 watcher：监视 `%APPDATA%/Peregrine/materials/` 变化并热重载。
+///
+/// 重载策略：去抖 500ms 后调用 `registry.load_user(dir)`，
+/// registry 内部会先清空旧 user.* 物料再插入新物料。
+///
+/// 重载后通过 app.emit 广播 `peregrine:materials-changed` 事件（待 AppHandle 接入）。
+async fn spawn_material_watcher(
+    registry: MaterialRegistry,
+    materials_dir: std::path::PathBuf,
+) {
+    use notify::{Config as NotifyConfig, Event, RecommendedWatcher, RecursiveMode, Watcher};
+    use std::time::Duration;
+    use tokio::sync::mpsc;
+    use tokio::time::MissedTickBehavior;
+
+    // 确保目录存在（首次创建时不触发事件）。
+    if !materials_dir.exists() {
+        if let Err(e) = std::fs::create_dir_all(&materials_dir) {
+            tracing::warn!(dir = %materials_dir.display(), error = %e, "failed to create materials dir");
+            return;
+        }
+    }
+
+    let (tx, mut rx) = mpsc::channel::<notify::Result<Event>>(16);
+
+    // spawn_blocking 包装同步 watcher。
+    let dir_for_spawn = materials_dir.clone();
+    let mut watcher = match tokio::task::spawn_blocking(move || {
+        RecommendedWatcher::new(
+            move |res| {
+                let _ = tx.blocking_send(res);
+            },
+            NotifyConfig::default(),
+        )
+        .and_then(|w| {
+            w.watch(&dir_for_spawn, RecursiveMode::NonRecursive)
+                .map(|_| w)
+        })
+    })
+    .await
+    {
+        Ok(Ok(w)) => w,
+        Ok(Err(e)) => {
+            tracing::warn!(error = %e, "material watcher init failed");
+            return;
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "material watcher spawn failed");
+            return;
+        }
+    };
+
+    tracing::info!(dir = %materials_dir.display(), "material watcher started");
+
+    // 去抖定时器。
+    let mut debounce = tokio::time::interval(Duration::from_millis(500));
+    debounce.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    debounce.reset();
+    let mut pending = false;
+
+    loop {
+        tokio::select! {
+            Some(_) = rx.recv() => {
+                pending = true;
+                debounce.reset();
+            }
+            _ = debounce.tick() => {
+                if pending {
+                    pending = false;
+                    tracing::info!("reloading user materials...");
+                    if let Err(e) = registry.load_user(&materials_dir) {
+                        tracing::warn!(error = %e, "material reload failed");
+                    } else {
+                        tracing::info!(
+                            count = registry.len(),
+                            "user materials reloaded"
+                        );
+                        // 广播事件（AppHandle 通过 setup_hook 注入更优雅，此处简化）。
+                        // TODO: 接入 app.emit("peregrine:materials-changed", &())
+                    }
+                }
+            }
+        }
+    }
+    // watcher 离开作用域时自动停止。
+    let _ = watcher;
 }

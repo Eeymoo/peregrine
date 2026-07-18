@@ -6,7 +6,7 @@
 
 use crate::context::DynamicContext;
 use crate::error::{MaterialError, MaterialResult};
-use peregrine_config::{Element, Rect};
+use peregrine_config::{Element, Rect, SimpleRng};
 use rhai::{Dynamic, Engine, ImmutableString, Map, Scope, AST};
 
 /// 物料 id（如 `"builtin.cross"` 或 `"user.my_material"`）。
@@ -197,6 +197,8 @@ fn make_engine() -> Engine {
     let mut engine = Engine::new();
     engine.set_max_operations(MAX_OPERATIONS);
     engine.set_max_call_levels(MAX_CALL_LEVELS);
+    // 提高表达式深度限制，避免复杂物料（grid/random_orb 的嵌套算式）触发 ExprTooDeep。
+    engine.set_max_expr_depths(128, 128);
     engine
 }
 
@@ -562,34 +564,6 @@ fn merge_params(defaults: &serde_json::Value, overrides: &serde_json::Value) -> 
     }
 }
 
-/// 简单的线性同余 RNG（与 crates/peregrine/src/shapes.rs::SimpleRng 一致）。
-///
-/// 用于保证 random_orb 等物料的随机序列与旧实现完全一致。
-#[derive(Debug, Clone, Copy)]
-struct SimpleRng {
-    state: u64,
-}
-
-impl SimpleRng {
-    fn new(seed: u64) -> Self {
-        Self {
-            state: seed.max(1),
-        }
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        self.state = self
-            .state
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1);
-        self.state
-    }
-
-    fn next_f32(&mut self) -> f32 {
-        (self.next_u64() & 0x00FF_FFFF) as f32 / 0x0100_0000 as f32
-    }
-}
-
 /// 从 Rhai 源码顶部注释解析显示名称。
 ///
 /// 约定：第一行若为 `// Name: xxx`，则取 `xxx` 作为 display_name。
@@ -797,5 +771,190 @@ mod tests {
             assert_eq!(r1.next_f32(), r2.next_f32());
         }
         let _ = (ctx1, ctx2);
+    }
+
+    // ===== 内置物料批量加载/求值测试 =====
+
+    fn load_builtin(name: &str) -> Material {
+        let id = format!("builtin.{}", name);
+        let source = crate::BUILTIN_MATERIALS
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, s)| *s)
+            .unwrap_or_else(|| panic!("builtin material '{}' not found", name));
+        Material::load(id, source, true).expect("failed to load builtin material")
+    }
+
+    #[test]
+    fn all_builtin_materials_load() {
+        // 全部内置物料应能成功加载。
+        for (name, _) in crate::BUILTIN_MATERIALS {
+            let m = load_builtin(name);
+            assert!(!m.metadata().display_name.is_empty());
+            assert!(m.defaults().is_object());
+            assert!(m.schema().is_array());
+        }
+    }
+
+    #[test]
+    fn all_builtin_materials_evaluate_with_defaults() {
+        // 用默认参数求值，所有物料都应返回合法的 Element 列表（image 需要路径，单独测）。
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        for (name, _) in crate::BUILTIN_MATERIALS {
+            let m = load_builtin(name);
+            let params = m.defaults().clone();
+            let result = m.evaluate(&params, &screen, &ctx);
+            assert!(
+                result.is_ok(),
+                "material '{}' evaluation failed: {:?}",
+                name,
+                result.err()
+            );
+            let elements = result.unwrap();
+            // image 物料默认 path 为空，返回 0 个元素，是合法的。
+            if name != &"image" {
+                assert!(
+                    !elements.is_empty(),
+                    "material '{}' returned empty element list",
+                    name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn corner_dots_count_variants() {
+        // count: 4 → 4 个圆，count: 6 → 6 个，count: 8 → 8 个。
+        let m = load_builtin("corner_dots");
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+
+        for (count, expected) in [(4, 4), (6, 6), (8, 8)] {
+            let params = serde_json::json!({"count": count});
+            let elements = m.evaluate(&params, &screen, &ctx).unwrap();
+            assert_eq!(
+                elements.len(),
+                expected,
+                "corner_dots with count={} should return {} elements",
+                count,
+                expected
+            );
+            for e in &elements {
+                assert!(matches!(e, Element::Circle { .. }));
+            }
+        }
+    }
+
+    #[test]
+    fn ring_styles_produce_different_output() {
+        let m = load_builtin("ring");
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+
+        let solid = m
+            .evaluate(&serde_json::json!({"ring_style": "solid"}), &screen, &ctx)
+            .unwrap();
+        let dashed = m
+            .evaluate(&serde_json::json!({"ring_style": "dashed"}), &screen, &ctx)
+            .unwrap();
+        let double = m
+            .evaluate(&serde_json::json!({"ring_style": "double"}), &screen, &ctx)
+            .unwrap();
+
+        assert_eq!(solid.len(), 1);
+        assert_eq!(dashed.len(), 1);
+        assert_eq!(double.len(), 2); // 双环：实线 + 虚线
+    }
+
+    #[test]
+    fn border_frame_styles() {
+        let m = load_builtin("border_frame");
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+
+        let solid = m
+            .evaluate(&serde_json::json!({"frame_style": "solid"}), &screen, &ctx)
+            .unwrap();
+        let gap = m
+            .evaluate(&serde_json::json!({"frame_style": "gap"}), &screen, &ctx)
+            .unwrap();
+
+        // 实线边框：4 条矩形
+        assert_eq!(solid.len(), 4);
+        // gap 边框：上下左右各 2 段 = 8 条
+        assert_eq!(gap.len(), 8);
+    }
+
+    #[test]
+    fn edge_rect_anchors() {
+        let m = load_builtin("edge_rect");
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+
+        for anchor in ["top", "bottom", "left", "right", "center"] {
+            let params = serde_json::json!({"anchor": anchor, "size": 100.0, "secondary_size": 30.0});
+            let elements = m.evaluate(&params, &screen, &ctx).unwrap();
+            assert_eq!(elements.len(), 1, "anchor {} should produce 1 rect", anchor);
+        }
+    }
+
+    #[test]
+    fn random_orb_produces_correct_count() {
+        let m = load_builtin("random_orb");
+        let screen = test_rect();
+        let ctx = DynamicContext {
+            rng_seed: 42,
+            ..DynamicContext::default()
+        };
+
+        let params = serde_json::json!({"orb_count": 2});
+        let elements = m.evaluate(&params, &screen, &ctx).unwrap();
+        // 4 边 × 每边 2 个 = 8 个圆
+        assert_eq!(elements.len(), 8);
+    }
+
+    #[test]
+    fn grid_center_vs_edge() {
+        let m = load_builtin("grid");
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+
+        let center = m
+            .evaluate(
+                &serde_json::json!({"grid_size": 120.0, "alignment": "center"}),
+                &screen,
+                &ctx,
+            )
+            .unwrap();
+        let edge = m
+            .evaluate(
+                &serde_json::json!({"grid_size": 120.0, "alignment": "edge"}),
+                &screen,
+                &ctx,
+            )
+            .unwrap();
+
+        // edge 模式比 center 模式多 2 行 + 2 列（含边缘）。
+        assert!(edge.len() > center.len());
+    }
+
+    #[test]
+    fn image_material_returns_empty_when_no_path() {
+        let m = load_builtin("image");
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+
+        let empty_params = serde_json::json!({"path": ""});
+        let elements = m.evaluate(&empty_params, &screen, &ctx).unwrap();
+        assert!(elements.is_empty());
+
+        let with_path = serde_json::json!({"path": "/tmp/test.png", "width": 64.0, "height": 64.0});
+        let elements = m.evaluate(&with_path, &screen, &ctx).unwrap();
+        assert_eq!(elements.len(), 1);
+        match &elements[0] {
+            Element::Image { path, .. } => assert_eq!(path, "/tmp/test.png"),
+            _ => panic!("expected Image element"),
+        }
     }
 }

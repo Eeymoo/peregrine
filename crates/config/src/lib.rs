@@ -4,11 +4,13 @@
 //! 不包含任何 UI、GPU 或窗口平台代码。
 
 pub mod notifier;
+pub mod rng;
 pub mod schema;
 pub mod storage;
 pub mod watcher;
 
 pub use notifier::{ConfigNotifier, ConfigSnapshot};
+pub use rng::SimpleRng;
 pub use schema::{
     Anchor, AppConfig, AppSettings, BlendMode, BorderFrameStyle, Crosshair, CrosshairStyle,
     Element, GridAlignment, HotkeyAction, Layer, LayerStyle, MaterialRef, OrbPosition, Profile,

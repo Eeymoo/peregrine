@@ -6,6 +6,35 @@ Only stable releases are recorded here. For beta / prerelease versions, see **[C
 
 ---
 
+## [v0.1.15] — 2026-07-18
+
+Stable release. Added per-style crosshair defaults and one-click color reset; fixed window mode toggle and live drag preview issues; restructured documentation with full bilingual support.
+
+### Added
+
+- **Per-style default crosshair presets**: Each built-in crosshair style now provides out-of-the-box default parameters (size, thickness, offset, opacity, etc.) instead of sharing one global default, so switching styles no longer yields invisible or unusable crosshairs. (#8) @Eeymoo
+- **Quick color reset**: Added a "Reset" button next to the quick color presets title that restores the 5 default colors in one click. (#7) @Eeymoo
+
+### Fixed
+
+- Fixed window mode toggle being blocked when the overlay is active: switching window mode (fullscreen/windowed) while the overlay is running is now properly disabled in the tray menu, the backend command, and the frontend. (#9) @Eeymoo
+- Fixed "Live Drag Preview" not updating the crosshair position in real time during window dragging: the follower thread now requests a redraw immediately after repositioning the overlay. (#14) @Eeymoo
+
+### Docs
+
+- Restructured documentation site to English-first with full Simplified Chinese variants, including language switcher and bilingual README, HELP, contributing guide, and changelogs. @Eeymoo
+
+### Build
+
+- Added PR snapshot build workflow and opencode trigger workflow for automated CI. (#15) @Eeymoo
+
+### Download
+
+- Windows x86 / x86_64 / ARM64 NSIS installer (supports auto-update) available in Release Assets.
+- Windows x86 / x86_64 / ARM64 portable zip available in Release Assets.
+
+---
+
 ## [v0.1.9] — 2026-07-13
 
 Stable release. Added an SVG vector rendering backend, a Grid crosshair style, global hotkeys, and quick color presets; overlay anti-aliasing is now enabled by default.
@@ -254,6 +283,7 @@ First stable release. A desktop auxiliary sticker tool for alleviating 3D motion
 
 ---
 
+[v0.1.15]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.15
 [v0.1.9]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.9
 [v0.1.5]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.5
 [v0.1.4]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.4

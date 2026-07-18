@@ -748,13 +748,26 @@ fn execute_hotkey_action(app: &tauri::AppHandle, action: HotkeyAction) {
         }
         HotkeyAction::CycleColorNext | HotkeyAction::CycleColorPrev => {
             // 读取 quick_colors 和当前颜色，计算下一个/上一个。
+            // 兼容新旧格式：优先读 layers[0].style.color，fallback 到 crosshair.color。
             let (new_color, quick_colors, current_color) = {
                 let cfg = state.config.lock().expect("config lock");
                 let cfg = cfg.as_ref();
                 let qc = cfg.settings.quick_colors;
                 let active = cfg.active_profile();
                 let current = active
-                    .map(|p| p.crosshair.color)
+                    .and_then(|p| {
+                        if !p.layers.is_empty() {
+                            // 新格式：取第一个可见图层的颜色。
+                            p.layers
+                                .iter()
+                                .find(|l| l.visible)
+                                .or_else(|| p.layers.first())
+                                .map(|l| l.style.color)
+                        } else {
+                            // 旧格式 fallback。
+                            p.crosshair.as_ref().map(|c| c.color)
+                        }
+                    })
                     .unwrap_or([1.0, 1.0, 1.0, 1.0]);
                 let idx = qc
                     .iter()
@@ -808,6 +821,10 @@ fn execute_hotkey_action(app: &tauri::AppHandle, action: HotkeyAction) {
 }
 
 /// set_crosshair_color 的内部逻辑，供 command 和快捷键共用。
+///
+/// 兼容新旧格式：
+/// - 新格式：更新 layers[0] 的 style.color（若 layers 非空）。
+/// - 旧格式：更新 crosshair.color（若 crosshair 存在）。
 async fn set_crosshair_color_inner(
     state: State<'_, AppState>,
     color: Vec<f32>,
@@ -820,7 +837,21 @@ async fn set_crosshair_color_inner(
         guard.as_ref().clone()
     };
     if let Some(profile) = config.active_profile_mut() {
-        profile.crosshair.color = [color[0], color[1], color[2], color[3]];
+        let color_arr = [color[0], color[1], color[2], color[3]];
+        if !profile.layers.is_empty() {
+            // 新格式：更新第一个可见图层的颜色。
+            let target_layer = profile
+                .layers
+                .iter_mut()
+                .find(|l| l.visible)
+                .or_else(|| profile.layers.first_mut());
+            if let Some(layer) = target_layer {
+                layer.style.color = color_arr;
+            }
+        } else if let Some(ref mut crosshair) = profile.crosshair {
+            // 旧格式 fallback。
+            crosshair.color = color_arr;
+        }
     }
     config.validate().map_err(|e| e.to_string())?;
     state
@@ -1311,6 +1342,7 @@ struct LayerPatch {
 /// 在当前激活 Profile 末尾添加图层（参数取物料 defaults）。
 #[tauri::command]
 async fn add_layer(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     material_id: String,
     name: String,
@@ -1351,6 +1383,7 @@ async fn add_layer(
         profile.layers.push(layer.clone());
     }
     persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
 
     let _ = state
         .overlay_cmd_tx
@@ -1360,7 +1393,11 @@ async fn add_layer(
 
 /// 删除指定 id 的图层。
 #[tauri::command]
-async fn remove_layer(state: State<'_, AppState>, layer_id: String) -> Result<(), String> {
+async fn remove_layer(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    layer_id: String,
+) -> Result<(), String> {
     let mut config = {
         let guard = state.config.lock().map_err(|e| e.to_string())?;
         guard.as_ref().clone()
@@ -1373,6 +1410,7 @@ async fn remove_layer(state: State<'_, AppState>, layer_id: String) -> Result<()
         }
     }
     persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
     let _ = state
         .overlay_cmd_tx
         .send(overlay::OverlayCommand::UpdateConfig(Arc::new(config)));
@@ -1382,6 +1420,7 @@ async fn remove_layer(state: State<'_, AppState>, layer_id: String) -> Result<()
 /// 调整图层顺序（new_index 是目标位置）。
 #[tauri::command]
 async fn move_layer(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     layer_id: String,
     new_index: usize,
@@ -1407,6 +1446,7 @@ async fn move_layer(
         profile.layers.insert(new_index, layer);
     }
     persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
     let _ = state
         .overlay_cmd_tx
         .send(overlay::OverlayCommand::UpdateConfig(Arc::new(config)));
@@ -1415,7 +1455,11 @@ async fn move_layer(
 
 /// 复制图层（生成新 id）。
 #[tauri::command]
-async fn duplicate_layer(state: State<'_, AppState>, layer_id: String) -> Result<Layer, String> {
+async fn duplicate_layer(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    layer_id: String,
+) -> Result<Layer, String> {
     let mut config = {
         let guard = state.config.lock().map_err(|e| e.to_string())?;
         guard.as_ref().clone()
@@ -1434,6 +1478,7 @@ async fn duplicate_layer(state: State<'_, AppState>, layer_id: String) -> Result
         new_layer = Some(copy);
     }
     persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
     let _ = state
         .overlay_cmd_tx
         .send(overlay::OverlayCommand::UpdateConfig(Arc::new(config)));
@@ -1443,6 +1488,7 @@ async fn duplicate_layer(state: State<'_, AppState>, layer_id: String) -> Result
 /// 批量更新图层字段。
 #[tauri::command]
 async fn update_layer(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     layer_id: String,
     patch: LayerPatch,
@@ -1484,6 +1530,7 @@ async fn update_layer(
         }
     }
     persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
     let _ = state
         .overlay_cmd_tx
         .send(overlay::OverlayCommand::UpdateConfig(Arc::new(config)));
@@ -1501,6 +1548,9 @@ fn list_layers(state: State<AppState>) -> Result<Vec<Layer>, String> {
 }
 
 /// 持久化配置并广播变更（图层操作共用）。
+/// 持久化配置并广播变更（图层操作共用）。
+///
+/// 同时 emit `peregrine:layers-changed` 事件通知前端刷新。
 async fn persist_and_broadcast(
     state: &State<'_, AppState>,
     config: &peregrine_config::AppConfig,
@@ -1518,6 +1568,16 @@ async fn persist_and_broadcast(
     let snapshot: ConfigSnapshot = Arc::new(config.clone());
     *state.config.lock().map_err(|e| e.to_string())? = snapshot;
     Ok(())
+}
+
+/// 通知前端图层已变化。
+///
+/// 前端监听此事件后调用 `list_layers` 重新拉取图层列表。
+fn emit_layers_changed(app: &tauri::AppHandle) {
+    use tauri::Emitter;
+    if let Err(e) = app.emit("peregrine:layers-changed", ()) {
+        tracing::warn!(error = %e, "failed to emit layers-changed event");
+    }
 }
 
 /// 生成简单的唯一 id（时间戳 + 计数器）。

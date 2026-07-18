@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Layer, MaterialInfo } from "@/types/config";
 import { listLayers, listMaterials } from "@/lib/api";
+import { listen } from "@tauri-apps/api/event";
 import { Preview } from "@/components/Preview";
 import {
   LayerPanel,
@@ -45,6 +46,20 @@ export function LayersEditor() {
   useEffect(() => {
     refresh();
   }, [refresh, refreshKey]);
+
+  // 监听 backend 的 peregrine:layers-changed 事件，自动刷新。
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen("peregrine:layers-changed", () => {
+      refresh();
+      setRefreshKey((n) => n + 1);
+    }).then((un) => {
+      unlisten = un;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [refresh]);
 
   // 触发 Preview 重新计算（图层数据变化时调用）。
   const triggerPreviewRefresh = () => setRefreshKey((n) => n + 1);

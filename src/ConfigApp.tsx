@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Preview } from "@/components/Preview";
 import { StyleFields } from "@/components/StyleFields";
+import { LayersEditor } from "@/components/LayersEditor";
 import { useI18n } from "@/lib/i18n";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
@@ -62,6 +63,8 @@ export default function ConfigApp() {
   const [rememberChoice, setRememberChoice] = useState(false);
   const [version, setVersion] = useState("");
   const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body?: string } | null>(null);
+  // 四层架构：切换"图层编辑器"模式。
+  const [layersMode, setLayersMode] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateProgress, setUpdateProgress] = useState(0);
 
@@ -289,12 +292,42 @@ export default function ConfigApp() {
     );
   }
 
+  // 图层编辑器模式：显示全新 UI。
+  if (layersMode) {
+    return (
+      <div className="h-screen flex flex-col bg-background text-foreground">
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-card">
+          <div className="text-sm font-semibold">
+            {t("app.title")} — {t("layers.editorTitle")}
+          </div>
+          <button
+            onClick={() => setLayersMode(false)}
+            className="text-xs px-3 py-1 border rounded hover:bg-accent"
+          >
+            ← {t("layers.backToLegacy")}
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <LayersEditor />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex bg-background text-foreground overflow-hidden">
       {/* 左侧预览 */}
-      <div className="flex-1 p-4 min-w-0">
+      <div className="flex-1 p-4 min-w-0 relative">
         {/* TODO(Step 18): 改为传入 layers 作为 previewKey */}
         <Preview previewKey={crosshair} />
+        {/* 切换到图层编辑器按钮 */}
+        <button
+          onClick={() => setLayersMode(true)}
+          className="absolute top-6 right-6 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90 z-10"
+          title={t("layers.switchToLayers")}
+        >
+          {t("layers.switchToLayers")} →
+        </button>
       </div>
 
       {/* 右侧设置面板：固定顶部与底部，中间样式配置自适应 */}

@@ -1601,10 +1601,7 @@ fn uuid_like_id() -> String {
 /// registry 内部会先清空旧 user.* 物料再插入新物料。
 ///
 /// 重载后通过 app.emit 广播 `peregrine:materials-changed` 事件（待 AppHandle 接入）。
-async fn spawn_material_watcher(
-    registry: MaterialRegistry,
-    materials_dir: std::path::PathBuf,
-) {
+async fn spawn_material_watcher(registry: MaterialRegistry, materials_dir: std::path::PathBuf) {
     use notify::{Config as NotifyConfig, Event, RecommendedWatcher, RecursiveMode, Watcher};
     use std::time::Duration;
     use tokio::sync::mpsc;

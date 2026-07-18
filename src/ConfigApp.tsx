@@ -84,20 +84,7 @@ export default function ConfigApp() {
     getAppVersion().then(setVersion).catch(() => {});
     getOverlayActive().then(setOverlayActive).catch(() => {});
 
-    // 点击版本号 3 次（连续，间隔 < 1.5s）解锁开发者 tab。
-  // 解锁状态写入 localStorage，下次启动仍然有效；可在开发者 tab 里关闭。
-  useEffect(() => {
-    if (versionClickCount === 0) return;
-    const timer = setTimeout(() => setVersionClickCount(0), 1500);
-    if (versionClickCount >= 3) {
-      setVersionClickCount(0);
-      setDevTabUnlocked(true);
-      localStorage.setItem("peregrine:dev-tab", "1");
-    }
-    return () => clearTimeout(timer);
-  }, [versionClickCount]);
-
-  // 启动时自动检测更新（静默，发现新版本才弹窗）。延迟 3 秒避免抢焦点。
+    // 启动时自动检测更新（静默，发现新版本才弹窗）。延迟 3 秒避免抢焦点。
     const autoCheck = async () => {
       try {
         await new Promise((r) => setTimeout(r, 3000));
@@ -113,6 +100,19 @@ export default function ConfigApp() {
     };
     autoCheck();
   }, []);
+
+  // 点击版本号 3 次（连续，间隔 < 1.5s）解锁开发者 tab。
+  // 解锁状态写入 localStorage，下次启动仍然有效；可在开发者 tab 里关闭。
+  useEffect(() => {
+    if (versionClickCount === 0) return;
+    const timer = setTimeout(() => setVersionClickCount(0), 1500);
+    if (versionClickCount >= 3) {
+      setVersionClickCount(0);
+      setDevTabUnlocked(true);
+      localStorage.setItem("peregrine:dev-tab", "1");
+    }
+    return () => clearTimeout(timer);
+  }, [versionClickCount]);
 
   /** 监听后端 settings 变更（来自托盘或设置窗口），同步 React state。 */
   useEffect(() => {

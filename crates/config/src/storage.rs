@@ -2,7 +2,7 @@
 //!
 //! 配置文件存放于 OS 标准配置目录下的 `Peregrine/config.json`。
 
-use crate::schema::{AppConfig, MaterialRef};
+use crate::schema::AppConfig;
 use std::path::{Path, PathBuf};
 
 /// 配置文件读写器。

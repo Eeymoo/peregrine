@@ -189,6 +189,56 @@ fn build_svg(rect: &RectF, crosshair: &Crosshair, scale: f32) -> String {
                     op = alpha,
                 ));
             }
+            Shape::Polygon { points } => {
+                let pts: Vec<String> = points
+                    .iter()
+                    .map(|p| format!("{},{}", p[0] * scale, p[1] * scale))
+                    .collect();
+                svg.push_str(&format!(
+                    r#"<polygon points="{pts}" fill="{fill}" opacity="{op}"/>"#,
+                    pts = pts.join(" "),
+                    fill = fill,
+                    op = alpha,
+                ));
+            }
+            Shape::Line {
+                x1,
+                y1,
+                x2,
+                y2,
+                thickness,
+            } => {
+                svg.push_str(&format!(
+                    r#"<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{stroke}" stroke-width="{sw}" stroke-linecap="round" opacity="{op}"/>"#,
+                    x1 = *x1 * scale,
+                    y1 = *y1 * scale,
+                    x2 = *x2 * scale,
+                    y2 = *y2 * scale,
+                    stroke = stroke,
+                    sw = *thickness * scale,
+                    op = alpha,
+                ));
+            }
+            Shape::Text {
+                x,
+                y,
+                content,
+                font_size,
+            } => {
+                svg.push_str(&format!(
+                    r#"<text x="{x}" y="{y}" font-size="{fs}" fill="{fill}" opacity="{op}">{c}</text>"#,
+                    x = *x * scale,
+                    y = *y * scale,
+                    fs = *font_size * scale,
+                    fill = fill,
+                    op = alpha,
+                    c = content.replace('<', "&lt;").replace('>', "&gt;"),
+                ));
+            }
+            Shape::Image { x, y, w, h, path } => {
+                // SVG 嵌入图片引用（实际渲染由上层单独处理）。
+                let _ = (x, y, w, h, path);
+            }
         }
     }
 

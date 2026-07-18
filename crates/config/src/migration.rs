@@ -6,7 +6,7 @@
 
 use crate::schema::{
     Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, GridAlignment, Layer, LayerStyle,
-    MaterialRef, OrbPosition, Profile, RandomOrbMode, RingStyle, Transform2D,
+    MaterialRef, RandomOrbMode, RingStyle, Transform2D,
 };
 use serde_json::{json, Map, Value};
 

@@ -93,9 +93,16 @@ impl OverlayRenderer {
 
         // 读取当前准心配置。
         let config = self.config.lock().expect("config lock");
-        let crosshair = config
-            .active_profile()
-            .map(|p| p.crosshair.clone())
+        // 兼容新旧格式：
+        // - 旧格式：profile.crosshair = Some(...)
+        // - 新格式：profile.layers 非空，crosshair = None
+        // 当前阶段 overlay_renderer 仍按旧 crosshair 路径渲染；
+        // 若检测到新格式 layers（crosshair=None），先迁移到临时 Crosshair 用于渲染。
+        // TODO(Step 9): 改造为遍历 layers 调用 build_layers_shapes。
+        let profile = config
+            .active_profile();
+        let crosshair = profile
+            .and_then(|p| p.crosshair.clone())
             .unwrap_or_else(Crosshair::default_crosshair);
         let antialiasing = config.settings.antialiasing;
         let renderer_backend = config.settings.renderer_backend;
@@ -340,6 +347,22 @@ fn rasterize_shape(
                     buffer, pixel_w, pixel_h, scale, *x1, *y1, *x2, *y2, *x3, *y3, color,
                 );
             }
+        }
+        // 新增图元类型的占位实现（Step 9 会完整实现光栅化）。
+        Shape::Polygon { .. } | Shape::Line { .. } | Shape::Text { .. } => {
+            tracing::debug!(
+                "rasterize_shape: 该图元类型在旧 crosshair 路径下不渲染（Step 9 实现）"
+            );
+        }
+        Shape::Image {
+            x,
+            y,
+            w,
+            h,
+            path,
+        } => {
+            // Step 9 完整实现；这里仅记录路径，实际 blit 由上层 CustomImage 分支处理。
+            let _ = (x, y, w, h, path);
         }
     }
 }

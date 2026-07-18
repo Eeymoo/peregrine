@@ -12,12 +12,15 @@ path = "src/lib.rs"
 
 [dependencies]
 peregrine_config = { path = "../config" }
+peregrine_material = { path = "../material" }
 winit = { workspace = true }
 softbuffer = { workspace = true }
 png = { workspace = true }
 resvg = { workspace = true }
 usvg = { workspace = true }
 tiny-skia = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }

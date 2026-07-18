@@ -1,20 +1,20 @@
 //! 准心几何计算共享模块。
 //!
-//! 预览（React Canvas）与覆盖层（softbuffer）使用同一套几何公式，
-//! 确保用户所见即所得：预览中准心的大小、位置与最终 overlay 完全一致。
+//! 提供两套几何计算入口：
+//! - [`build_shapes`]：旧格式，按 `Crosshair.style` 分支生成图元（保留供回归对照）。
+//! - [`build_layers_shapes`]：新格式，遍历 `Profile.layers` 调用物料求值。
 //!
-//! 使用方式：
-//! 1. 调用 [`build_shapes`] 得到一组 [`Shape`]（矩形、圆、圆环等）；
-//! 2. 前端预览用 Canvas 2D 绘制；overlay 用 CPU 像素光栅化绘制。
-//! 3. 两者输入相同（`RectF` + `Crosshair`），输出形状完全一致。
+//! 预览（React Canvas）与覆盖层（softbuffer）使用同一套几何公式，
+//! 确保用户所见即所得。
 
 use peregrine_config::{
-    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, GridAlignment, OrbPosition, RingStyle,
+    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, Element, GridAlignment, Layer, OrbPosition, Profile, Rect, RingStyle, Transform2D,
 };
+use peregrine_material::{DynamicContext, MaterialRegistry};
 
 // ===== 对外类型 =====
 
-/// 逻辑坐标矩形区域。
+/// 逻辑坐标矩形区域（保留向后兼容；新代码应直接使用 `peregrine_config::Rect`）。
 #[derive(Debug, Clone, Copy)]
 pub struct RectF {
     pub min_x: f32,
@@ -38,39 +38,31 @@ impl RectF {
     }
 }
 
-/// 一条带颜色的几何图元，预览与覆盖层共用。
-#[derive(Debug, Clone, Copy)]
-pub enum Shape {
-    /// 填充矩形（逻辑坐标）。
-    Rect { x: f32, y: f32, w: f32, h: f32 },
-    /// 填充圆（逻辑坐标）。
-    Circle { cx: f32, cy: f32, radius: f32 },
-    /// 圆环描边。
-    CircleStroke {
-        cx: f32,
-        cy: f32,
-        radius: f32,
-        thickness: f32,
-    },
-    /// 虚线圆环。
-    DashedCircle {
-        cx: f32,
-        cy: f32,
-        radius: f32,
-        thickness: f32,
-        dash_len: f32,
-        gap_len: f32,
-    },
-    /// 填充三角形（3 个顶点，逻辑坐标）。
-    Triangle {
-        x1: f32,
-        y1: f32,
-        x2: f32,
-        y2: f32,
-        x3: f32,
-        y3: f32,
-    },
+impl From<RectF> for Rect {
+    fn from(r: RectF) -> Self {
+        Rect {
+            min_x: r.min_x,
+            min_y: r.min_y,
+            max_x: r.max_x,
+            max_y: r.max_y,
+        }
+    }
 }
+
+impl From<&RectF> for Rect {
+    fn from(r: &RectF) -> Self {
+        Rect {
+            min_x: r.min_x,
+            min_y: r.min_y,
+            max_x: r.max_x,
+            max_y: r.max_y,
+        }
+    }
+}
+
+/// 图元类型别名：保留 `Shape` 名字以兼容 `overlay_renderer.rs` 现有代码，
+/// 内部直接等同于 `peregrine_config::Element`。
+pub type Shape = Element;
 
 /// 根据准心配置与绘制区域，生成一组图元。
 ///
@@ -741,5 +733,440 @@ impl SimpleRng {
 
     pub fn next_f32(&mut self) -> f32 {
         (self.next_u64() & 0x00FF_FFFF) as f32 / 0x0100_0000 as f32
+    }
+}
+
+// ===== 新格式：基于图层 + 物料求值 =====
+
+/// 遍历 Profile 的所有图层，调用物料求值并应用变换 / 样式，返回扁平化的图元列表。
+///
+/// 单个图层求值失败时记录 warn 并跳过，不阻塞整体渲染。
+///
+/// 参数：
+/// - `screen`：屏幕区域（逻辑坐标）
+/// - `profile`：包含 layers 的 Profile
+/// - `registry`：物料注册表
+/// - `ctx`：动态输入上下文（时间 / 鼠标 / 键盘 / 随机数）
+pub fn build_layers_shapes(
+    screen: &RectF,
+    profile: &Profile,
+    registry: &MaterialRegistry,
+    ctx: &DynamicContext,
+) -> Vec<(Element, [f32; 4], f32)> {
+    let mut out = Vec::new();
+    let screen_rect: Rect = screen.into();
+
+    for (idx, layer) in profile.layers.iter().enumerate() {
+        if !layer.visible {
+            continue;
+        }
+
+        let elements = match evaluate_layer(&layer, &screen_rect, registry, ctx) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(
+                    layer_idx = idx,
+                    layer_id = %layer.id,
+                    material = ?layer.material,
+                    error = %e,
+                    "layer evaluation failed, skipping"
+                );
+                continue;
+            }
+        };
+
+        for element in elements {
+            let transformed = apply_transform(element, &layer.transform, &screen_rect);
+            out.push((transformed, layer.style.color, layer.style.opacity));
+        }
+    }
+
+    out
+}
+
+/// 求值单个图层（调用物料脚本）。
+fn evaluate_layer(
+    layer: &Layer,
+    screen: &Rect,
+    registry: &MaterialRegistry,
+    ctx: &DynamicContext,
+) -> Result<Vec<Element>, String> {
+    let material_id = layer.material.material_id();
+    let material = registry.get(material_id).ok_or_else(|| {
+        format!("material '{}' not found in registry", material_id)
+    })?;
+
+    // 合并物料默认参数与图层参数。
+    let defaults = material.defaults().clone();
+    let merged = merge_json(&defaults, &layer.params);
+
+    material
+        .evaluate(&merged, screen, ctx)
+        .map_err(|e| e.to_string())
+}
+
+/// 把图元应用图层的几何变换（平移 / 缩放 / 旋转）。
+fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> Element {
+    if (transform.offset_x == 0.0 && transform.offset_y == 0.0)
+        && transform.scale == 1.0
+        && transform.rotation_deg == 0.0
+    {
+        return element;
+    }
+
+    let cx = screen.center_x();
+    let cy = screen.center_y();
+    let cos = transform.rotation_deg.to_radians().cos();
+    let sin = transform.rotation_deg.to_radians().sin();
+
+    // 变换一个点的坐标：相对屏幕中心缩放/旋转 + 平移。
+    let transform_point = |x: f32, y: f32| -> (f32, f32) {
+        let dx = (x - cx) * transform.scale;
+        let dy = (y - cy) * transform.scale;
+        let rx = dx * cos - dy * sin + cx + transform.offset_x;
+        let ry = dx * sin + dy * cos + cy + transform.offset_y;
+        (rx, ry)
+    };
+
+    match element {
+        Element::Rect { x, y, w, h } => {
+            // 简化：仅平移 + 缩放（不旋转矩形）。
+            Element::Rect {
+                x: x + transform.offset_x,
+                y: y + transform.offset_y,
+                w: w * transform.scale,
+                h: h * transform.scale,
+            }
+        }
+        Element::Circle { cx, cy, radius } => {
+            let (tx, ty) = transform_point(cx, cy);
+            Element::Circle {
+                cx: tx,
+                cy: ty,
+                radius: radius * transform.scale,
+            }
+        }
+        Element::CircleStroke {
+            cx,
+            cy,
+            radius,
+            thickness,
+        } => {
+            let (tx, ty) = transform_point(cx, cy);
+            Element::CircleStroke {
+                cx: tx,
+                cy: ty,
+                radius: radius * transform.scale,
+                thickness,
+            }
+        }
+        Element::DashedCircle {
+            cx,
+            cy,
+            radius,
+            thickness,
+            dash_len,
+            gap_len,
+        } => {
+            let (tx, ty) = transform_point(cx, cy);
+            Element::DashedCircle {
+                cx: tx,
+                cy: ty,
+                radius: radius * transform.scale,
+                thickness,
+                dash_len,
+                gap_len,
+            }
+        }
+        Element::Triangle {
+            x1,
+            y1,
+            x2,
+            y2,
+            x3,
+            y3,
+        } => {
+            let (tx1, ty1) = transform_point(x1, y1);
+            let (tx2, ty2) = transform_point(x2, y2);
+            let (tx3, ty3) = transform_point(x3, y3);
+            Element::Triangle {
+                x1: tx1,
+                y1: ty1,
+                x2: tx2,
+                y2: ty2,
+                x3: tx3,
+                y3: ty3,
+            }
+        }
+        Element::Polygon { points } => Element::Polygon {
+            points: points
+                .into_iter()
+                .map(|[x, y]| {
+                    let (tx, ty) = transform_point(x, y);
+                    [tx, ty]
+                })
+                .collect(),
+        },
+        Element::Line {
+            x1,
+            y1,
+            x2,
+            y2,
+            thickness,
+        } => {
+            let (tx1, ty1) = transform_point(x1, y1);
+            let (tx2, ty2) = transform_point(x2, y2);
+            Element::Line {
+                x1: tx1,
+                y1: ty1,
+                x2: tx2,
+                y2: ty2,
+                thickness,
+            }
+        }
+        Element::Text {
+            x,
+            y,
+            content,
+            font_size,
+        } => {
+            let (tx, ty) = transform_point(x, y);
+            Element::Text {
+                x: tx,
+                y: ty,
+                content,
+                font_size: font_size * transform.scale,
+            }
+        }
+        Element::Image {
+            path,
+            x,
+            y,
+            w,
+            h,
+        } => Element::Image {
+            path,
+            x: x + transform.offset_x,
+            y: y + transform.offset_y,
+            w: w * transform.scale,
+            h: h * transform.scale,
+        },
+    }
+}
+
+/// 合并两个 JSON 对象（overrides 优先，浅合并）。
+fn merge_json(
+    defaults: &serde_json::Value,
+    overrides: &serde_json::Value,
+) -> serde_json::Value {
+    match (defaults, overrides) {
+        (serde_json::Value::Object(d), serde_json::Value::Object(o)) => {
+            let mut merged = d.clone();
+            for (k, v) in o {
+                merged.insert(k.clone(), v.clone());
+            }
+            serde_json::Value::Object(merged)
+        }
+        (_, o @ serde_json::Value::Object(_)) => o.clone(),
+        (d, _) => d.clone(),
+    }
+}
+
+#[cfg(test)]
+mod layer_tests {
+    use super::*;
+    use peregrine_material::MaterialRegistry;
+
+    fn load_registry() -> MaterialRegistry {
+        let mut r = MaterialRegistry::new();
+        r.load_builtin().expect("load builtin materials");
+        r
+    }
+
+    fn test_screen() -> RectF {
+        RectF {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        }
+    }
+
+    #[test]
+    fn build_layers_shapes_with_cross_material() {
+        let registry = load_registry();
+        let mut profile = Profile::default_profile();
+        profile.layers.clear();
+        profile.layers.push(Layer {
+            id: "test-cross".into(),
+            name: "中心十字".into(),
+            material: peregrine_config::MaterialRef::Builtin {
+                id: "builtin.cross".into(),
+            },
+            params: serde_json::json!({"size": 50.0, "thickness": 3.0, "gap": 6.0}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        });
+
+        let screen = test_screen();
+        let ctx = DynamicContext::static_context();
+        let shapes = build_layers_shapes(&screen, &profile, &registry, &ctx);
+        // cross 物料应返回 4 个矩形。
+        assert_eq!(shapes.len(), 4);
+        for (element, _, _) in &shapes {
+            assert!(matches!(element, Element::Rect { .. }));
+        }
+    }
+
+    #[test]
+    fn build_layers_skips_invisible_layer() {
+        let registry = load_registry();
+        let mut profile = Profile::default_profile();
+        profile.layers.clear();
+        profile.layers.push(Layer {
+            id: "hidden".into(),
+            name: "隐藏层".into(),
+            material: peregrine_config::MaterialRef::Builtin {
+                id: "builtin.cross".into(),
+            },
+            params: serde_json::json!({}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: false,
+            locked: false,
+        });
+
+        let screen = test_screen();
+        let ctx = DynamicContext::static_context();
+        let shapes = build_layers_shapes(&screen, &profile, &registry, &ctx);
+        assert_eq!(shapes.len(), 0);
+    }
+
+    #[test]
+    fn build_layers_multiple_layers_overlay() {
+        let registry = load_registry();
+        let mut profile = Profile::default_profile();
+        profile.layers.clear();
+        // 第一层：cross
+        profile.layers.push(Layer {
+            id: "l1".into(),
+            name: "十字".into(),
+            material: peregrine_config::MaterialRef::Builtin {
+                id: "builtin.cross".into(),
+            },
+            params: serde_json::json!({}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        });
+        // 第二层：corner_dots
+        profile.layers.push(Layer {
+            id: "l2".into(),
+            name: "定位球".into(),
+            material: peregrine_config::MaterialRef::Builtin {
+                id: "builtin.corner_dots".into(),
+            },
+            params: serde_json::json!({"count": 4}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        });
+
+        let screen = test_screen();
+        let ctx = DynamicContext::static_context();
+        let shapes = build_layers_shapes(&screen, &profile, &registry, &ctx);
+        // cross 4 + corner_dots 4 = 8 个元素。
+        assert_eq!(shapes.len(), 8);
+    }
+
+    #[test]
+    fn apply_transform_offset_only() {
+        let element = Element::Circle {
+            cx: 100.0,
+            cy: 100.0,
+            radius: 50.0,
+        };
+        let transform = Transform2D {
+            offset_x: 50.0,
+            offset_y: 25.0,
+            scale: 1.0,
+            rotation_deg: 0.0,
+        };
+        let screen = Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        };
+        let result = apply_transform(element, &transform, &screen);
+        match result {
+            Element::Circle { cx, cy, radius } => {
+                assert_eq!(cx, 150.0);
+                assert_eq!(cy, 125.0);
+                assert_eq!(radius, 50.0);
+            }
+            _ => panic!("expected Circle"),
+        }
+    }
+
+    #[test]
+    fn apply_transform_scale() {
+        let element = Element::Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 100.0,
+            h: 50.0,
+        };
+        let transform = Transform2D {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            scale: 2.0,
+            rotation_deg: 0.0,
+        };
+        let screen = Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        };
+        let result = apply_transform(element, &transform, &screen);
+        match result {
+            Element::Rect { x, y, w, h } => {
+                assert_eq!(x, 0.0);
+                assert_eq!(y, 0.0);
+                assert_eq!(w, 200.0);
+                assert_eq!(h, 100.0);
+            }
+            _ => panic!("expected Rect"),
+        }
+    }
+
+    #[test]
+    fn build_layers_skips_missing_material() {
+        let registry = load_registry();
+        let mut profile = Profile::default_profile();
+        profile.layers.clear();
+        profile.layers.push(Layer {
+            id: "missing".into(),
+            name: "不存在的物料".into(),
+            material: peregrine_config::MaterialRef::Builtin {
+                id: "builtin.does_not_exist".into(),
+            },
+            params: serde_json::json!({}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        });
+
+        let screen = test_screen();
+        let ctx = DynamicContext::static_context();
+        let shapes = build_layers_shapes(&screen, &profile, &registry, &ctx);
+        // 物料不存在时应跳过，返回空列表（不 panic）。
+        assert_eq!(shapes.len(), 0);
     }
 }

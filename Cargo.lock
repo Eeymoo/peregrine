@@ -3148,8 +3148,11 @@ name = "peregrine"
 version = "0.1.15"
 dependencies = [
  "peregrine_config",
+ "peregrine_material",
  "png 0.17.16",
  "resvg",
+ "serde",
+ "serde_json",
  "softbuffer",
  "thiserror 2.0.18",
  "tiny-skia",

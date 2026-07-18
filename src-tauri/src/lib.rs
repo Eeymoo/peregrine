@@ -223,13 +223,14 @@ where
 /// 启动 Tauri 应用。
 pub fn run() {
     init_logging();
+    tracing::info!("peregrine starting up");
 
     // 配置加载失败时也允许启动（用默认配置），让用户能进入设置排查。
     let storage = ConfigStorage::with_default_path().unwrap_or_else(|e| {
         tracing::error!(error = %e, "failed to locate config storage");
-        // 用一个相对路径兜底（保存可能失败，但应用能启动）。
         ConfigStorage::new(std::path::PathBuf::from("peregrine-config.json"))
     });
+    tracing::info!(path = ?storage.path(), "config storage");
     let config = tauri::async_runtime::block_on(storage.load_or_create_default())
         .unwrap_or_else(|e| {
             tracing::error!(error = %e, "failed to load config; using default");
@@ -268,13 +269,9 @@ pub fn run() {
     // 监视 %APPDATA%/Peregrine/materials/ 目录变化，自动调用 registry.load_user()。
     // 重载后通过 app.emit 广播 peregrine:materials-changed 事件。
     // 失败时仅记录 warn，不影响应用启动。
-    if let Some(ref materials_dir) = materials_dir {
-        let watcher_registry = material_registry.clone();
-        let materials_dir_clone = materials_dir.clone();
-        tauri::async_runtime::spawn(async move {
-            spawn_material_watcher(watcher_registry, materials_dir_clone).await;
-        });
-    }
+    // 注意：延迟到 tauri setup 钩子里 spawn，避免在 tokio runtime 启动前 spawn 导致任务丢失。
+    let materials_dir_for_setup = materials_dir.clone();
+    let registry_for_setup = material_registry.clone();
     // 启动 watcher 任务，把 notifier 变更同步到共享快照。
     let watcher_storage = storage.clone();
     let watcher_notifier = notifier.clone();
@@ -358,6 +355,17 @@ pub fn run() {
             }
         })
         .setup(move |app| {
+            tracing::info!("tauri setup hook entered");
+
+            // 在 setup 钩子里启动 material watcher（此时 tokio runtime 已就绪）。
+            if let Some(ref materials_dir) = materials_dir_for_setup {
+                let watcher_registry = registry_for_setup.clone();
+                let materials_dir_clone = materials_dir.clone();
+                tauri::async_runtime::spawn(async move {
+                    spawn_material_watcher(watcher_registry, materials_dir_clone).await;
+                });
+            }
+
             // 根据 locale 初始化托盘菜单文本。
             let locale = BackendLocale::from_str(&initial_locale);
             let config_label = tr(locale, "tray.config");
@@ -524,7 +532,10 @@ pub fn run() {
             list_layers,
         ])
         .build(tauri::generate_context!())
-        .expect("build tauri app")
+        .unwrap_or_else(|e| {
+            tracing::error!(error = ?e, "failed to build tauri app");
+            panic!("failed to build tauri app: {}", e);
+        })
         .run(|_app_handle, event| {
             match event {
                 tauri::RunEvent::ExitRequested { api, .. } => {

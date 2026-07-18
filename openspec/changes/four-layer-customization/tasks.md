@@ -88,14 +88,14 @@
 
 ## 9. 渲染器改造（crates/peregrine/src/overlay_renderer.rs）
 
-- [ ] 9.1 `OverlayRenderer` 新增字段：`material_registry: Arc<MaterialRegistry>`
-- [ ] 9.2 渲染循环改为：每帧构建 `DynamicContext`（从平台 API 读取鼠标 / 键盘 / 时间）→ 调用新 `build_shapes` → 光栅化 Element 列表
-- [ ] 9.3 实现 `Element::Text` 光栅化（使用 `-font kit` 或内嵌位图字体；首期可只支持 ASCII）
-- [ ] 9.4 实现 `Element::Polygon` 光栅化（参照现有 `draw_triangle` 算法推广到 N 边形）
-- [ ] 9.5 实现 `Element::Line` 光栅化（粗线段，可用旋转矩形近似）
-- [ ] 9.6 `Element::Image` 光栅化复用现有 `draw_image` + `ensure_image_loaded` 逻辑
-- [ ] 9.7 多图层混合：按图层顺序绘制，每层按 `LayerStyle.opacity` 相乘 alpha
-- [ ] 9.8 性能基准：1080p / 3 图层 / 60fps 渲染单帧 < 8ms（debug 可放宽到 < 16ms）
+- [x] 9.1 `OverlayRenderer` 新增字段：`material_registry: Arc<MaterialRegistry>`
+- [x] 9.2 渲染循环改为：每帧构建 `DynamicContext`（从平台 API 读取鼠标 / 键盘 / 时间）→ 调用新 `build_shapes` → 光栅化 Element 列表
+- [x] 9.3 实现 `Element::Text` 光栅化（使用 `-font kit` 或内嵌位图字体；首期可只支持 ASCII）
+- [x] 9.4 实现 `Element::Polygon` 光栅化（参照现有 `draw_triangle` 算法推广到 N 边形）
+- [x] 9.5 实现 `Element::Line` 光栅化（粗线段，可用旋转矩形近似）
+- [x] 9.6 `Element::Image` 光栅化复用现有 `draw_image` + `ensure_image_loaded` 逻辑
+- [x] 9.7 多图层混合：按图层顺序绘制，每层按 `LayerStyle.opacity` 相乘 alpha
+- [x] 9.8 性能基准：1080p / 3 图层 / 60fps 渲染单帧 < 8ms（debug 可放宽到 < 16ms）
 
 ## 10. 动态输入采集（crates/peregrine/src/platform）
 
@@ -106,26 +106,26 @@
 
 ## 11. Tauri commands（src-tauri/src/lib.rs）
 
-- [ ] 11.1 `AppState` 新增字段 `material_registry: Arc<MaterialRegistry>`，启动时 `MaterialRegistry::load_builtin()` + `load_user()`
-- [ ] 11.2 新增 command `build_shapes(profile_name: String, screen: RectF) -> Result<Vec<Element>, String>`：调用新 `build_shapes`，返回 JSON
-- [ ] 11.3 新增 command `list_materials() -> Vec<MaterialInfo>`（id / name / schema / defaults / is_dynamic）
-- [ ] 11.4 新增 command `add_layer(material_id: String, name: String) -> Result<Layer, String>`
-- [ ] 11.5 新增 command `remove_layer(layer_id: String) -> Result<(), String>`
-- [ ] 11.6 新增 command `move_layer(layer_id: String, new_index: usize) -> Result<(), String>`
-- [ ] 11.7 新增 command `duplicate_layer(layer_id: String) -> Result<Layer, String>`
-- [ ] 11.8 新增 command `update_layer(layer_id: String, patch: LayerPatch) -> Result<(), String>`
-- [ ] 11.9 新增 command `list_layers() -> Vec<Layer>`
-- [ ] 11.10 修改 `save_config` / `get_config` 适配新 schema（无 `crosshair`，有 `layers`）
-- [ ] 11.11 修改 `set_crosshair_color` → `set_layer_color(layer_id, color)`，针对图层而非 crosshair
-- [ ] 11.12 删除 `execute_hotkey_action` 中所有对 `active_profile().crosshair.color` 的引用，改为操作图层
-- [ ] 11.13 所有图层操作 commands 触发 `app.emit("peregrine:layers-changed", &layers)` 事件
-- [ ] 11.14 在 `invoke_handler!` 注册所有新 commands
+- [x] 11.1 `AppState` 新增字段 `material_registry: Arc<MaterialRegistry>`，启动时 `MaterialRegistry::load_builtin()` + `load_user()`
+- [x] 11.2 新增 command `build_shapes(profile_name: String, screen: RectF) -> Result<Vec<Element>, String>`：调用新 `build_shapes`，返回 JSON
+- [x] 11.3 新增 command `list_materials() -> Vec<MaterialInfo>`（id / name / schema / defaults / is_dynamic）
+- [x] 11.4 新增 command `add_layer(material_id: String, name: String) -> Result<Layer, String>`
+- [x] 11.5 新增 command `remove_layer(layer_id: String) -> Result<(), String>`
+- [x] 11.6 新增 command `move_layer(layer_id: String, new_index: usize) -> Result<(), String>`
+- [x] 11.7 新增 command `duplicate_layer(layer_id: String) -> Result<Layer, String>`
+- [x] 11.8 新增 command `update_layer(layer_id: String, patch: LayerPatch) -> Result<(), String>`
+- [x] 11.9 新增 command `list_layers() -> Vec<Layer>`
+- [x] 11.10 修改 `save_config` / `get_config` 适配新 schema（无 `crosshair`，有 `layers`）
+- [x] 11.11 修改 `set_crosshair_color` → `set_layer_color(layer_id, color)`，针对图层而非 crosshair
+- [x] 11.12 删除 `execute_hotkey_action` 中所有对 `active_profile().crosshair.color` 的引用，改为操作图层
+- [x] 11.13 所有图层操作 commands 触发 `app.emit("peregrine:layers-changed", &layers)` 事件
+- [x] 11.14 在 `invoke_handler!` 注册所有新 commands
 
 ## 12. 配置热重载适配
 
-- [ ] 12.1 `ConfigWatcher` 检测到 `config.json` 变化时，自动调用迁移逻辑（若用户手动放回旧格式）
-- [ ] 12.2 用户物料目录 `%APPDATA%/Peregrine/materials/` 新增 watcher，物料文件变化时重新加载 `MaterialRegistry`
-- [ ] 12.3 物料重载后广播 `peregrine:materials-changed` 事件，前端刷新物料列表
+- [x] 12.1 `ConfigWatcher` 检测到 `config.json` 变化时，自动调用迁移逻辑（若用户手动放回旧格式）
+- [x] 12.2 用户物料目录 `%APPDATA%/Peregrine/materials/` 新增 watcher，物料文件变化时重新加载 `MaterialRegistry`
+- [x] 12.3 物料重载后广播 `peregrine:materials-changed` 事件，前端刷新物料列表
 
 ## 13. 前端类型同步（src/types/config.ts）
 
@@ -147,25 +147,25 @@
 
 ## 15. 前端图层管理 UI
 
-- [ ] 15.1 新建 `src/components/LayerPanel.tsx`：左侧或右侧侧边栏显示图层列表
-- [ ] 15.2 图层项组件：显示 name / material / visible toggle / locked icon / delete button
-- [ ] 15.3 拖拽排序（使用 `@dnd-kit/core` 或原生 HTML5 drag）
-- [ ] 15.4 添加图层按钮：弹出物料选择对话框（`list_materials` IPC 返回的列表）
-- [ ] 15.5 选中图层后高亮显示，下方显示该图层的参数面板
-- [ ] 15.6 顶部工具栏：图层操作（复制 / 删除 / 上移 / 下移）
+- [x] 15.1 新建 `src/components/LayerPanel.tsx`：左侧或右侧侧边栏显示图层列表
+- [x] 15.2 图层项组件：显示 name / material / visible toggle / locked icon / delete button
+- [x] 15.3 拖拽排序（使用 `@dnd-kit/core` 或原生 HTML5 drag）
+- [x] 15.4 添加图层按钮：弹出物料选择对话框（`list_materials` IPC 返回的列表）
+- [x] 15.5 选中图层后高亮显示，下方显示该图层的参数面板
+- [x] 15.6 顶部工具栏：图层操作（复制 / 删除 / 上移 / 下移）
 
 ## 16. 前端动态参数控件（src/components/StyleFields.tsx 重写）
 
-- [ ] 16.1 删除旧的按 `CrosshairStyle` switch 的固定控件渲染
-- [ ] 16.2 新建 `src/components/MaterialParamControls.tsx`：接收 `schema: MaterialSchema[]`，动态渲染控件
-- [ ] 16.3 实现 `widget: "number"` 控件（数字输入框）
-- [ ] 16.4 实现 `widget: "slider"` 控件（复用现有 `ui/slider.tsx`）
-- [ ] 16.5 实现 `widget: "color"` 控件（颜色选择器，支持 RGBA）
-- [ ] 16.6 实现 `widget: "select"` 控件（复用 `ui/select.tsx`）
-- [ ] 16.7 实现 `widget: "toggle"` 控件（复用 `ui/switch.tsx`）
-- [ ] 16.8 实现 `widget: "image_path"` 控件（文件选择按钮，调用 `pick_image_path`）
-- [ ] 16.9 实现 `widget: "text"` 控件（文本输入框）
-- [ ] 16.10 未知 widget 类型回退为只读文本 + 警告日志
+- [x] 16.1 删除旧的按 `CrosshairStyle` switch 的固定控件渲染
+- [x] 16.2 新建 `src/components/MaterialParamControls.tsx`：接收 `schema: MaterialSchema[]`，动态渲染控件
+- [x] 16.3 实现 `widget: "number"` 控件（数字输入框）
+- [x] 16.4 实现 `widget: "slider"` 控件（复用现有 `ui/slider.tsx`）
+- [x] 16.5 实现 `widget: "color"` 控件（颜色选择器，支持 RGBA）
+- [x] 16.6 实现 `widget: "select"` 控件（复用 `ui/select.tsx`）
+- [x] 16.7 实现 `widget: "toggle"` 控件（复用 `ui/switch.tsx`）
+- [x] 16.8 实现 `widget: "image_path"` 控件（文件选择按钮，调用 `pick_image_path`）
+- [x] 16.9 实现 `widget: "text"` 控件（文本输入框）
+- [x] 16.10 未知 widget 类型回退为只读文本 + 警告日志
 
 ## 17. 前端图层样式 / 变换编辑
 
@@ -175,10 +175,10 @@
 
 ## 18. ConfigApp 整体改造（src/ConfigApp.tsx）
 
-- [ ] 18.1 主布局调整：左侧图层列表 + 中间预览 + 右侧参数面板（响应式）
-- [ ] 18.2 删除旧的单一 crosshair 表单逻辑
-- [ ] 18.3 颜色快捷切换（`set_color_N` 快捷键）改为作用于"当前选中图层"
-- [ ] 18.4 Profile 切换 / 管理 UI 保持不变（仅内部从 crosshair 改为 layers）
+- [x] 18.1 主布局调整：左侧图层列表 + 中间预览 + 右侧参数面板（响应式）
+- [x] 18.2 删除旧的单一 crosshair 表单逻辑
+- [x] 18.3 颜色快捷切换（`set_color_N` 快捷键）改为作用于"当前选中图层"
+- [x] 18.4 Profile 切换 / 管理 UI 保持不变（仅内部从 crosshair 改为 layers）
 
 ## 19. 文档与示例
 
@@ -191,12 +191,12 @@
 
 ## 20. CI / 发布配置
 
-- [ ] 20.1 `.github/workflows/ci.yml` 的 lint job 新增 `cargo clippy -p peregrine_material -- -D warnings`
-- [ ] 20.2 CI build job 的 Windows 测试步骤新增 `cargo test -p peregrine_material`
-- [ ] 20.3 `Cargo.lock` 更新（含 rhai 及其依赖）
-- [ ] 20.4 根 `Cargo.toml` 的 `workspace.package.version` 改为 `0.2.0-alpha.0`
-- [ ] 20.5 `src-tauri/tauri.conf.json` 的 `version` 同步（或继承 workspace）
-- [ ] 20.6 `CHANGELOG_ALPHA.md` 新增 v0.2.0-alpha.0 条目（Added: 四层架构 / Rhai 物料 / 多图层；Changed: schema 重构；Migration: 自动迁移）
+- [x] 20.1 `.github/workflows/ci.yml` 的 lint job 新增 `cargo clippy -p peregrine_material -- -D warnings`
+- [x] 20.2 CI build job 的 Windows 测试步骤新增 `cargo test -p peregrine_material`
+- [x] 20.3 `Cargo.lock` 更新（含 rhai 及其依赖）
+- [x] 20.4 根 `Cargo.toml` 的 `workspace.package.version` 改为 `0.2.0-alpha.0`
+- [x] 20.5 `src-tauri/tauri.conf.json` 的 `version` 同步（或继承 workspace）
+- [x] 20.6 `CHANGELOG_ALPHA.md` 新增 v0.2.0-alpha.0 条目（Added: 四层架构 / Rhai 物料 / 多图层；Changed: schema 重构；Migration: 自动迁移）
 
 ## 21. 端到端验证
 

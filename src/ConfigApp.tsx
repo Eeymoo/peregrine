@@ -64,7 +64,8 @@ export default function ConfigApp() {
   const [version, setVersion] = useState("");
   const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body?: string } | null>(null);
   // 四层架构：切换"图层编辑器"模式。
-  const [layersMode, setLayersMode] = useState(false);
+  // 默认 true（新格式优先），用户可点击按钮切换回旧 UI（兼容未迁移用户）。
+  const [layersMode, setLayersMode] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [updateProgress, setUpdateProgress] = useState(0);
 

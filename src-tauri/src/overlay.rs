@@ -46,21 +46,24 @@ enum UserEvent {
 pub fn run_overlay_loop(
     #[cfg(windows)] config: Arc<Mutex<ConfigSnapshot>>,
     #[cfg(not(windows))] _config: Arc<Mutex<ConfigSnapshot>>,
+    material_registry: Arc<peregrine_material::MaterialRegistry>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
 ) {
     #[cfg(not(windows))]
     {
         // 非 Windows 平台仅消费命令，避免在主线程外创建 winit EventLoop。
+        let _ = material_registry;
         while let Ok(_cmd) = cmd_rx.recv() {}
         return;
     }
     #[cfg(windows)]
-    run_overlay_loop_windows(config, cmd_rx);
+    run_overlay_loop_windows(config, material_registry, cmd_rx);
 }
 
 #[cfg(windows)]
 fn run_overlay_loop_windows(
     config: Arc<Mutex<ConfigSnapshot>>,
+    material_registry: Arc<peregrine_material::MaterialRegistry>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
 ) {
     use winit::platform::windows::EventLoopBuilderExtWindows;
@@ -83,7 +86,7 @@ fn run_overlay_loop_windows(
 
     // 复制一份事件循环代理，用于 follower 线程在移动 overlay 后请求重绘。
     let redraw_proxy = event_loop.create_proxy();
-    let mut app = OverlayApp::new(config, redraw_proxy);
+    let mut app = OverlayApp::new(config, material_registry, redraw_proxy);
     event_loop
         .run_app(&mut app)
         .expect("run overlay event loop");
@@ -92,6 +95,7 @@ fn run_overlay_loop_windows(
 #[cfg(windows)]
 struct OverlayApp {
     config: Arc<Mutex<ConfigSnapshot>>,
+    material_registry: Arc<peregrine_material::MaterialRegistry>,
     window: Option<Arc<Window>>,
     renderer: Option<overlay_renderer::OverlayRenderer>,
     overlay_active: bool,
@@ -112,10 +116,12 @@ struct OverlayApp {
 impl OverlayApp {
     fn new(
         config: Arc<Mutex<ConfigSnapshot>>,
+        material_registry: Arc<peregrine_material::MaterialRegistry>,
         redraw_proxy: winit::event_loop::EventLoopProxy<UserEvent>,
     ) -> Self {
         Self {
             config,
+            material_registry,
             window: None,
             renderer: None,
             overlay_active: false,
@@ -304,7 +310,11 @@ impl OverlayApp {
             }
         }
 
-        let renderer = overlay_renderer::OverlayRenderer::new(window.clone(), self.config.clone());
+        let renderer = overlay_renderer::OverlayRenderer::new(
+            window.clone(),
+            self.config.clone(),
+            self.material_registry.clone(),
+        );
 
         self.window = Some(window.clone());
         self.renderer = Some(renderer);

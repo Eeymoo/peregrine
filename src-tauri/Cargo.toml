@@ -12,6 +12,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 peregrine = { path = "../crates/peregrine" }
 peregrine_config = { path = "../crates/config" }
+peregrine_material = { path = "../crates/material" }
 tauri = { workspace = true }
 tauri-plugin-dialog = { workspace = true }
 tauri-plugin-updater = { workspace = true }

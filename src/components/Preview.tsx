@@ -1,20 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import type { Crosshair } from "@/types/config";
-import { buildShapes, colorToCss } from "@/lib/shapes";
+import type { BuiltShape, Element } from "@/types/config";
+import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "@/lib/i18n";
 
 interface PreviewProps {
-  crosshair: Crosshair;
+  /** 触发重绘的依赖（如图层列表 / 参数变化时由父组件传入新值）。 */
+  previewKey: unknown;
+  /** 预览宽高比（默认 16:9）。 */
   aspectRatio?: number;
 }
 
-export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
+/**
+ * 预览组件：通过 Tauri IPC 调用后端 `build_shapes_ipc` 获取图元列表，
+ * 在 Canvas 上绘制。所有几何计算都在 Rust 侧（物料脚本），前端零几何逻辑。
+ *
+ * 调用节流 16ms（60fps）避免拖拽滑块时打爆 IPC。
+ */
+export function Preview({ previewKey, aspectRatio = 16 / 9 }: PreviewProps) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // 监听容器尺寸变化（窗口拖拽、缩放等），强制重绘预览。
+  const [shapes, setShapes] = useState<BuiltShape[]>([]);
+  const [loading, setLoading] = useState(false);
   const [sizeTick, setSizeTick] = useState(0);
+
+  // 监听容器尺寸变化。
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -23,6 +33,42 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
     return () => ro.disconnect();
   }, []);
 
+  // 通过 IPC 获取图元列表（节流 16ms）。
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    // 计算预览用的"虚拟屏幕"尺寸（参考短边 1080p）。
+    const REFERENCE_SHORT = 1080;
+    const realH = aspectRatio >= 1 ? REFERENCE_SHORT : REFERENCE_SHORT / aspectRatio;
+    const realW = aspectRatio >= 1 ? REFERENCE_SHORT * aspectRatio : REFERENCE_SHORT;
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await invoke<BuiltShape[]>("build_shapes_ipc", {
+          screenW: realW,
+          screenH: realH,
+        });
+        if (!cancelled) {
+          setShapes(result);
+        }
+      } catch (err) {
+        console.error("build_shapes_ipc failed:", err);
+        if (!cancelled) {
+          setShapes([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 16);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [previewKey, aspectRatio]);
+
+  // 在 Canvas 上绘制图元列表。
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -35,10 +81,10 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
 
-    // 清空背景
+    // 清空背景。
     ctx.clearRect(0, 0, rect.width, rect.height);
 
-    // 棋盘格背景
+    // 棋盘格背景。
     const cell = 20;
     for (let y = 0; y < rect.height; y += cell) {
       for (let x = 0; x < rect.width; x += cell) {
@@ -48,7 +94,7 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
       }
     }
 
-    // 计算预览区域（contain 缩放）
+    // 计算预览区域（contain 缩放）。
     const availRatio = rect.width / rect.height;
     let pw: number, ph: number;
     if (availRatio > aspectRatio) {
@@ -65,49 +111,13 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
     ctx.lineWidth = 1;
     ctx.strokeRect(px, py, pw, ph);
 
-    // 虚拟屏幕：以真实分辨率（短边 1080）构建准心，再缩放到预览区域。
-    // 这样预览中准心的大小比例与实际 overlay 完全一致（所见即所得）。
+    // 把虚拟屏幕坐标 (0,0)-(realW,realH) 映射到预览区域 (px,py)-(px+pw,py+ph)。
     const REFERENCE_SHORT = 1080;
-    let realW: number, realH: number;
-    if (aspectRatio >= 1) {
-      realH = REFERENCE_SHORT;
-      realW = realH * aspectRatio;
-    } else {
-      realW = REFERENCE_SHORT;
-      realH = realW / aspectRatio;
-    }
-    const virtualScreen = { minX: 0, minY: 0, maxX: realW, maxY: realH };
-    const sx = pw / realW;
-    const sy = ph / realH;
+    const realH_inner = aspectRatio >= 1 ? REFERENCE_SHORT : REFERENCE_SHORT / aspectRatio;
+    const realW_inner = aspectRatio >= 1 ? REFERENCE_SHORT * aspectRatio : REFERENCE_SHORT;
+    const sx = pw / realW_inner;
+    const sy = ph / realH_inner;
 
-    // CustomImage 占位文本不需要缩放，直接在预览坐标系绘制
-    if (crosshair.style === "custom_image") {
-      const cx = px + pw / 2;
-      const cy = py + ph / 2;
-      if (!crosshair.image_path.trim()) {
-        ctx.fillStyle = "#888";
-        ctx.font = "14px sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(t("preview.placeholder"), cx, cy);
-      } else {
-        ctx.fillStyle = colorToCss(crosshair.color, crosshair.opacity);
-        ctx.font = "14px sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        const name = crosshair.image_path.split(/[\\/]/).pop() || crosshair.image_path;
-        ctx.fillText(name, cx, cy);
-      }
-      return;
-    }
-
-    // 在虚拟屏幕分辨率下生成图元，确保比例与实际 overlay 一致
-    const shapes = buildShapes(virtualScreen, crosshair);
-    const color = colorToCss(crosshair.color, crosshair.opacity);
-    ctx.fillStyle = color;
-    ctx.strokeStyle = color;
-
-    // 应用缩放变换：虚拟坐标 → 预览区域
     ctx.save();
     ctx.beginPath();
     ctx.rect(px, py, pw, ph);
@@ -115,38 +125,32 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
     ctx.translate(px, py);
     ctx.scale(sx, sy);
 
-    for (const shape of shapes) {
-      switch (shape.type) {
-        case "rect":
-          ctx.fillRect(shape.x, shape.y, shape.w, shape.h);
-          break;
-        case "circle":
-          ctx.beginPath();
-          ctx.arc(shape.cx, shape.cy, shape.radius, 0, Math.PI * 2);
-          ctx.fill();
-          break;
-        case "circleStroke":
-          ctx.lineWidth = shape.thickness;
-          ctx.beginPath();
-          ctx.arc(shape.cx, shape.cy, shape.radius, 0, Math.PI * 2);
-          ctx.stroke();
-          break;
-        case "dashedCircle":
-          drawDashedCircle(ctx, shape.cx, shape.cy, shape.radius, shape.thickness, shape.dashLen, shape.gapLen);
-          break;
-        case "triangle":
-          ctx.beginPath();
-          ctx.moveTo(shape.x1, shape.y1);
-          ctx.lineTo(shape.x2, shape.y2);
-          ctx.lineTo(shape.x3, shape.y3);
-          ctx.closePath();
-          ctx.fill();
-          break;
-      }
+    for (const { element, color, opacity } of shapes) {
+      drawElement(ctx, element, color, opacity);
     }
 
     ctx.restore();
-  }, [crosshair, aspectRatio, t, sizeTick]);
+
+    // 加载指示。
+    if (loading) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+      ctx.fillRect(rect.width - 60, 8, 52, 18);
+      ctx.fillStyle = "#fff";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "top";
+      ctx.fillText("rendering...", rect.width - 12, 12);
+    }
+
+    // 空状态提示。
+    if (shapes.length === 0 && !loading) {
+      ctx.fillStyle = "#888";
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(t("preview.placeholder"), rect.width / 2, rect.height / 2);
+    }
+  }, [shapes, aspectRatio, t, sizeTick, loading]);
 
   return (
     <div ref={containerRef} className="w-full h-full">
@@ -159,6 +163,101 @@ export function Preview({ crosshair, aspectRatio = 16 / 9 }: PreviewProps) {
   );
 }
 
+/** 把 RGBA + opacity 转换为 CSS rgba 字符串。 */
+function colorToCss(color: [number, number, number, number], opacity: number): string {
+  const r = Math.round(color[0] * 255);
+  const g = Math.round(color[1] * 255);
+  const b = Math.round(color[2] * 255);
+  const a = color[3] * opacity;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+/** 绘制单个 Element 图元。 */
+function drawElement(
+  ctx: CanvasRenderingContext2D,
+  element: Element,
+  color: [number, number, number, number],
+  opacity: number,
+) {
+  const css = colorToCss(color, opacity);
+  ctx.fillStyle = css;
+  ctx.strokeStyle = css;
+
+  switch (element.type) {
+    case "rect":
+      ctx.fillRect(element.x, element.y, element.w, element.h);
+      break;
+    case "circle":
+      ctx.beginPath();
+      ctx.arc(element.cx, element.cy, element.radius, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case "circle_stroke":
+      ctx.lineWidth = element.thickness;
+      ctx.beginPath();
+      ctx.arc(element.cx, element.cy, element.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    case "dashed_circle":
+      drawDashedCircle(
+        ctx,
+        element.cx,
+        element.cy,
+        element.radius,
+        element.thickness,
+        element.dash_len,
+        element.gap_len,
+      );
+      break;
+    case "triangle":
+      ctx.beginPath();
+      ctx.moveTo(element.x1, element.y1);
+      ctx.lineTo(element.x2, element.y2);
+      ctx.lineTo(element.x3, element.y3);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case "polygon": {
+      const pts = element.points;
+      if (pts.length < 3) break;
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i][0], pts[i][1]);
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case "line":
+      ctx.lineWidth = element.thickness;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(element.x1, element.y1);
+      ctx.lineTo(element.x2, element.y2);
+      ctx.stroke();
+      break;
+    case "text":
+      ctx.font = `${element.font_size}px sans-serif`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(element.content, element.x, element.y);
+      break;
+    case "image":
+      // 图片渲染：预览阶段用占位矩形（实际 blit 在 overlay 阶段）。
+      ctx.strokeStyle = css;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(element.x, element.y, element.w, element.h);
+      ctx.fillStyle = css;
+      ctx.font = "12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const name = element.path.split(/[\\/]/).pop() || element.path;
+      ctx.fillText(`[${name}]`, element.x + element.w / 2, element.y + element.h / 2);
+      break;
+  }
+}
+
 function drawDashedCircle(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -166,7 +265,7 @@ function drawDashedCircle(
   radius: number,
   thickness: number,
   dashLen: number,
-  gapLen: number
+  gapLen: number,
 ) {
   const circumference = 2 * Math.PI * radius;
   const unit = dashLen + gapLen;
@@ -181,5 +280,3 @@ function drawDashedCircle(
     ctx.stroke();
   }
 }
-
-

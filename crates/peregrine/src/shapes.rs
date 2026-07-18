@@ -8,7 +8,8 @@
 //! 确保用户所见即所得。
 
 use peregrine_config::{
-    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, Element, GridAlignment, Layer, OrbPosition, Profile, Rect, RingStyle, Transform2D,
+    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, Element, GridAlignment, Layer, LayerStyle,
+    OrbPosition, Profile, Rect, RingStyle, Transform2D,
 };
 use peregrine_material::{DynamicContext, MaterialRegistry};
 

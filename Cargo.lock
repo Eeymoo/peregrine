@@ -3169,6 +3169,7 @@ version = "0.1.15"
 dependencies = [
  "peregrine",
  "peregrine_config",
+ "peregrine_material",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

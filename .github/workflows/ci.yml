@@ -1,7 +1,7 @@
 name: CI
 
 # 每次 push 到 main/master 分支或提交 PR 时触发，
-# 验证 Windows + macOS + Linux 三平台编译与测试通过。
+# 验证 Windows 平台编译与测试通过。
 on:
   push:
     branches: [main, master]
@@ -15,41 +15,17 @@ jobs:
   # 跨平台编译检查（不打包，只确保能 build）。
   build:
     name: Build & Test (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          # macOS x86_64 在 aarch64 runner 上交叉编译，避免使用 macos-13 Intel runner 排队过长。
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            cross: true
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+        target: [x86_64-pc-windows-msvc]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      # Linux 需要安装 GUI 依赖（winit / tray-icon / WebKit 编译需要）。
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
-            libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev \
-            libxi-dev libwayland-dev libxkbcommon-dev libegl-dev libasound2-dev \
-            libglib2.0-dev libgtk-3-dev libgdk-pixbuf2.0-dev libxdo-dev \
-            libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
 
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2

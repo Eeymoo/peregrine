@@ -201,9 +201,9 @@ impl Profile {
     pub fn validate(&self) -> crate::Result<()> {
         if !self.layers.is_empty() {
             for (i, layer) in self.layers.iter().enumerate() {
-                layer.validate().map_err(|e| {
-                    crate::ConfigError::Validation(format!("layer[{}]: {}", i, e))
-                })?;
+                layer
+                    .validate()
+                    .map_err(|e| crate::ConfigError::Validation(format!("layer[{}]: {}", i, e)))?;
             }
             Ok(())
         } else if let Some(crosshair) = &self.crosshair {
@@ -1343,12 +1343,7 @@ mod tests {
     #[test]
     fn ring_radius_pct_default_and_validation() {
         let cfg = AppConfig::legacy_default_config();
-        let ch = cfg
-            .active_profile()
-            .unwrap()
-            .crosshair
-            .as_ref()
-            .unwrap();
+        let ch = cfg.active_profile().unwrap().crosshair.as_ref().unwrap();
         assert_eq!(ch.ring_radius_pct, 0.05);
         assert!(ch.validate().is_ok());
 

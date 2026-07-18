@@ -14,6 +14,7 @@ use windows::Win32::Foundation::{
     BOOL, GetLastError, HWND, LPARAM, POINT, RECT, SetLastError, WIN32_ERROR,
 };
 use windows::Win32::Graphics::Gdi::ClientToScreen;
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, GetCursorPos};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetForegroundWindow, GetWindowLongPtrW,
     GetWindowRect, GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic,
@@ -22,7 +23,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WINDOW_LONG_PTR_INDEX, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_SYSMENU, WS_THICKFRAME,
 };
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, GetCursorPos};
 
 /// 在 32 位 Windows 上 `SetWindowLongPtrW` 实际是 `SetWindowLongW`，参数为 `i32`；
 /// 64 位上参数为 `isize`。本函数根据目标平台做统一转换，避免类型不匹配。
@@ -532,25 +532,72 @@ pub async fn follow_target_window(
 /// 仅映射物料脚本可能关心的常用按键；未列出的按键不会出现在 key_state 中。
 const VK_MAP: &[(i32, &str)] = &[
     // 字母键 A-Z（VK 0x41-0x5A）。
-    (0x41, "a"), (0x42, "b"), (0x43, "c"), (0x44, "d"), (0x45, "e"),
-    (0x46, "f"), (0x47, "g"), (0x48, "h"), (0x49, "i"), (0x4A, "j"),
-    (0x4B, "k"), (0x4C, "l"), (0x4D, "m"), (0x4E, "n"), (0x4F, "o"),
-    (0x50, "p"), (0x51, "q"), (0x52, "r"), (0x53, "s"), (0x54, "t"),
-    (0x55, "u"), (0x56, "v"), (0x57, "w"), (0x58, "x"), (0x59, "y"),
+    (0x41, "a"),
+    (0x42, "b"),
+    (0x43, "c"),
+    (0x44, "d"),
+    (0x45, "e"),
+    (0x46, "f"),
+    (0x47, "g"),
+    (0x48, "h"),
+    (0x49, "i"),
+    (0x4A, "j"),
+    (0x4B, "k"),
+    (0x4C, "l"),
+    (0x4D, "m"),
+    (0x4E, "n"),
+    (0x4F, "o"),
+    (0x50, "p"),
+    (0x51, "q"),
+    (0x52, "r"),
+    (0x53, "s"),
+    (0x54, "t"),
+    (0x55, "u"),
+    (0x56, "v"),
+    (0x57, "w"),
+    (0x58, "x"),
+    (0x59, "y"),
     (0x5A, "z"),
     // 数字键 0-9（VK 0x30-0x39）。
-    (0x30, "0"), (0x31, "1"), (0x32, "2"), (0x33, "3"), (0x34, "4"),
-    (0x35, "5"), (0x36, "6"), (0x37, "7"), (0x38, "8"), (0x39, "9"),
+    (0x30, "0"),
+    (0x31, "1"),
+    (0x32, "2"),
+    (0x33, "3"),
+    (0x34, "4"),
+    (0x35, "5"),
+    (0x36, "6"),
+    (0x37, "7"),
+    (0x38, "8"),
+    (0x39, "9"),
     // 修饰键。
-    (0x10, "shift"), (0x11, "ctrl"), (0x12, "alt"), (0x5B, "super"), (0x5C, "super"),
+    (0x10, "shift"),
+    (0x11, "ctrl"),
+    (0x12, "alt"),
+    (0x5B, "super"),
+    (0x5C, "super"),
     // 方向键。
-    (0x25, "left"), (0x26, "up"), (0x27, "right"), (0x28, "down"),
+    (0x25, "left"),
+    (0x26, "up"),
+    (0x27, "right"),
+    (0x28, "down"),
     // 功能键 F1-F12。
-    (0x70, "f1"), (0x71, "f2"), (0x72, "f3"), (0x73, "f4"), (0x74, "f5"),
-    (0x75, "f6"), (0x76, "f7"), (0x77, "f8"), (0x78, "f9"), (0x79, "f10"),
-    (0x7A, "f11"), (0x7B, "f12"),
+    (0x70, "f1"),
+    (0x71, "f2"),
+    (0x72, "f3"),
+    (0x73, "f4"),
+    (0x74, "f5"),
+    (0x75, "f6"),
+    (0x76, "f7"),
+    (0x77, "f8"),
+    (0x78, "f9"),
+    (0x79, "f10"),
+    (0x7A, "f11"),
+    (0x7B, "f12"),
     // 特殊键。
-    (0x20, "space"), (0x0D, "enter"), (0x1B, "escape"), (0x09, "tab"),
+    (0x20, "space"),
+    (0x0D, "enter"),
+    (0x1B, "escape"),
+    (0x09, "tab"),
 ];
 
 /// 读取当前动态输入上下文（Windows 实现）。

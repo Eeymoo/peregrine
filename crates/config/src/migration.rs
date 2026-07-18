@@ -8,16 +8,16 @@ use crate::schema::{
     Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, GridAlignment, Layer, LayerStyle,
     MaterialRef, RandomOrbMode, RingStyle, Transform2D,
 };
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 /// 把旧 `Crosshair` 转换为单个 `Layer`（引用对应的内置物料）。
 ///
 /// 字段映射规则见 `openspec/changes/four-layer-customization/specs/profile-migration/spec.md`。
 pub fn migrate_crosshair_to_layer(crosshair: &Crosshair) -> Layer {
     let (material, params) = match crosshair.style {
-        CrosshairStyle::EdgeRect | CrosshairStyle::CustomImage => unreachable!(
-            "edge_rect 与 custom_image 由专用分支处理"
-        ),
+        CrosshairStyle::EdgeRect | CrosshairStyle::CustomImage => {
+            unreachable!("edge_rect 与 custom_image 由专用分支处理")
+        }
         CrosshairStyle::Cross => migrate_cross(crosshair),
         CrosshairStyle::LargeCross => migrate_large_cross(crosshair),
         CrosshairStyle::CornerDots4 => migrate_corner_dots(crosshair, 4),
@@ -241,7 +241,10 @@ fn migrate_grid(c: &Crosshair) -> (MaterialRef, Map<String, Value>) {
     let mut p = Map::new();
     p.insert("grid_size".into(), json!(c.grid_size));
     p.insert("thickness".into(), json!(c.thickness));
-    p.insert("alignment".into(), json!(grid_alignment_to_str(c.grid_alignment)));
+    p.insert(
+        "alignment".into(),
+        json!(grid_alignment_to_str(c.grid_alignment)),
+    );
     (
         MaterialRef::Builtin {
             id: "builtin.grid".into(),
@@ -372,7 +375,12 @@ mod tests {
     fn migrate_cross_style() {
         let c = test_crosshair(CrosshairStyle::Cross);
         let layer = migrate_crosshair_to_layer(&c);
-        assert_eq!(layer.material, MaterialRef::Builtin { id: "builtin.cross".into() });
+        assert_eq!(
+            layer.material,
+            MaterialRef::Builtin {
+                id: "builtin.cross".into()
+            }
+        );
         assert_param(&layer, "size", &json!(24.0));
         assert_param(&layer, "thickness", &json!(2.0));
         assert_param(&layer, "gap", &json!(4.0));
@@ -382,7 +390,12 @@ mod tests {
     fn migrate_edge_rect_style() {
         let c = test_crosshair(CrosshairStyle::EdgeRect);
         let layer = migrate_edge_rect(&c);
-        assert_eq!(layer.material, MaterialRef::Builtin { id: "builtin.edge_rect".into() });
+        assert_eq!(
+            layer.material,
+            MaterialRef::Builtin {
+                id: "builtin.edge_rect".into()
+            }
+        );
         assert_param(&layer, "size", &json!(180.0));
         assert_param(&layer, "secondary_size", &json!(24.0));
         assert_param(&layer, "anchor", &json!("top"));
@@ -396,7 +409,9 @@ mod tests {
         let layer = migrate_crosshair_to_layer(&c);
         assert_eq!(
             layer.material,
-            MaterialRef::Builtin { id: "builtin.large_cross".into() }
+            MaterialRef::Builtin {
+                id: "builtin.large_cross".into()
+            }
         );
         assert_param(&layer, "thickness", &json!(2.0));
     }
@@ -412,7 +427,9 @@ mod tests {
             let layer = migrate_crosshair_to_layer(&c);
             assert_eq!(
                 layer.material,
-                MaterialRef::Builtin { id: "builtin.corner_dots".into() }
+                MaterialRef::Builtin {
+                    id: "builtin.corner_dots".into()
+                }
             );
             assert_param(&layer, "count", &json!(count));
         }
@@ -422,7 +439,12 @@ mod tests {
     fn migrate_ring_style() {
         let c = test_crosshair(CrosshairStyle::Ring);
         let layer = migrate_crosshair_to_layer(&c);
-        assert_eq!(layer.material, MaterialRef::Builtin { id: "builtin.ring".into() });
+        assert_eq!(
+            layer.material,
+            MaterialRef::Builtin {
+                id: "builtin.ring".into()
+            }
+        );
         assert_param(&layer, "ring_radius_pct", &json!(0.06_f32 as f64));
         assert_param(&layer, "ring_style", &json!("solid"));
     }
@@ -433,7 +455,9 @@ mod tests {
         let layer = migrate_crosshair_to_layer(&c);
         assert_eq!(
             layer.material,
-            MaterialRef::Builtin { id: "builtin.custom_orb".into() }
+            MaterialRef::Builtin {
+                id: "builtin.custom_orb".into()
+            }
         );
         assert_param(&layer, "radius", &json!(6.0));
         assert_param(&layer, "orb_positions", &json!(3));
@@ -446,7 +470,9 @@ mod tests {
         let layer = migrate_crosshair_to_layer(&c);
         assert_eq!(
             layer.material,
-            MaterialRef::Builtin { id: "builtin.random_orb".into() }
+            MaterialRef::Builtin {
+                id: "builtin.random_orb".into()
+            }
         );
         assert_param(&layer, "orb_count", &json!(3));
         assert_param(&layer, "offset", &json!(80.0));
@@ -460,7 +486,9 @@ mod tests {
         let layer = migrate_crosshair_to_layer(&c);
         assert_eq!(
             layer.material,
-            MaterialRef::Builtin { id: "builtin.border_frame".into() }
+            MaterialRef::Builtin {
+                id: "builtin.border_frame".into()
+            }
         );
         assert_param(&layer, "thickness", &json!(6.0));
         assert_param(&layer, "offset", &json!(24.0));
@@ -474,7 +502,9 @@ mod tests {
         let layer = migrate_crosshair_to_layer(&c);
         assert_eq!(
             layer.material,
-            MaterialRef::Builtin { id: "builtin.edge_arrows".into() }
+            MaterialRef::Builtin {
+                id: "builtin.edge_arrows".into()
+            }
         );
         assert_param(&layer, "size", &json!(16.0));
         assert_param(&layer, "distance", &json!(60.0));
@@ -484,7 +514,12 @@ mod tests {
     fn migrate_grid_style() {
         let c = test_crosshair(CrosshairStyle::Grid);
         let layer = migrate_crosshair_to_layer(&c);
-        assert_eq!(layer.material, MaterialRef::Builtin { id: "builtin.grid".into() });
+        assert_eq!(
+            layer.material,
+            MaterialRef::Builtin {
+                id: "builtin.grid".into()
+            }
+        );
         assert_param(&layer, "grid_size", &json!(120.0));
         assert_param(&layer, "thickness", &json!(2.0));
         assert_param(&layer, "alignment", &json!("center"));
@@ -496,7 +531,12 @@ mod tests {
         c.image_path = "/test/cross.png".to_string();
         c.image_scale = 1.5;
         let layer = migrate_custom_image(&c);
-        assert_eq!(layer.material, MaterialRef::Builtin { id: "builtin.image".into() });
+        assert_eq!(
+            layer.material,
+            MaterialRef::Builtin {
+                id: "builtin.image".into()
+            }
+        );
         assert_param(&layer, "path", &json!("/test/cross.png"));
         assert_param(&layer, "scale", &json!(1.5));
     }
@@ -553,11 +593,21 @@ mod tests {
         // EdgeRect 与 CustomImage 由专用函数处理。
         let c_edge = test_crosshair(CrosshairStyle::EdgeRect);
         let layer = migrate_edge_rect(&c_edge);
-        assert_eq!(layer.material, MaterialRef::Builtin { id: "builtin.edge_rect".into() });
+        assert_eq!(
+            layer.material,
+            MaterialRef::Builtin {
+                id: "builtin.edge_rect".into()
+            }
+        );
 
         let mut c_img = test_crosshair(CrosshairStyle::CustomImage);
         c_img.image_path = "/x.png".to_string();
         let layer = migrate_custom_image(&c_img);
-        assert_eq!(layer.material, MaterialRef::Builtin { id: "builtin.image".into() });
+        assert_eq!(
+            layer.material,
+            MaterialRef::Builtin {
+                id: "builtin.image".into()
+            }
+        );
     }
 }

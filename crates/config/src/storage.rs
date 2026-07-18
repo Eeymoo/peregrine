@@ -2,7 +2,7 @@
 //!
 //! 配置文件存放于 OS 标准配置目录下的 `Peregrine/config.json`。
 
-use crate::schema::{AppConfig, MaterialRef};
+use crate::schema::AppConfig;
 use std::path::{Path, PathBuf};
 
 /// 配置文件读写器。
@@ -93,9 +93,10 @@ impl ConfigStorage {
     /// 2. 调用 `migration::migrate_profile` 把每个 profile 的 crosshair 转为 layers
     /// 3. 写入新格式配置
     async fn migrate_if_needed(&self, mut config: AppConfig) -> crate::Result<AppConfig> {
-        let needs_migration = config.profiles.values().any(|p| {
-            p.crosshair.is_some() && p.layers.is_empty()
-        });
+        let needs_migration = config
+            .profiles
+            .values()
+            .any(|p| p.crosshair.is_some() && p.layers.is_empty());
 
         if !needs_migration {
             return Ok(config);
@@ -104,7 +105,7 @@ impl ConfigStorage {
         tracing::info!("检测到旧格式配置（含 crosshair 字段），开始迁移到新 layers 格式");
         self.backup_legacy_config().await;
 
-        for (_name, profile) in config.profiles.iter_mut() {
+        for profile in config.profiles.values_mut() {
             if profile.crosshair.is_some() && profile.layers.is_empty() {
                 let migrated = crate::migration::migrate_profile(profile);
                 *profile = migrated;
@@ -222,6 +223,7 @@ mod dirs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MaterialRef;
 
     #[tokio::test]
     async fn roundtrip_default_config() {
@@ -347,8 +349,15 @@ mod tests {
 
         // 默认 profile 现在应该有 layers，且 crosshair 应为 None。
         let profile = cfg.profiles.get("default").unwrap();
-        assert!(profile.crosshair.is_none(), "crosshair should be None after migration");
-        assert_eq!(profile.layers.len(), 1, "should have 1 layer after migration");
+        assert!(
+            profile.crosshair.is_none(),
+            "crosshair should be None after migration"
+        );
+        assert_eq!(
+            profile.layers.len(),
+            1,
+            "should have 1 layer after migration"
+        );
 
         // 图层引用 builtin.cross 物料。
         let layer = &profile.layers[0];

@@ -16,17 +16,12 @@ pub struct SimpleRng {
 impl SimpleRng {
     /// 用给定种子创建 RNG。种子为 0 时内部转为 1（避免退化）。
     pub fn new(seed: u64) -> Self {
-        Self {
-            state: seed.max(1),
-        }
+        Self { state: seed.max(1) }
     }
 
     /// 推进状态并返回下一个 u64。
     pub fn next_u64(&mut self) -> u64 {
-        self.state = self
-            .state
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1);
+        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1);
         self.state
     }
 

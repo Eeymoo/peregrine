@@ -7,7 +7,7 @@
 use crate::context::DynamicContext;
 use crate::error::{MaterialError, MaterialResult};
 use peregrine_config::{Element, Rect, SimpleRng};
-use rhai::{Dynamic, Engine, ImmutableString, Map, Scope, AST};
+use rhai::{AST, Dynamic, Engine, ImmutableString, Map, Scope};
 
 /// 物料 id（如 `"builtin.cross"` 或 `"user.my_material"`）。
 pub type MaterialId = String;
@@ -67,22 +67,21 @@ impl Material {
     /// 3. 调用 `is_dynamic()` 确定动态性
     pub fn load(id: MaterialId, source: &str, _builtin: bool) -> MaterialResult<Self> {
         let engine = make_engine();
-        let ast = engine
-            .compile(source)
-            .map_err(|e| MaterialError::Parse {
-                id: id.clone(),
-                source: e,
-            })?;
+        let ast = engine.compile(source).map_err(|e| MaterialError::Parse {
+            id: id.clone(),
+            source: e,
+        })?;
 
         let mut scope = Scope::new();
 
         // 调用 defaults() 缓存默认参数。
-        let defaults_val: Dynamic = engine
-            .call_fn(&mut scope, &ast, "defaults", ())
-            .map_err(|_| MaterialError::MissingFunction {
-                id: id.clone(),
-                function: "defaults",
-            })?;
+        let defaults_val: Dynamic =
+            engine
+                .call_fn(&mut scope, &ast, "defaults", ())
+                .map_err(|_| MaterialError::MissingFunction {
+                    id: id.clone(),
+                    function: "defaults",
+                })?;
         let cached_defaults = dynamic_to_json(&defaults_val);
 
         // 调用 schema() 缓存参数 schema。
@@ -266,7 +265,7 @@ thread_local! {
     ///
     /// 每次物料求值使用独立的 Rhai Engine，但同一个 Engine 内多次调用 `rand()`
     /// 需要不同的结果。计数器在 Engine 创建时清零（见 `thread_local_reset`）。
-    static RAND_COUNTER: std::cell::Cell<u64> = std::cell::Cell::new(0);
+    static RAND_COUNTER: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 /// 重置当前线程的 RNG 计数器（在 Engine 创建时调用）。
@@ -376,20 +375,15 @@ fn dynamic_to_element(material_id: &str, d: Dynamic) -> MaterialResult<Element> 
     } else {
         return Err(MaterialError::InvalidReturnType {
             id: material_id.to_string(),
-            detail: format!(
-                "element must be a Map, got {}",
-                d.type_name()
-            ),
+            detail: format!("element must be a Map, got {}", d.type_name()),
         });
     };
 
     let get_str = |key: &str| -> MaterialResult<String> {
-        let v = m
-            .get(key)
-            .ok_or_else(|| MaterialError::ElementField {
-                id: material_id.to_string(),
-                detail: format!("missing string field '{}'", key),
-            })?;
+        let v = m.get(key).ok_or_else(|| MaterialError::ElementField {
+            id: material_id.to_string(),
+            detail: format!("missing string field '{}'", key),
+        })?;
         v.as_immutable_string_ref()
             .map(|s| s.to_string())
             .map_err(|_| MaterialError::ElementField {
@@ -398,12 +392,10 @@ fn dynamic_to_element(material_id: &str, d: Dynamic) -> MaterialResult<Element> 
             })
     };
     let get_f32 = |key: &str| -> MaterialResult<f32> {
-        let v = m
-            .get(key)
-            .ok_or_else(|| MaterialError::ElementField {
-                id: material_id.to_string(),
-                detail: format!("missing field '{}'", key),
-            })?;
+        let v = m.get(key).ok_or_else(|| MaterialError::ElementField {
+            id: material_id.to_string(),
+            detail: format!("missing field '{}'", key),
+        })?;
         if let Ok(f) = v.as_float() {
             Ok(f as f32)
         } else if let Ok(i) = v.as_int() {
@@ -452,12 +444,10 @@ fn dynamic_to_element(material_id: &str, d: Dynamic) -> MaterialResult<Element> 
             y3: get_f32("y3")?,
         }),
         "polygon" => {
-            let points_val = m
-                .get("points")
-                .ok_or_else(|| MaterialError::ElementField {
-                    id: material_id.to_string(),
-                    detail: "missing 'points' field".to_string(),
-                })?;
+            let points_val = m.get("points").ok_or_else(|| MaterialError::ElementField {
+                id: material_id.to_string(),
+                detail: "missing 'points' field".to_string(),
+            })?;
             let arr = points_val
                 .clone()
                 .into_array()
@@ -684,7 +674,10 @@ mod tests {
             Err(MaterialError::MissingFunction { function, .. }) => {
                 assert_eq!(function, "schema");
             }
-            other => panic!("expected MissingFunction, got {:?}", other.map(|m| m.id().to_string())),
+            other => panic!(
+                "expected MissingFunction, got {:?}",
+                other.map(|m| m.id().to_string())
+            ),
         }
     }
 
@@ -704,9 +697,7 @@ mod tests {
         let result = m.evaluate(&params, &screen, &ctx);
         assert!(result.is_err());
         match result.unwrap_err() {
-            MaterialError::UnknownElementType {
-                element_type, ..
-            } => {
+            MaterialError::UnknownElementType { element_type, .. } => {
                 assert_eq!(element_type, "ellipse");
             }
             other => panic!("expected UnknownElementType, got {:?}", other),
@@ -893,7 +884,8 @@ mod tests {
         let ctx = DynamicContext::static_context();
 
         for anchor in ["top", "bottom", "left", "right", "center"] {
-            let params = serde_json::json!({"anchor": anchor, "size": 100.0, "secondary_size": 30.0});
+            let params =
+                serde_json::json!({"anchor": anchor, "size": 100.0, "secondary_size": 30.0});
             let elements = m.evaluate(&params, &screen, &ctx).unwrap();
             assert_eq!(elements.len(), 1, "anchor {} should produce 1 rect", anchor);
         }

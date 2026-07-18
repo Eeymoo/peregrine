@@ -8,7 +8,7 @@
 //! 确保用户所见即所得。
 
 use peregrine_config::{
-    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, Element, GridAlignment, Layer, LayerStyle,
+    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, Element, GridAlignment, Layer,
     OrbPosition, Profile, Rect, RingStyle, Transform2D,
 };
 use peregrine_material::{DynamicContext, MaterialRegistry};
@@ -762,7 +762,7 @@ pub fn build_layers_shapes(
             continue;
         }
 
-        let elements = match evaluate_layer(&layer, &screen_rect, registry, ctx) {
+        let elements = match evaluate_layer(layer, &screen_rect, registry, ctx) {
             Ok(v) => v,
             Err(e) => {
                 tracing::warn!(
@@ -793,9 +793,9 @@ fn evaluate_layer(
     ctx: &DynamicContext,
 ) -> Result<Vec<Element>, String> {
     let material_id = layer.material.material_id();
-    let material = registry.get(material_id).ok_or_else(|| {
-        format!("material '{}' not found in registry", material_id)
-    })?;
+    let material = registry
+        .get(material_id)
+        .ok_or_else(|| format!("material '{}' not found in registry", material_id))?;
 
     // 合并物料默认参数与图层参数。
     let defaults = material.defaults().clone();
@@ -939,13 +939,7 @@ fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> 
                 font_size: font_size * transform.scale,
             }
         }
-        Element::Image {
-            path,
-            x,
-            y,
-            w,
-            h,
-        } => Element::Image {
+        Element::Image { path, x, y, w, h } => Element::Image {
             path,
             x: x + transform.offset_x,
             y: y + transform.offset_y,
@@ -956,10 +950,7 @@ fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> 
 }
 
 /// 合并两个 JSON 对象（overrides 优先，浅合并）。
-fn merge_json(
-    defaults: &serde_json::Value,
-    overrides: &serde_json::Value,
-) -> serde_json::Value {
+fn merge_json(defaults: &serde_json::Value, overrides: &serde_json::Value) -> serde_json::Value {
     match (defaults, overrides) {
         (serde_json::Value::Object(d), serde_json::Value::Object(o)) => {
             let mut merged = d.clone();
@@ -976,6 +967,7 @@ fn merge_json(
 #[cfg(test)]
 mod layer_tests {
     use super::*;
+    use peregrine_config::LayerStyle;
     use peregrine_material::MaterialRegistry;
 
     fn load_registry() -> MaterialRegistry {

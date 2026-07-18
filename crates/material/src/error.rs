@@ -31,10 +31,7 @@ pub enum MaterialError {
 
     /// Element 中包含未知的图元类型。
     #[error("material '{id}' returned unknown element type: {element_type}")]
-    UnknownElementType {
-        id: String,
-        element_type: String,
-    },
+    UnknownElementType { id: String, element_type: String },
 
     /// Element 字段缺失或类型错误。
     #[error("material '{id}' element field error: {detail}")]

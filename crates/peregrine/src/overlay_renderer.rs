@@ -107,9 +107,7 @@ impl OverlayRenderer {
         // 判断走新格式（layers）还是旧格式（crosshair）：
         // - 新格式：layers 非空 → 调用 build_layers_shapes
         // - 旧格式：crosshair = Some(...) → 调用旧 build_shapes
-        let use_new_format = profile
-            .map(|p| !p.layers.is_empty())
-            .unwrap_or(false);
+        let use_new_format = profile.map(|p| !p.layers.is_empty()).unwrap_or(false);
 
         // 旧格式路径：克隆 crosshair，供 build_shapes 使用。
         let legacy_crosshair = if !use_new_format {
@@ -137,7 +135,8 @@ impl OverlayRenderer {
         // CustomImage 需要访问 image_cache，单独处理。
         // 先加载图片（在获取 buffer 之前，避免与 surface 借用冲突）。
         // 新格式路径下，image 加载延迟到光栅化 Image 图元时处理。
-        let is_custom_image = !use_new_format && legacy_crosshair.style == CrosshairStyle::CustomImage;
+        let is_custom_image =
+            !use_new_format && legacy_crosshair.style == CrosshairStyle::CustomImage;
         if is_custom_image {
             self.ensure_image_loaded(&legacy_crosshair.image_path);
         }
@@ -192,27 +191,28 @@ impl OverlayRenderer {
             };
             // 渲染时使用真实动态输入。
             let ctx = crate::platform::poll_dynamic_context(logical_w, logical_h);
-            let shapes = crate::shapes::build_layers_shapes(
-                &rect,
-                profile,
-                &self.material_registry,
-                &ctx,
-            );
+            let shapes =
+                crate::shapes::build_layers_shapes(&rect, profile, &self.material_registry, &ctx);
 
             for (element, color, opacity) in shapes {
                 let color_u32 = make_color(&color, opacity);
                 match &element {
-                    peregrine_config::Element::Image {
-                        x, y, w, h, path,
-                    } => {
+                    peregrine_config::Element::Image { x, y, w, h, .. } => {
                         if let Some(img) = &self.image_cache {
                             // 复用现有 draw_image 但参数从 Image 图元取。
                             // 注意：draw_image 期望中心点 + offset，这里改为左上角 + w/h。
                             // 简化实现：用 draw_image_at_left_top。
                             draw_image_at_left_top(
-                                &mut buffer, width, height, scale,
-                                *x, *y, *w, *h,
-                                img, opacity,
+                                &mut buffer,
+                                width,
+                                height,
+                                scale,
+                                *x,
+                                *y,
+                                *w,
+                                *h,
+                                img,
+                                opacity,
                             );
                         }
                     }
@@ -499,13 +499,7 @@ fn rasterize_shape(
                 "rasterize_shape: 该图元类型在旧 crosshair 路径下不渲染（Step 9 实现）"
             );
         }
-        Shape::Image {
-            x,
-            y,
-            w,
-            h,
-            path,
-        } => {
+        Shape::Image { x, y, w, h, path } => {
             // Step 9 完整实现；这里仅记录路径，实际 blit 由上层 CustomImage 分支处理。
             let _ = (x, y, w, h, path);
         }

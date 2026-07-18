@@ -11,7 +11,7 @@ use peregrine_config::{
     ConfigNotifier, ConfigSnapshot, ConfigStorage, HotkeyAction, Layer, LayerStyle, MaterialRef,
     RendererBackend, Transform2D,
 };
-use peregrine_material::{DynamicContext, MaterialRegistry, MaterialInfo};
+use peregrine_material::{DynamicContext, MaterialInfo, MaterialRegistry};
 use std::sync::{Arc, Mutex, mpsc};
 use tauri::{
     Emitter, Manager, State, WebviewUrl,
@@ -233,10 +233,16 @@ pub fn run() {
 
     // 加载物料注册表（内置 + 用户）。
     let mut material_registry = MaterialRegistry::new();
-    material_registry.load_builtin().expect("load builtin materials");
+    material_registry
+        .load_builtin()
+        .expect("load builtin materials");
     if let Some(materials_dir) = peregrine_config::ConfigStorage::default_path()
         .ok()
-        .map(|p| p.parent().unwrap_or(std::path::Path::new(".")).join("materials"))
+        .map(|p| {
+            p.parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join("materials")
+        })
     {
         let _ = material_registry.load_user(&materials_dir);
     }
@@ -1261,12 +1267,8 @@ fn build_shapes_ipc(
     };
     let ctx = DynamicContext::preview_snapshot(screen_w, screen_h);
 
-    let shapes = peregrine::shapes::build_layers_shapes(
-        &screen,
-        profile,
-        &state.material_registry,
-        &ctx,
-    );
+    let shapes =
+        peregrine::shapes::build_layers_shapes(&screen, profile, &state.material_registry, &ctx);
 
     Ok(shapes
         .into_iter()
@@ -1403,10 +1405,7 @@ async fn move_layer(
 
 /// 复制图层（生成新 id）。
 #[tauri::command]
-async fn duplicate_layer(
-    state: State<'_, AppState>,
-    layer_id: String,
-) -> Result<Layer, String> {
+async fn duplicate_layer(state: State<'_, AppState>, layer_id: String) -> Result<Layer, String> {
     let mut config = {
         let guard = state.config.lock().map_err(|e| e.to_string())?;
         guard.as_ref().clone()
@@ -1453,9 +1452,7 @@ async fn update_layer(
         }
         if let Some(params) = patch.params {
             // 字段级合并：把 patch.params 合并到 layer.params。
-            if let (Some(mut dst), Some(src)) =
-                (layer.params.as_object_mut(), params.as_object())
-            {
+            if let (Some(mut dst), Some(src)) = (layer.params.as_object_mut(), params.as_object()) {
                 for (k, v) in src {
                     dst.insert(k.clone(), v.clone());
                 }

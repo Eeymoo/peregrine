@@ -14,6 +14,7 @@ import {
 import { Preview } from "@/components/Preview";
 import { StyleFields } from "@/components/StyleFields";
 import { LayersEditor } from "@/components/LayersEditor";
+import { DeveloperPanel } from "@/components/DeveloperPanel";
 import { useI18n } from "@/lib/i18n";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
@@ -62,10 +63,14 @@ export default function ConfigApp() {
   const [showAutoSwitchDialog, setShowAutoSwitchDialog] = useState(false);
   const [rememberChoice, setRememberChoice] = useState(false);
   const [version, setVersion] = useState("");
+  // 点击版本号 3 次后启用"开发者"tab，写入 localStorage 持久化。
+  const [devTabUnlocked, setDevTabUnlocked] = useState<boolean>(
+    () => localStorage.getItem("peregrine:dev-tab") === "1",
+  );
+  const [versionClickCount, setVersionClickCount] = useState(0);
   const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body?: string } | null>(null);
   // 四层架构：切换"图层编辑器"模式。
-  // 默认 false（旧 UI 优先稳定）；用户可点击"切换到图层编辑器"进入新 UI。
-  // 稳定后改为 true。
+  // 默认根据配置自动选择：新格式（有 layers 无 crosshair）→ true，旧格式 → false。
   const [layersMode, setLayersMode] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateProgress, setUpdateProgress] = useState(0);
@@ -79,7 +84,20 @@ export default function ConfigApp() {
     getAppVersion().then(setVersion).catch(() => {});
     getOverlayActive().then(setOverlayActive).catch(() => {});
 
-    // 启动时自动检测更新（静默，发现新版本才弹窗）。延迟 3 秒避免抢焦点。
+    // 点击版本号 3 次（连续，间隔 < 1.5s）解锁开发者 tab。
+  // 解锁状态写入 localStorage，下次启动仍然有效；可在开发者 tab 里关闭。
+  useEffect(() => {
+    if (versionClickCount === 0) return;
+    const timer = setTimeout(() => setVersionClickCount(0), 1500);
+    if (versionClickCount >= 3) {
+      setVersionClickCount(0);
+      setDevTabUnlocked(true);
+      localStorage.setItem("peregrine:dev-tab", "1");
+    }
+    return () => clearTimeout(timer);
+  }, [versionClickCount]);
+
+  // 启动时自动检测更新（静默，发现新版本才弹窗）。延迟 3 秒避免抢焦点。
     const autoCheck = async () => {
       try {
         await new Promise((r) => setTimeout(r, 3000));
@@ -158,7 +176,14 @@ export default function ConfigApp() {
   }, []);
 
   const profile = config?.profiles[config.active_profile];
-  const crosshair = profile?.crosshair;
+  const crosshair = profile?.crosshair ?? null;
+  const hasLayers = (profile?.layers?.length ?? 0) > 0;
+  // 兼容新旧格式：新格式下 crosshair 为 null，强制进入 layersMode 显示图层编辑器。
+  useEffect(() => {
+    if (config && !crosshair && hasLayers) {
+      setLayersMode(true);
+    }
+  }, [config, crosshair, hasLayers]);
 
   /** 防抖保存配置：拖滑块等连续操作时只在停止后 300ms 写入一次。 */
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -286,13 +311,45 @@ export default function ConfigApp() {
     return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
   }, [crosshair?.color]);
 
-  if (loading || !config || !crosshair) {
+  // 加载状态：必须有 config。
+  if (loading || !config) {
     return (
       <div className="h-screen flex items-center justify-center text-muted-foreground">
         {t("config.loading")}
       </div>
     );
   }
+
+  // 新格式（有 layers 无 crosshair）自动切到 layersMode，避免旧 UI 访问 null crosshair 崩溃。
+  const shouldUseLayersMode = !crosshair && hasLayers;
+  if (shouldUseLayersMode && !layersMode) {
+    setLayersMode(true);
+    return (
+      <div className="h-screen flex items-center justify-center text-muted-foreground">
+        <span className="text-lg">加载中…</span>
+      </div>
+    );
+  }
+
+  // 旧 UI 路径需要 crosshair。新格式走 layersMode，已通过上面的早 return 过滤。
+  // 这里 crosshair 仍为 null 表示异常情况（既没有 layers 也没有 crosshair）。
+  if (!crosshair && !layersMode) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center text-muted-foreground gap-4">
+        <span className="text-lg">配置格式异常</span>
+        <button
+          className="text-xs px-3 py-1 border rounded hover:bg-accent"
+          onClick={() => setLayersMode(true)}
+        >
+          切换到图层编辑器 →
+        </button>
+      </div>
+    );
+  }
+
+  // 到这里 crosshair 必为非 null（layersMode 已 early return，异常情况也已 early return）。
+  // 用非空断言把 crosshair 类型从 Crosshair | null 收窄为 Crosshair。
+  const ch = crosshair!;
 
   // 图层编辑器模式：显示全新 UI。
   if (layersMode) {
@@ -340,7 +397,7 @@ export default function ConfigApp() {
           <div className="space-y-2">
             <Label className="text-sm">{t("config.style")}</Label>
             <Select
-              value={crosshair.style}
+              value={ch.style}
               onValueChange={(v) => updateCrosshair({ style: v as CrosshairStyle }, { resetDefaults: true })}
             >
               <SelectTrigger className="h-8 text-sm">
@@ -361,10 +418,10 @@ export default function ConfigApp() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <Label className="text-sm">{t("config.opacity")}</Label>
-                <span className="text-sm text-muted-foreground">{crosshair.opacity.toFixed(2)}</span>
+                <span className="text-sm text-muted-foreground">{ch.opacity.toFixed(2)}</span>
               </div>
               <Slider
-                value={[crosshair.opacity]}
+                value={[ch.opacity]}
                 min={0}
                 max={1}
                 step={0.01}
@@ -390,7 +447,7 @@ export default function ConfigApp() {
               <div className="flex gap-1">
                 {(config.settings.quick_colors ?? []).map((qc, i) => {
                   const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;
-                  const isActive = crosshair.color[0] === qc[0] && crosshair.color[1] === qc[1] && crosshair.color[2] === qc[2];
+                  const isActive = ch.color[0] === qc[0] && ch.color[1] === qc[1] && ch.color[2] === qc[2];
                   return (
                     <button
                       key={i}
@@ -414,7 +471,7 @@ export default function ConfigApp() {
 
         {/* 中间样式配置：默认随窗口高度自适应，内容过多时才滚动 */}
         <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-          <StyleFields crosshair={crosshair} onChange={updateCrosshair} />
+          <StyleFields crosshair={ch} onChange={updateCrosshair} />
         </div>
 
         <Separator className="shrink-0" />
@@ -448,9 +505,10 @@ export default function ConfigApp() {
                 </Button>
               </div>
               <Select
-                value={profile.target_window || "__none__"}
+                value={profile?.target_window || "__none__"}
                 onValueChange={(v) => {
-                  const newConfig = {
+                  if (!profile) return;
+                  const newConfig: AppConfig = {
                     ...config,
                     profiles: {
                       ...config.profiles,
@@ -486,15 +544,39 @@ export default function ConfigApp() {
                 ■ {t("config.stopOverlay")}
               </Button>
             ) : (
-              <Button className="w-full h-8 text-sm" onClick={handleStartOverlay} disabled={!config.settings.fullscreen_overlay && !profile.target_window}>
+              <Button className="w-full h-8 text-sm" onClick={handleStartOverlay} disabled={!config.settings.fullscreen_overlay && !profile?.target_window}>
                 ▶ {t("config.startOverlay")}
               </Button>
             )}
           </div>
 
+          {/* 开发者面板（仅 devTabUnlocked=true 时显示） */}
+          {devTabUnlocked && (
+            <DeveloperPanel
+              config={config}
+              version={version}
+              onClose={() => {
+                setDevTabUnlocked(false);
+                localStorage.removeItem("peregrine:dev-tab");
+              }}
+            />
+          )}
+
           {/* 底部信息 */}
-          <div className="text-xs text-muted-foreground text-right">
+          <div
+            className="text-xs text-muted-foreground text-right cursor-pointer select-none"
+            onClick={() => {
+              setVersionClickCount((n) => n + 1);
+            }}
+            title={devTabUnlocked ? "开发者模式已开启" : "点击 3 次解锁开发者面板"}
+          >
             Peregrine v{version || "..."}
+            {versionClickCount > 0 && versionClickCount < 3 && (
+              <span className="ml-1 text-[10px] opacity-60">
+                ({3 - versionClickCount} 次解锁开发者)
+              </span>
+            )}
+            {devTabUnlocked && <span className="ml-1 text-[10px] text-yellow-500">DEV</span>}
           </div>
         </div>
       </div>

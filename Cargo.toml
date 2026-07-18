@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/config", "crates/peregrine", "src-tauri"]
 
 [workspace.package]
-version = "0.1.9"
+version = "0.1.15"
 edition = "2024"
 license = "MIT"
 authors = ["Peregrine Contributors"]

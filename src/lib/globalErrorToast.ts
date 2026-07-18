@@ -1,3 +1,5 @@
+import { translate } from "./i18n";
+
 /**
  * 全局错误兜底：捕获 window.onerror 和 unhandledrejection。
  *
@@ -8,6 +10,11 @@
  */
 export function installGlobalErrorHandler(): void {
   if (typeof window === "undefined") return;
+
+  const t = (key: string) => {
+    const locale = (localStorage.getItem("peregrine:locale") as "auto" | "zh-CN" | "en") ?? "auto";
+    return translate(locale, key);
+  };
 
   window.addEventListener("error", (event) => {
     console.error("[global error]", event.error ?? event.message);
@@ -20,7 +27,7 @@ export function installGlobalErrorHandler(): void {
       reason instanceof Error ? reason.message : typeof reason === "string" ? reason : "(promise rejection)";
     const stack = reason instanceof Error ? reason.stack : undefined;
     console.error("[unhandled rejection]", reason);
-    showToast(`Promise 未捕获: ${message}`, stack);
+    showToast(`${t("hotkeys.unhandled")}: ${message}`, stack);
   });
 }
 

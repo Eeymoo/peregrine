@@ -317,7 +317,7 @@ function OrbPositionCheck({ crosshair, onChange }: StyleFieldsProps) {
   return (
     <div className="space-y-2">
       <Label className="text-sm">{t("fields.enabled")}</Label>
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         {items.map(({ flag, key, label }) => (
           <div key={key} className="flex items-center gap-1">
             <Checkbox

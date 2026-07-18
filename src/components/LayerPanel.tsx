@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { Layer, MaterialInfo, MaterialSchemaEntry } from "@/types/config";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -298,11 +298,11 @@ export function MaterialParamControls({
     );
   }
 
-  const updateParam = async (key: string, value: unknown) => {
+  const updateParam = useCallback(async (key: string, value: unknown) => {
     const newParams = { ...params, [key]: value };
     onChanged(newParams);
     await invoke("update_layer", { layerId, patch: { params: newParams } });
-  };
+  }, [layerId, onChanged, params]);
 
   return (
     <div className="space-y-3">

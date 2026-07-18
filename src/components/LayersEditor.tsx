@@ -133,6 +133,12 @@ export function LayersEditor() {
                     triggerPreviewRefresh();
                   });
                 }}
+                onBlur={(e) => {
+                  updateLayerName(selectedLayer.id, e.target.value, () => {
+                    refresh();
+                    triggerPreviewRefresh();
+                  });
+                }}
                 className="w-full px-2 py-1 text-sm border rounded bg-background"
               />
             </div>

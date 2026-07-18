@@ -134,7 +134,8 @@
     "hint": "Click the input, then press a key combination. Press Esc to clear.",
     "placeholder": "Click to set…",
     "clear": "Clear",
-    "pressCombo": "Press key combo…"
+    "pressCombo": "Press key combo…",
+    "unhandled": "Promise unhandled"
   },
   "hotkeyActions": {
     "toggle_overlay": "Toggle Overlay",
@@ -278,7 +279,8 @@
     "gridAlignment": "Alignment"
   },
   "preview": {
-    "placeholder": "Please select a PNG file"
+    "placeholder": "Please select a PNG file",
+    "rendering": "Rendering…"
   },
   "tray": {
     "config": "Config",

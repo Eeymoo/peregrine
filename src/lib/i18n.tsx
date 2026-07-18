@@ -59,6 +59,7 @@ export function resolveLocale(locale: Locale): Exclude<Locale, "auto"> {
   return locale;
 }
 
+/** 根据当前选择的 locale 翻译 key（不依赖 React）。 */
 export function translate(locale: Locale, key: string): string {
   const resolved = resolveLocale(locale);
   return localeMap[resolved][key] ?? localeMap[FALLBACK_LOCALE][key] ?? key;
@@ -97,11 +98,14 @@ export function I18nProvider({ children }: I18nProviderProps) {
         const saved = config.settings?.locale;
         if (saved === "auto" || saved === "zh-CN" || saved === "en") {
           if (!cancelled) setLocaleState(saved);
+          localStorage.setItem("peregrine:locale", saved);
         } else {
           if (!cancelled) setLocaleState("auto");
+          localStorage.setItem("peregrine:locale", "auto");
         }
       } catch {
         if (!cancelled) setLocaleState("auto");
+        localStorage.setItem("peregrine:locale", "auto");
       }
     })();
     return () => { cancelled = true; };
@@ -109,6 +113,8 @@ export function I18nProvider({ children }: I18nProviderProps) {
 
   const setLocale = useCallback(async (next: Locale) => {
     setLocaleState(next);
+    // 同步写入 localStorage，让全局错误 toast 等非 React 模块也能读取最新语言。
+    localStorage.setItem("peregrine:locale", next);
     try {
       // 通过 update_preferences 写入配置，后端会广播 locale-changed 事件给所有窗口。
       await updatePreferences({ locale: next });
@@ -126,6 +132,7 @@ export function I18nProvider({ children }: I18nProviderProps) {
           const next = event.payload;
           if (next === "auto" || next === "zh-CN" || next === "en") {
             setLocaleState(next);
+            localStorage.setItem("peregrine:locale", next);
           }
         });
       } catch {

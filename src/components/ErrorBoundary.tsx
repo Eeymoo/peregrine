@@ -64,9 +64,9 @@ function ErrorBoundaryFallback({ error, errorInfo, onReload, onReset }: Fallback
 
   const handleCopy = async (): Promise<void> => {
     const text = [
-      "Peregrine 前端错误报告",
+      "Peregrine Error Report",
       "================",
-      `时间: ${new Date().toISOString()}`,
+      `Time: ${new Date().toISOString()}`,
       `URL: ${window.location.href}`,
       `UserAgent: ${navigator.userAgent}`,
       "",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { Layer, LayerStyle, Transform2D } from "@/types/config";
 import { updateLayer } from "@/lib/api";
 import { Slider } from "@/components/ui/slider";
@@ -21,12 +21,12 @@ export function LayerStyleEditor({
     setStyle(layer.style);
   }, [layer]);
 
-  const update = async (patch: Partial<LayerStyle>) => {
+  const update = useCallback(async (patch: Partial<LayerStyle>) => {
     const newStyle = { ...style, ...patch };
     setStyle(newStyle);
     await updateLayer(layer.id, { style: newStyle });
     onChanged();
-  };
+  }, [layer.id, onChanged, style]);
 
   return (
     <div className="space-y-3">
@@ -92,12 +92,12 @@ export function LayerTransformEditor({
     setTransform(layer.transform);
   }, [layer]);
 
-  const update = async (patch: Partial<Transform2D>) => {
+  const update = useCallback(async (patch: Partial<Transform2D>) => {
     const newTransform = { ...transform, ...patch };
     setTransform(newTransform);
     await updateLayer(layer.id, { transform: newTransform });
     onChanged();
-  };
+  }, [layer.id, onChanged, transform]);
 
   return (
     <div className="space-y-3">

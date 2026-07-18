@@ -139,7 +139,7 @@ export function Preview({ previewKey, aspectRatio = 16 / 9 }: PreviewProps) {
       ctx.font = "10px sans-serif";
       ctx.textAlign = "right";
       ctx.textBaseline = "top";
-      ctx.fillText("rendering...", rect.width - 12, 12);
+      ctx.fillText(t("preview.rendering"), rect.width - 12, 12);
     }
 
     // 空状态提示。

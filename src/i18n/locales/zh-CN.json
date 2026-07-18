@@ -134,7 +134,8 @@
     "hint": "点击输入框后按下组合键，再按 Esc 清除",
     "placeholder": "点击设置…",
     "clear": "清除",
-    "pressCombo": "按下组合键…"
+    "pressCombo": "按下组合键…",
+    "unhandled": "Promise 未捕获"
   },
   "hotkeyActions": {
     "toggle_overlay": "切换覆盖层",
@@ -278,7 +279,8 @@
     "gridAlignment": "对齐方式"
   },
   "preview": {
-    "placeholder": "请选择 PNG 文件"
+    "placeholder": "请选择 PNG 文件",
+    "rendering": "渲染中…"
   },
   "tray": {
     "config": "配置",

@@ -834,7 +834,7 @@ function HotkeyRow({
         }`}
       >
         {recording ? (
-          <span className="text-xs text-muted-foreground animate-pulse">按下组合键…</span>
+          <span className="text-xs text-muted-foreground animate-pulse">{t("hotkeys.pressCombo")}</span>
         ) : keyParts.length > 0 ? (
           keyParts.map((part, i) => (
             <span key={i} className="flex items-center gap-1">

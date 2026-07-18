@@ -373,7 +373,7 @@ export default function ConfigApp() {
   return (
     <div className="h-screen flex bg-background text-foreground overflow-hidden">
       {/* 左侧预览 */}
-      <div className="flex-1 p-4 min-w-0 relative">
+      <div className="flex-1 p-4 min-w-0 min-h-0 relative">
         {/* TODO(Step 18): 改为传入 layers 作为 previewKey */}
         <Preview previewKey={crosshair} />
         {/* 切换到图层编辑器按钮 */}

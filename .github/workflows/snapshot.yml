@@ -1,13 +1,13 @@
 name: Snapshot
 
-# 在提交 PR 到 main/master 时触发，构建 Windows 快照制品（NSIS + 便携 zip）用于测试。
+# 在提交 PR 到 main/master/dev 时触发，构建 Windows 快照制品（NSIS + 便携 zip）用于测试。
 # 版本号取 PR head commit 短 hash（格式 0.0.0-dev.<short_sha>），不签名、不发布正式
 # GitHub Release。制品作为 workflow artifact 上传，可在 PR 检查页面下载。复用
 # release.yml 的构建逻辑，但去掉签名与发布步骤，便于在无签名密钥的 PR 上下文中产出
 # 可安装 / 可运行的测试包。也支持手动 workflow_dispatch 触发。
 on:
   pull_request:
-    branches: [main, master]
+    branches: [main, master, dev]
   workflow_dispatch:
 
 permissions:

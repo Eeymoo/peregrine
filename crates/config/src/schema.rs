@@ -864,6 +864,299 @@ impl Default for AppConfig {
     }
 }
 
+// ===== 四层可定制化架构：元素 / 物料 / 图层 =====
+//
+// 以下类型定义了"元素 → 物料 → 图层 → 配置"四层架构的数据模型。
+// 物料是 Rhai 脚本定义的"参数 → Element 列表"映射，通过 peregrine_material crate 求值。
+// 一个 Profile 可包含多个图层，每个图层引用一个物料实例并携带参数、变换、样式。
+
+/// 逻辑坐标矩形区域，作为物料求值的输入。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Rect {
+    /// 左上角 X 坐标（逻辑像素）。
+    pub min_x: f32,
+    /// 左上角 Y 坐标。
+    pub min_y: f32,
+    /// 右下角 X 坐标。
+    pub max_x: f32,
+    /// 右下角 Y 坐标。
+    pub max_y: f32,
+}
+
+impl Rect {
+    /// 矩形宽度。
+    pub fn width(&self) -> f32 {
+        self.max_x - self.min_x
+    }
+
+    /// 矩形高度。
+    pub fn height(&self) -> f32 {
+        self.max_y - self.min_y
+    }
+
+    /// 中心 X 坐标。
+    pub fn center_x(&self) -> f32 {
+        (self.min_x + self.max_x) / 2.0
+    }
+
+    /// 中心 Y 坐标。
+    pub fn center_y(&self) -> f32 {
+        (self.min_y + self.max_y) / 2.0
+    }
+}
+
+/// 基础图元（Element）：不可再分的渲染原语。
+///
+/// 物料脚本的输出由若干 Element 组成，渲染器（overlay_renderer）与前端 Canvas 预览
+/// 共同消费同一份 Element 列表，确保 WYSIWYG。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Element {
+    /// 填充矩形（逻辑坐标）。
+    Rect {
+        /// 左上角 X。
+        x: f32,
+        /// 左上角 Y。
+        y: f32,
+        /// 宽度。
+        w: f32,
+        /// 高度。
+        h: f32,
+    },
+    /// 填充圆。
+    Circle {
+        /// 圆心 X。
+        cx: f32,
+        /// 圆心 Y。
+        cy: f32,
+        /// 半径。
+        radius: f32,
+    },
+    /// 圆环描边。
+    CircleStroke {
+        cx: f32,
+        cy: f32,
+        radius: f32,
+        /// 描边厚度。
+        thickness: f32,
+    },
+    /// 虚线圆环。
+    DashedCircle {
+        cx: f32,
+        cy: f32,
+        radius: f32,
+        thickness: f32,
+        /// 单段虚线长度。
+        dash_len: f32,
+        /// 虚线间隔长度。
+        gap_len: f32,
+    },
+    /// 填充三角形（3 个顶点）。
+    Triangle {
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+        x3: f32,
+        y3: f32,
+    },
+    /// 填充多边形（顶点数组，按顺序连接）。
+    Polygon {
+        /// 顶点列表，每项 `[x, y]`。
+        points: Vec<[f32; 2]>,
+    },
+    /// 粗线段。
+    Line {
+        /// 起点 X。
+        x1: f32,
+        /// 起点 Y。
+        y1: f32,
+        /// 终点 X。
+        x2: f32,
+        /// 终点 Y。
+        y2: f32,
+        /// 线条厚度。
+        thickness: f32,
+    },
+    /// 文本。
+    Text {
+        /// 左下角基线 X 坐标。
+        x: f32,
+        /// 基线 Y 坐标。
+        y: f32,
+        /// 文本内容。
+        content: String,
+        /// 字号（逻辑像素）。
+        font_size: f32,
+    },
+    /// 图片。
+    Image {
+        /// 图片文件绝对路径。
+        path: String,
+        /// 左上角 X。
+        x: f32,
+        /// 左上角 Y。
+        y: f32,
+        /// 显示宽度。
+        w: f32,
+        /// 显示高度。
+        h: f32,
+    },
+}
+
+/// 物料引用：图层所用的物料来源。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MaterialRef {
+    /// 内置物料：由二进制内嵌的 `.rhai` 提供，如 `builtin.cross`。
+    Builtin {
+        /// 物料 id（含 `builtin.` 前缀）。
+        id: String,
+    },
+    /// 用户物料：位于 `%APPDATA%/Peregrine/materials/<name>.rhai`。
+    User {
+        /// 物料名称（不含扩展名，含 `user.` 前缀）。
+        name: String,
+    },
+}
+
+impl MaterialRef {
+    /// 获取物料的完整查找 id。
+    ///
+    /// - `Builtin { id }` → 直接返回 `id`
+    /// - `User { name }` → 返回 `name`（已含 `user.` 前缀）
+    pub fn material_id(&self) -> &str {
+        match self {
+            MaterialRef::Builtin { id } => id,
+            MaterialRef::User { name } => name,
+        }
+    }
+
+    /// 是否为内置物料。
+    pub fn is_builtin(&self) -> bool {
+        matches!(self, MaterialRef::Builtin { .. })
+    }
+}
+
+/// 图层几何变换：在物料输出 Element 后应用的平移 / 缩放 / 旋转。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Transform2D {
+    /// X 方向位移（逻辑像素，默认 0）。
+    #[serde(default)]
+    pub offset_x: f32,
+    /// Y 方向位移。
+    #[serde(default)]
+    pub offset_y: f32,
+    /// 均匀缩放因子（默认 1.0）。
+    #[serde(default = "default_transform_scale")]
+    pub scale: f32,
+    /// 围绕屏幕中心的旋转角度（度，默认 0）。
+    #[serde(default)]
+    pub rotation_deg: f32,
+}
+
+fn default_transform_scale() -> f32 {
+    1.0
+}
+
+impl Default for Transform2D {
+    fn default() -> Self {
+        Self {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            scale: 1.0,
+            rotation_deg: 0.0,
+        }
+    }
+}
+
+/// 图层混合模式（首期仅支持 `Normal`，预留扩展点）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BlendMode {
+    /// 普通透明度混合（src over dst）。
+    #[default]
+    Normal,
+}
+
+/// 图层级样式：颜色 / 不透明度 / 混合模式。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LayerStyle {
+    /// RGBA 颜色（0.0..=1.0）。
+    #[serde(default = "default_layer_color")]
+    pub color: [f32; 4],
+    /// 图层整体不透明度（0.0..=1.0）。
+    #[serde(default = "default_layer_opacity")]
+    pub opacity: f32,
+    /// 混合模式。
+    #[serde(default)]
+    pub blend_mode: BlendMode,
+}
+
+fn default_layer_color() -> [f32; 4] {
+    [1.0, 1.0, 1.0, 1.0]
+}
+
+fn default_layer_opacity() -> f32 {
+    0.6
+}
+
+impl Default for LayerStyle {
+    fn default() -> Self {
+        Self {
+            color: default_layer_color(),
+            opacity: default_layer_opacity(),
+            blend_mode: BlendMode::default(),
+        }
+    }
+}
+
+/// 单个图层：一个物料实例 + 参数 + 变换 + 样式。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Layer {
+    /// 图层内唯一标识（UUID v4 或简单序号字符串）。
+    pub id: String,
+    /// 用户可读的图层名。
+    pub name: String,
+    /// 引用的物料。
+    pub material: MaterialRef,
+    /// 该图层实例的具体参数（JSON 对象，覆盖物料 `defaults()`）。
+    #[serde(default)]
+    pub params: serde_json::Value,
+    /// 图层级样式。
+    #[serde(default)]
+    pub style: LayerStyle,
+    /// 几何变换。
+    #[serde(default)]
+    pub transform: Transform2D,
+    /// 是否可见（false 时不参与渲染）。
+    #[serde(default = "default_layer_visible")]
+    pub visible: bool,
+    /// 是否锁定（锁定后 UI 不可误改）。
+    #[serde(default)]
+    pub locked: bool,
+}
+
+fn default_layer_visible() -> bool {
+    true
+}
+
+impl Layer {
+    /// 创建一个引用指定物料的新图层，参数取物料 defaults（由调用方填充）。
+    pub fn new(id: impl Into<String>, name: impl Into<String>, material: MaterialRef) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            material,
+            params: serde_json::Value::Object(serde_json::Map::new()),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1517,5 +1810,157 @@ mod tests {
         assert_eq!(restored.hotkey_bindings.len(), 1);
         assert_eq!(restored.hotkey_bindings[0].0, HotkeyAction::ToggleOverlay);
         assert_eq!(restored.quick_colors.len(), 5);
+    }
+
+    // ===== 四层架构类型测试 =====
+
+    #[test]
+    fn element_rect_serialization() {
+        let e = Element::Rect {
+            x: 10.0,
+            y: 20.0,
+            w: 100.0,
+            h: 50.0,
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"type\":\"rect\""));
+        assert!(json.contains("\"x\":10.0"));
+        let restored: Element = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, e);
+    }
+
+    #[test]
+    fn element_circle_serialization() {
+        let e = Element::Circle {
+            cx: 5.0,
+            cy: 5.0,
+            radius: 2.0,
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"type\":\"circle\""));
+        let restored: Element = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, e);
+    }
+
+    #[test]
+    fn element_text_serialization() {
+        let e = Element::Text {
+            x: 0.0,
+            y: 16.0,
+            content: "Hello".to_string(),
+            font_size: 16.0,
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"type\":\"text\""));
+        assert!(json.contains("\"content\":\"Hello\""));
+    }
+
+    #[test]
+    fn element_polygon_serialization() {
+        let e = Element::Polygon {
+            points: vec![[0.0, 0.0], [10.0, 0.0], [5.0, 10.0]],
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"type\":\"polygon\""));
+        let restored: Element = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, e);
+    }
+
+    #[test]
+    fn material_ref_builtin_serialization() {
+        let r = MaterialRef::Builtin {
+            id: "builtin.cross".to_string(),
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains("\"kind\":\"builtin\""));
+        assert!(json.contains("\"id\":\"builtin.cross\""));
+        let restored: MaterialRef = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, r);
+        assert_eq!(r.material_id(), "builtin.cross");
+        assert!(r.is_builtin());
+    }
+
+    #[test]
+    fn material_ref_user_serialization() {
+        let r = MaterialRef::User {
+            name: "user.my_cross".to_string(),
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains("\"kind\":\"user\""));
+        assert_eq!(r.material_id(), "user.my_cross");
+        assert!(!r.is_builtin());
+    }
+
+    #[test]
+    fn transform2d_defaults() {
+        let t = Transform2D::default();
+        assert_eq!(t.offset_x, 0.0);
+        assert_eq!(t.offset_y, 0.0);
+        assert_eq!(t.scale, 1.0);
+        assert_eq!(t.rotation_deg, 0.0);
+    }
+
+    #[test]
+    fn transform2d_partial_deserialize() {
+        // 只提供 offset_x，其他字段回退默认。
+        let json = r#"{"offset_x": 10.0}"#;
+        let t: Transform2D = serde_json::from_str(json).unwrap();
+        assert_eq!(t.offset_x, 10.0);
+        assert_eq!(t.offset_y, 0.0);
+        assert_eq!(t.scale, 1.0);
+        assert_eq!(t.rotation_deg, 0.0);
+    }
+
+    #[test]
+    fn layer_style_defaults() {
+        let s = LayerStyle::default();
+        assert_eq!(s.color, [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(s.opacity, 0.6);
+        assert_eq!(s.blend_mode, BlendMode::Normal);
+    }
+
+    #[test]
+    fn layer_new_basic() {
+        let l = Layer::new(
+            "layer-1",
+            "中心十字",
+            MaterialRef::Builtin {
+                id: "builtin.cross".to_string(),
+            },
+        );
+        assert_eq!(l.id, "layer-1");
+        assert_eq!(l.name, "中心十字");
+        assert!(l.visible);
+        assert!(!l.locked);
+    }
+
+    #[test]
+    fn layer_partial_deserialize() {
+        // 最小合法 Layer JSON：只提供必填字段。
+        let json = r#"{
+            "id": "l1",
+            "name": "test",
+            "material": {"kind": "builtin", "id": "builtin.cross"}
+        }"#;
+        let l: Layer = serde_json::from_str(json).unwrap();
+        assert_eq!(l.id, "l1");
+        assert!(l.visible); // 默认 true
+        assert!(!l.locked); // 默认 false
+        assert_eq!(l.transform.scale, 1.0); // 默认
+        assert_eq!(l.style.opacity, 0.6); // 默认
+    }
+
+    #[test]
+    fn rect_width_height_center() {
+        let r = Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        };
+        assert_eq!(r.width(), 1920.0);
+        assert_eq!(r.height(), 1080.0);
+        assert_eq!(r.center_x(), 960.0);
+        assert_eq!(r.center_y(), 540.0);
     }
 }

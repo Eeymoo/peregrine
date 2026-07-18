@@ -386,8 +386,8 @@ export default function ConfigApp() {
         </button>
       </div>
 
-      {/* 右侧设置面板：固定顶部与底部，中间样式配置自适应 */}
-      <div className="w-80 border-l bg-card p-4 flex flex-col gap-4 overflow-hidden">
+      {/* 右侧设置面板：顶部固定、中间滚动、底部固定 */}
+      <div className="w-80 border-l bg-card p-4 flex flex-col gap-4 overflow-hidden h-screen">
         {/* 顶部固定区：样式 + 公共配置 */}
         <div className="space-y-3 shrink-0">
           {/* 样式选择 */}
@@ -441,7 +441,7 @@ export default function ConfigApp() {
                 className="h-8 w-14 rounded border bg-transparent cursor-pointer"
               />
               {/* 快捷颜色色块 */}
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 {(config.settings.quick_colors ?? []).map((qc, i) => {
                   const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;
                   const isActive = ch.color[0] === qc[0] && ch.color[1] === qc[1] && ch.color[2] === qc[2];
@@ -546,37 +546,37 @@ export default function ConfigApp() {
               </Button>
             )}
           </div>
-
-      {/* 开发者面板（仅 devTabUnlocked=true 时显示） */}
-      {devTabUnlocked && (
-        <div className="shrink-0 border-t pt-2 mt-2 max-h-64 overflow-y-auto">
-          <DeveloperPanel
-            config={config}
-            version={version}
-            onClose={() => {
-              setDevTabUnlocked(false);
-              localStorage.removeItem("peregrine:dev-tab");
-            }}
-          />
         </div>
-      )}
 
-          {/* 底部信息 */}
-          <div
-            className="text-xs text-muted-foreground text-right cursor-pointer select-none"
-            onClick={() => {
-              setVersionClickCount((n) => n + 1);
-            }}
-            title={devTabUnlocked ? t("developer.toggle") : t("developer.unlockHint")}
-          >
-            Peregrine v{version || "..."}
-            {versionClickCount > 0 && versionClickCount < 3 && (
-              <span className="ml-1 text-[10px] opacity-60">
-                ({3 - versionClickCount} {t("developer.remaining")})
-              </span>
-            )}
-            {devTabUnlocked && <span className="ml-1 text-[10px] text-yellow-500">{t("developer.tag")}</span>}
+        {/* 开发者面板（仅 devTabUnlocked=true 时显示） */}
+        {devTabUnlocked && (
+          <div className="shrink-0 border-t pt-2 mt-2 max-h-48 overflow-y-auto">
+            <DeveloperPanel
+              config={config}
+              version={version}
+              onClose={() => {
+                setDevTabUnlocked(false);
+                localStorage.removeItem("peregrine:dev-tab");
+              }}
+            />
           </div>
+        )}
+
+        {/* 底部信息 */}
+        <div
+          className="text-xs text-muted-foreground text-right cursor-pointer select-none shrink-0"
+          onClick={() => {
+            setVersionClickCount((n) => n + 1);
+          }}
+          title={devTabUnlocked ? t("developer.toggle") : t("developer.unlockHint")}
+        >
+          Peregrine v{version || "..."}
+          {versionClickCount > 0 && versionClickCount < 3 && (
+            <span className="ml-1 text-[10px] opacity-60">
+              ({3 - versionClickCount} {t("developer.remaining")})
+            </span>
+          )}
+          {devTabUnlocked && <span className="ml-1 text-[10px] text-yellow-500">{t("developer.tag")}</span>}
         </div>
       </div>
 

@@ -145,9 +145,8 @@ impl OverlayRenderer {
         // 新格式路径：扫描 layers 中所有 Image 图元的路径，预加载到缓存。
         if use_new_format {
             if let Some(ref profile) = profile_clone {
-                // 构建一次 DynamicContext（overlay 渲染时使用真实时间 / 鼠标）。
-                // TODO(Step 10): 接入真实 Win32 API 鼠标键盘状态。
-                let ctx = peregrine_material::DynamicContext::preview_snapshot(logical_w, logical_h);
+                // 渲染时用真实动态输入（Win32 API 鼠标键盘 / 时间）。
+                let ctx = crate::platform::poll_dynamic_context(logical_w, logical_h);
                 let shapes = crate::shapes::build_layers_shapes(
                     &rect,
                     profile,
@@ -191,7 +190,8 @@ impl OverlayRenderer {
             let Some(ref profile) = profile_clone else {
                 return;
             };
-            let ctx = peregrine_material::DynamicContext::preview_snapshot(logical_w, logical_h);
+            // 渲染时使用真实动态输入。
+            let ctx = crate::platform::poll_dynamic_context(logical_w, logical_h);
             let shapes = crate::shapes::build_layers_shapes(
                 &rect,
                 profile,

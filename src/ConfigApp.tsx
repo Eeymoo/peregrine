@@ -356,12 +356,23 @@ export default function ConfigApp() {
           <div className="text-sm font-semibold">
             {t("app.title")} — {t("layers.editorTitle")}
           </div>
-          <button
-            onClick={() => setLayersMode(false)}
-            className="text-xs px-3 py-1 border rounded hover:bg-accent"
-          >
-            ← {t("layers.backToLegacy")}
-          </button>
+          <div className="flex items-center gap-2">
+            {overlayActive ? (
+              <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={handleStopOverlay}>
+                ■ {t("config.stopOverlay")}
+              </Button>
+            ) : (
+              <Button size="sm" className="h-7 text-xs" onClick={handleStartOverlay} disabled={!config.settings.fullscreen_overlay && !profile?.target_window}>
+                ▶ {t("config.startOverlay")}
+              </Button>
+            )}
+            <button
+              onClick={() => setLayersMode(false)}
+              className="text-xs px-3 py-1 border rounded hover:bg-accent"
+            >
+              ← {t("layers.backToLegacy")}
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-hidden min-h-0">
           <LayersEditor />

@@ -224,18 +224,27 @@ where
 pub fn run() {
     init_logging();
 
-    let storage = ConfigStorage::with_default_path().expect("config storage path");
+    // 配置加载失败时也允许启动（用默认配置），让用户能进入设置排查。
+    let storage = ConfigStorage::with_default_path().unwrap_or_else(|e| {
+        tracing::error!(error = %e, "failed to locate config storage");
+        // 用一个相对路径兜底（保存可能失败，但应用能启动）。
+        ConfigStorage::new(std::path::PathBuf::from("peregrine-config.json"))
+    });
     let config = tauri::async_runtime::block_on(storage.load_or_create_default())
-        .expect("load or create config");
+        .unwrap_or_else(|e| {
+            tracing::error!(error = %e, "failed to load config; using default");
+            peregrine_config::AppConfig::default_config()
+        });
     let notifier = ConfigNotifier::new(config);
     let snapshot = notifier.subscribe().borrow().clone();
     let shared_config = Arc::new(Mutex::new(snapshot.clone()));
 
     // 加载物料注册表（内置 + 用户）。registry 内部 Arc<RwLock<...>>，可 Clone。
+    // 内置物料加载失败时记录 warn 但不 panic（让应用能启动），仅相关物料不可用。
     let material_registry = MaterialRegistry::new();
-    material_registry
-        .load_builtin()
-        .expect("load builtin materials");
+    if let Err(e) = material_registry.load_builtin() {
+        tracing::error!(error = %e, "failed to load builtin materials");
+    }
     let materials_dir = peregrine_config::ConfigStorage::default_path()
         .ok()
         .map(|p| {
@@ -258,6 +267,7 @@ pub fn run() {
     // 启动物料目录 watcher（热重载）。
     // 监视 %APPDATA%/Peregrine/materials/ 目录变化，自动调用 registry.load_user()。
     // 重载后通过 app.emit 广播 peregrine:materials-changed 事件。
+    // 失败时仅记录 warn，不影响应用启动。
     if let Some(ref materials_dir) = materials_dir {
         let watcher_registry = material_registry.clone();
         let materials_dir_clone = materials_dir.clone();
@@ -265,7 +275,6 @@ pub fn run() {
             spawn_material_watcher(watcher_registry, materials_dir_clone).await;
         });
     }
-
     // 启动 watcher 任务，把 notifier 变更同步到共享快照。
     let watcher_storage = storage.clone();
     let watcher_notifier = notifier.clone();

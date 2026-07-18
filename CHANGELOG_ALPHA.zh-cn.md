@@ -8,6 +8,42 @@
 
 ---
 
+## [v0.2.0-alpha.0] — 2026-07-18
+
+**四层架构**首个预览版。这是把单一硬编码 `Crosshair` 配置替换为完全可组合系统的重大重构。
+
+### 新增
+
+- **四层架构**：Element（原子图元）→ Material（Rhai 脚本）→ Layer（带变换的实例）→ Profile（多图层组合）。
+- **Rhai 物料运行时**（`crates/material`）：基于 `rhai` crate 的 CPU 安全嵌入式脚本。脚本需导出 `defaults()`、`schema()`、`is_dynamic()`、`build(params, screen)`。
+- **物料动态输入**：物料脚本可调用 `time_ms()`、`mouse_pos()`、`key_down(code)`、`rand()`。Windows 实现通过 `GetCursorPos` / `GetAsyncKeyState` 的 `poll_dynamic_context`。
+- **12 个内置物料**：所有旧 `CrosshairStyle` 变体已迁移到 `.rhai` 脚本（`cross`、`large_cross`、`edge_rect`、`corner_dots`、`ring`、`custom_orb`、`random_orb`、`border_frame`、`edge_arrows`、`grid`、`image`）。
+- **图层组合**：可堆叠多个图层；每个图层有独立的物料、参数、颜色、不透明度、变换（位移/缩放/旋转）、可见性、锁定状态。
+- **配置迁移**：首次加载时，含 `crosshair` 字段的旧 `config.json` 自动迁移到新 `layers` 格式。原文件备份为 `config.json.legacy.bak`。
+- **Tauri IPC 命令**：`build_shapes_ipc`、`list_materials`、`add_layer`、`remove_layer`、`move_layer`、`duplicate_layer`、`update_layer`、`list_layers`。
+- **前端图层编辑器**（`LayersEditor`）：三栏布局（实时预览 / 图层面板 / 物料 `schema()` 驱动的动态参数控件）。
+
+### 变更
+
+- `Profile` schema 双重支持旧格式 `crosshair: Option<Crosshair>` 与新格式 `layers: Vec<Layer>`。`load_or_create_default` 自动迁移旧配置。
+- `Shape` 现为 `Element` 的类型别名（9 个变体：Rect、Circle、CircleStroke、DashedCircle、Triangle、Polygon、Line、Text、Image）。
+- `Preview` 组件改为通过 IPC `build_shapes_ipc` 拉取图元列表，不再在 TypeScript 中计算几何（删除 `src/lib/shapes.ts`）。
+- `OverlayRenderer` 采用双路径渲染：新格式（图层 + 物料求值）优先；旧 Crosshair 路径保留作为 fallback。
+
+### 构建
+
+- 新 workspace 成员 `crates/material`（依赖 `peregrine_config` + `rhai` 1.25 + `ahash` 0.8）。
+- `SimpleRng` 移到 `peregrine_config::rng`，物料运行时与旧 shapes 跨 crate 共享。
+- CI 扩展为对全部 3 个 crate（`config`、`material`、`peregrine`）执行 `cargo clippy` 和 `cargo test`。
+
+### 已知限制
+
+- `src-tauri`（Tauri 命令）在非 Windows 主机缺少 webkit2gtk 系统依赖无法编译；仅通过 Windows CI 验证。
+- `ConfigApp.tsx` 中旧 Crosshair UI 默认保留；点击「切换到图层编辑器」进入新 UI。
+- 旧版快捷颜色热键操作的是 `crosshair.color`；新图层版等价物尚未接入。
+
+---
+
 ## [v0.1.15-alpha.0] — 2026-07-17
 
 ### 新增

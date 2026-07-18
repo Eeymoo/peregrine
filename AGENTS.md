@@ -62,19 +62,33 @@ peregrine/
     ├── config/           # peregrine_config: pure logic crate (no UI / GPU / window code)
     │   └── src/
     │       ├── lib.rs        # module exports + unified error type ConfigError / Result
-    │       ├── schema.rs     # configuration data structures AppConfig / Profile / Crosshair, etc. + validation + unit tests
-    │       ├── storage.rs    # config file path management, atomic read/write, default config generation (includes inline dirs module)
+    │       ├── schema.rs     # configuration data structures AppConfig / Profile / Crosshair / Element / Layer / MaterialRef / Transform2D + validation + unit tests
+    │       ├── storage.rs    # config file path management, atomic read/write, default config generation, legacy migration (includes inline dirs module)
+    │       ├── migration.rs  # legacy Crosshair → Layer migration field mapping
+    │       ├── rng.rs        # SimpleRng (cross-crate shared with material runtime)
     │       ├── notifier.rs   # config change broadcast based on tokio::sync::watch
     │       └── watcher.rs    # config file hot-reload based on notify crate (with debouncing)
+    ├── material/         # peregrine_material: Rhai material runtime (CPU-safe embedded scripting)
+    │   ├── Cargo.toml
+    │   ├── builtin/          # 11 built-in .rhai material scripts (cross / ring / edge_arrows / grid / image / ...)
+    │   │   ├── cross.rhai
+    │   │   └── ...
+    │   └── src/
+    │       ├── lib.rs             # module exports + BUILTIN_MATERIALS const (include_str!)
+    │       ├── material.rs        # Material struct: load() / evaluate() / Rhai Engine + host function registration
+    │       ├── registry.rs        # MaterialRegistry: builtin + user material loading and lookup
+    │       ├── context.rs         # DynamicContext: time_ms / mouse_pos / key_down / rng_seed
+    │       └── error.rs           # MaterialError / MaterialResult
     └── peregrine/        # peregrine: shared library (reused by Tauri)
         ├── Cargo.toml        # provides lib only
         └── src/
             ├── lib.rs             # exports overlay_renderer / shapes / platform
-            ├── overlay_renderer.rs # softbuffer (CPU pixel rasterization) **overlay** renderer, transparent always-on-top click-through window
-            ├── shapes.rs           # shared crosshair geometry module; preview and overlay use the same formulas (WYSIWYG)
+            ├── overlay_renderer.rs # softbuffer (CPU pixel rasterization) **overlay** renderer, dual-path: legacy Crosshair fallback + new layers + material evaluation
+            ├── shapes.rs           # dual entry: build_shapes (legacy) + build_layers_shapes (new); Shape is type alias for Element
+            ├── svg_renderer.rs     # SVG backend (resvg + tiny-skia)
             └── platform/
-                ├── mod.rs          # platform module entry; compiled as a placeholder on non-Windows targets
-                └── windows.rs      # Win32 API: transparency / always-on-top / click-through, target window lookup and following
+                ├── mod.rs          # platform module entry + poll_dynamic_context(); compiled as a placeholder on non-Windows targets
+                └── windows.rs      # Win32 API: transparency / always-on-top / click-through, target window lookup/following, GetCursorPos/GetAsyncKeyState for dynamic input
 ```
 
 **Layering principle**: `peregrine_config` must not depend on any UI / GPU / window platform code (`winit` / `wgpu` / `egui`). Platform and rendering logic belong in the `peregrine` shared library and the `src-tauri` binary crate. Please preserve this boundary when making changes.
@@ -84,7 +98,8 @@ peregrine/
 Dependency versions are declared centrally in the root `Cargo.toml` under `[workspace.dependencies]`; each crate references them with `{ workspace = true }`. Prefer adding new dependencies at the workspace level.
 
 - `crates/config` (`peregrine_config`): `tokio` (features: sync/rt/rt-multi-thread/macros/time/fs), `serde` (derive), `serde_json`, `notify` 7.0, `thiserror` 2.0, `tracing`; dev dependency `tempfile`.
-- `crates/peregrine` (shared library): `peregrine_config` (path dep), `winit` 0.30, `softbuffer` 0.4 (overlay CPU rasterization), `png` 0.17 (custom PNG crosshair decoding), `tokio`, `tracing`, `thiserror` (platform layer `OverlayError`).
+- `crates/material` (`peregrine_material`): `peregrine_config` (path dep), `rhai` 1.25 (features: `sync`), `ahash` 0.8, `serde`, `serde_json`, `tracing`, `thiserror`.
+- `crates/peregrine` (shared library): `peregrine_config` (path dep), `peregrine_material` (path dep), `winit` 0.30, `softbuffer` 0.4 (overlay CPU rasterization), `png` 0.17 (custom PNG crosshair decoding), `serde` / `serde_json`, `tokio`, `tracing`, `thiserror` (platform layer `OverlayError`).
 - `src-tauri` (`peregrine-tauri`, main entry): `peregrine` / `peregrine_config` (path deps), `tauri` 2.x (`tray-icon` feature), `tauri-plugin-dialog`, `tauri-build`, frontend artifacts (`dist/`).
 - Frontend: `React` 18 + `Vite` 5 + `TypeScript` 5 + `Tailwind CSS` 3 + `shadcn/ui` + `@tauri-apps/api` / `@tauri-apps/cli` 2.x.
 - `[target.'cfg(windows)'.dependencies]`: `windows` 0.58 (Win32 UI / Foundation / Gdi features).
@@ -122,7 +137,7 @@ cargo fmt
 cargo clippy
 ```
 
-- Currently, **all unit tests live in `crates/config`** (`schema.rs` / `storage.rs` / `notifier.rs` / `watcher.rs`). The `peregrine` shared library and `src-tauri` have no tests yet.
+- Currently, **all unit tests live in `crates/config`** (`schema.rs` / `storage.rs` / `notifier.rs` / `watcher.rs`), **`crates/material`** (`material.rs` / `context.rs`), and **`crates/peregrine`** (`shapes.rs`). The `src-tauri` binary crate has no tests yet.
 - Tests involving tokio use `#[tokio::test]`; tests in `watcher.rs` require a multi-thread runtime and are annotated `#[tokio::test(flavor = "multi_thread")]`.
 - `watcher` tests rely on real filesystem events and have a maximum 5-second timeout wait; they are integration-leaning and may occasionally be affected by the environment.
 

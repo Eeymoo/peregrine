@@ -8,6 +8,42 @@ For the stable release changelog, see **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
+## [v0.2.0-alpha.0] — 2026-07-18
+
+This is the first preview release of the **four-layer customization architecture**, a major refactor that replaces the single hardcoded `Crosshair` config with a fully composable system.
+
+### Added
+
+- **Four-layer architecture**: Elements (atomic primitives), Materials (Rhai scripts), Layers (instances with transforms), Profiles (multiple layers).
+- **Rhai material runtime** (`crates/material`): CPU-safe embedded scripting via `rhai` crate. Scripts export `defaults()`, `schema()`, `is_dynamic()`, and `build(params, screen)`.
+- **Dynamic input for materials**: `time_ms()`, `mouse_pos()`, `key_down(code)`, `rand()` accessible from material scripts. Windows implementation uses `GetCursorPos` / `GetAsyncKeyState` via `poll_dynamic_context`.
+- **12 built-in materials**: All legacy `CrosshairStyle` variants migrated to `.rhai` scripts (`cross`, `large_cross`, `edge_rect`, `corner_dots`, `ring`, `custom_orb`, `random_orb`, `border_frame`, `edge_arrows`, `grid`, `image`).
+- **Layer composition**: Multiple layers can be stacked; each has its own material, params, color, opacity, transform (offset/scale/rotation), visibility, and lock state.
+- **Config migration**: Legacy `config.json` with `crosshair` field is automatically migrated to the new `layers` format on first load. The original file is backed up as `config.json.legacy.bak`.
+- **Tauri IPC commands**: `build_shapes_ipc`, `list_materials`, `add_layer`, `remove_layer`, `move_layer`, `duplicate_layer`, `update_layer`, `list_layers`.
+- **Frontend layer editor** (`LayersEditor`): Three-column layout with live preview, layer panel, and dynamic parameter controls driven by material `schema()`.
+
+### Changed
+
+- `Profile` schema now dual-supports legacy `crosshair: Option<Crosshair>` (legacy) and `layers: Vec<Layer>` (new format). `load_or_create_default` auto-migrates legacy configs.
+- `Shape` is now a type alias for `Element` (9 variants: Rect, Circle, CircleStroke, DashedCircle, Triangle, Polygon, Line, Text, Image).
+- `Preview` component now fetches shapes via IPC `build_shapes_ipc` instead of computing geometry in TypeScript (`src/lib/shapes.ts` removed).
+- `OverlayRenderer` uses a dual-path rendering strategy: new format (layers + material evaluation) takes precedence; legacy Crosshair path retained as fallback.
+
+### Build
+
+- New workspace member `crates/material` (depends on `peregrine_config` + `rhai` 1.25 + `ahash` 0.8).
+- `SimpleRng` moved to `peregrine_config::rng` for cross-crate sharing between material runtime and legacy shapes.
+- CI expanded to run `cargo clippy` and `cargo test` on all three crates (`config`, `material`, `peregrine`).
+
+### Known Limitations
+
+- `src-tauri` (Tauri commands) cannot be compiled on non-Windows hosts without webkit2gtk system deps; verified only via Windows CI.
+- The legacy Crosshair UI in `ConfigApp.tsx` is retained as default; click "Switch to Layer Editor" to access the new UI.
+- Old Quick Color hotkeys operate on `crosshair.color`; new layer-based equivalent is not yet wired up.
+
+---
+
 ## [v0.1.15-alpha.0] — 2026-07-17
 
 ### Added

@@ -56,13 +56,20 @@ function renderToasts(): void {
     document.body.appendChild(container);
   }
 
-  const html = toasts
+  container.setAttribute(
+    "style",
+    "position: fixed; top: 12px; right: 12px; z-index: 99999; pointer-events: none; max-width: 420px;",
+  );
+
+  container.innerHTML = toasts
     .map(
       (t, i) => `
     <div data-toast-id="${t.id}" style="
+      position: relative;
+      pointer-events: auto;
       background: #7f1d1d;
       color: white;
-      padding: 10px 14px;
+      padding: 10px 28px 10px 14px;
       margin-bottom: 8px;
       border-radius: 4px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
@@ -72,23 +79,17 @@ function renderToasts(): void {
       cursor: pointer;
       opacity: ${1 - i * 0.1};
     ">
-      <div style="font-weight: bold; margin-bottom: 4px;">⚠️ ${escapeHtml(t.message).slice(0, 100)}</div>
-      ${t.stack ? `<details><summary style="cursor:pointer;opacity:0.8">查看堆栈</summary><pre style="white-space:pre-wrap;font-size:11px;margin-top:4px;max-height:150px;overflow:auto">${escapeHtml(t.stack)}</pre></details>` : ""}
       <button data-close-id="${t.id}" style="
         position: absolute; top: 6px; right: 8px;
         background: transparent; color: white; border: none;
         cursor: pointer; font-size: 14px; line-height: 1;
       ">×</button>
+      <div style="font-weight: bold; margin-bottom: 4px;">⚠️ ${escapeHtml(t.message).slice(0, 100)}</div>
+      ${t.stack ? `<details><summary style="cursor:pointer;opacity:0.8">查看堆栈</summary><pre style="white-space:pre-wrap;font-size:11px;margin-top:4px;max-height:150px;overflow:auto">${escapeHtml(t.stack)}</pre></details>` : ""}
     </div>
   `,
     )
     .join("");
-
-  container.setAttribute(
-    "style",
-    "position: fixed; top: 12px; right: 12px; z-index: 99999; pointer-events: auto; max-width: 420px;",
-  );
-  container.innerHTML = html;
 
   // 关闭按钮
   container.querySelectorAll("[data-close-id]").forEach((btn) => {

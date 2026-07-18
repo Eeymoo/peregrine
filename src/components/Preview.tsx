@@ -153,10 +153,10 @@ export function Preview({ previewKey, aspectRatio = 16 / 9 }: PreviewProps) {
   }, [shapes, aspectRatio, t, sizeTick, loading]);
 
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div ref={containerRef} className="w-full h-full min-h-0">
       <canvas
         ref={canvasRef}
-        className="w-full h-full rounded-md"
+        className="w-full h-full rounded-md block"
         style={{ imageRendering: "auto" }}
       />
     </div>

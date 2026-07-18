@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { AppConfig } from "@/types/config";
 import { Button } from "@/components/ui/button";
 import { X, Terminal, RefreshCw, Trash2 } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
 interface DeveloperPanelProps {
   config: AppConfig;
@@ -19,6 +20,7 @@ interface DeveloperPanelProps {
  * - 一键重置配置（清空 + 默认）
  */
 export function DeveloperPanel({ config, version, onClose }: DeveloperPanelProps) {
+  const { t } = useI18n();
   const [configExpanded, setConfigExpanded] = useState(false);
 
   const openDevTools = async () => {
@@ -30,13 +32,11 @@ export function DeveloperPanel({ config, version, onClose }: DeveloperPanelProps
       if (typeof win.openDevTools === "function") {
         await win.openDevTools();
       } else {
-        alert(
-          "此构建未启用 DevTools feature。\n\n开发模式（npx tauri dev）下可用，或需要在 Cargo.toml 启用 tauri devtools feature。",
-        );
+        alert(t("developer.devToolsDisabled"));
       }
     } catch (e) {
       console.error("failed to open devtools:", e);
-      alert(`打开 DevTools 失败：${String(e)}`);
+      alert(`${t("developer.openDevToolsFailed")}: ${String(e)}`);
     }
   };
 
@@ -45,14 +45,14 @@ export function DeveloperPanel({ config, version, onClose }: DeveloperPanelProps
   };
 
   const resetConfig = async () => {
-    if (!confirm("确定要清空当前配置并写入默认配置吗？\n\n此操作会备份现有 config.json 为 .bak。")) return;
+    if (!confirm(t("developer.resetConfirm"))) return;
     try {
       // 通过 saveConfig 写入默认配置
       const { saveConfig } = await import("@/lib/api");
       await saveConfig(config); // 这里仅测试 saveConfig 是否可调用，真实重置应由后端提供
-      alert("配置重置接口已调用。完整重置请删除 %APPDATA%/Peregrine/config.json 后重启应用。");
+      alert(t("developer.resetCalled"));
     } catch (e) {
-      alert(`重置失败：${String(e)}`);
+      alert(`${t("developer.resetFailed")}: ${String(e)}`);
     }
   };
 
@@ -61,12 +61,12 @@ export function DeveloperPanel({ config, version, onClose }: DeveloperPanelProps
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
           <Terminal className="w-3 h-3" />
-          开发者
+          {t("developer.title")}
         </span>
         <button
           onClick={onClose}
           className="text-muted-foreground hover:text-foreground"
-          title="关闭开发者模式"
+          title={t("common.close")}
         >
           <X className="w-3 h-3" />
         </button>
@@ -75,11 +75,11 @@ export function DeveloperPanel({ config, version, onClose }: DeveloperPanelProps
       <div className="flex flex-wrap gap-1.5">
         <Button size="sm" variant="outline" onClick={openDevTools} className="h-7 text-xs gap-1">
           <Terminal className="w-3 h-3" />
-          DevTools
+          {t("developer.devTools")}
         </Button>
         <Button size="sm" variant="outline" onClick={reloadPage} className="h-7 text-xs gap-1">
           <RefreshCw className="w-3 h-3" />
-          刷新
+          {t("developer.reload")}
         </Button>
         <Button
           size="sm"
@@ -88,7 +88,7 @@ export function DeveloperPanel({ config, version, onClose }: DeveloperPanelProps
           className="h-7 text-xs gap-1 text-red-500 hover:text-red-600"
         >
           <Trash2 className="w-3 h-3" />
-          重置配置
+          {t("developer.resetConfig")}
         </Button>
       </div>
 
@@ -101,7 +101,7 @@ export function DeveloperPanel({ config, version, onClose }: DeveloperPanelProps
             onClick={() => setConfigExpanded((v) => !v)}
             className="hover:text-foreground underline"
           >
-            {configExpanded ? "▼ 隐藏" : "▶ 显示"} config.json
+            {configExpanded ? `▼ ${t("developer.hideConfig")}` : `▶ ${t("developer.showConfig")}`}
           </button>
         </div>
         {configExpanded && (

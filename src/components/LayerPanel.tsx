@@ -78,7 +78,7 @@ export function LayerPanel({
   const reversedLayers = [...layers].reverse();
 
   return (
-    <div className="flex flex-col h-full bg-card border-l">
+    <div className="flex flex-col h-full bg-card border-l relative">
       <div className="flex items-center justify-between p-3 border-b">
         <h3 className="font-semibold text-sm">{t("layers.title")}</h3>
         <Button
@@ -209,7 +209,7 @@ function AddLayerDialog({
   const [name, setName] = useState("");
 
   return (
-    <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]" onClick={onClose}>
       <div
         className="bg-background border rounded-lg shadow-lg max-w-md w-full mx-4 max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -325,6 +325,7 @@ function renderWidget(
   onChange: (v: unknown) => void,
   locked: boolean,
 ) {
+  const { t } = useI18n();
   const disabled = locked;
   switch (entry.widget) {
     case "slider":
@@ -401,14 +402,14 @@ function renderWidget(
               if (path) onChange(path);
             }}
           >
-            浏览
+            {t("fields.browse")}
           </Button>
         </div>
       );
     default:
       return (
         <div className="text-xs text-muted-foreground italic">
-          未支持的 widget 类型: {entry.widget}
+          {t("common.unknown")} widget: {entry.widget}
         </div>
       );
   }

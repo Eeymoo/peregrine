@@ -75,14 +75,14 @@ export function LayersEditor() {
     : null;
 
   return (
-    <div className="h-screen flex bg-background text-foreground overflow-hidden">
+    <div className="h-full flex bg-background text-foreground overflow-hidden">
       {/* 左侧：预览 */}
-      <div className="flex-1 p-4 min-w-0">
+      <div className="flex-1 p-4 min-w-0 min-h-0">
         <Preview previewKey={`${selectedId}-${refreshKey}`} />
       </div>
 
       {/* 中间：图层列表 */}
-      <div className="w-72">
+      <div className="w-72 h-full flex flex-col">
         <LayerPanel
           layers={layers}
           selectedLayerId={selectedId}
@@ -95,7 +95,7 @@ export function LayersEditor() {
       </div>
 
       {/* 右侧：参数 + 样式 + 变换 */}
-      <div className="w-80 border-l bg-card p-4 overflow-y-auto">
+      <div className="w-80 border-l bg-card p-4 overflow-y-auto h-full">
         {!selectedLayer ? (
           <div className="text-center text-muted-foreground text-sm mt-8">
             {t("layers.selectPrompt")}

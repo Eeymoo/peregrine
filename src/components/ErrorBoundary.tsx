@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { useI18n } from "@/lib/i18n";
 
 interface Props {
   children: ReactNode;
@@ -44,8 +45,24 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ hasError: false, error: null, errorInfo: null });
   };
 
-  handleCopy = async (): Promise<void> => {
-    const { error, errorInfo } = this.state;
+  render(): ReactNode {
+    if (!this.state.hasError) return this.props.children;
+
+    return <ErrorBoundaryFallback error={this.state.error} errorInfo={this.state.errorInfo} onReload={this.handleReload} onReset={this.handleReset} />;
+  }
+}
+
+interface FallbackProps {
+  error: Error | null;
+  errorInfo: ErrorInfo | null;
+  onReload: () => void;
+  onReset: () => void;
+}
+
+function ErrorBoundaryFallback({ error, errorInfo, onReload, onReset }: FallbackProps) {
+  const { t } = useI18n();
+
+  const handleCopy = async (): Promise<void> => {
     const text = [
       "Peregrine 前端错误报告",
       "================",
@@ -54,29 +71,29 @@ export class ErrorBoundary extends Component<Props, State> {
       `UserAgent: ${navigator.userAgent}`,
       "",
       "Error:",
-      error?.toString() ?? "(unknown)",
+      error?.toString() ?? t("error.unknown"),
       "",
       "Stack:",
-      error?.stack ?? "(no stack)",
+      error?.stack ?? t("error.noStack"),
       "",
-      "Component Stack:",
-      errorInfo?.componentStack ?? "(no component stack)",
+      t("error.componentStack"),
+      errorInfo?.componentStack ?? "",
     ].join("\n");
     try {
       await navigator.clipboard.writeText(text);
-      alert("错误已复制到剪贴板，请贴给开发者。");
+      alert(t("error.copied"));
     } catch {
       // Fallback：打开新窗口让用户手动复制。
       const w = window.open("", "_blank");
       if (w) {
         w.document.write(`<pre>${text.replace(/</g, "&lt;")}</pre>`);
       } else {
-        alert("无法访问剪贴板，请手动截图。\n\n" + text);
+        alert(t("error.copyFallback") + text);
       }
     }
   };
 
-  handleOpenDevTools = async (): Promise<void> => {
+  const handleOpenDevTools = async (): Promise<void> => {
     try {
       const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
       const win = getCurrentWebviewWindow() as unknown as {
@@ -85,112 +102,49 @@ export class ErrorBoundary extends Component<Props, State> {
       if (typeof win.openDevTools === "function") {
         await win.openDevTools();
       } else {
-        alert("此构建未启用 DevTools。");
+        alert(t("error.devToolsDisabled"));
       }
     } catch (e) {
-      alert(`打开 DevTools 失败：${String(e)}`);
+      alert(`${t("error.openDevToolsFailed")}: ${String(e)}`);
     }
   };
 
-  render(): ReactNode {
-    if (!this.state.hasError) return this.props.children;
+  return (
+    <div className="min-h-screen p-8 bg-destructive/10 text-destructive-foreground dark:text-foreground font-mono text-sm">
+      <h1 className="text-lg font-semibold text-destructive mb-4">
+        ⚠️ {t("error.title")}
+      </h1>
 
-    const { error, errorInfo } = this.state;
-    return (
-      <div
-        style={{
-          padding: "32px",
-          fontFamily:
-            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-          fontSize: "13px",
-          color: "#1a1a1a",
-          background: "#fef2f2",
-          minHeight: "100vh",
-          boxSizing: "border-box",
-        }}
-      >
-        <h1
-          style={{
-            color: "#b91c1c",
-            fontSize: "18px",
-            marginTop: 0,
-            marginBottom: "16px",
-          }}
-        >
-          ⚠️ Peregrine 遇到了错误
-        </h1>
+      <p className="mb-5 text-muted-foreground">
+        {t("error.description")}
+      </p>
 
-        <p style={{ marginTop: 0, marginBottom: "20px", color: "#7f1d1d" }}>
-          应用没有崩溃，但页面渲染失败。可以尝试下面的按钮恢复，或把错误信息复制贴给开发者。
-        </p>
-
-        <div style={{ marginBottom: "20px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={this.handleReload}
-            style={btnStyle("#2563eb", "white")}
-          >
-            重新加载页面
-          </button>
-          <button
-            type="button"
-            onClick={this.handleReset}
-            style={btnStyle("#71717a", "white")}
-          >
-            尝试恢复（不刷新）
-          </button>
-          <button
-            type="button"
-            onClick={this.handleCopy}
-            style={btnStyle("#16a34a", "white")}
-          >
-            复制错误信息
-          </button>
-          <button
-            type="button"
-            onClick={this.handleOpenDevTools}
-            style={btnStyle("#7c3aed", "white")}
-          >
-            打开 DevTools
-          </button>
-        </div>
-
-        <details style={{ marginTop: "8px" }} open>
-          <summary style={{ cursor: "pointer", color: "#7f1d1d" }}>
-            错误详情（点击折叠）
-          </summary>
-          <pre
-            style={{
-              background: "white",
-              padding: "12px",
-              borderRadius: "4px",
-              border: "1px solid #fecaca",
-              overflow: "auto",
-              maxHeight: "40vh",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
-            }}
-          >
-            {error?.toString() ?? "(unknown error)"}
-            {"\n\n"}
-            {error?.stack ?? "(no stack)"}
-            {errorInfo?.componentStack ? `\n\nComponent Stack:${errorInfo.componentStack}` : ""}
-          </pre>
-        </details>
+      <div className="flex flex-wrap gap-2 mb-5">
+        <button type="button" onClick={onReload} className="px-3.5 py-2 rounded bg-primary text-primary-foreground text-xs font-medium">
+          {t("error.reload")}
+        </button>
+        <button type="button" onClick={onReset} className="px-3.5 py-2 rounded bg-muted text-muted-foreground text-xs font-medium">
+          {t("error.recover")}
+        </button>
+        <button type="button" onClick={handleCopy} className="px-3.5 py-2 rounded bg-green-600 text-white text-xs font-medium">
+          {t("error.copy")}
+        </button>
+        <button type="button" onClick={handleOpenDevTools} className="px-3.5 py-2 rounded bg-violet-600 text-white text-xs font-medium">
+          {t("error.openDevTools")}
+        </button>
       </div>
-    );
-  }
-}
 
-function btnStyle(background: string, color: string): React.CSSProperties {
-  return {
-    background,
-    color,
-    border: "none",
-    padding: "8px 14px",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: 500,
-  };
+      <details open>
+        <summary className="cursor-pointer text-muted-foreground">
+          {t("error.details")}
+        </summary>
+        <pre className="mt-2 p-3 rounded bg-background border border-border overflow-auto max-h-[40vh] whitespace-pre-wrap break-all text-xs">
+          {error?.toString() ?? t("error.unknown")}
+          {"\n\n"}
+          {error?.stack ?? t("error.noStack")}
+          {errorInfo?.componentStack ? `\n\n${t("error.componentStack")}:${errorInfo.componentStack}` : ""}
+        </pre>
+      </details>
+    </div>
+  );
 }

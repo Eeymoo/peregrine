@@ -324,7 +324,7 @@ export default function ConfigApp() {
   if (!crosshair && hasLayers && !layersMode) {
     return (
       <div className="h-screen flex items-center justify-center text-muted-foreground">
-        <span className="text-lg">加载中…</span>
+        <span className="text-lg">{t("common.loading")}</span>
       </div>
     );
   }
@@ -333,12 +333,12 @@ export default function ConfigApp() {
   if (!crosshair && !layersMode) {
     return (
       <div className="h-screen flex flex-col items-center justify-center text-muted-foreground gap-4">
-        <span className="text-lg">配置格式异常</span>
+        <span className="text-lg">{t("config.invalidFormat")}</span>
         <button
           className="text-xs px-3 py-1 border rounded hover:bg-accent"
           onClick={() => setLayersMode(true)}
         >
-          切换到图层编辑器 →
+          {t("config.switchToLayersFallback")}
         </button>
       </div>
     );
@@ -363,7 +363,7 @@ export default function ConfigApp() {
             ← {t("layers.backToLegacy")}
           </button>
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden min-h-0">
           <LayersEditor />
         </div>
       </div>
@@ -547,17 +547,19 @@ export default function ConfigApp() {
             )}
           </div>
 
-          {/* 开发者面板（仅 devTabUnlocked=true 时显示） */}
-          {devTabUnlocked && (
-            <DeveloperPanel
-              config={config}
-              version={version}
-              onClose={() => {
-                setDevTabUnlocked(false);
-                localStorage.removeItem("peregrine:dev-tab");
-              }}
-            />
-          )}
+      {/* 开发者面板（仅 devTabUnlocked=true 时显示） */}
+      {devTabUnlocked && (
+        <div className="shrink-0 border-t pt-2 mt-2 max-h-64 overflow-y-auto">
+          <DeveloperPanel
+            config={config}
+            version={version}
+            onClose={() => {
+              setDevTabUnlocked(false);
+              localStorage.removeItem("peregrine:dev-tab");
+            }}
+          />
+        </div>
+      )}
 
           {/* 底部信息 */}
           <div
@@ -565,15 +567,15 @@ export default function ConfigApp() {
             onClick={() => {
               setVersionClickCount((n) => n + 1);
             }}
-            title={devTabUnlocked ? "开发者模式已开启" : "点击 3 次解锁开发者面板"}
+            title={devTabUnlocked ? t("developer.toggle") : t("developer.unlockHint")}
           >
             Peregrine v{version || "..."}
             {versionClickCount > 0 && versionClickCount < 3 && (
               <span className="ml-1 text-[10px] opacity-60">
-                ({3 - versionClickCount} 次解锁开发者)
+                ({3 - versionClickCount} {t("developer.remaining")})
               </span>
             )}
-            {devTabUnlocked && <span className="ml-1 text-[10px] text-yellow-500">DEV</span>}
+            {devTabUnlocked && <span className="ml-1 text-[10px] text-yellow-500">{t("developer.tag")}</span>}
           </div>
         </div>
       </div>
@@ -608,7 +610,7 @@ export default function ConfigApp() {
 
       {/* 发现新版本对话框 */}
       {updateAvailable && !updating && (
-        <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
+        <div className="fixed top-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
           <p className="text-sm font-medium">
             {t("settings.updateAvailable")}：v{updateAvailable.version}
           </p>
@@ -654,7 +656,7 @@ export default function ConfigApp() {
 
       {/* 更新下载进度 */}
       {updating && (
-        <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
+        <div className="fixed top-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
           <p className="text-xs text-blue-500">{t("settings.updating")}</p>
           <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
             <div

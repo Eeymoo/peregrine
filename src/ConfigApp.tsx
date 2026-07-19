@@ -343,7 +343,7 @@ export default function ConfigApp() {
 
   const colorCss = useMemo(() => {
     const [r, g, b] = crosshair?.color || [1, 1, 1];
-    return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+    return `#${Math.round(r * 255).toString(16).padStart(2, "0")}${Math.round(g * 255).toString(16).padStart(2, "0")}${Math.round(b * 255).toString(16).padStart(2, "0")}`;
   }, [crosshair?.color]);
 
   // 加载状态：必须有 config。

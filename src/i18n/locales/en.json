@@ -6,8 +6,8 @@
   "layers": {
     "title": "Layers",
     "editorTitle": "Layer Editor",
-    "backToLegacy": "Back to Legacy Crosshair",
-    "switchToLayers": "Switch to Layer Editor",
+    "backToLegacy": "Single Layer",
+    "switchToLayers": "Multi Layers",
     "selectPrompt": "Select a layer to edit",
     "materialNotFound": "Material used by this layer was not found",
     "dynamicHint": "Dynamic material (follows input)",

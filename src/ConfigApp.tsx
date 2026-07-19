@@ -425,11 +425,11 @@ export default function ConfigApp() {
   }
 
   return (
-      <div className="h-screen flex bg-background text-foreground overflow-hidden">
+    <div className="h-screen flex bg-background text-foreground overflow-hidden">
       {/* 左侧预览 */}
       <div className="flex-1 p-4 min-w-0 min-h-0 relative">
         <Preview previewKey={profile?.layers} />
-        {/* 切换到图层编辑器按钮 */}
+        {/* 切换到多图层按钮 */}
         <button
           onClick={() => setLayersMode(true)}
           className="absolute top-6 right-6 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90 z-10"

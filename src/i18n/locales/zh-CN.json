@@ -6,8 +6,8 @@
   "layers": {
     "title": "图层",
     "editorTitle": "图层编辑器",
-    "backToLegacy": "返回旧版准心",
-    "switchToLayers": "切换图层编辑器",
+    "backToLegacy": "切换单图层",
+    "switchToLayers": "切换多图层",
     "selectPrompt": "选择一个图层以编辑",
     "materialNotFound": "未找到该图层使用的物料",
     "dynamicHint": "动态物料（跟随输入）",

@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Layer, MaterialInfo, AppConfig } from "@/types/config";
-import { listLayers, listMaterials, saveConfig } from "@/lib/api";
+import { listLayers, listMaterials, saveConfig, updateLayer } from "@/lib/api";
 import { listen } from "@tauri-apps/api/event";
 import { Preview } from "@/components/Preview";
 import { LayerPanel, MaterialParamControls } from "@/components/LayerPanel";
@@ -304,7 +304,6 @@ export function LayersEditor({
                       disabled={!selectedLayer || selectedLayer.locked}
                       onClick={() => {
                         if (!selectedLayer || selectedLayer.locked) return;
-                        const { updateLayer } = require("@/lib/api");
                         updateLayer(selectedLayer.id, {
                           style: { color: [...qc] },
                         }).then(() => {

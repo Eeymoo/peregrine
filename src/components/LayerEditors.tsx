@@ -9,9 +9,11 @@ import { useI18n } from "@/lib/i18n";
  */
 export function LayerStyleEditor({
   layer,
+  quickColors,
   onChanged,
 }: {
   layer: Layer;
+  quickColors?: [number, number, number, number][];
   onChanged: () => void;
 }) {
   const { t } = useI18n();
@@ -28,6 +30,10 @@ export function LayerStyleEditor({
     onChanged();
   }, [layer.id, onChanged, style]);
 
+  const colorHex = rgbaToHex(style.color);
+  const isColorMatch = (qc: [number, number, number, number]) =>
+    style.color[0] === qc[0] && style.color[1] === qc[1] && style.color[2] === qc[2];
+
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -35,13 +41,36 @@ export function LayerStyleEditor({
         <div className="flex gap-2 items-center">
           <input
             type="color"
-            value={rgbaToHex(style.color)}
+            value={colorHex}
+            disabled={layer.locked}
             onChange={(e) => update({ color: hexToRgba(e.target.value, style.color[3]) })}
             className="w-10 h-8 border rounded"
           />
           <span className="text-xs text-muted-foreground font-mono">
-            {rgbaToHex(style.color).toUpperCase()}
+            {colorHex.toUpperCase()}
           </span>
+          {/* 快捷颜色：点击色块直接设置当前图层颜色 */}
+          {quickColors && (
+            <div className="flex gap-1 flex-wrap ml-1">
+              {quickColors.map((qc, i) => {
+                const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    title={css}
+                    disabled={layer.locked}
+                    onClick={() => update({ color: [...qc] })}
+                    className={`w-5 h-5 rounded-full border-2 transition-colors ${layer.locked ? "opacity-50 cursor-not-allowed" : ""}`}
+                    style={{
+                      backgroundColor: css,
+                      borderColor: isColorMatch(qc) ? "hsl(var(--primary))" : "hsl(var(--border))",
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

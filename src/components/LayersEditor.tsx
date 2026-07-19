@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Layer, MaterialInfo, AppConfig } from "@/types/config";
-import { listLayers, listMaterials, saveConfig, updateLayer } from "@/lib/api";
+import { listLayers, listMaterials, saveConfig } from "@/lib/api";
 import { listen } from "@tauri-apps/api/event";
 import { Preview } from "@/components/Preview";
 import { LayerPanel, MaterialParamControls } from "@/components/LayerPanel";
@@ -103,7 +103,6 @@ export function LayersEditor({
 
   const profile = config.profiles[config.active_profile];
   const isFullscreen = config.settings.fullscreen_overlay ?? true;
-  const quickColors = config.settings.quick_colors ?? [];
 
   const updateTargetWindow = (targetWindow: string) => {
     if (!profile) return;
@@ -238,13 +237,14 @@ export function LayersEditor({
                   <h4 className="text-xs font-semibold uppercase text-muted-foreground">
                     {t("layers.styleSection")}
                   </h4>
-                  <LayerStyleEditor
-                    layer={selectedLayer}
-                    onChanged={() => {
-                      refresh();
-                      triggerPreviewRefresh();
-                    }}
-                  />
+              <LayerStyleEditor
+                layer={selectedLayer}
+                quickColors={config.settings.quick_colors ?? []}
+                onChanged={() => {
+                  refresh();
+                  triggerPreviewRefresh();
+                }}
+              />
                 </div>
 
                 <div className="space-y-2 pt-4 border-t">
@@ -265,65 +265,8 @@ export function LayersEditor({
 
           <Separator className="shrink-0" />
 
-          {/* 下方：通用控制面板 */}
+            {/* 下方：通用控制面板 */}
           <div className="space-y-3 shrink-0">
-            {/* 快捷颜色：点击色块直接设置当前选中图层颜色 */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">{t("quickColors.title")}</Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    const defaultColors: [number, number, number, number][] = [
-                      [1, 1, 1, 1],
-                      [0, 1, 0, 1],
-                      [0.2, 0.5, 1, 1],
-                      [1, 0, 0, 1],
-                      [1, 0.5, 0, 1],
-                    ];
-                    onUpdateSettings({ quick_colors: defaultColors });
-                  }}
-                >
-                  {t("quickColors.reset")}
-                </Button>
-              </div>
-              <div className="flex gap-1 flex-wrap">
-                {quickColors.map((qc, i) => {
-                  const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;
-                  const isActive =
-                    selectedLayer &&
-                    selectedLayer.style.color[0] === qc[0] &&
-                    selectedLayer.style.color[1] === qc[1] &&
-                    selectedLayer.style.color[2] === qc[2];
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      title={css}
-                      disabled={!selectedLayer || selectedLayer.locked}
-                      onClick={() => {
-                        if (!selectedLayer || selectedLayer.locked) return;
-                        updateLayer(selectedLayer.id, {
-                          style: { color: [...qc] },
-                        }).then(() => {
-                          refresh();
-                          triggerPreviewRefresh();
-                        });
-                      }}
-                      className={`w-5 h-5 rounded-full border-2 transition-colors ${(!selectedLayer || selectedLayer.locked) ? "opacity-50 cursor-not-allowed" : ""}`}
-                      style={{
-                        backgroundColor: css,
-                        borderColor: isActive ? "hsl(var(--primary))" : "hsl(var(--border))",
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-
-            <Separator className="shrink-0" />
-
             {/* 窗口模式勾选 */}
             <div className="flex items-center gap-2">
               <Checkbox

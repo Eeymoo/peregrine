@@ -31,7 +31,7 @@ import {
   downloadAndInstallUpdate,
 } from "@/lib/api";
 import { getDefaultCrosshairForStyle } from "@/lib/presets";
-import type { AppConfig, Crosshair, CrosshairStyle } from "@/types/config";
+import type { AppConfig, Crosshair, CrosshairStyle, Layer, LayerStyle, MaterialRef } from "@/types/config";
 
 const STYLES: CrosshairStyle[] = [
   "edge_rect",
@@ -69,8 +69,7 @@ export default function ConfigApp() {
   );
   const [versionClickCount, setVersionClickCount] = useState(0);
   const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body?: string } | null>(null);
-  // 四层架构：切换"图层编辑器"模式。
-  // 默认根据配置自动选择：新格式（有 layers 无 crosshair）→ true，旧格式 → false。
+  // 默认显示旧版准心 UI（单图层模式），点击顶部按钮可切换到图层编辑器。
   const [layersMode, setLayersMode] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateProgress, setUpdateProgress] = useState(0);
@@ -178,12 +177,6 @@ export default function ConfigApp() {
   const profile = config?.profiles[config.active_profile];
   const crosshair = profile?.crosshair ?? null;
   const hasLayers = (profile?.layers?.length ?? 0) > 0;
-  // 兼容新旧格式：新格式下 crosshair 为 null，强制进入 layersMode 显示图层编辑器。
-  useEffect(() => {
-    if (config && !crosshair && hasLayers) {
-      setLayersMode(true);
-    }
-  }, [config, crosshair, hasLayers]);
 
   /** 防抖保存配置：拖滑块等连续操作时只在停止后 300ms 写入一次。 */
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -194,19 +187,52 @@ export default function ConfigApp() {
     }, 300);
   }, []);
 
+  /**
+   * 把旧版 Crosshair 同步映射到 layers[0]。
+   * 这样旧 UI 编辑 crosshair 时，底层渲染仍然走 layers。
+   */
+  const syncCrosshairToLayer = useCallback((crosshair: Crosshair, layer: Layer): Layer => {
+    const material = crosshairToMaterial(crosshair.style);
+    const params = crosshairToParams(crosshair);
+    const style: LayerStyle = {
+      color: crosshair.color,
+      opacity: crosshair.opacity,
+      blend_mode: layer.style.blend_mode,
+    };
+    return {
+      ...layer,
+      name: layer.name || t(`styles.${crosshair.style}`),
+      material,
+      params,
+      style,
+        transform: layer.transform ?? { offset_x: 0, offset_y: 0, scale: 1, rotation_deg: 0 },
+    };
+  }, [t]);
+
   const updateCrosshair = useCallback((patch: Partial<Crosshair>, options?: { resetDefaults?: boolean }) => {
-    if (!config || !profile || !crosshair) return;
+    if (!config || !profile) return;
+    const currentCrosshair = crosshair;
     const newCrosshair = options?.resetDefaults && patch.style !== undefined
       ? getDefaultCrosshairForStyle(patch.style)
-      : { ...crosshair, ...patch };
+      : currentCrosshair
+        ? { ...currentCrosshair, ...patch }
+        : getDefaultCrosshairForStyle(patch.style ?? "cross");
+
     const newProfile = { ...profile, crosshair: newCrosshair };
+    // 如果已有 layers，同步更新 layers[0] 使其与 crosshair 一致。
+    if (newProfile.layers.length > 0) {
+      newProfile.layers = [syncCrosshairToLayer(newCrosshair, newProfile.layers[0]), ...newProfile.layers.slice(1)];
+    } else {
+      // 没有 layers 时创建一个单图层。
+      newProfile.layers = [syncCrosshairToLayer(newCrosshair, createDefaultLayer(newCrosshair))];
+    }
     const newConfig = {
       ...config,
       profiles: { ...config.profiles, [config.active_profile]: newProfile },
     };
     setConfig(newConfig);
     debouncedSave(newConfig);
-  }, [config, profile, crosshair, debouncedSave]);
+  }, [config, profile, crosshair, debouncedSave, syncCrosshairToLayer]);
 
   const refreshWindows = useCallback(() => {
     listWindowTitles().then(setWindows).catch(console.error);
@@ -320,17 +346,8 @@ export default function ConfigApp() {
     );
   }
 
-  // 新格式但 layersMode 还没切过去：显示加载中（仅一帧）。
-  if (!crosshair && hasLayers && !layersMode) {
-    return (
-      <div className="h-screen flex items-center justify-center text-muted-foreground">
-        <span className="text-lg">{t("common.loading")}</span>
-      </div>
-    );
-  }
-
-  // 异常情况（既没有 crosshair 又没有 layers）：显示错误。
-  if (!crosshair && !layersMode) {
+  // 异常情况（既没有 crosshair 又没有 layers）：显示错误并提供切换到图层编辑器。
+  if (!crosshair && !hasLayers) {
     return (
       <div className="h-screen flex flex-col items-center justify-center text-muted-foreground gap-4">
         <span className="text-lg">{t("config.invalidFormat")}</span>
@@ -344,8 +361,34 @@ export default function ConfigApp() {
     );
   }
 
-  // 到这里 crosshair 必为非 null（layersMode 已 early return，异常情况也已 early return）。
-  // 用非空断言把 crosshair 类型从 Crosshair | null 收窄为 Crosshair。
+  // 没有 crosshair 但有 layers：强制进入图层编辑器。
+  if (!crosshair && hasLayers) {
+    return (
+      <div className="h-screen flex flex-col bg-background text-foreground">
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-card">
+          <div className="text-sm font-semibold">
+            {t("app.title")} — {t("layers.editorTitle")}
+          </div>
+          <div className="flex items-center gap-2">
+            {overlayActive ? (
+              <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={handleStopOverlay}>
+                ■ {t("config.stopOverlay")}
+              </Button>
+            ) : (
+              <Button size="sm" className="h-7 text-xs" onClick={handleStartOverlay} disabled={!config.settings.fullscreen_overlay && !profile?.target_window}>
+                ▶ {t("config.startOverlay")}
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden min-h-0">
+          <LayersEditor />
+        </div>
+      </div>
+    );
+  }
+
+  // 到这里 crosshair 必为非 null。
   const ch = crosshair!;
 
   // 图层编辑器模式：显示全新 UI。
@@ -382,11 +425,10 @@ export default function ConfigApp() {
   }
 
   return (
-    <div className="h-screen flex bg-background text-foreground overflow-hidden">
+      <div className="h-screen flex bg-background text-foreground overflow-hidden">
       {/* 左侧预览 */}
       <div className="flex-1 p-4 min-w-0 min-h-0 relative">
-        {/* TODO(Step 18): 改为传入 layers 作为 previewKey */}
-        <Preview previewKey={crosshair} />
+        <Preview previewKey={profile?.layers} />
         {/* 切换到图层编辑器按钮 */}
         <button
           onClick={() => setLayersMode(true)}
@@ -682,4 +724,165 @@ export default function ConfigApp() {
       )}
     </div>
   );
+}
+
+/** 把 Crosshair 样式映射到内置物料引用。 */
+function crosshairToMaterial(style: CrosshairStyle): MaterialRef {
+  switch (style) {
+    case "edge_rect":
+      return { kind: "builtin", id: "builtin.edge_rect" };
+    case "custom_image":
+      return { kind: "builtin", id: "builtin.image" };
+    case "cross":
+      return { kind: "builtin", id: "builtin.cross" };
+    case "large_cross":
+      return { kind: "builtin", id: "builtin.large_cross" };
+    case "corner_dots4":
+      return { kind: "builtin", id: "builtin.corner_dots" };
+    case "corner_dots6":
+      return { kind: "builtin", id: "builtin.corner_dots" };
+    case "corner_dots8":
+      return { kind: "builtin", id: "builtin.corner_dots" };
+    case "ring":
+      return { kind: "builtin", id: "builtin.ring" };
+    case "custom_orb":
+      return { kind: "builtin", id: "builtin.custom_orb" };
+    case "random_orb":
+      return { kind: "builtin", id: "builtin.random_orb" };
+    case "border_frame":
+      return { kind: "builtin", id: "builtin.border_frame" };
+    case "edge_arrows":
+      return { kind: "builtin", id: "builtin.edge_arrows" };
+    case "grid":
+      return { kind: "builtin", id: "builtin.grid" };
+    default:
+      return { kind: "builtin", id: "builtin.cross" };
+  }
+}
+
+/** 把 Crosshair 字段转换为对应物料的 params。 */
+function crosshairToParams(crosshair: Crosshair): Record<string, unknown> {
+  switch (crosshair.style) {
+    case "edge_rect":
+      return {
+        size: crosshair.size,
+        secondary_size: crosshair.secondary_size,
+        anchor: crosshair.anchor,
+        margin: crosshair.margin,
+        corner_radius: crosshair.corner_radius,
+      };
+    case "custom_image":
+      return {
+        path: crosshair.image_path,
+        scale: crosshair.image_scale,
+        offset_x: crosshair.image_offset_x,
+        offset_y: crosshair.image_offset_y,
+        width: crosshair.size,
+        height: crosshair.size,
+      };
+    case "cross":
+      return {
+        size: crosshair.size,
+        thickness: crosshair.thickness,
+        gap: crosshair.gap,
+      };
+    case "large_cross":
+      return {
+        thickness: crosshair.thickness,
+      };
+    case "corner_dots4":
+    case "corner_dots6":
+    case "corner_dots8":
+      return {
+        count: styleToCornerCount(crosshair.style),
+        offset: crosshair.offset,
+        thickness: crosshair.thickness,
+        radius: crosshair.radius,
+      };
+    case "ring":
+      return {
+        radius_pct: crosshair.ring_radius_pct,
+        thickness: crosshair.thickness,
+        style: crosshair.ring_style,
+      };
+    case "custom_orb":
+      return {
+        radius: crosshair.radius,
+        offset: crosshair.offset,
+        top_count: crosshair.custom_orb_top_count,
+        bottom_count: crosshair.custom_orb_bottom_count,
+        left_count: crosshair.custom_orb_left_count,
+        right_count: crosshair.custom_orb_right_count,
+        orb_positions: crosshair.orb_positions,
+      };
+    case "random_orb":
+      return {
+        count: crosshair.random_orb_count,
+        offset: crosshair.random_orb_offset,
+        jitter: crosshair.random_orb_jitter,
+        radius_min: crosshair.random_radius_min,
+        radius_max: crosshair.random_radius_max,
+      };
+    case "border_frame":
+      return {
+        thickness: crosshair.thickness,
+        offset: crosshair.offset,
+        style: crosshair.border_frame_style,
+        inset: crosshair.border_inset,
+      };
+    case "edge_arrows":
+      return {
+        size: crosshair.size,
+        arrow_width: crosshair.arrow_width,
+        distance: crosshair.arrow_distance,
+        tail_per_edge: crosshair.arrow_tail_per_edge,
+        tail_top: crosshair.arrow_tail_top,
+        tail_bottom: crosshair.arrow_tail_bottom,
+        tail_left: crosshair.arrow_tail_left,
+        tail_right: crosshair.arrow_tail_right,
+      };
+    case "grid":
+      return {
+        size: crosshair.grid_size,
+        thickness: crosshair.thickness,
+        alignment: crosshair.grid_alignment,
+      };
+    default:
+      return {};
+  }
+}
+
+function styleToCornerCount(style: CrosshairStyle): number {
+  switch (style) {
+    case "corner_dots4":
+      return 4;
+    case "corner_dots6":
+      return 6;
+    case "corner_dots8":
+      return 8;
+    default:
+      return 4;
+  }
+}
+
+function createDefaultLayer(crosshair: Crosshair): Layer {
+  return {
+    id: crypto.randomUUID(),
+    name: "crosshair",
+    material: crosshairToMaterial(crosshair.style),
+    params: crosshairToParams(crosshair),
+    style: {
+      color: crosshair.color,
+      opacity: crosshair.opacity,
+      blend_mode: "normal",
+    },
+    transform: {
+      offset_x: 0,
+      offset_y: 0,
+      scale: 1,
+      rotation_deg: 0,
+    },
+    visible: true,
+    locked: false,
+  };
 }

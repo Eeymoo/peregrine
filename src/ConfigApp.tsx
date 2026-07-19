@@ -461,11 +461,7 @@ export default function ConfigApp() {
                 }}
                 className="h-8 w-14 rounded border bg-transparent cursor-pointer"
               />
-            </div>
-
-            {/* 快捷颜色：点击色块直接设置准心颜色 */}
-            <div className="space-y-2">
-              <Label className="text-sm">{t("quickColors.title")}</Label>
+              {/* 快捷颜色色块 */}
               <div className="flex gap-1 flex-wrap">
                 {(config.settings.quick_colors ?? []).map((qc, i) => {
                   const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;

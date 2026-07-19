@@ -267,7 +267,7 @@ export function LayersEditor({
 
           {/* 下方：通用控制面板 */}
           <div className="space-y-3 shrink-0">
-            {/* 快捷颜色 */}
+            {/* 快捷颜色：点击色块直接设置当前选中图层颜色 */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">{t("quickColors.title")}</Label>
@@ -288,29 +288,36 @@ export function LayersEditor({
                   {t("quickColors.reset")}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">{t("quickColors.hint")}</p>
-              <div className="flex gap-3 pt-1">
+              <div className="flex gap-1 flex-wrap">
                 {quickColors.map((qc, i) => {
                   const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;
-                  const hex = `#${Math.round(qc[0] * 255).toString(16).padStart(2, "0")}${Math.round(qc[1] * 255).toString(16).padStart(2, "0")}${Math.round(qc[2] * 255).toString(16).padStart(2, "0")}`;
+                  const isActive =
+                    selectedLayer &&
+                    selectedLayer.style.color[0] === qc[0] &&
+                    selectedLayer.style.color[1] === qc[1] &&
+                    selectedLayer.style.color[2] === qc[2];
                   return (
-                    <div key={i} className="flex flex-col items-center gap-1">
-                      <input
-                        type="color"
-                        value={hex}
-                        onChange={(e) => {
-                          const h = e.target.value;
-                          const r = parseInt(h.slice(1, 3), 16) / 255;
-                          const g = parseInt(h.slice(3, 5), 16) / 255;
-                          const b = parseInt(h.slice(5, 7), 16) / 255;
-                          const newColors = [...quickColors];
-                          newColors[i] = [r, g, b, 1];
-                          onUpdateSettings({ quick_colors: newColors });
-                        }}
-                        className="w-8 h-8 rounded-full cursor-pointer border-2"
-                        style={{ backgroundColor: css }}
-                      />
-                    </div>
+                    <button
+                      key={i}
+                      type="button"
+                      title={css}
+                      disabled={!selectedLayer || selectedLayer.locked}
+                      onClick={() => {
+                        if (!selectedLayer || selectedLayer.locked) return;
+                        const { updateLayer } = require("@/lib/api");
+                        updateLayer(selectedLayer.id, {
+                          style: { color: [...qc] },
+                        }).then(() => {
+                          refresh();
+                          triggerPreviewRefresh();
+                        });
+                      }}
+                      className={`w-5 h-5 rounded-full border-2 transition-colors ${(!selectedLayer || selectedLayer.locked) ? "opacity-50 cursor-not-allowed" : ""}`}
+                      style={{
+                        backgroundColor: css,
+                        borderColor: isActive ? "hsl(var(--primary))" : "hsl(var(--border))",
+                      }}
+                    />
                   );
                 })}
               </div>

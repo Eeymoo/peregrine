@@ -452,19 +452,8 @@ export default function ConfigApp() {
       <div className="flex-1 p-4 min-w-0 min-h-0 relative">
         <Preview previewKey={profile?.layers} />
 
-        {/* 顶部工具栏：Profile 管理 + 切换到多图层 */}
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
-          <ProfileManager
-            activeProfile={config.active_profile}
-            profiles={profiles}
-            onActiveProfileChange={async (name) => {
-              await setActiveProfile(name);
-              const fresh = await getConfig();
-              setConfig(fresh);
-              setProfiles(await listProfiles());
-            }}
-            onProfilesChange={setProfiles}
-          />
+        {/* 顶部工具栏：仅保留切换到多图层按钮 */}
+        <div className="absolute top-4 left-4 right-4 flex items-center justify-end z-10">
           <button
             onClick={() => setLayersMode(true)}
             className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90"
@@ -477,8 +466,21 @@ export default function ConfigApp() {
 
       {/* 右侧设置面板：顶部固定、中间滚动、底部固定 */}
       <div className="w-80 border-l bg-card p-4 flex flex-col gap-4 overflow-hidden h-screen">
-        {/* 顶部固定区：样式 + 公共配置 */}
+        {/* 顶部固定区：Profile 管理 + 样式 + 公共配置 */}
         <div className="space-y-3 shrink-0">
+          {/* Profile 管理 */}
+          <ProfileManager
+            activeProfile={config.active_profile}
+            profiles={profiles}
+            onActiveProfileChange={async (name) => {
+              await setActiveProfile(name);
+              const fresh = await getConfig();
+              setConfig(fresh);
+              setProfiles(await listProfiles());
+            }}
+            onProfilesChange={setProfiles}
+          />
+
           {/* 单图层不兼容提示 */}
           {!isLegacyCompatible && (
             <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-700 dark:text-yellow-400 space-y-1">

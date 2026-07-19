@@ -46,9 +46,6 @@ export function LayerStyleEditor({
             onChange={(e) => update({ color: hexToRgba(e.target.value, style.color[3]) })}
             className="w-10 h-8 border rounded"
           />
-          <span className="text-xs text-muted-foreground font-mono">
-            {colorHex.toUpperCase()}
-          </span>
           {/* 快捷颜色：点击色块直接设置当前图层颜色 */}
           {quickColors && (
             <div className="flex gap-1 flex-wrap ml-1">

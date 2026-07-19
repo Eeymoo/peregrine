@@ -338,7 +338,15 @@ function renderWidget(
           max={entry.max}
           step={entry.step}
           disabled={disabled}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw.trim() === "") {
+              onChange(0);
+              return;
+            }
+            const num = parseFloat(raw);
+            onChange(Number.isFinite(num) ? num : 0);
+          }}
           className="w-full px-2 py-1 text-sm border rounded bg-background"
         />
       );

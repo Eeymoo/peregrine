@@ -777,8 +777,10 @@ pub fn build_layers_shapes(
         };
 
         for element in elements {
-            let transformed = apply_transform(element, &layer.transform, &screen_rect);
-            out.push((transformed, layer.style.color, layer.style.opacity));
+            let transformed_list = apply_transform(element, &layer.transform, &screen_rect);
+            for transformed in transformed_list {
+                out.push((transformed, layer.style.color, layer.style.opacity));
+            }
         }
     }
 
@@ -807,12 +809,13 @@ fn evaluate_layer(
 }
 
 /// 把图元应用图层的几何变换（平移 / 缩放 / 旋转）。
-fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> Element {
+/// 返回变换后的图元列表（旋转时矩形可能拆分为三角形）。
+fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> Vec<Element> {
     if (transform.offset_x == 0.0 && transform.offset_y == 0.0)
         && transform.scale == 1.0
         && transform.rotation_deg == 0.0
     {
-        return element;
+        return vec![element];
     }
 
     let cx = screen.center_x();
@@ -831,21 +834,55 @@ fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> 
 
     match element {
         Element::Rect { x, y, w, h } => {
-            // 简化：仅平移 + 缩放（不旋转矩形）。
-            Element::Rect {
-                x: x + transform.offset_x,
-                y: y + transform.offset_y,
-                w: w * transform.scale,
-                h: h * transform.scale,
+            // 变换矩形四个顶点。
+            let (x1, y1) = transform_point(x, y);
+            let (x2, y2) = transform_point(x + w, y);
+            let (x3, y3) = transform_point(x + w, y + h);
+            let (x4, y4) = transform_point(x, y + h);
+
+            if transform.rotation_deg != 0.0 {
+                // 有旋转时，把矩形拆成两个三角形，让 CPU 路径的 draw_triangle 能正确渲染旋转后的矩形。
+                return vec![
+                    Element::Triangle {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        x3,
+                        y3,
+                    },
+                    Element::Triangle {
+                        x1,
+                        y1,
+                        x2: x3,
+                        y2: y3,
+                        x3: x4,
+                        y3: y4,
+                    },
+                ];
             }
+
+            // 无旋转时，用变换后的顶点计算新的轴对齐包围盒。
+            // 这样缩放会同时放大矩形尺寸和相邻矩形之间的间距（如准星的 gap）。
+            let min_x = x1.min(x2).min(x3).min(x4);
+            let max_x = x1.max(x2).max(x3).max(x4);
+            let min_y = y1.min(y2).min(y3).min(y4);
+            let max_y = y1.max(y2).max(y3).max(y4);
+
+            vec![Element::Rect {
+                x: min_x,
+                y: min_y,
+                w: max_x - min_x,
+                h: max_y - min_y,
+            }]
         }
         Element::Circle { cx, cy, radius } => {
             let (tx, ty) = transform_point(cx, cy);
-            Element::Circle {
+            vec![Element::Circle {
                 cx: tx,
                 cy: ty,
                 radius: radius * transform.scale,
-            }
+            }]
         }
         Element::CircleStroke {
             cx,
@@ -854,12 +891,12 @@ fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> 
             thickness,
         } => {
             let (tx, ty) = transform_point(cx, cy);
-            Element::CircleStroke {
+            vec![Element::CircleStroke {
                 cx: tx,
                 cy: ty,
                 radius: radius * transform.scale,
                 thickness,
-            }
+            }]
         }
         Element::DashedCircle {
             cx,
@@ -870,14 +907,14 @@ fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> 
             gap_len,
         } => {
             let (tx, ty) = transform_point(cx, cy);
-            Element::DashedCircle {
+            vec![Element::DashedCircle {
                 cx: tx,
                 cy: ty,
                 radius: radius * transform.scale,
                 thickness,
                 dash_len,
                 gap_len,
-            }
+            }]
         }
         Element::Triangle {
             x1,
@@ -890,16 +927,16 @@ fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> 
             let (tx1, ty1) = transform_point(x1, y1);
             let (tx2, ty2) = transform_point(x2, y2);
             let (tx3, ty3) = transform_point(x3, y3);
-            Element::Triangle {
+            vec![Element::Triangle {
                 x1: tx1,
                 y1: ty1,
                 x2: tx2,
                 y2: ty2,
                 x3: tx3,
                 y3: ty3,
-            }
+            }]
         }
-        Element::Polygon { points } => Element::Polygon {
+        Element::Polygon { points } => vec![Element::Polygon {
             points: points
                 .into_iter()
                 .map(|[x, y]| {
@@ -907,7 +944,7 @@ fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> 
                     [tx, ty]
                 })
                 .collect(),
-        },
+        }],
         Element::Line {
             x1,
             y1,
@@ -917,13 +954,13 @@ fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> 
         } => {
             let (tx1, ty1) = transform_point(x1, y1);
             let (tx2, ty2) = transform_point(x2, y2);
-            Element::Line {
+            vec![Element::Line {
                 x1: tx1,
                 y1: ty1,
                 x2: tx2,
                 y2: ty2,
                 thickness,
-            }
+            }]
         }
         Element::Text {
             x,
@@ -932,20 +969,20 @@ fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> 
             font_size,
         } => {
             let (tx, ty) = transform_point(x, y);
-            Element::Text {
+            vec![Element::Text {
                 x: tx,
                 y: ty,
                 content,
                 font_size: font_size * transform.scale,
-            }
+            }]
         }
-        Element::Image { path, x, y, w, h } => Element::Image {
+        Element::Image { path, x, y, w, h } => vec![Element::Image {
             path,
             x: x + transform.offset_x,
             y: y + transform.offset_y,
             w: w * transform.scale,
             h: h * transform.scale,
-        },
+        }],
     }
 }
 
@@ -1096,11 +1133,12 @@ mod layer_tests {
             max_y: 1080.0,
         };
         let result = apply_transform(element, &transform, &screen);
-        match result {
+        assert_eq!(result.len(), 1);
+        match &result[0] {
             Element::Circle { cx, cy, radius } => {
-                assert_eq!(cx, 150.0);
-                assert_eq!(cy, 125.0);
-                assert_eq!(radius, 50.0);
+                assert_eq!(*cx, 150.0);
+                assert_eq!(*cy, 125.0);
+                assert_eq!(*radius, 50.0);
             }
             _ => panic!("expected Circle"),
         }
@@ -1127,14 +1165,43 @@ mod layer_tests {
             max_y: 1080.0,
         };
         let result = apply_transform(element, &transform, &screen);
-        match result {
+        assert_eq!(result.len(), 1);
+        match &result[0] {
             Element::Rect { x, y, w, h } => {
-                assert_eq!(x, 0.0);
-                assert_eq!(y, 0.0);
-                assert_eq!(w, 200.0);
-                assert_eq!(h, 100.0);
+                assert_eq!(*x, -960.0);
+                assert_eq!(*y, -540.0);
+                assert_eq!(*w, 200.0);
+                assert_eq!(*h, 100.0);
             }
             _ => panic!("expected Rect"),
+        }
+    }
+
+    #[test]
+    fn apply_transform_rotation_rect_becomes_triangles() {
+        let element = Element::Rect {
+            x: 100.0,
+            y: 100.0,
+            w: 50.0,
+            h: 50.0,
+        };
+        let transform = Transform2D {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            scale: 1.0,
+            rotation_deg: 45.0,
+        };
+        let screen = Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        };
+        let result = apply_transform(element, &transform, &screen);
+        // 旋转时矩形拆分为两个三角形。
+        assert_eq!(result.len(), 2);
+        for e in &result {
+            assert!(matches!(e, Element::Triangle { .. }));
         }
     }
 

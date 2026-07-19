@@ -129,7 +129,7 @@ export function LayersEditor({
 
   return (
     <div className="h-full flex flex-col bg-background text-foreground">
-      {/* 顶部栏：标题 + Profile 管理 + 开始/停止覆盖 */}
+      {/* 顶部栏：标题 + Profile 管理 */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0 gap-2">
         <div className="text-sm font-semibold">
           {t("app.title")} — {t("layers.editorTitle")}
@@ -141,20 +141,6 @@ export function LayersEditor({
             onActiveProfileChange={onActiveProfileChange}
             onProfilesChange={onProfilesChange}
           />
-          {overlayActive ? (
-            <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={onStopOverlay}>
-              ■ {t("config.stopOverlay")}
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              className="h-7 text-xs"
-              onClick={onStartOverlay}
-              disabled={!isFullscreen && !profile?.target_window}
-            >
-              ▶ {t("config.startOverlay")}
-            </Button>
-          )}
         </div>
       </div>
 

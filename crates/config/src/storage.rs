@@ -165,6 +165,7 @@ impl ConfigStorage {
     /// 将配置原子写入磁盘：先写临时文件，再重命名。
     ///
     /// 写入前会先校验合法性，避免把无效配置落盘。
+    /// 临时文件名包含进程 ID 与纳秒时间戳，避免并发写入时互相覆盖。
     pub async fn save(&self, config: &AppConfig) -> crate::Result<()> {
         config.validate()?;
         let parent = self
@@ -175,7 +176,12 @@ impl ConfigStorage {
 
         let content = serde_json::to_string_pretty(config)?;
         // 临时文件与目标文件放在同一目录，保证 rename 原子且跨文件系统可靠。
-        let temp_path = parent.join(format!(".config.tmp.{}", std::process::id()));
+        // 文件名包含进程 ID + 纳秒时间戳，避免多个并发 save 互相覆盖导致 rename 找不到文件。
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let temp_path = parent.join(format!(".config.tmp.{}.{}", std::process::id(), nanos));
         tokio::fs::write(&temp_path, content).await?;
         tokio::fs::rename(&temp_path, &self.config_path).await?;
         Ok(())

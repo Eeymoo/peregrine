@@ -194,38 +194,73 @@ impl OverlayRenderer {
             let shapes =
                 crate::shapes::build_layers_shapes(&rect, profile, &self.material_registry, &ctx);
 
+            // 分离 Image 图元、CPU 光栅化图元、SVG 后端图元。
+            // Image 由 CPU 直接 blit；Rect/Circle/Triangle 等由 CPU 光栅化；Text/Polygon/Line 由 SVG 后端光栅化。
+            let mut image_elements: Vec<(peregrine_config::Element, [f32; 4], f32)> = Vec::new();
+            let mut cpu_elements: Vec<(peregrine_config::Element, [f32; 4], f32)> = Vec::new();
+            let mut svg_elements: Vec<(peregrine_config::Element, [f32; 4], f32)> = Vec::new();
             for (element, color, opacity) in shapes {
-                let color_u32 = make_color(&color, opacity);
                 match &element {
-                    peregrine_config::Element::Image { x, y, w, h, .. } => {
-                        if let Some(img) = &self.image_cache {
-                            // 复用现有 draw_image 但参数从 Image 图元取。
-                            // 注意：draw_image 期望中心点 + offset，这里改为左上角 + w/h。
-                            // 简化实现：用 draw_image_at_left_top。
-                            draw_image_at_left_top(
-                                &mut buffer,
-                                width,
-                                height,
-                                scale,
-                                *x,
-                                *y,
-                                *w,
-                                *h,
-                                img,
-                                opacity,
-                            );
-                        }
+                    peregrine_config::Element::Image { .. } => {
+                        image_elements.push((element, color, opacity));
+                    }
+                    peregrine_config::Element::Rect { .. }
+                    | peregrine_config::Element::Circle { .. }
+                    | peregrine_config::Element::CircleStroke { .. }
+                    | peregrine_config::Element::DashedCircle { .. }
+                    | peregrine_config::Element::Triangle { .. } => {
+                        cpu_elements.push((element, color, opacity));
                     }
                     _ => {
-                        // 其他图元：转 Shape 别名（Element）走 rasterize_shape。
-                        rasterize_shape(
+                        svg_elements.push((element, color, opacity));
+                    }
+                }
+            }
+
+            // 1. CPU 光栅化（支持抗锯齿开关）。
+            for (element, color, opacity) in cpu_elements {
+                let color_u32 = make_color(&color, opacity);
+                rasterize_shape(
+                    &mut buffer,
+                    width,
+                    height,
+                    scale,
+                    &element,
+                    color_u32,
+                    antialiasing,
+                );
+            }
+
+            // 2. SVG 后端光栅化（Text / Polygon / Line）。
+            if !svg_elements.is_empty() {
+                let ok = crate::svg_renderer::render_elements_to_buffer(
+                    &mut buffer,
+                    width,
+                    height,
+                    scale,
+                    &rect,
+                    &svg_elements,
+                );
+                if !ok {
+                    tracing::warn!("SVG 光栅化失败，部分图元可能未显示");
+                }
+            }
+
+            // 3. Image 图元（CPU 直接 blit，覆盖在最上层）。
+            for (element, _color, opacity) in image_elements {
+                if let peregrine_config::Element::Image { x, y, w, h, .. } = &element {
+                    if let Some(img) = &self.image_cache {
+                        draw_image_at_left_top(
                             &mut buffer,
                             width,
                             height,
                             scale,
-                            &element,
-                            color_u32,
-                            antialiasing,
+                            *x,
+                            *y,
+                            *w,
+                            *h,
+                            img,
+                            opacity,
                         );
                     }
                 }

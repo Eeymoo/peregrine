@@ -123,12 +123,12 @@ export function LayersEditor({
 
   return (
     <div className="h-full flex flex-col bg-background text-foreground">
-      {/* 顶部栏：标题 + 开始/停止覆盖 + 切换单图层 */}
+      {/* 顶部栏：标题 + 开始/停止覆盖 */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
         <div className="text-sm font-semibold">
           {t("app.title")} — {t("layers.editorTitle")}
         </div>
-        <div className="flex items-center gap-2">
+        <div>
           {overlayActive ? (
             <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={onStopOverlay}>
               ■ {t("config.stopOverlay")}
@@ -143,20 +143,21 @@ export function LayersEditor({
               ▶ {t("config.startOverlay")}
             </Button>
           )}
-          <button
-            onClick={onSwitchSingleLayer}
-            className="text-xs px-3 py-1 border rounded hover:bg-accent"
-          >
-            ← {t("layers.backToLegacy")}
-          </button>
         </div>
       </div>
 
       {/* 主体：三栏布局 */}
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* 左侧：预览 */}
-        <div className="flex-1 p-4 min-w-0 min-h-0">
+        <div className="flex-1 p-4 min-w-0 min-h-0 relative">
           <Preview previewKey={`${selectedId}-${refreshKey}`} />
+          {/* 切换到单图层按钮：与单图层模式的切换按钮位置一致 */}
+          <button
+            onClick={onSwitchSingleLayer}
+            className="absolute top-6 right-6 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90 z-10"
+          >
+            ← {t("layers.backToLegacy")}
+          </button>
         </div>
 
         {/* 中间：图层列表 */}

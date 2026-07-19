@@ -461,55 +461,27 @@ export default function ConfigApp() {
                 }}
                 className="h-8 w-14 rounded border bg-transparent cursor-pointer"
               />
-              <span className="text-xs text-muted-foreground font-mono">
-                {colorCss.toUpperCase().replace("RGB", "#").replace(/[()]/g, "").replace(/, /g, "")}
-              </span>
             </div>
 
-            {/* 快捷颜色：使用与设置页一致的 color input 圆圈，可编辑预设 */}
+            {/* 快捷颜色：点击色块直接设置准心颜色 */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">{t("quickColors.title")}</Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    const defaultColors: [number, number, number, number][] = [
-                      [1, 1, 1, 1],
-                      [0, 1, 0, 1],
-                      [0.2, 0.5, 1, 1],
-                      [1, 0, 0, 1],
-                      [1, 0.5, 0, 1],
-                    ];
-                    updateSettings({ quick_colors: defaultColors });
-                  }}
-                >
-                  {t("quickColors.reset")}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">{t("quickColors.hint")}</p>
-              <div className="flex gap-3 pt-1">
+              <Label className="text-sm">{t("quickColors.title")}</Label>
+              <div className="flex gap-1 flex-wrap">
                 {(config.settings.quick_colors ?? []).map((qc, i) => {
                   const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;
-                  const hex = `#${Math.round(qc[0] * 255).toString(16).padStart(2, "0")}${Math.round(qc[1] * 255).toString(16).padStart(2, "0")}${Math.round(qc[2] * 255).toString(16).padStart(2, "0")}`;
+                  const isActive = ch.color[0] === qc[0] && ch.color[1] === qc[1] && ch.color[2] === qc[2];
                   return (
-                    <div key={i} className="flex flex-col items-center gap-1">
-                      <input
-                        type="color"
-                        value={hex}
-                        onChange={(e) => {
-                          const h = e.target.value;
-                          const r = parseInt(h.slice(1, 3), 16) / 255;
-                          const g = parseInt(h.slice(3, 5), 16) / 255;
-                          const b = parseInt(h.slice(5, 7), 16) / 255;
-                          const newColors = [...(config.settings.quick_colors ?? [])];
-                          newColors[i] = [r, g, b, 1];
-                          updateSettings({ quick_colors: newColors });
-                        }}
-                        className="w-8 h-8 rounded-full cursor-pointer border-2"
-                        style={{ backgroundColor: css }}
-                      />
-                    </div>
+                    <button
+                      key={i}
+                      type="button"
+                      title={css}
+                      onClick={() => updateCrosshair({ color: [...qc] })}
+                      className="w-5 h-5 rounded-full border-2 transition-colors"
+                      style={{
+                        backgroundColor: css,
+                        borderColor: isActive ? "hsl(var(--primary))" : "hsl(var(--border))",
+                      }}
+                    />
                   );
                 })}
               </div>

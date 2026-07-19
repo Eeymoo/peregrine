@@ -46,19 +46,6 @@ export function LayerStyleEditor({
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium">{t("layers.alpha")}</label>
-        <input
-          type="number"
-          min={0}
-          max={1}
-          step={0.01}
-          value={style.color[3]}
-          onChange={(e) => update({ color: [...style.color.slice(0, 3), parseFloat(e.target.value)] as [number, number, number, number] })}
-          className="w-full px-2 py-1 text-sm border rounded bg-background"
-        />
-      </div>
-
-      <div className="space-y-1">
         <label className="text-xs font-medium">{t("layers.opacity")}</label>
         <Slider
           min={0}

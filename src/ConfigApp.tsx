@@ -31,7 +31,7 @@ import {
   downloadAndInstallUpdate,
 } from "@/lib/api";
 import { getDefaultCrosshairForStyle } from "@/lib/presets";
-import type { AppConfig, Crosshair, CrosshairStyle, Layer, LayerStyle, MaterialRef } from "@/types/config";
+import type { AppConfig, Crosshair, CrosshairStyle, Layer, LayerStyle, MaterialRef, Anchor, RingStyle, BorderFrameStyle, GridAlignment } from "@/types/config";
 
 const STYLES: CrosshairStyle[] = [
   "edge_rect",
@@ -175,7 +175,16 @@ export default function ConfigApp() {
   }, []);
 
   const profile = config?.profiles[config.active_profile];
-  const crosshair = profile?.crosshair ?? null;
+  // 当后端配置是纯净新格式（crosshair 为 null）时，从 layers[0] 反向生成一个 crosshair，
+  // 保证旧版单图层 UI 始终可用。后续编辑 crosshair 会同步回写 layers[0]。
+  const derivedCrosshair = useMemo<Crosshair | null>(() => {
+    const raw = profile?.crosshair ?? null;
+    if (raw) return raw;
+    const layer = profile?.layers?.[0];
+    if (!layer) return null;
+    return layerToCrosshair(layer);
+  }, [profile]);
+  const crosshair = derivedCrosshair;
   const hasLayers = (profile?.layers?.length ?? 0) > 0;
 
   /** 防抖保存配置：拖滑块等连续操作时只在停止后 300ms 写入一次。 */
@@ -361,65 +370,24 @@ export default function ConfigApp() {
     );
   }
 
-  // 没有 crosshair 但有 layers：强制进入图层编辑器。
-  if (!crosshair && hasLayers) {
-    return (
-      <div className="h-screen flex flex-col bg-background text-foreground">
-        <div className="flex items-center justify-between px-4 py-2 border-b bg-card">
-          <div className="text-sm font-semibold">
-            {t("app.title")} — {t("layers.editorTitle")}
-          </div>
-          <div className="flex items-center gap-2">
-            {overlayActive ? (
-              <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={handleStopOverlay}>
-                ■ {t("config.stopOverlay")}
-              </Button>
-            ) : (
-              <Button size="sm" className="h-7 text-xs" onClick={handleStartOverlay} disabled={!config.settings.fullscreen_overlay && !profile?.target_window}>
-                ▶ {t("config.startOverlay")}
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="flex-1 overflow-hidden min-h-0">
-          <LayersEditor />
-        </div>
-      </div>
-    );
-  }
-
-  // 到这里 crosshair 必为非 null。
+  // 到这里 crosshair 必为非 null（derivedCrosshair 已从 layers[0] 反向生成）。
   const ch = crosshair!;
 
   // 图层编辑器模式：显示全新 UI。
   if (layersMode) {
     return (
       <div className="h-screen flex flex-col bg-background text-foreground">
-        <div className="flex items-center justify-between px-4 py-2 border-b bg-card">
-          <div className="text-sm font-semibold">
-            {t("app.title")} — {t("layers.editorTitle")}
-          </div>
-          <div className="flex items-center gap-2">
-            {overlayActive ? (
-              <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={handleStopOverlay}>
-                ■ {t("config.stopOverlay")}
-              </Button>
-            ) : (
-              <Button size="sm" className="h-7 text-xs" onClick={handleStartOverlay} disabled={!config.settings.fullscreen_overlay && !profile?.target_window}>
-                ▶ {t("config.startOverlay")}
-              </Button>
-            )}
-            <button
-              onClick={() => setLayersMode(false)}
-              className="text-xs px-3 py-1 border rounded hover:bg-accent"
-            >
-              ← {t("layers.backToLegacy")}
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-hidden min-h-0">
-          <LayersEditor />
-        </div>
+        <LayersEditor
+          config={config}
+          overlayActive={overlayActive}
+          windows={windows}
+          onStartOverlay={handleStartOverlay}
+          onStopOverlay={handleStopOverlay}
+          onRefreshWindows={refreshWindows}
+          onUpdateSettings={updateSettings}
+          onConfigChange={setConfig}
+          onSwitchSingleLayer={() => setLayersMode(false)}
+        />
       </div>
     );
   }
@@ -885,4 +853,150 @@ function createDefaultLayer(crosshair: Crosshair): Layer {
     visible: true,
     locked: false,
   };
+}
+
+/** 从内置物料 id 推断 CrosshairStyle。 */
+function materialIdToStyle(materialId: string): CrosshairStyle {
+  switch (materialId) {
+    case "builtin.edge_rect":
+      return "edge_rect";
+    case "builtin.image":
+      return "custom_image";
+    case "builtin.large_cross":
+      return "large_cross";
+    case "builtin.corner_dots":
+      return "corner_dots4";
+    case "builtin.ring":
+      return "ring";
+    case "builtin.custom_orb":
+      return "custom_orb";
+    case "builtin.random_orb":
+      return "random_orb";
+    case "builtin.border_frame":
+      return "border_frame";
+    case "builtin.edge_arrows":
+      return "edge_arrows";
+    case "builtin.grid":
+      return "grid";
+    case "builtin.cross":
+    default:
+      return "cross";
+  }
+}
+
+/**
+ * 从 layers[0] 反向生成 Crosshair，用于旧版单图层 UI。
+ * 无法精确还原的字段使用默认值。
+ */
+function layerToCrosshair(layer: Layer): Crosshair | null {
+  const style = materialIdToStyle(
+    layer.material.kind === "builtin" ? layer.material.id : "builtin.cross",
+  );
+  const params = layer.params;
+  const base = getDefaultCrosshairForStyle(style);
+  const color = layer.style?.color ?? base.color;
+  const opacity = layer.style?.opacity ?? base.opacity;
+  const newBase: Crosshair = { ...base, color, opacity, style };
+
+  switch (style) {
+    case "edge_rect":
+      return {
+        ...newBase,
+        size: (params.size as number) ?? newBase.size,
+        secondary_size: (params.secondary_size as number) ?? newBase.secondary_size,
+        anchor: (params.anchor as Anchor) ?? newBase.anchor,
+        margin: (params.margin as number) ?? newBase.margin,
+        corner_radius: (params.corner_radius as number) ?? newBase.corner_radius,
+      };
+    case "custom_image":
+      return {
+        ...newBase,
+        image_path: (params.path as string) ?? newBase.image_path,
+        image_scale: (params.scale as number) ?? newBase.image_scale,
+        image_offset_x: (params.offset_x as number) ?? newBase.image_offset_x,
+        image_offset_y: (params.offset_y as number) ?? newBase.image_offset_y,
+        size: (params.width as number) ?? newBase.size,
+      };
+    case "cross":
+      return {
+        ...newBase,
+        size: (params.size as number) ?? newBase.size,
+        thickness: (params.thickness as number) ?? newBase.thickness,
+        gap: (params.gap as number) ?? newBase.gap,
+      };
+    case "large_cross":
+      return {
+        ...newBase,
+        thickness: (params.thickness as number) ?? newBase.thickness,
+      };
+    case "corner_dots4":
+    case "corner_dots6":
+    case "corner_dots8": {
+      const count = (params.count as number) ?? 4;
+      const styleName: CrosshairStyle = count === 6 ? "corner_dots6" : count === 8 ? "corner_dots8" : "corner_dots4";
+      return {
+        ...newBase,
+        style: styleName,
+        offset: (params.offset as number) ?? newBase.offset,
+        thickness: (params.thickness as number) ?? newBase.thickness,
+        radius: (params.radius as number) ?? newBase.radius,
+      };
+    }
+    case "ring":
+      return {
+        ...newBase,
+        ring_radius_pct: (params.radius_pct as number) ?? newBase.ring_radius_pct,
+        thickness: (params.thickness as number) ?? newBase.thickness,
+        ring_style: (params.style as RingStyle) ?? newBase.ring_style,
+      };
+    case "custom_orb":
+      return {
+        ...newBase,
+        radius: (params.radius as number) ?? newBase.radius,
+        offset: (params.offset as number) ?? newBase.offset,
+        orb_positions: (params.orb_positions as number) ?? newBase.orb_positions,
+        custom_orb_top_count: (params.top_count as number) ?? newBase.custom_orb_top_count,
+        custom_orb_bottom_count: (params.bottom_count as number) ?? newBase.custom_orb_bottom_count,
+        custom_orb_left_count: (params.left_count as number) ?? newBase.custom_orb_left_count,
+        custom_orb_right_count: (params.right_count as number) ?? newBase.custom_orb_right_count,
+      };
+    case "random_orb":
+      return {
+        ...newBase,
+        random_orb_count: (params.count as number) ?? newBase.random_orb_count,
+        random_orb_offset: (params.offset as number) ?? newBase.random_orb_offset,
+        random_orb_jitter: (params.jitter as number) ?? newBase.random_orb_jitter,
+        random_radius_min: (params.radius_min as number) ?? newBase.random_radius_min,
+        random_radius_max: (params.radius_max as number) ?? newBase.random_radius_max,
+      };
+    case "border_frame":
+      return {
+        ...newBase,
+        thickness: (params.thickness as number) ?? newBase.thickness,
+        offset: (params.offset as number) ?? newBase.offset,
+        border_frame_style: (params.style as BorderFrameStyle) ?? newBase.border_frame_style,
+        border_inset: (params.inset as boolean) ?? newBase.border_inset,
+      };
+    case "edge_arrows":
+      return {
+        ...newBase,
+        size: (params.size as number) ?? newBase.size,
+        arrow_width: (params.arrow_width as number) ?? newBase.arrow_width,
+        arrow_distance: (params.distance as number) ?? newBase.arrow_distance,
+        arrow_tail_per_edge: (params.tail_per_edge as boolean) ?? newBase.arrow_tail_per_edge,
+        arrow_tail_top: (params.tail_top as number) ?? newBase.arrow_tail_top,
+        arrow_tail_bottom: (params.tail_bottom as number) ?? newBase.arrow_tail_bottom,
+        arrow_tail_left: (params.tail_left as number) ?? newBase.arrow_tail_left,
+        arrow_tail_right: (params.tail_right as number) ?? newBase.arrow_tail_right,
+      };
+    case "grid":
+      return {
+        ...newBase,
+        grid_size: (params.size as number) ?? newBase.grid_size,
+        thickness: (params.thickness as number) ?? newBase.thickness,
+        grid_alignment: (params.alignment as GridAlignment) ?? newBase.grid_alignment,
+      };
+    default:
+      return newBase;
+  }
 }

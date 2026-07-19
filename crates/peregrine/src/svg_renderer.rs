@@ -41,8 +41,10 @@ pub fn render_shapes_to_buffer(
 
 /// 把 SVG 字符串光栅化到像素缓冲区。
 fn render_svg_to_buffer(buffer: &mut [u32], pixel_w: u32, pixel_h: u32, svg: &str) -> bool {
-    // 解析 SVG 为 usvg Tree。
-    let tree = match usvg::Tree::from_str(svg, &usvg::Options::default()) {
+    // 解析 SVG 为 usvg Tree，并加载系统字体以支持 <text> 元素。
+    let mut options = usvg::Options::default();
+    options.fontdb_mut().load_system_fonts();
+    let tree = match usvg::Tree::from_str(svg, &options) {
         Ok(t) => t,
         Err(e) => {
             tracing::warn!("SVG 解析失败: {}", e);

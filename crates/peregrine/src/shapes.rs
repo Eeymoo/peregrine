@@ -776,8 +776,11 @@ pub fn build_layers_shapes(
             }
         };
 
+        // 计算该图层所有元素的整体包围盒中心，作为缩放/旋转的基准点。
+        let center = elements_center(&elements);
+
         for element in elements {
-            let transformed_list = apply_transform(element, &layer.transform, &screen_rect);
+            let transformed_list = apply_transform(element, &layer.transform, center, &screen_rect);
             for transformed in transformed_list {
                 out.push((transformed, layer.style.color, layer.style.opacity));
             }
@@ -808,9 +811,81 @@ fn evaluate_layer(
         .map_err(|e| e.to_string())
 }
 
+/// 计算一组元素的整体包围盒中心。
+fn elements_center(elements: &[Element]) -> (f32, f32) {
+    if elements.is_empty() {
+        return (0.0, 0.0);
+    }
+    let mut min_x = f32::MAX;
+    let mut min_y = f32::MAX;
+    let mut max_x = f32::MIN;
+    let mut max_y = f32::MIN;
+
+    let update = |x: f32, y: f32, min_x: &mut f32, min_y: &mut f32, max_x: &mut f32, max_y: &mut f32| {
+        if x < *min_x { *min_x = x; }
+        if y < *min_y { *min_y = y; }
+        if x > *max_x { *max_x = x; }
+        if y > *max_y { *max_y = y; }
+    };
+
+    for e in elements {
+        match e {
+            Element::Rect { x, y, w, h } => {
+                update(*x, *y, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*x + *w, *y + *h, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+            }
+            Element::Circle { cx, cy, radius } => {
+                update(*cx - *radius, *cy - *radius, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*cx + *radius, *cy + *radius, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+            }
+            Element::CircleStroke { cx, cy, radius, thickness } => {
+                let r = *radius + *thickness / 2.0;
+                update(*cx - r, *cy - r, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*cx + r, *cy + r, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+            }
+            Element::DashedCircle { cx, cy, radius, thickness, .. } => {
+                let r = *radius + *thickness / 2.0;
+                update(*cx - r, *cy - r, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*cx + r, *cy + r, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+            }
+            Element::Triangle { x1, y1, x2, y2, x3, y3 } => {
+                update(*x1, *y1, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*x2, *y2, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*x3, *y3, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+            }
+            Element::Polygon { points } => {
+                for [x, y] in points {
+                    update(*x, *y, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                }
+            }
+            Element::Line { x1, y1, x2, y2, .. } => {
+                update(*x1, *y1, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*x2, *y2, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+            }
+            Element::Text { x, y, font_size, .. } => {
+                // 文本宽度无法精确计算，用 font_size * 0.6 估算半宽。
+                let half = *font_size * 0.6;
+                update(*x - half, *y - *font_size, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*x + half, *y, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+            }
+            Element::Image { x, y, w, h, .. } => {
+                update(*x, *y, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*x + *w, *y + *h, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+            }
+        }
+    }
+
+    ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+}
+
 /// 把图元应用图层的几何变换（平移 / 缩放 / 旋转）。
 /// 返回变换后的图元列表（旋转时矩形可能拆分为三角形）。
-fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> Vec<Element> {
+fn apply_transform(
+    element: Element,
+    transform: &Transform2D,
+    center: (f32, f32),
+    _screen: &Rect,
+) -> Vec<Element> {
     if (transform.offset_x == 0.0 && transform.offset_y == 0.0)
         && transform.scale == 1.0
         && transform.rotation_deg == 0.0
@@ -818,12 +893,11 @@ fn apply_transform(element: Element, transform: &Transform2D, screen: &Rect) -> 
         return vec![element];
     }
 
-    let cx = screen.center_x();
-    let cy = screen.center_y();
+    let (cx, cy) = center;
     let cos = transform.rotation_deg.to_radians().cos();
     let sin = transform.rotation_deg.to_radians().sin();
 
-    // 变换一个点的坐标：相对屏幕中心缩放/旋转 + 平移。
+    // 变换一个点的坐标：以图层内容中心为基准缩放/旋转，再平移。
     let transform_point = |x: f32, y: f32| -> (f32, f32) {
         let dx = (x - cx) * transform.scale;
         let dy = (y - cy) * transform.scale;
@@ -1132,7 +1206,7 @@ mod layer_tests {
             max_x: 1920.0,
             max_y: 1080.0,
         };
-        let result = apply_transform(element, &transform, &screen);
+        let result = apply_transform(element, &transform, (100.0, 100.0), &screen);
         assert_eq!(result.len(), 1);
         match &result[0] {
             Element::Circle { cx, cy, radius } => {
@@ -1164,12 +1238,13 @@ mod layer_tests {
             max_x: 1920.0,
             max_y: 1080.0,
         };
-        let result = apply_transform(element, &transform, &screen);
+        // 以 Rect 中心 (50, 25) 为基准缩放。
+        let result = apply_transform(element, &transform, (50.0, 25.0), &screen);
         assert_eq!(result.len(), 1);
         match &result[0] {
             Element::Rect { x, y, w, h } => {
-                assert_eq!(*x, -960.0);
-                assert_eq!(*y, -540.0);
+                assert_eq!(*x, -50.0);
+                assert_eq!(*y, -25.0);
                 assert_eq!(*w, 200.0);
                 assert_eq!(*h, 100.0);
             }
@@ -1197,7 +1272,8 @@ mod layer_tests {
             max_x: 1920.0,
             max_y: 1080.0,
         };
-        let result = apply_transform(element, &transform, &screen);
+        // 以 Rect 中心 (125, 125) 为基准旋转。
+        let result = apply_transform(element, &transform, (125.0, 125.0), &screen);
         // 旋转时矩形拆分为两个三角形。
         assert_eq!(result.len(), 2);
         for e in &result {

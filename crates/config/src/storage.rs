@@ -347,11 +347,11 @@ mod tests {
         // 加载时应自动迁移。
         let cfg = storage.load_or_create_default().await.unwrap();
 
-        // 默认 profile 现在应该有 layers，且 crosshair 应为 None。
+        // 默认 profile 现在应该有 layers，且 crosshair 保留以便单图层 UI 继续编辑。
         let profile = cfg.profiles.get("default").unwrap();
         assert!(
-            profile.crosshair.is_none(),
-            "crosshair should be None after migration"
+            profile.crosshair.is_some(),
+            "crosshair should be preserved after migration"
         );
         assert_eq!(
             profile.layers.len(),
@@ -385,7 +385,7 @@ mod tests {
         // 新格式配置已写入，可重新加载。
         let reloaded = storage.load().await.unwrap();
         let p = reloaded.profiles.get("default").unwrap();
-        assert!(p.crosshair.is_none());
+        assert!(p.crosshair.is_some());
         assert_eq!(p.layers.len(), 1);
     }
 

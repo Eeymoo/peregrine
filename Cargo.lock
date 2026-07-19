@@ -3206,6 +3206,7 @@ name = "peregrine_material"
 version = "0.2.0-alpha.0"
 dependencies = [
  "ahash",
+ "chrono",
  "peregrine_config",
  "rhai",
  "serde",

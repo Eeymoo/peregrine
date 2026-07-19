@@ -214,6 +214,38 @@ fn make_engine_with_dynamic(ctx: &DynamicContext) -> Engine {
     let time_ms = ctx.time_ms as i64;
     engine.register_fn("time_ms", move || time_ms);
 
+    // now_ms() -> i64：当前系统时间（毫秒）。
+    engine.register_fn("now_ms", || chrono::Local::now().timestamp_millis());
+
+    // format_time(ms, format) -> String：把毫秒时间戳格式化为本地时间字符串。
+    // 支持占位符：yyyy, MM, dd, HH, hh, mm, ss, a。
+    engine.register_fn("format_time", |ms: i64, format: ImmutableString| {
+        use chrono::TimeZone;
+        let dt = chrono::Local
+            .timestamp_millis_opt(ms)
+            .single()
+            .unwrap_or_else(chrono::Local::now);
+        let mut s = format.to_string();
+        // 先替换较长占位符，避免短占位符冲突（如先 yyyy 再 MM）。
+        let replacements = [
+            ("yyyy", dt.format("%Y").to_string()),
+            ("MM", dt.format("%m").to_string()),
+            ("dd", dt.format("%d").to_string()),
+            ("HH", dt.format("%H").to_string()),
+            ("hh", {
+                let h = dt.format("%I").to_string();
+                h
+            }),
+            ("mm", dt.format("%M").to_string()),
+            ("ss", dt.format("%S").to_string()),
+            ("a", dt.format("%p").to_string()),
+        ];
+        for (pat, val) in &replacements {
+            s = s.replace(pat, val);
+        }
+        s
+    });
+
     // mouse_pos() -> Map { x: Float, y: Float }
     let (mx, my) = ctx.mouse_pos;
     engine.register_fn("mouse_pos", move || {
@@ -579,6 +611,93 @@ mod tests {
             min_y: 0.0,
             max_x: 1920.0,
             max_y: 1080.0,
+        }
+    }
+
+    #[test]
+    fn evaluate_time_material() {
+        let m = Material::load(
+            "builtin.time".to_string(),
+            include_str!("../builtin/time.rhai"),
+            true,
+        )
+        .expect("load time material");
+        assert_eq!(m.id(), "builtin.time");
+        assert_eq!(m.metadata().display_name, "时间显示");
+        assert!(m.metadata().is_dynamic);
+
+        let params = serde_json::json!({
+            "font_size": 24.0,
+            "x": 100.0,
+            "y": 200.0,
+            "format": "HH:mm:ss",
+        });
+        let screen = test_rect();
+        let ctx = DynamicContext::preview_snapshot(1920.0, 1080.0);
+        let elements = m.evaluate(&params, &screen, &ctx).unwrap();
+        assert_eq!(elements.len(), 1);
+        if let Element::Text { x, y, content, font_size } = &elements[0] {
+            assert_eq!(*x, 100.0);
+            assert_eq!(*y, 200.0);
+            assert_eq!(*font_size, 24.0);
+            // HH:mm:ss 格式应为 8 个字符，例如 14:30:25。
+            assert_eq!(content.len(), 8);
+            assert!(content.contains(':'), "expected time string, got {}", content);
+        } else {
+            panic!("expected Text element");
+        }
+    }
+
+    #[test]
+    fn evaluate_time_material_custom_format() {
+        let m = Material::load(
+            "builtin.time".to_string(),
+            include_str!("../builtin/time.rhai"),
+            true,
+        )
+        .unwrap();
+        let params = serde_json::json!({
+            "font_size": 16.0,
+            "x": 0.0,
+            "y": 0.0,
+            "format": "yyyy-MM-dd",
+        });
+        let screen = test_rect();
+        let ctx = DynamicContext::preview_snapshot(1920.0, 1080.0);
+        let elements = m.evaluate(&params, &screen, &ctx).unwrap();
+        assert_eq!(elements.len(), 1);
+        if let Element::Text { content, .. } = &elements[0] {
+            // yyyy-MM-dd 格式应为 10 个字符，例如 2026-07-19。
+            assert_eq!(content.len(), 10);
+            assert!(content.contains('-'), "expected date string, got {}", content);
+        } else {
+            panic!("expected Text element");
+        }
+    }
+
+    #[test]
+    fn evaluate_time_material_free_format() {
+        let m = Material::load(
+            "builtin.time".to_string(),
+            include_str!("../builtin/time.rhai"),
+            true,
+        )
+        .unwrap();
+        let params = serde_json::json!({
+            "font_size": 16.0,
+            "x": 0.0,
+            "y": 0.0,
+            "format": "yyyy年MM月dd日 HH时mm分",
+        });
+        let screen = test_rect();
+        let ctx = DynamicContext::preview_snapshot(1920.0, 1080.0);
+        let elements = m.evaluate(&params, &screen, &ctx).unwrap();
+        assert_eq!(elements.len(), 1);
+        if let Element::Text { content, .. } = &elements[0] {
+            assert!(content.contains('年'), "expected Chinese date, got {}", content);
+            assert!(content.contains('时'), "expected Chinese time, got {}", content);
+        } else {
+            panic!("expected Text element");
         }
     }
 

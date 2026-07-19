@@ -16,18 +16,22 @@ import { listen } from "@tauri-apps/api/event";
 import { Preview } from "@/components/Preview";
 import { LayerPanel, MaterialParamControls } from "@/components/LayerPanel";
 import { LayerStyleEditor, LayerTransformEditor } from "@/components/LayerEditors";
+import { ProfileManager } from "@/components/ProfileManager";
 import { useI18n } from "@/lib/i18n";
 
 interface LayersEditorProps {
   config: AppConfig;
   overlayActive: boolean;
   windows: string[];
+  profiles?: string[];
   onStartOverlay: () => void;
   onStopOverlay: () => void;
   onRefreshWindows: () => void;
   onUpdateSettings: (patch: Partial<AppConfig["settings"]>) => void;
   onConfigChange: (cfg: AppConfig) => void;
   onSwitchSingleLayer: () => void;
+  onActiveProfileChange?: (name: string) => void;
+  onProfilesChange?: (profiles: string[]) => void;
 }
 
 /**
@@ -42,12 +46,15 @@ export function LayersEditor({
   config,
   overlayActive,
   windows,
+  profiles,
   onStartOverlay,
   onStopOverlay,
   onRefreshWindows,
   onUpdateSettings,
   onConfigChange,
   onSwitchSingleLayer,
+  onActiveProfileChange,
+  onProfilesChange,
 }: LayersEditorProps) {
   const { t } = useI18n();
   const [layers, setLayers] = useState<Layer[]>([]);
@@ -122,12 +129,18 @@ export function LayersEditor({
 
   return (
     <div className="h-full flex flex-col bg-background text-foreground">
-      {/* 顶部栏：标题 + 开始/停止覆盖 */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
+      {/* 顶部栏：标题 + Profile 管理 + 开始/停止覆盖 */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0 gap-2">
         <div className="text-sm font-semibold">
           {t("app.title")} — {t("layers.editorTitle")}
         </div>
-        <div>
+        <div className="flex items-center gap-2">
+          <ProfileManager
+            activeProfile={config.active_profile}
+            profiles={profiles}
+            onActiveProfileChange={onActiveProfileChange}
+            onProfilesChange={onProfilesChange}
+          />
           {overlayActive ? (
             <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={onStopOverlay}>
               ■ {t("config.stopOverlay")}
@@ -155,7 +168,7 @@ export function LayersEditor({
             onClick={onSwitchSingleLayer}
             className="absolute top-6 right-6 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90 z-10"
           >
-            ← {t("layers.backToLegacy")}
+            {t("layers.backToLegacy")}
           </button>
         </div>
 

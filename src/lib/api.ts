@@ -5,6 +5,7 @@ import type {
   Layer,
   LayerPatch,
   MaterialInfo,
+  Profile,
 } from "@/types/config";
 
 export async function getConfig(): Promise<AppConfig> {
@@ -165,3 +166,42 @@ export async function updateLayer(
 export async function listLayers(): Promise<Layer[]> {
   return invoke<Layer[]>("list_layers");
 }
+
+// ===== Profile 管理 API =====
+
+export async function listProfiles(): Promise<string[]> {
+  return invoke<string[]>("list_profiles");
+}
+
+export async function createProfile(name: string): Promise<Profile> {
+  return invoke<Profile>("create_profile", { name });
+}
+
+export async function renameProfile(oldName: string, newName: string): Promise<void> {
+  return invoke("rename_profile", { oldName, newName });
+}
+
+export async function deleteProfile(name: string): Promise<void> {
+  return invoke("delete_profile", { name });
+}
+
+export async function setActiveProfile(name: string): Promise<void> {
+  return invoke("set_active_profile", { name });
+}
+
+export async function getProfile(name: string): Promise<Profile> {
+  return invoke<Profile>("get_profile", { name });
+}
+
+export async function isProfileLegacyCompatible(profile: Profile): Promise<boolean> {
+  return invoke<boolean>("is_profile_legacy_compatible", { profile });
+}
+
+export async function getActiveProfileName(): Promise<string> {
+  return invoke<string>("get_active_profile_name");
+}
+
+export async function copyProfile(baseName: string): Promise<string> {
+  return invoke<string>("copy_profile", { baseName });
+}
+

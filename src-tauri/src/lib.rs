@@ -530,6 +530,16 @@ pub fn run() {
             duplicate_layer,
             update_layer,
             list_layers,
+            // Profile 管理 commands
+            list_profiles,
+            create_profile,
+            rename_profile,
+            delete_profile,
+            set_active_profile,
+            get_profile,
+            is_profile_legacy_compatible,
+            get_active_profile_name,
+            copy_profile,
         ])
         .build(tauri::generate_context!())
         .unwrap_or_else(|e| {
@@ -1602,6 +1612,203 @@ fn emit_layers_changed(app: &tauri::AppHandle) {
     if let Err(e) = app.emit("peregrine:layers-changed", ()) {
         tracing::warn!(error = %e, "failed to emit layers-changed event");
     }
+}
+
+// ===== Profile 管理 commands =====
+
+/// 列出所有 Profile 名称（按字母顺序）。
+#[tauri::command]
+fn list_profiles(state: State<AppState>) -> Vec<String> {
+    let config = state.config.lock().expect("config lock");
+    let mut names: Vec<String> = config.as_ref().profiles.keys().cloned().collect();
+    names.sort();
+    names
+}
+
+/// 获取当前激活的 Profile 名称。
+#[tauri::command]
+fn get_active_profile_name(state: State<AppState>) -> Result<String, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(config.as_ref().active_profile.clone())
+}
+
+/// 获取指定 Profile。
+#[tauri::command]
+fn get_profile(state: State<AppState>, name: String) -> Result<peregrine_config::Profile, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    config
+        .as_ref()
+        .profiles
+        .get(&name)
+        .cloned()
+        .ok_or_else(|| format!("profile '{}' not found", name))
+}
+
+/// 判断一个 Profile 是否可在单图层（旧版）UI 中编辑。
+#[tauri::command]
+fn is_profile_legacy_compatible(profile: peregrine_config::Profile) -> bool {
+    profile.is_legacy_compatible()
+}
+
+/// 创建新的 Profile。
+///
+/// 新 Profile 默认包含一个单图层兼容的图层（builtin.edge_rect），
+/// 方便用户直接在单图层 UI 中编辑。
+#[tauri::command]
+async fn create_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<peregrine_config::Profile, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("profile name must not be empty".to_string());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if config.profiles.contains_key(trimmed) {
+        return Err(format!("profile '{}' already exists", trimmed));
+    }
+    let profile = peregrine_config::Profile::default_profile();
+    config.profiles.insert(trimmed.to_string(), profile.clone());
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(profile)
+}
+
+/// 重命名 Profile。
+///
+/// 如果重命名的是当前 active profile，会同时更新 active_profile。
+#[tauri::command]
+async fn rename_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    old_name: String,
+    new_name: String,
+) -> Result<(), String> {
+    let old = old_name.trim();
+    let new = new_name.trim();
+    if old.is_empty() || new.is_empty() {
+        return Err("profile name must not be empty".to_string());
+    }
+    if old == new {
+        return Ok(());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if !config.profiles.contains_key(old) {
+        return Err(format!("profile '{}' not found", old));
+    }
+    if config.profiles.contains_key(new) {
+        return Err(format!("profile '{}' already exists", new));
+    }
+    let profile = config.profiles.remove(old).expect("profile exists");
+    config.profiles.insert(new.to_string(), profile);
+    if config.active_profile == old {
+        config.active_profile = new.to_string();
+    }
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(())
+}
+
+/// 删除 Profile。
+///
+/// 至少保留一个 Profile；若删除的是当前 active profile，则自动切换到另一个 Profile。
+#[tauri::command]
+async fn delete_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("profile name must not be empty".to_string());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if !config.profiles.contains_key(trimmed) {
+        return Err(format!("profile '{}' not found", trimmed));
+    }
+    if config.profiles.len() <= 1 {
+        return Err("cannot delete the last profile".to_string());
+    }
+    config.profiles.remove(trimmed);
+    if config.active_profile == trimmed {
+        // 切换到剩余 Profile 中按名称排序的第一个。
+        let mut names: Vec<String> = config.profiles.keys().cloned().collect();
+        names.sort();
+        config.active_profile = names.into_iter().next().unwrap_or_default();
+    }
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(())
+}
+
+/// 切换当前激活的 Profile。
+#[tauri::command]
+async fn set_active_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("profile name must not be empty".to_string());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if !config.profiles.contains_key(trimmed) {
+        return Err(format!("profile '{}' not found", trimmed));
+    }
+    config.active_profile = trimmed.to_string();
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(())
+}
+
+/// 复制当前激活的 Profile。
+///
+/// 返回新 profile 名称（基于原名称自动生成，避免重复）。
+#[tauri::command]
+async fn copy_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    base_name: String,
+) -> Result<String, String> {
+    let base = base_name.trim();
+    if base.is_empty() {
+        return Err("base profile name must not be empty".to_string());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    let source = config
+        .profiles
+        .get(base)
+        .cloned()
+        .ok_or_else(|| format!("profile '{}' not found", base))?;
+    // 生成唯一副本名称（固定英文 Copy 后缀，避免配置文件中混入多语言字符）。
+    let copy_suffix = "Copy";
+    let mut candidate = format!("{} {}", base, copy_suffix);
+    let mut i = 2;
+    while config.profiles.contains_key(&candidate) {
+        candidate = format!("{} {} {}", base, copy_suffix, i);
+        i += 1;
+    }
+    config.profiles.insert(candidate.clone(), source);
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(candidate)
 }
 
 /// 生成简单的唯一 id（时间戳 + 计数器）。

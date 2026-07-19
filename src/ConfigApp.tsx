@@ -14,6 +14,7 @@ import {
 import { Preview } from "@/components/Preview";
 import { StyleFields } from "@/components/StyleFields";
 import { LayersEditor } from "@/components/LayersEditor";
+import { ProfileManager } from "@/components/ProfileManager";
 import { DeveloperPanel } from "@/components/DeveloperPanel";
 import { useI18n } from "@/lib/i18n";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -29,6 +30,8 @@ import {
   getOverlayActive,
   checkForUpdate,
   downloadAndInstallUpdate,
+  listProfiles,
+  setActiveProfile,
 } from "@/lib/api";
 import { getDefaultCrosshairForStyle } from "@/lib/presets";
 import type { AppConfig, Crosshair, CrosshairStyle, Layer, LayerStyle, MaterialRef, Anchor, RingStyle, BorderFrameStyle, GridAlignment } from "@/types/config";
@@ -71,15 +74,48 @@ export default function ConfigApp() {
   const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body?: string } | null>(null);
   // 默认显示旧版准心 UI（单图层模式），点击顶部按钮可切换到图层编辑器。
   const [layersMode, setLayersMode] = useState(false);
+  const [profiles, setProfiles] = useState<string[]>([]);
   const [updating, setUpdating] = useState(false);
   const [updateProgress, setUpdateProgress] = useState(0);
 
+  /** 判断单个图层是否可在单图层 UI 中编辑。 */
+  const isLayerLegacyCompatible = useCallback((layer: Layer | undefined): boolean => {
+    if (!layer) return false;
+    if (layer.material.kind !== "builtin") return false;
+    if (layer.transform.offset_x !== 0 || layer.transform.offset_y !== 0) return false;
+    if (layer.transform.scale !== 1 || layer.transform.rotation_deg !== 0) return false;
+    if (layer.style.blend_mode !== "normal") return false;
+    const legacyIds = [
+      "builtin.cross",
+      "builtin.edge_rect",
+      "builtin.large_cross",
+      "builtin.corner_dots",
+      "builtin.ring",
+      "builtin.custom_orb",
+      "builtin.random_orb",
+      "builtin.border_frame",
+      "builtin.edge_arrows",
+      "builtin.grid",
+      "builtin.image",
+    ];
+    return legacyIds.includes(layer.material.id);
+  }, []);
+
   useEffect(() => {
     getConfig()
-      .then(setConfig)
+      .then((cfg) => {
+        setConfig(cfg);
+        const profile = cfg.profiles[cfg.active_profile];
+        // 默认根据当前 active profile 的兼容性选择模式：
+        // 多图层配置 → 打开多图层模式；单图层配置 → 打开单图层模式。
+        const compatible =
+          profile?.layers?.length === 1 && isLayerLegacyCompatible(profile.layers[0]);
+        setLayersMode(!compatible);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
     refreshWindows();
+    refreshProfiles();
     getAppVersion().then(setVersion).catch(() => {});
     getOverlayActive().then(setOverlayActive).catch(() => {});
 
@@ -175,6 +211,12 @@ export default function ConfigApp() {
   }, []);
 
   const profile = config?.profiles[config.active_profile];
+  // 判断当前 active profile 是否可在单图层（旧版）UI 中编辑。
+  const isLegacyCompatible = useMemo(() => {
+    if (!profile) return false;
+    return profile.layers.length === 1 && isLayerLegacyCompatible(profile.layers[0]);
+  }, [profile, isLayerLegacyCompatible]);
+
   // 当后端配置是纯净新格式（crosshair 为 null）时，从 layers[0] 反向生成一个 crosshair，
   // 保证旧版单图层 UI 始终可用。后续编辑 crosshair 会同步回写 layers[0]。
   const derivedCrosshair = useMemo<Crosshair | null>(() => {
@@ -245,6 +287,10 @@ export default function ConfigApp() {
 
   const refreshWindows = useCallback(() => {
     listWindowTitles().then(setWindows).catch(console.error);
+  }, []);
+
+  const refreshProfiles = useCallback(() => {
+    listProfiles().then(setProfiles).catch(console.error);
   }, []);
 
   /** 更新应用级偏好设置（仅更新指定字段，不覆盖整个配置）。 */
@@ -381,12 +427,20 @@ export default function ConfigApp() {
           config={config}
           overlayActive={overlayActive}
           windows={windows}
+          profiles={profiles}
           onStartOverlay={handleStartOverlay}
           onStopOverlay={handleStopOverlay}
           onRefreshWindows={refreshWindows}
           onUpdateSettings={updateSettings}
           onConfigChange={setConfig}
           onSwitchSingleLayer={() => setLayersMode(false)}
+          onActiveProfileChange={async (name) => {
+            await setActiveProfile(name);
+            const fresh = await getConfig();
+            setConfig(fresh);
+            setProfiles(await listProfiles());
+          }}
+          onProfilesChange={setProfiles}
         />
       </div>
     );
@@ -397,26 +451,55 @@ export default function ConfigApp() {
       {/* 左侧预览 */}
       <div className="flex-1 p-4 min-w-0 min-h-0 relative">
         <Preview previewKey={profile?.layers} />
-        {/* 切换到多图层按钮 */}
-        <button
-          onClick={() => setLayersMode(true)}
-          className="absolute top-6 right-6 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90 z-10"
-          title={t("layers.switchToLayers")}
-        >
-          {t("layers.switchToLayers")} →
-        </button>
+
+        {/* 顶部工具栏：Profile 管理 + 切换到多图层 */}
+        <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
+          <ProfileManager
+            activeProfile={config.active_profile}
+            profiles={profiles}
+            onActiveProfileChange={async (name) => {
+              await setActiveProfile(name);
+              const fresh = await getConfig();
+              setConfig(fresh);
+              setProfiles(await listProfiles());
+            }}
+            onProfilesChange={setProfiles}
+          />
+          <button
+            onClick={() => setLayersMode(true)}
+            className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90"
+            title={t("layers.switchToLayers")}
+          >
+            {t("layers.switchToLayers")}
+          </button>
+        </div>
       </div>
 
       {/* 右侧设置面板：顶部固定、中间滚动、底部固定 */}
       <div className="w-80 border-l bg-card p-4 flex flex-col gap-4 overflow-hidden h-screen">
         {/* 顶部固定区：样式 + 公共配置 */}
         <div className="space-y-3 shrink-0">
+          {/* 单图层不兼容提示 */}
+          {!isLegacyCompatible && (
+            <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-700 dark:text-yellow-400 space-y-1">
+              <div>{t("profile.incompatible")}</div>
+              <button
+                type="button"
+                onClick={() => setLayersMode(true)}
+                className="text-xs underline hover:text-yellow-800 dark:hover:text-yellow-300"
+              >
+                {t("config.switchToLayersFallback")}
+              </button>
+            </div>
+          )}
+
           {/* 样式选择 */}
           <div className="space-y-2">
             <Label className="text-sm">{t("config.style")}</Label>
             <Select
               value={ch.style}
               onValueChange={(v) => updateCrosshair({ style: v as CrosshairStyle }, { resetDefaults: true })}
+              disabled={!isLegacyCompatible}
             >
               <SelectTrigger className="h-8 text-sm">
                 <SelectValue />
@@ -443,6 +526,7 @@ export default function ConfigApp() {
                 min={0}
                 max={1}
                 step={0.01}
+                disabled={!isLegacyCompatible}
                 onValueChange={([v]) => updateCrosshair({ opacity: v })}
               />
             </div>
@@ -452,6 +536,7 @@ export default function ConfigApp() {
               <input
                 type="color"
                 value={colorCss}
+                disabled={!isLegacyCompatible}
                 onChange={(e) => {
                   const hex = e.target.value;
                   const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -459,7 +544,7 @@ export default function ConfigApp() {
                   const b = parseInt(hex.slice(5, 7), 16) / 255;
                   updateCrosshair({ color: [r, g, b, 1] });
                 }}
-                className="h-8 w-14 rounded border bg-transparent cursor-pointer"
+                className="h-8 w-14 rounded border bg-transparent cursor-pointer disabled:cursor-not-allowed"
               />
               {/* 快捷颜色色块 */}
               <div className="flex gap-1 flex-wrap">
@@ -471,8 +556,9 @@ export default function ConfigApp() {
                       key={i}
                       type="button"
                       title={css}
+                      disabled={!isLegacyCompatible}
                       onClick={() => updateCrosshair({ color: [...qc] })}
-                      className="w-5 h-5 rounded-full border-2 transition-colors"
+                      className="w-5 h-5 rounded-full border-2 transition-colors disabled:opacity-50"
                       style={{
                         backgroundColor: css,
                         borderColor: isActive ? "hsl(var(--primary))" : "hsl(var(--border))",
@@ -489,7 +575,7 @@ export default function ConfigApp() {
 
         {/* 中间样式配置：默认随窗口高度自适应，内容过多时才滚动 */}
         <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-          <StyleFields crosshair={ch} onChange={updateCrosshair} />
+          <StyleFields crosshair={ch} onChange={updateCrosshair} disabled={!isLegacyCompatible} />
         </div>
 
         <Separator className="shrink-0" />

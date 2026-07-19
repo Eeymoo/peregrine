@@ -21,38 +21,45 @@ const GRID_ALIGNMENTS: GridAlignment[] = ["center", "edge"];
 interface StyleFieldsProps {
   crosshair: Crosshair;
   onChange: (patch: Partial<Crosshair>) => void;
+  disabled?: boolean;
 }
 
 /** 根据当前准心样式分发到对应小组件。 */
-export function StyleFields({ crosshair, onChange }: StyleFieldsProps) {
-  switch (crosshair.style) {
-    case "edge_rect":
-      return <EdgeRectFields crosshair={crosshair} onChange={onChange} />;
-    case "cross":
-      return <CrossFields crosshair={crosshair} onChange={onChange} />;
-    case "large_cross":
-      return <LargeCrossFields crosshair={crosshair} onChange={onChange} />;
-    case "corner_dots4":
-    case "corner_dots6":
-    case "corner_dots8":
-      return <CornerDotsFields crosshair={crosshair} onChange={onChange} />;
-    case "ring":
-      return <RingFields crosshair={crosshair} onChange={onChange} />;
-    case "custom_orb":
-      return <CustomOrbFields crosshair={crosshair} onChange={onChange} />;
-    case "random_orb":
-      return <RandomOrbFields crosshair={crosshair} onChange={onChange} />;
-    case "border_frame":
-      return <BorderFrameFields crosshair={crosshair} onChange={onChange} />;
-    case "custom_image":
-      return <CustomImageFields crosshair={crosshair} onChange={onChange} />;
-    case "edge_arrows":
-      return <EdgeArrowsFields crosshair={crosshair} onChange={onChange} />;
-    case "grid":
-      return <GridFields crosshair={crosshair} onChange={onChange} />;
-    default:
-      return null;
+export function StyleFields({ crosshair, onChange, disabled }: StyleFieldsProps) {
+  const fields = (() => {
+    switch (crosshair.style) {
+      case "edge_rect":
+        return <EdgeRectFields crosshair={crosshair} onChange={onChange} />;
+      case "cross":
+        return <CrossFields crosshair={crosshair} onChange={onChange} />;
+      case "large_cross":
+        return <LargeCrossFields crosshair={crosshair} onChange={onChange} />;
+      case "corner_dots4":
+      case "corner_dots6":
+      case "corner_dots8":
+        return <CornerDotsFields crosshair={crosshair} onChange={onChange} />;
+      case "ring":
+        return <RingFields crosshair={crosshair} onChange={onChange} />;
+      case "custom_orb":
+        return <CustomOrbFields crosshair={crosshair} onChange={onChange} />;
+      case "random_orb":
+        return <RandomOrbFields crosshair={crosshair} onChange={onChange} />;
+      case "border_frame":
+        return <BorderFrameFields crosshair={crosshair} onChange={onChange} />;
+      case "custom_image":
+        return <CustomImageFields crosshair={crosshair} onChange={onChange} />;
+      case "edge_arrows":
+        return <EdgeArrowsFields crosshair={crosshair} onChange={onChange} />;
+      case "grid":
+        return <GridFields crosshair={crosshair} onChange={onChange} />;
+      default:
+        return null;
+    }
+  })();
+  if (disabled) {
+    return <div className="pointer-events-none opacity-60">{fields}</div>;
   }
+  return fields;
 }
 
 /** 贴边矩形。 */

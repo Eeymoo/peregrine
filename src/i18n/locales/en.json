@@ -46,6 +46,7 @@
     "reload": "Reload",
     "copy": "Copy",
     "save": "Save",
+    "delete": "Delete",
     "reset": "Reset",
     "loading": "Loading…",
     "error": "Error",
@@ -96,7 +97,17 @@
     "startOverlay": "Start overlay",
     "stopOverlay": "Stop overlay",
     "invalidFormat": "Invalid config format",
-    "switchToLayersFallback": "Switch to Layer Editor →"
+    "switchToLayersFallback": "Switch to Layer Editor"
+  },
+  "profile": {
+    "title": "Profile",
+    "selectPlaceholder": "Select profile",
+    "namePlaceholder": "New profile name",
+    "new": "New",
+    "rename": "Rename",
+    "copySuffix": "Copy",
+    "incompatible": "Current profile has multiple layers, please edit in multi-layer mode",
+    "cannotDeleteLast": "At least one profile is required"
   },
   "overlay": {
     "autoSwitchTitle": "Hide config window and switch to game?",

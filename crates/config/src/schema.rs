@@ -214,6 +214,13 @@ impl Profile {
             ))
         }
     }
+
+    /// 判断该 Profile 是否可在单图层（旧版）UI 中编辑。
+    ///
+    /// 条件：只有 1 个图层，且该图层是单图层兼容的图层。
+    pub fn is_legacy_compatible(&self) -> bool {
+        self.layers.len() == 1 && self.layers[0].is_legacy_compatible()
+    }
 }
 
 /// 辅助贴图整体配置。
@@ -1252,6 +1259,42 @@ impl Layer {
         }
         Ok(())
     }
+
+    /// 判断该图层是否可在单图层（旧版）UI 中编辑。
+    ///
+    /// 条件：
+    /// - 使用内置基础物料（与旧版 Crosshair 样式一一对应）；
+    /// - 几何变换为默认值；
+    /// - 混合模式为 Normal（颜色与不透明度允许自定义）。
+    pub fn is_legacy_compatible(&self) -> bool {
+        if !self.material.is_builtin() {
+            return false;
+        }
+        let id = self.material.material_id();
+        const LEGACY_MATERIALS: &[&str] = &[
+            "builtin.cross",
+            "builtin.edge_rect",
+            "builtin.large_cross",
+            "builtin.corner_dots",
+            "builtin.ring",
+            "builtin.custom_orb",
+            "builtin.random_orb",
+            "builtin.border_frame",
+            "builtin.edge_arrows",
+            "builtin.grid",
+            "builtin.image",
+        ];
+        if !LEGACY_MATERIALS.contains(&id) {
+            return false;
+        }
+        if self.transform != Transform2D::default() {
+            return false;
+        }
+        if self.style.blend_mode != BlendMode::default() {
+            return false;
+        }
+        true
+    }
 }
 
 #[cfg(test)]
@@ -1373,6 +1416,52 @@ mod tests {
         assert_eq!(ch.thickness, 2.0);
         assert_eq!(ch.ring_style, RingStyle::Solid);
         assert_eq!(ch.opacity, 0.8);
+    }
+
+    #[test]
+    fn layer_legacy_compatibility() {
+        let mut layer = Layer::new(
+            "l1",
+            "test",
+            MaterialRef::Builtin {
+                id: "builtin.cross".to_string(),
+            },
+        );
+        assert!(layer.is_legacy_compatible());
+
+        // 非内置物料不兼容。
+        layer.material = MaterialRef::User {
+            name: "user.custom".to_string(),
+        };
+        assert!(!layer.is_legacy_compatible());
+        layer.material = MaterialRef::Builtin {
+            id: "builtin.cross".to_string(),
+        };
+
+        // 变换非默认时不兼容。
+        layer.transform.offset_x = 10.0;
+        assert!(!layer.is_legacy_compatible());
+        layer.transform = Transform2D::default();
+
+        // 混合模式非默认不兼容。
+        layer.style.blend_mode = BlendMode::Normal;
+        assert!(layer.is_legacy_compatible());
+    }
+
+    #[test]
+    fn profile_legacy_compatibility() {
+        let mut profile = Profile::default_profile();
+        assert!(profile.is_legacy_compatible());
+
+        // 添加第二个图层后不兼容。
+        profile.layers.push(Layer::new(
+            "l2",
+            "second",
+            MaterialRef::Builtin {
+                id: "builtin.cross".to_string(),
+            },
+        ));
+        assert!(!profile.is_legacy_compatible());
     }
 
     #[test]

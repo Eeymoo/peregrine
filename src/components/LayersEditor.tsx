@@ -17,6 +17,7 @@ import { Preview } from "@/components/Preview";
 import { LayerPanel, MaterialParamControls } from "@/components/LayerPanel";
 import { LayerStyleEditor, LayerTransformEditor } from "@/components/LayerEditors";
 import { ProfileManager } from "@/components/ProfileManager";
+import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
 
 interface LayersEditorProps {
@@ -78,12 +79,6 @@ export function LayersEditor({
   // 这样后端 emit layers-changed 触发 refresh 时，不会误判 selectedId 失效而回退到 l[0]。
   const selectedIdRef = useRef<string | null>(null);
 
-  /** 记录一条操作日志到控制台，便于排查"切换到图层0"等问题。 */
-  const logAction = useCallback((action: string, detail?: unknown) => {
-    const ts = new Date().toISOString().slice(11, 23);
-    console.log(`[action ${ts}] ${action}`, detail ?? "");
-  }, []);
-
   /** 包装的 setSelectedId，自动同步 ref 并记录日志。 */
   const setSelectedId = useCallback((id: string | null, reason?: string) => {
     const prev = selectedIdRef.current;
@@ -92,7 +87,7 @@ export function LayersEditor({
     }
     selectedIdRef.current = id;
     setSelectedIdRaw(id);
-  }, [logAction]);
+  }, []);
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
@@ -133,7 +128,7 @@ export function LayersEditor({
     return () => {
       if (unlisten) unlisten();
     };
-  }, [refresh, logAction]);
+  }, [refresh]);
 
   const triggerPreviewRefresh = () => setRefreshKey((n) => n + 1);
 

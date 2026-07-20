@@ -67,7 +67,11 @@
     "showConfig": "显示 config.json",
     "hideConfig": "隐藏 config.json",
     "devToolsDisabled": "此构建未启用 DevTools feature。\n\n开发模式（npx tauri dev）下可用，或需要在 Cargo.toml 启用 tauri devtools feature。",
-    "openDevToolsFailed": "打开 DevTools 失败"
+    "openDevToolsFailed": "打开 DevTools 失败",
+    "logTitle": "开发者日志",
+    "autoScroll": "自动滚动",
+    "clearLog": "清空",
+    "logEmpty": "暂无日志"
   },
   "error": {
     "title": "Peregrine 遇到了错误",

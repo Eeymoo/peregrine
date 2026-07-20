@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Layer, LayerStyle, Transform2D } from "@/types/config";
 import { updateLayer } from "@/lib/api";
+import { logAction } from "@/lib/actionLog";
 import { Slider } from "@/components/ui/slider";
 import { useI18n } from "@/lib/i18n";
 
@@ -28,7 +29,7 @@ export function LayerStyleEditor({
 
   const update = useCallback(async (patch: Partial<LayerStyle>) => {
     const newStyle = { ...style, ...patch };
-    console.log(`[action] update-layer-style id=${layer.id}`, patch);
+    logAction("update-layer-style", { id: layer.id, patch });
     setStyle(newStyle);
     await updateLayer(layer.id, { style: newStyle });
     onChanged();
@@ -113,7 +114,7 @@ export function LayerTransformEditor({
 
   const update = useCallback(async (patch: Partial<Transform2D>) => {
     const newTransform = { ...transform, ...patch };
-    console.log(`[action] update-layer-transform id=${layer.id}`, patch);
+    logAction("update-layer-transform", { id: layer.id, patch });
     setTransform(newTransform);
     await updateLayer(layer.id, { transform: newTransform });
     onChanged();

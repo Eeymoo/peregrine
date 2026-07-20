@@ -67,7 +67,11 @@
     "showConfig": "Show config.json",
     "hideConfig": "Hide config.json",
     "devToolsDisabled": "DevTools feature is not enabled in this build.\n\nAvailable in development mode (npx tauri dev), or enable the tauri devtools feature in Cargo.toml.",
-    "openDevToolsFailed": "Failed to open DevTools"
+    "openDevToolsFailed": "Failed to open DevTools",
+    "logTitle": "Developer Log",
+    "autoScroll": "Auto Scroll",
+    "clearLog": "Clear",
+    "logEmpty": "No logs yet"
   },
   "error": {
     "title": "Peregrine encountered an error",

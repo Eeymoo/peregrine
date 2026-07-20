@@ -12,6 +12,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Trash2, Copy, ChevronUp, ChevronDown, Plus, Eye, EyeOff, Lock, Unlock } from "lucide-react";
+import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
 
 interface LayerPanelProps {
@@ -44,20 +45,20 @@ export function LayerPanel({
   }, []);
 
   const handleAdd = async (materialId: string, name: string) => {
-    console.log(`[action] add-layer material=${materialId} name=${name}`);
+    logAction("add-layer", { materialId, name });
     await addLayer(materialId, name);
     setShowAddDialog(false);
     onChanged();
   };
 
   const handleDelete = async (id: string) => {
-    console.log(`[action] remove-layer id=${id}`);
+    logAction("remove-layer", { id });
     await removeLayer(id);
     onChanged();
   };
 
   const handleDuplicate = async (id: string) => {
-    console.log(`[action] duplicate-layer id=${id}`);
+    logAction("duplicate-layer", { id });
     await duplicateLayer(id);
     onChanged();
   };
@@ -67,19 +68,19 @@ export function LayerPanel({
     if (idx < 0) return;
     const newIdx = direction === "up" ? Math.max(0, idx - 1) : Math.min(layers.length - 1, idx + 1);
     if (newIdx === idx) return;
-    console.log(`[action] move-layer id=${id} ${idx}->${newIdx}`);
+    logAction("move-layer", { id, from: idx, to: newIdx });
     await moveLayer(id, newIdx);
     onChanged();
   };
 
   const handleToggleVisible = async (layer: Layer) => {
-    console.log(`[action] toggle-visible id=${layer.id} -> ${!layer.visible}`);
+    logAction("toggle-visible", { id: layer.id, visible: !layer.visible });
     await updateLayer(layer.id, { visible: !layer.visible });
     onChanged();
   };
 
   const handleToggleLock = async (layer: Layer) => {
-    console.log(`[action] toggle-lock id=${layer.id} -> ${!layer.locked}`);
+    logAction("toggle-lock", { id: layer.id, locked: !layer.locked });
     await updateLayer(layer.id, { locked: !layer.locked });
     onChanged();
   };
@@ -322,7 +323,7 @@ export function MaterialParamControls({
   }
 
   const updateParam = useCallback(async (key: string, value: unknown) => {
-    console.log(`[action] update-layer-param layerId=${layerId} key=${key}`, value);
+    logAction("update-layer-param", { layerId, key, value });
     const newParams = { ...params, [key]: value };
     onChanged(newParams);
     await invoke("update_layer", { layerId, patch: { params: newParams } });

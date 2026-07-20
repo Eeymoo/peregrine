@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -20,17 +20,29 @@ import { ProfileManager } from "@/components/ProfileManager";
 import { useI18n } from "@/lib/i18n";
 
 interface LayersEditorProps {
+  /** 完整的应用配置对象，包含所有配置文件数据 */
   config: AppConfig;
+  /** 覆盖层是否处于激活状态 */
   overlayActive: boolean;
+  /** 窗口列表，用于目标窗口选择 */
   windows: string[];
+  /** 可用配置文件列表（可选），用于profile管理 */
   profiles?: string[];
+  /** 启动覆盖层的回调函数 */
   onStartOverlay: () => void;
+  /** 停止覆盖层的回调函数 */
   onStopOverlay: () => void;
+  /** 刷新窗口列表的回调函数 */
   onRefreshWindows: () => void;
+  /** 更新设置的回调函数，接收部分设置对象 */
   onUpdateSettings: (patch: Partial<AppConfig["settings"]>) => void;
+  /** 配置文件变更的回调函数，接收新的完整配置 */
   onConfigChange: (cfg: AppConfig) => void;
+  /** 切换到单图层模式的回调函数 */
   onSwitchSingleLayer: () => void;
+  /** 当前激活配置文件变更的回调函数（可选） */
   onActiveProfileChange?: (name: string) => void;
+  /** 配置文件列表变更的回调函数（可选） */
   onProfilesChange?: (profiles: string[]) => void;
 }
 
@@ -59,25 +71,51 @@ export function LayersEditor({
   const { t } = useI18n();
   const [layers, setLayers] = useState<Layer[]>([]);
   const [materials, setMaterials] = useState<MaterialInfo[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedIdRaw] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // 加载图层与物料列表。
+  // 用 ref 保存最新 selectedId，避免 refresh 闭包捕获过期值。
+  // 这样后端 emit layers-changed 触发 refresh 时，不会误判 selectedId 失效而回退到 l[0]。
+  const selectedIdRef = useRef<string | null>(null);
+
+  /** 记录一条操作日志到控制台，便于排查"切换到图层0"等问题。 */
+  const logAction = useCallback((action: string, detail?: unknown) => {
+    const ts = new Date().toISOString().slice(11, 23);
+    console.log(`[action ${ts}] ${action}`, detail ?? "");
+  }, []);
+
+  /** 包装的 setSelectedId，自动同步 ref 并记录日志。 */
+  const setSelectedId = useCallback((id: string | null, reason?: string) => {
+    const prev = selectedIdRef.current;
+    if (prev !== id) {
+      logAction("select-layer", { from: prev, to: id, reason });
+    }
+    selectedIdRef.current = id;
+    setSelectedIdRaw(id);
+  }, [logAction]);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  // 加载图层与物料列表。不依赖 selectedId，避免闭包陷阱。
   const refresh = useCallback(async () => {
     try {
       const [l, m] = await Promise.all([listLayers(), listMaterials()]);
       setLayers(l);
       setMaterials(m);
-      if (!selectedId && l.length > 0) {
-        setSelectedId(l[0].id);
-      }
-      if (selectedId && !l.find((x) => x.id === selectedId)) {
-        setSelectedId(l.length > 0 ? l[0].id : null);
+      // 用 ref 读取最新 selectedId，避免回退到 l[0]。
+      const current = selectedIdRef.current;
+      if (!current && l.length > 0) {
+        setSelectedId(l[0].id, "refresh:no-prev-selection");
+      } else if (current && !l.find((x) => x.id === current)) {
+        // 当前选中的图层确实不存在了（被删除），才回退到第一个。
+        setSelectedId(l.length > 0 ? l[0].id : null, `refresh:prev-${current}-not-found`);
       }
     } catch (err) {
       console.error("Failed to load layers:", err);
     }
-  }, [selectedId]);
+  }, []);
 
   useEffect(() => {
     refresh();
@@ -86,6 +124,7 @@ export function LayersEditor({
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen("peregrine:layers-changed", () => {
+      logAction("layers-changed event");
       refresh();
       setRefreshKey((n) => n + 1);
     }).then((un) => {
@@ -94,7 +133,7 @@ export function LayersEditor({
     return () => {
       if (unlisten) unlisten();
     };
-  }, [refresh]);
+  }, [refresh, logAction]);
 
   const triggerPreviewRefresh = () => setRefreshKey((n) => n + 1);
 

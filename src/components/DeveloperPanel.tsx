@@ -5,8 +5,11 @@ import { X, Terminal, RefreshCw, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 interface DeveloperPanelProps {
+  /** 完整的应用配置对象 */
   config: AppConfig;
+  /** 应用版本号，用于显示和调试 */
   version: string;
+  /** 关闭开发者面板的回调函数 */
   onClose: () => void;
 }
 

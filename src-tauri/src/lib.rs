@@ -1527,6 +1527,16 @@ async fn update_layer(
     layer_id: String,
     patch: LayerPatch,
 ) -> Result<(), String> {
+    tracing::info!(
+        layer_id = %layer_id,
+        name = ?patch.name.is_some(),
+        params = ?patch.params.is_some(),
+        style = ?patch.style.is_some(),
+        transform = ?patch.transform.is_some(),
+        visible = ?patch.visible,
+        locked = ?patch.locked,
+        "update_layer"
+    );
     let mut config = {
         let guard = state.config.lock().map_err(|e| e.to_string())?;
         guard.as_ref().clone()

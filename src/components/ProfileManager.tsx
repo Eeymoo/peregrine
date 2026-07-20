@@ -19,13 +19,13 @@ import {
 } from "@/lib/api";
 
 interface ProfileManagerProps {
-  /** 当前激活的 profile 名称。 */
+  /** 当前激活的配置文件名称 */
   activeProfile: string;
-  /** profile 列表（可选，不传则内部加载）。 */
+  /** 配置文件列表（可选），不传则内部加载 */
   profiles?: string[];
-  /** profile 切换后的回调。 */
+  /** 配置文件切换后的回调函数，接收新的配置文件名称 */
   onActiveProfileChange?: (name: string) => void;
-  /** profile 列表变化后的回调。 */
+  /** 配置文件列表变化后的回调函数，接收新的配置文件列表 */
   onProfilesChange?: (profiles: string[]) => void;
 }
 

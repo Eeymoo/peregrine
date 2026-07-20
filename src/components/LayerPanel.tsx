@@ -15,9 +15,13 @@ import { Trash2, Copy, ChevronUp, ChevronDown, Plus, Eye, EyeOff, Lock, Unlock }
 import { useI18n } from "@/lib/i18n";
 
 interface LayerPanelProps {
+  /** 图层数组，包含所有显示的图层信息 */
   layers: Layer[];
+  /** 当前选中的图层ID，为null表示未选中任何图层 */
   selectedLayerId: string | null;
+  /** 选择图层的回调函数，接收被选中的图层ID */
   onSelectLayer: (id: string) => void;
+  /** 图层数据变化后的回调函数，用于刷新图层数据 */
   onChanged: () => void;
 }
 
@@ -40,17 +44,20 @@ export function LayerPanel({
   }, []);
 
   const handleAdd = async (materialId: string, name: string) => {
+    console.log(`[action] add-layer material=${materialId} name=${name}`);
     await addLayer(materialId, name);
     setShowAddDialog(false);
     onChanged();
   };
 
   const handleDelete = async (id: string) => {
+    console.log(`[action] remove-layer id=${id}`);
     await removeLayer(id);
     onChanged();
   };
 
   const handleDuplicate = async (id: string) => {
+    console.log(`[action] duplicate-layer id=${id}`);
     await duplicateLayer(id);
     onChanged();
   };
@@ -60,16 +67,19 @@ export function LayerPanel({
     if (idx < 0) return;
     const newIdx = direction === "up" ? Math.max(0, idx - 1) : Math.min(layers.length - 1, idx + 1);
     if (newIdx === idx) return;
+    console.log(`[action] move-layer id=${id} ${idx}->${newIdx}`);
     await moveLayer(id, newIdx);
     onChanged();
   };
 
   const handleToggleVisible = async (layer: Layer) => {
+    console.log(`[action] toggle-visible id=${layer.id} -> ${!layer.visible}`);
     await updateLayer(layer.id, { visible: !layer.visible });
     onChanged();
   };
 
   const handleToggleLock = async (layer: Layer) => {
+    console.log(`[action] toggle-lock id=${layer.id} -> ${!layer.locked}`);
     await updateLayer(layer.id, { locked: !layer.locked });
     onChanged();
   };
@@ -194,14 +204,22 @@ export function LayerPanel({
   );
 }
 
-/** 添加图层对话框：列出所有可用物料供选择。 */
+/** 添加图层对话框：列出所有可用物料供选择。
+ * 
+ * @param materials - 可用物料信息列表
+ * @param onAdd - 添加图层回调函数，接收物料ID和图层名称
+ * @param onClose - 关闭对话框回调函数
+ */
 function AddLayerDialog({
   materials,
   onAdd,
   onClose,
 }: {
+  /** 可用物料信息列表，包含所有内置和自定义物料 */
   materials: MaterialInfo[];
+  /** 添加图层回调函数，接收物料ID和图层名称 */
   onAdd: (materialId: string, name: string) => void;
+  /** 关闭对话框回调函数 */
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -282,10 +300,15 @@ export function MaterialParamControls({
   onChanged,
   locked,
 }: {
+  /** 物料参数schema定义，包含参数类型、范围、默认值等信息 */
   schema: MaterialSchemaEntry[];
+  /** 当前图层的参数值对象 */
   params: Record<string, unknown>;
+  /** 图层ID，用于更新参数时的标识 */
   layerId: string;
+  /** 参数更新后的回调函数，接收新的参数对象 */
   onChanged: (newParams: Record<string, unknown>) => void;
+  /** 是否锁定编辑状态，锁定时禁用所有输入控件 */
   locked: boolean;
 }) {
   const { t } = useI18n();
@@ -299,6 +322,7 @@ export function MaterialParamControls({
   }
 
   const updateParam = useCallback(async (key: string, value: unknown) => {
+    console.log(`[action] update-layer-param layerId=${layerId} key=${key}`, value);
     const newParams = { ...params, [key]: value };
     onChanged(newParams);
     await invoke("update_layer", { layerId, patch: { params: newParams } });

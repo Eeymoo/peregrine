@@ -12,8 +12,11 @@ export function LayerStyleEditor({
   quickColors,
   onChanged,
 }: {
+  /** 当前编辑的图层对象，包含样式信息 */
   layer: Layer;
+  /** 快捷颜色列表，用于快速设置图层颜色 */
   quickColors?: [number, number, number, number][];
+  /** 样式更新后的回调函数，用于触发重新渲染 */
   onChanged: () => void;
 }) {
   const { t } = useI18n();
@@ -25,6 +28,7 @@ export function LayerStyleEditor({
 
   const update = useCallback(async (patch: Partial<LayerStyle>) => {
     const newStyle = { ...style, ...patch };
+    console.log(`[action] update-layer-style id=${layer.id}`, patch);
     setStyle(newStyle);
     await updateLayer(layer.id, { style: newStyle });
     onChanged();
@@ -95,7 +99,9 @@ export function LayerTransformEditor({
   layer,
   onChanged,
 }: {
+  /** 当前编辑的图层对象，包含变换信息 */
   layer: Layer;
+  /** 变换更新后的回调函数，用于触发重新渲染 */
   onChanged: () => void;
 }) {
   const { t } = useI18n();
@@ -107,6 +113,7 @@ export function LayerTransformEditor({
 
   const update = useCallback(async (patch: Partial<Transform2D>) => {
     const newTransform = { ...transform, ...patch };
+    console.log(`[action] update-layer-transform id=${layer.id}`, patch);
     setTransform(newTransform);
     await updateLayer(layer.id, { transform: newTransform });
     onChanged();

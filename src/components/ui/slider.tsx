@@ -2,6 +2,18 @@ import * as React from "react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
 import { cn } from "@/lib/utils";
 
+/** 滑块组件 - 基于Radix UI Slider构建的数值输入控件
+ * 
+ * @example
+ * ```tsx
+ * <Slider 
+ *   value={[50]} 
+ *   min={0} 
+ *   max={100} 
+ *   onValueChange={([v]) => setValue(v)} 
+ * />
+ * ```
+ */
 const Slider = React.forwardRef<
   React.ElementRef<typeof SliderPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>

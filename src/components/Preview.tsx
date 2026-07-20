@@ -4,9 +4,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "@/lib/i18n";
 
 interface PreviewProps {
-  /** 触发重绘的依赖（如图层列表 / 参数变化时由父组件传入新值）。 */
+  /** 触发重绘的依赖键值，当图层列表或参数变化时由父组件传入新值来触发预览更新 */
   previewKey: unknown;
-  /** 预览宽高比（默认 16:9）。 */
+  /** 预览区域的宽高比，默认为16:9 */
   aspectRatio?: number;
 }
 

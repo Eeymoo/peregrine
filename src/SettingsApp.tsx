@@ -772,14 +772,22 @@ export default function SettingsApp() {
   );
 }
 
-/** 快捷键录制行：点击输入框 → 按下组合键捕获 → Esc 清除。 */
+/** 快捷键录制行：点击输入框 → 按下组合键捕获 → Esc 清除。
+ * 
+ * @param action - 快捷键动作类型
+ * @param bindings - 当前所有快捷键绑定
+ * @param onChange - 快捷键绑定变化回调函数
+ */
 function HotkeyRow({
   action,
   bindings,
   onChange,
 }: {
+  /** 快捷键动作类型 */
   action: HotkeyAction;
+  /** 当前所有快捷键绑定 */
   bindings: HotkeyBindings;
+  /** 快捷键绑定变化回调函数，接收新的绑定列表 */
   onChange: (bindings: HotkeyBindings) => void;
 }) {
   const { t } = useI18n();

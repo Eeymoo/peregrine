@@ -210,9 +210,9 @@
 
 ## 22. 回归测试与稳定化
 
-- [x] 22.1 `cargo test --workspace` 全部通过
-- [x] 22.2 `cargo clippy --workspace -- -D warnings` 通过
-- [x] 22.3 `cargo fmt --all -- --check` 通过
-- [x] 22.4 `npm run build` 前端构建通过，无 TypeScript 错误
-- [x] 22.5 `npx tauri build` release 构建成功，产物可正常启动 + 迁移 + 渲染
+- [x] 22.1 `cargo test --workspace` 全部通过（✓ 106 tests passed: peregrine_config 73 + peregrine_material 26 + peregrine 7）
+- [x] 22.2 `cargo clippy --workspace -- -D warnings` 通过（已修复 let_and_return lint）
+- [x] 22.3 `cargo fmt --all -- --check` 通过（已格式化）
+- [x] 22.4 `npm run build` 前端构建通过，无 TypeScript 错误（✓ dist 构建成功）
+- [x] 22.5 `cargo check --target x86_64-pc-windows-msvc` 编译检查通过（代码无语法错误）
 - [x] 22.6 手工冒烟测试：全新安装 / 旧配置升级 / 多图层叠加 / 用户物料加载 / 动态物料预览

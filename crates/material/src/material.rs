@@ -232,10 +232,7 @@ fn make_engine_with_dynamic(ctx: &DynamicContext) -> Engine {
             ("MM", dt.format("%m").to_string()),
             ("dd", dt.format("%d").to_string()),
             ("HH", dt.format("%H").to_string()),
-            ("hh", {
-                let h = dt.format("%I").to_string();
-                h
-            }),
+            ("hh", dt.format("%I").to_string()),
             ("mm", dt.format("%M").to_string()),
             ("ss", dt.format("%S").to_string()),
             ("a", dt.format("%p").to_string()),
@@ -636,13 +633,23 @@ mod tests {
         let ctx = DynamicContext::preview_snapshot(1920.0, 1080.0);
         let elements = m.evaluate(&params, &screen, &ctx).unwrap();
         assert_eq!(elements.len(), 1);
-        if let Element::Text { x, y, content, font_size } = &elements[0] {
+        if let Element::Text {
+            x,
+            y,
+            content,
+            font_size,
+        } = &elements[0]
+        {
             assert_eq!(*x, 100.0);
             assert_eq!(*y, 200.0);
             assert_eq!(*font_size, 24.0);
             // HH:mm:ss 格式应为 8 个字符，例如 14:30:25。
             assert_eq!(content.len(), 8);
-            assert!(content.contains(':'), "expected time string, got {}", content);
+            assert!(
+                content.contains(':'),
+                "expected time string, got {}",
+                content
+            );
         } else {
             panic!("expected Text element");
         }
@@ -669,7 +676,11 @@ mod tests {
         if let Element::Text { content, .. } = &elements[0] {
             // yyyy-MM-dd 格式应为 10 个字符，例如 2026-07-19。
             assert_eq!(content.len(), 10);
-            assert!(content.contains('-'), "expected date string, got {}", content);
+            assert!(
+                content.contains('-'),
+                "expected date string, got {}",
+                content
+            );
         } else {
             panic!("expected Text element");
         }
@@ -694,8 +705,16 @@ mod tests {
         let elements = m.evaluate(&params, &screen, &ctx).unwrap();
         assert_eq!(elements.len(), 1);
         if let Element::Text { content, .. } = &elements[0] {
-            assert!(content.contains('年'), "expected Chinese date, got {}", content);
-            assert!(content.contains('时'), "expected Chinese time, got {}", content);
+            assert!(
+                content.contains('年'),
+                "expected Chinese date, got {}",
+                content
+            );
+            assert!(
+                content.contains('时'),
+                "expected Chinese time, got {}",
+                content
+            );
         } else {
             panic!("expected Text element");
         }

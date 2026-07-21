@@ -231,8 +231,8 @@ pub fn run() {
         ConfigStorage::new(std::path::PathBuf::from("peregrine-config.json"))
     });
     tracing::info!(path = ?storage.path(), "config storage");
-    let config = tauri::async_runtime::block_on(storage.load_or_create_default())
-        .unwrap_or_else(|e| {
+    let config =
+        tauri::async_runtime::block_on(storage.load_or_create_default()).unwrap_or_else(|e| {
             tracing::error!(error = %e, "failed to load config; using default");
             peregrine_config::AppConfig::default_config()
         });

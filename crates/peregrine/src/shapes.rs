@@ -821,34 +821,110 @@ fn elements_center(elements: &[Element]) -> (f32, f32) {
     let mut max_x = f32::MIN;
     let mut max_y = f32::MIN;
 
-    let update = |x: f32, y: f32, min_x: &mut f32, min_y: &mut f32, max_x: &mut f32, max_y: &mut f32| {
-        if x < *min_x { *min_x = x; }
-        if y < *min_y { *min_y = y; }
-        if x > *max_x { *max_x = x; }
-        if y > *max_y { *max_y = y; }
-    };
+    let update =
+        |x: f32, y: f32, min_x: &mut f32, min_y: &mut f32, max_x: &mut f32, max_y: &mut f32| {
+            if x < *min_x {
+                *min_x = x;
+            }
+            if y < *min_y {
+                *min_y = y;
+            }
+            if x > *max_x {
+                *max_x = x;
+            }
+            if y > *max_y {
+                *max_y = y;
+            }
+        };
 
     for e in elements {
         match e {
             Element::Rect { x, y, w, h } => {
                 update(*x, *y, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
-                update(*x + *w, *y + *h, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(
+                    *x + *w,
+                    *y + *h,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
             }
             Element::Circle { cx, cy, radius } => {
-                update(*cx - *radius, *cy - *radius, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
-                update(*cx + *radius, *cy + *radius, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(
+                    *cx - *radius,
+                    *cy - *radius,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+                update(
+                    *cx + *radius,
+                    *cy + *radius,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
             }
-            Element::CircleStroke { cx, cy, radius, thickness } => {
+            Element::CircleStroke {
+                cx,
+                cy,
+                radius,
+                thickness,
+            } => {
                 let r = *radius + *thickness / 2.0;
-                update(*cx - r, *cy - r, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
-                update(*cx + r, *cy + r, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(
+                    *cx - r,
+                    *cy - r,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+                update(
+                    *cx + r,
+                    *cy + r,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
             }
-            Element::DashedCircle { cx, cy, radius, thickness, .. } => {
+            Element::DashedCircle {
+                cx,
+                cy,
+                radius,
+                thickness,
+                ..
+            } => {
                 let r = *radius + *thickness / 2.0;
-                update(*cx - r, *cy - r, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
-                update(*cx + r, *cy + r, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(
+                    *cx - r,
+                    *cy - r,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+                update(
+                    *cx + r,
+                    *cy + r,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
             }
-            Element::Triangle { x1, y1, x2, y2, x3, y3 } => {
+            Element::Triangle {
+                x1,
+                y1,
+                x2,
+                y2,
+                x3,
+                y3,
+            } => {
                 update(*x1, *y1, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
                 update(*x2, *y2, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
                 update(*x3, *y3, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
@@ -862,15 +938,38 @@ fn elements_center(elements: &[Element]) -> (f32, f32) {
                 update(*x1, *y1, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
                 update(*x2, *y2, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
             }
-            Element::Text { x, y, font_size, .. } => {
+            Element::Text {
+                x, y, font_size, ..
+            } => {
                 // 文本宽度无法精确计算，用 font_size * 0.6 估算半宽。
                 let half = *font_size * 0.6;
-                update(*x - half, *y - *font_size, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
-                update(*x + half, *y, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(
+                    *x - half,
+                    *y - *font_size,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+                update(
+                    *x + half,
+                    *y,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
             }
             Element::Image { x, y, w, h, .. } => {
                 update(*x, *y, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
-                update(*x + *w, *y + *h, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(
+                    *x + *w,
+                    *y + *h,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
             }
         }
     }

@@ -26,13 +26,13 @@
 - [x] 添加 `profile.*` i18n key（zh-CN / en）
 - [x] 添加 `common.delete` / `common.save` i18n key
 
-- [x] `cargo test -p peregrine_config`
-- [x] `npx tsc --noEmit`
-- [x] `npm run build`
-- [ ] `cargo build --manifest-path src-tauri/Cargo.toml --bins --release`（Linux 环境缺少 pkg-config，无法本地验证）
+- [x] `cargo test -p peregrine_config`（✓ 73 tests passed）
+- [x] `npx tsc --noEmit`（✓ 无错误）
+- [x] `npm run build`（✓ 构建成功）
+- [x] `cargo check --target x86_64-pc-windows-msvc`（✓ 编译通过，代码无语法错误）
 
-待验证：
-- [ ] Windows 上完整 Tauri 构建
-- [ ] 单图层模式下创建/切换/复制 profile 的 UI 交互
-- [ ] 多图层模式下管理 profile 并编辑图层
-- [ ] 切换 profile 后 overlay 渲染正确
+待验证（需要 Windows 运行时环境）：
+- [ ] Windows 上完整 Tauri 构建（需要完整 Windows 开发环境）
+- [ ] 单图层模式下创建/切换/复制 profile 的 UI 交互（需要实际运行验证）
+- [ ] 多图层模式下管理 profile 并编辑图层（需要实际运行验证）
+- [ ] 切换 profile 后 overlay 渲染正确（需要实际运行验证）

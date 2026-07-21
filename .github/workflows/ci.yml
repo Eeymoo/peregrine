@@ -95,9 +95,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           REPORT="target/nextest/ci/junit.xml"
           if [ -f "$REPORT" ]; then
-            total=$(grep -oP 'tests="\K\d+' "$REPORT" | head -1)
-            failures=$(grep -oP 'failures="\K\d+' "$REPORT" | head -1)
-            skipped=$(grep -oP 'skipped="\K\d+' "$REPORT" | head -1)
+            # Windows Git Bash 的 grep 不支持 -P（PCRE），用 sed 提取 XML 属性值。
+            total=$(sed -n 's/.*tests="\([0-9]*\)".*/\1/p' "$REPORT" | head -1)
+            failures=$(sed -n 's/.*failures="\([0-9]*\)".*/\1/p' "$REPORT" | head -1)
+            skipped=$(sed -n 's/.*skipped="\([0-9]*\)".*/\1/p' "$REPORT" | head -1)
             passed=$((total - failures - skipped))
             echo "| 指标 | 数量 |" >> $GITHUB_STEP_SUMMARY
             echo "|------|------|" >> $GITHUB_STEP_SUMMARY

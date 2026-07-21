@@ -56,6 +56,23 @@ This is the first preview release of the **four-layer customization architecture
 - Fixed "Live Drag Preview" not updating the crosshair position in real time during window dragging: the follower thread moved the overlay window but never notified the renderer to refresh, so the crosshair stayed frozen until the mouse was released. The follower now requests a redraw directly via `window.request_redraw()` whenever it repositions the overlay. [#5](https://github.com/Eeymoo/peregrine/issues/5)
 - Fixed window mode toggle desync when the overlay is active: Tauri v2's `CheckMenuItem` auto-toggles the checkbox before the menu event fires, so rejecting the switch left the tray checkbox out of sync with the actual config. The tray checkbox is now reverted when the guard blocks. Switching window mode (fullscreen/windowed) while the overlay is running is now blocked in the tray menu, the backend `update_preferences` command, and the frontend (checkbox disabled with tooltip). [#2](https://github.com/Eeymoo/peregrine/issues/2)
 
+## [v0.1.13-alpha.0] — 2026-07-13
+
+v0.1.13 的预发布版本。
+
+### 新增
+
+- **单例模式**：重复启动应用时自动聚焦已有窗口，不再运行多个实例。 @Eeymoo
+- **Markdown 更新日志**：更新检查面板使用 react-markdown 渲染发布说明，支持完整 Markdown 排版。 @Eeymoo
+
+### 变更
+
+- **前端组件拆分重构**：ConfigApp / SettingsApp 大幅拆分为独立 hooks 与子组件（`components/config`、`components/settings`、`hooks/`），提升可维护性。 @Eeymoo
+
+### 修复
+
+- **镜像下载修复**：启用中国大陆镜像时，安装包下载链接也套用镜像前缀，之前仅清单 URL 走镜像。 @Eeymoo
+
 ## [v0.1.9-alpha.0] — 2026-07-13
 
 Preview release for v0.1.9. Changes have been merged into the v0.1.9 stable release.
@@ -287,6 +304,7 @@ Preview release for v0.1.9. Changes have been merged into the v0.1.9 stable rele
 
 ---
 
+[v0.1.13-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.13-alpha.0
 [v0.1.9-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.9-alpha.0
 [v0.1.4-alpha.0]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.4-alpha.0
 [v0.1.3-alpha.4]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.3-alpha.4

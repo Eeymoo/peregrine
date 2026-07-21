@@ -318,6 +318,10 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // 单例模式：第二个实例启动时聚焦已有窗口，不重复运行。
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_or_recreate_window(app, "config", create_config_window);
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -1269,11 +1273,20 @@ async fn download_install_update(
         .build()
         .map_err(|e| format!("构建 updater 失败: {e}"))?;
 
-    let update = updater
+    let mut update = updater
         .check()
         .await
         .map_err(|e| format!("检查更新失败: {e}"))?
         .ok_or("没有可用更新")?;
+
+    // 如果启用了中国大陆镜像且下载链接指向 GitHub，则把安装包下载链接也套上镜像前缀。
+    if cn_mirror && update.download_url.host_str() == Some("github.com") {
+        let mirror_base = mirror_url.trim_end_matches('/');
+        let proxied = format!("{}/{}", mirror_base, update.download_url);
+        update.download_url = proxied
+            .parse()
+            .map_err(|e| format!("镜像下载链接无效: {e}"))?;
+    }
 
     let mut first_chunk = true;
     let on_event_progress = on_event.clone();

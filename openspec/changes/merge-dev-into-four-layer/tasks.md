@@ -3,7 +3,7 @@
 ## 1. 合并前准备
 
 - [x] 1.1 创建回滚备份分支 `backup/pre-dev-merge`（指向当前 HEAD，不推送）
-- [ ] 1.2 提交当前工作区未提交改动（ci.yml test-report / frontend-report job、`.config/nextest.toml`、`scripts/`、AGENTS.md、格式化改动），保证合并前工作区干净
+- [x] 1.2 提交当前工作区未提交改动（ci.yml test-report / frontend-report job、`.config/nextest.toml`、`scripts/`、AGENTS.md、格式化改动），保证合并前工作区干净
 
 ## 2. 执行合并与机械冲突
 

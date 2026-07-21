@@ -303,6 +303,9 @@
     "quit": "Quit",
     "windowMode": "Window Mode"
   },
+  "common": {
+    "close": "Close"
+  },
   "license": {
     "mit": "MIT · Open Source · Free to use"
   }

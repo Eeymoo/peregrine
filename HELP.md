@@ -1,176 +1,180 @@
-# Peregrine 使用帮助
+# Peregrine Help
 
-本文档面向**使用者**，介绍 Peregrine 是什么、怎么用，以及每种视觉锚点样式的作用和调节方法。开发相关信息请看 [README](README.md)。
+[English](HELP.md) · [简体中文](HELP.zh-cn.md)
 
----
-
-## 1. Peregrine 是什么
-
-Peregrine 是一款专注于缓解 3D 眩晕（Motion Sickness）的桌面工具。它通过在屏幕上提供可定制的视觉锚点（如十字准星、边框、边缘箭头等），帮助玩家在快速转动视角或复杂场景中保持视觉稳定，减轻前庭-视觉冲突带来的恶心、头晕症状。让你能够正常游玩《半条命 2》《镜之边缘》《消逝的光芒》《无人深空》等容易引发眩晕的游戏。
-
-很多人在玩第一人称 / 第三人称 3D 游戏时会头晕、恶心，原因之一是画面剧烈晃动时，眼睛在屏幕上找不到一个**固定不动的参照物**。Peregrine 在屏幕的中心或边缘画出始终不动的视觉锚点（十字准星、边缘标记、边框等），给眼睛一个稳定的落点，从而减轻眩晕。
-
-> 默认样式「边缘矩形」的灵感来自很多人晕 3D 时会真的往屏幕中间贴一小块纸做参照。
+This document is for **end users**. It explains what Peregrine is, how to use it, and how each visual anchor style works and can be adjusted. For development-related information, see [README](README.md).
 
 ---
 
-## 2. 快速上手
+## 1. What is Peregrine?
 
-1. 启动程序后，会打开**配置窗口**，右侧是设置面板，左侧是实时预览。
-2. 在**类型**下拉里选一个你喜欢的样式，拖动下面的滑块调整大小、颜色、透明度，左侧会**即时**显示效果。
-3. 在**目标窗口**下拉框中选择你要覆盖的游戏窗口。
-4. 点击**开始覆盖**，视觉锚点就会显示在游戏窗口上方。
+Peregrine is a desktop utility focused on relieving 3D motion sickness. It provides customizable visual anchors on your screen (such as crosshairs, borders, edge arrows, and more) to help players maintain visual stability during fast camera movement or complex scenes, reducing nausea and dizziness caused by vestibular-visual conflict. This lets you comfortably play games that often trigger motion sickness, such as *Half-Life 2*, *Mirror's Edge*, *Dying Light*, and *No Man's Sky*.
 
-### 快捷键
+Many people feel dizzy or nauseous when playing first-person or third-person 3D games. One reason is that when the image shakes violently, the eyes cannot find a **fixed reference point** on the screen. Peregrine draws visual anchors (crosshairs, edge markers, borders, etc.) in the center or at the edges of the screen that always stay still, giving the eyes a stable focal point and reducing motion sickness.
 
-| 按键 | 作用 |
+> The default "Edge Rect" style is inspired by the trick many motion-sickness-prone players use: literally sticking a small piece of paper in the middle of the screen as a reference.
+
+---
+
+## 2. Quick Start
+
+1. When you launch the app, the **settings window** opens. The settings panel is on the right, and the live preview is on the left.
+2. Choose a style you like from the **Type** dropdown, then adjust the sliders below for size, color, and opacity. The preview on the left updates **instantly**.
+3. Select the game window you want to overlay from the **Target Window** dropdown.
+4. Click **Start Overlay**, and the visual anchor will appear on top of the game window.
+
+### Shortcuts
+
+| Key | Action |
 | --- | --- |
-| `Esc` | 在配置窗口中隐藏到系统托盘 |
+| `Esc` | Hide the settings window to the system tray |
 
-你的所有设置都会**自动保存**，下次打开还是这套配置，不用手动保存。
-
----
-
-## 3. 通用设置
-
-无论选哪种样式，这几项都能调：
-
-- **透明度**：0 = 完全看不见，1 = 完全不透明。防眩晕通常调到**偏低**（比如 0.3~0.6），既能看见锚点又不太挡视线。
-- **颜色**：点色块可自由选颜色。建议选一个和游戏画面**对比明显**的颜色（亮绿、洋红等），更容易被眼睛「抓住」。
+All your settings are **saved automatically**. The next time you open the app, your configuration will be restored—no need to save manually.
 
 ---
 
-## 4. 各种样式详解
+## 3. General Settings
 
-在配置面板**类型**下拉里选择。每种样式的可调项不同。
+No matter which style you choose, these options are always available:
 
-### 边缘矩形（默认）
-
-屏幕中心一块半透明矩形，可贴靠屏幕四边或居中。最简单直接的中心参照物。
-
-- **宽度 / 高度**：矩形大小（10~400 / 10~300 像素）。
-- **圆角**：矩形四角的圆润程度。
-- **锚点 / 边距**：可以让矩形贴到屏幕某一边，而不是正中心。
-
-### 十字准星
-
-屏幕正中心一个十字线，占用面积小。
-
-- **臂长**：十字每条线的长度。
-- **线宽**：线的粗细。
-- **中心间隙**：十字正中间留空的大小（留空后中心是「空心十字」）。
-
-### 大型十字准星
-
-从屏幕边缘一直延伸到中心的一条横线和一条竖线，把整个屏幕分成四块，参照感更强。
-
-- **线宽**：线的粗细。
-
-### 四角 / 六角 / 八角标记
-
-在屏幕四周放置若干圆点作为锚点，不挡中心视野，适合需要看清画面中央的场景。
-
-- **四角标记**：四个角各一个。
-- **六角标记**：四角 + 上下中间。
-- **八角标记**：四角 + 上下中间 + 左右中间。
-- 可调**距边缘距离**、**半径**（设为 0 时按线宽自动计算）、**线宽**。
-
-### 中心圆环
-
-以屏幕中心为圆心的一个圆环，提供环形锚点。
-
-- **半径占屏高比例**：环的大小（相对屏幕高度）。
-- **线宽** 和 **圆环样式**：实线 / 虚线 / 双线。
-
-### 自定义边缘标记
-
-自己决定在上、下、左、右边缘各放几个圆点。
-
-- 勾选启用**上 / 下 / 左 / 右**边。
-- 分别设置每条边的**点数量**（1~10）、**半径**、**距边缘距离**。
-
-### 随机边缘标记
-
-启动时在屏幕边缘区域**随机**生成一批圆点，位置和大小每次可能不同，适合喜欢不规则参照的人。
-
-- **每边数量、距边缘距离、位置扰动、最小/最大半径**都可调。
-- 工作模式（需在配置文件中调整）：
-  - `lock_on_start`：第一次随机后**固定下来**，以后每次打开位置都一样。
-  - `reshuffle`：**每次启动**都重新随机。
-
-### 边框
-
-沿屏幕四边画一圈线，像电影的「安全框」，给出画面边界参照。
-
-- **矩形条高度、距边缘距离**可调。
-- **样式**：完整四边，或四边中间留缺口。
-- 勾选**四边中间留 20% 缺口**：避免遮挡小地图、血条等 HUD 元素。
-
-### 边缘箭头
-
-在屏幕四边绘制指向中心的箭头，可附加尾巴长度，提供强烈的方向参照。
-
-- **箭头尺寸、箭头宽度、尾部长度**可调。
-- 可统一设置四边尾巴长度，或为每边单独设置。
-
-### 自定义图片
-
-加载任意 PNG 图片作为视觉锚点，程序会将其解码并绘制在屏幕中心。
-
-- 支持**缩放比例**与**水平/垂直偏移**调整。
+- **Opacity**: 0 = completely invisible, 1 = fully opaque. For anti-motion-sickness use, set this **low** (for example, 0.3–0.6) so the anchor is visible without blocking the view.
+- **Color**: Click the color swatch to choose freely. We recommend picking a color that **contrasts strongly** with the game image (bright green, magenta, etc.) so your eyes can "lock onto" it more easily.
 
 ---
 
-## 5. 多套配置（Profile）
+## 4. Style Reference
 
-Peregrine 支持多个 **Profile**（配置档），可以为不同游戏或场景各存一套设置，切换当前激活的 Profile 即可套用对应样式。目前 Profile 的新增/切换主要通过[配置文件](#7-配置文件)完成。
+Choose a style from the **Type** dropdown in the configuration panel. Each style has different adjustable options.
+
+### Edge Rect (Default)
+
+A semi-transparent rectangle in the center of the screen, which can snap to any of the four screen edges or stay centered. The simplest and most direct center reference.
+
+- **Width / Height**: Rectangle size (10–400 / 10–300 pixels).
+- **Corner Radius**: How rounded the rectangle's corners are.
+- **Anchor / Margin**: Lets the rectangle snap to a screen edge instead of staying dead center.
+
+### Cross
+
+A small crosshair at the exact center of the screen, taking up minimal space.
+
+- **Arm Length**: Length of each cross line.
+- **Line Width**: Thickness of the lines.
+- **Center Gap**: Size of the empty space in the very middle of the cross (creates a "hollow cross" when set).
+
+### Large Cross
+
+A horizontal and a vertical line that extend from the screen edges all the way to the center, dividing the screen into four quadrants. Provides a stronger sense of reference.
+
+- **Line Width**: Thickness of the lines.
+
+### 4 / 6 / 8 Corner Dots
+
+Place several dots around the screen edges as anchors without blocking the central view. Great for scenes where you need to see the middle of the screen clearly.
+
+- **4 Corner Dots**: One dot in each corner.
+- **6 Corner Dots**: Four corners plus the middle of the top and bottom edges.
+- **8 Corner Dots**: Four corners plus the middle of the top, bottom, left, and right edges.
+- Adjustable **distance from edge**, **radius** (set to 0 to auto-calculate from line width), and **line width**.
+
+### Ring
+
+A circular ring centered on the screen, providing an annular anchor.
+
+- **Radius Ratio to Screen Height**: Size of the ring, relative to screen height.
+- **Line Width** and **Ring Style**: Solid / Dashed / Double.
+
+### Custom Orb
+
+Decide for yourself how many dots to place along the top, bottom, left, and right edges.
+
+- Check to enable the **top / bottom / left / right** edges.
+- Set the **dot count** (1–10), **radius**, and **distance from edge** for each edge independently.
+
+### Random Orb
+
+Randomly generates a batch of dots in the screen edge areas at startup. Positions and sizes may differ each time, suiting users who prefer irregular references.
+
+- **Dots per edge**, **distance from edge**, **position jitter**, and **min / max radius** are all adjustable.
+- Operating modes (must be changed in the configuration file):
+  - `lock_on_start`: The first random layout is **locked in**; subsequent launches use the same positions.
+  - `reshuffle`: **Re-randomized on every launch**.
+
+### Border Frame
+
+Draws a line around all four edges of the screen, like a film "safe area" frame, providing a boundary reference.
+
+- **Bar height** and **distance from edge** are adjustable.
+- **Style**: Full frame, or frame with gaps in the middle of each side.
+- Check **20% gap in the middle of each side** to avoid covering HUD elements such as minimaps and health bars.
+
+### Edge Arrows
+
+Draws arrows pointing toward the center along all four screen edges. You can add tail lengths for a strong directional reference.
+
+- **Arrow size**, **arrow width**, and **tail length** are adjustable.
+- You can set a uniform tail length for all sides, or configure each side independently.
+
+### Custom Image
+
+Load any PNG image as a visual anchor. The app decodes it and draws it at the center of the screen.
+
+- Supports **scale** and **horizontal / vertical offset** adjustments.
 
 ---
 
-## 6. 防眩晕使用建议
+## 5. Profiles
 
-- **先从「边缘矩形」或「十字准星」入手**，它们最直观。
-- **透明度别太高**，锚点太实反而更累；能隐约看见就够了。
-- **颜色要跳**，和游戏主色调拉开对比。
-- 如果晕得厉害，试试**大型十字准星**或**边框**这种「占满屏幕」的样式，参照信息更多。
-- 玩久了可以适当**缩小 / 调淡**锚点，让眼睛逐步适应。
+Peregrine supports multiple **Profiles** so you can save a separate set of settings for each game or scenario. Switching the active Profile applies the corresponding style. For now, adding and switching Profiles is mainly done through the [configuration file](#7-configuration-file).
 
 ---
 
-## 7. 配置文件
+## 6. Tips for Reducing Motion Sickness
 
-所有设置以 JSON 保存在系统标准目录：
+- **Start with "Edge Rect" or "Cross"**—they are the most intuitive.
+- **Don't set opacity too high**; a solid anchor is more tiring to look at. Faintly visible is enough.
+- **Pick a high-contrast color** that stands out against the game's main color palette.
+- If you get very motion sick, try a "screen-filling" style such as **Large Cross** or **Border Frame**, which provides more reference information.
+- After playing for a while, you can gradually **shrink or fade** the anchor so your eyes adapt.
 
-| 系统 | 路径 |
+---
+
+## 7. Configuration File
+
+All settings are saved as JSON in the system's standard directory:
+
+| OS | Path |
 | --- | --- |
 | Windows | `%APPDATA%/Peregrine/config.json` |
 | macOS | `~/Library/Application Support/Peregrine/config.json` |
 | Linux | `~/.config/Peregrine/config.json` |
 
-- 首次运行会**自动生成**默认配置，一般不需要手动改。
-- 你也可以直接用文本编辑器修改这个文件，**保存后程序会自动重新加载**（热重载），无需重启。
-- 某些高级项（如随机边缘标记工作模式、Profile 管理）目前只能在配置文件里改。
-- 万一配置改坏了，删掉该文件再启动程序，会重新生成一份默认配置。
+> Peregrine is a Windows-only tool. The config paths above are listed because the configuration crate uses OS-standard directories; the overlay and core user-facing features are implemented only on Windows.
+
+- A default configuration is **generated automatically** on first launch, so manual editing is usually unnecessary.
+- You can also edit this file directly with a text editor. The app **automatically reloads** the configuration after you save (hot-reload), so no restart is needed.
+- Some advanced options (such as the Random Orb operating mode and Profile management) can currently only be changed in the configuration file.
+- If the configuration gets corrupted, delete this file and restart the app to regenerate a default configuration.
 
 ---
 
-## 8. 常见问题
+## 8. Frequently Asked Questions
 
-**Q：切到覆盖层后，锚点后面是白色/不透明的，没法看游戏？**
-A：当前版本覆盖层在 Windows 平台使用 per-pixel alpha 实现真正的透明、置顶和鼠标穿透。如果仍有此问题，请确认显卡驱动已更新且 DWM（桌面窗口管理器）正常运行。
+**Q: After switching to the overlay, the area behind the anchor is white / opaque, and I can't see the game.**
+A: In the current version, the Windows overlay uses per-pixel alpha for true transparency, always-on-top behavior, and mouse pass-through. If this still happens, please make sure your graphics drivers are up to date and that DWM (Desktop Window Manager) is running normally.
 
-**Q：「目标窗口」下拉框里找不到游戏窗口？**
-A：请确认你使用的是 Windows 平台（目标窗口跟随仅支持 Windows）。在下拉列表中应能看到当前打开的窗口标题，选择后覆盖层会自动跟随该窗口的位置与尺寸。
+**Q: I can't find the game window in the "Target Window" dropdown.**
+A: Please confirm you are on Windows (target window following is only supported on Windows). The dropdown should list the titles of currently open windows; after selecting one, the overlay will automatically follow that window's position and size.
 
-**Q：设置里的「触发规则 / 进程触发」是干嘛的？**
-A：计划用于「检测到某个游戏进程运行时才自动显示锚点」，目前同样是**占位**，尚未生效。
+**Q: What do "Trigger Rules / Process Trigger" in the settings do?**
+A: These are planned for "automatically show the anchor when a specific game process is detected." They are currently **placeholders** and not yet active.
 
-**Q：改了窗口大小，锚点位置不对？**
-A：覆盖层会跟随目标窗口的位置和尺寸变化自动调整。如果选择「（未选择）」则不跟随任何窗口，锚点固定显示在屏幕中心。
+**Q: After resizing the window, the anchor position is wrong.**
+A: The overlay automatically adjusts to follow the target window's position and size changes. If you select "(None)" the overlay will not follow any window, and the anchor will remain fixed at the center of the screen.
 
-**Q：我的设置丢了 / 想恢复默认？**
-A：关掉程序，删除上面路径里的 `config.json`，重新启动即可恢复默认配置。
+**Q: I lost my settings / how do I restore defaults?**
+A: Close the app, delete `config.json` at the path above, and restart. The default configuration will be restored.
 
 ---
 
-> 说明：v0.1.0 正式版已发布。Windows 平台透明穿透覆盖层、目标窗口跟随、多种视觉锚点样式、自定义 PNG 贴图等功能已可用。进程触发为占位功能。
+> Note: v0.1.0 stable has been released. The transparent click-through overlay, target window following, multiple visual anchor styles, and custom PNG image support are available on Windows. Process trigger is a placeholder feature.

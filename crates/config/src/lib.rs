@@ -3,15 +3,19 @@
 //! 职责：定义配置结构、持久化、文件热重载以及变更广播。
 //! 不包含任何 UI、GPU 或窗口平台代码。
 
+pub mod migration;
 pub mod notifier;
+pub mod rng;
 pub mod schema;
 pub mod storage;
 pub mod watcher;
 
 pub use notifier::{ConfigNotifier, ConfigSnapshot};
+pub use rng::SimpleRng;
 pub use schema::{
-    Anchor, AppConfig, AppSettings, BorderFrameStyle, Crosshair, CrosshairStyle, GridAlignment,
-    HotkeyAction, OrbPosition, Profile, RandomOrbMode, RendererBackend, RingStyle,
+    Anchor, AppConfig, AppSettings, BlendMode, BorderFrameStyle, Crosshair, CrosshairStyle,
+    Element, GridAlignment, HotkeyAction, Layer, LayerStyle, MaterialRef, OrbPosition, Profile,
+    RandomOrbMode, Rect, RendererBackend, RingStyle, Transform2D, TriggerRule,
 };
 pub use storage::ConfigStorage;
 pub use watcher::ConfigWatcher;

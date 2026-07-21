@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["crates/config", "crates/peregrine", "src-tauri"]
+members = ["crates/config", "crates/material", "crates/peregrine", "src-tauri"]
 
 [workspace.package]
-version = "0.1.13-alpha.0"
+version = "0.2.0-alpha.0"
 edition = "2024"
 license = "MIT"
 authors = ["Peregrine Contributors"]
@@ -11,7 +11,7 @@ rust-version = "1.85"
 
 [workspace.dependencies]
 # Tauri
-tauri = { version = "2", features = ["tray-icon", "image-ico", "image-png"] }
+tauri = { version = "2", features = ["tray-icon", "image-ico", "image-png", "devtools"] }
 tauri-build = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
@@ -33,6 +33,10 @@ png = "0.17"
 resvg = "0.44"
 usvg = "0.44"
 tiny-skia = "0.11"
+
+# material crate（Rhai 物料运行时）
+rhai = { version = "1.19", features = ["sync"] }
+ahash = "0.8"
 
 [profile.dev]
 # debug 构建保留 opt-level=1，平衡图形栈调试运行速度与编译速度。

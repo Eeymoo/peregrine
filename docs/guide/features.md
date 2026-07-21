@@ -1,65 +1,65 @@
-# 功能特性
+# Features
 
-## 覆盖层模式
+## Overlay Mode
 
-在覆盖层模式下，Peregrine 会在屏幕最上层绘制视觉锚点，窗口特性包括：
+In overlay mode, Peregrine draws a visual anchor on top of the screen. The overlay window has the following characteristics:
 
-- **透明**：背景完全透明，只显示视觉锚点或贴图。
-- **置顶**：始终保持在其他窗口之上。
-- **鼠标穿透**：不拦截鼠标点击和键盘输入，游戏操作不受影响。
-- **窗口跟随**：窗口模式下可选跟随指定游戏窗口移动。
+- **Transparent**: The background is fully transparent, showing only the visual anchor or decal.
+- **Always on top**: It stays above other windows at all times.
+- **Click-through**: It does not intercept mouse clicks or keyboard input, so your gameplay is unaffected.
+- **Window following**: In window mode, you can choose to follow a specific game window.
 
-## 覆盖模式
+## Overlay Modes
 
-Peregrine 支持两种覆盖模式，可在配置页面或托盘菜单中切换，两侧自动同步：
+Peregrine supports two overlay modes, switchable from the settings page or the tray menu. Both sides stay in sync:
 
-- **全屏模式**（默认）：覆盖层直接覆盖整个屏幕，无需选择目标窗口，适合多显示器全屏游戏场景。
-- **窗口模式**：覆盖层仅覆盖目标窗口区域。勾选「窗口模式」后需选择目标窗口，覆盖层会跟随目标窗口的位置和大小。
+- **Fullscreen Mode** (default): The overlay covers the entire screen, no target window is required. This is suitable for fullscreen gaming across multiple monitors.
+- **Window Mode**: The overlay covers only the target window area. After enabling **Window Mode**, you need to select a target window. The overlay will follow the target window's position and size.
 
-::: tip 拖拽时实时显示
-在「设置」中可开启「拖拽时实时显示」。开启后，窗口拖拽过程中覆盖层实时跟随移动；关闭时（默认），停止拖拽约 1200ms 后恢复显示，降低 CPU 占用。
+::: tip Real-Time Display While Dragging
+You can enable "Real-time display while dragging" in **Settings**. When enabled, the overlay follows window movement in real time during dragging. When disabled (default), the overlay resumes about 1200 ms after dragging stops, reducing CPU usage.
 :::
 
-## 视觉锚点样式
+## Visual Anchor Styles
 
-`CrosshairStyle` 当前支持以下样式：
+`CrosshairStyle` currently supports the following styles:
 
-| 样式 | 说明 |
+| Style | Description |
 |------|------|
-| `edge_rect` | 边缘矩形，经典视觉锚点 |
-| `cross` | 十字准星 |
-| `large_cross` | 大型十字准星 |
-| `corner_dots4` | 四角标记（4 个） |
-| `corner_dots6` | 六角标记（6 个） |
-| `corner_dots8` | 八角标记（8 个） |
-| `ring` | 中心圆环 |
-| `custom_orb` | 自定义边缘标记 |
-| `random_orb` | 随机边缘标记 |
-| `border_frame` | 边框 |
-| `custom_image` | 自定义图片 |
-| `edge_arrows` | 边缘箭头 |
+| `edge_rect` | Edge rectangle, classic visual anchor |
+| `cross` | Crosshair |
+| `large_cross` | Large crosshair |
+| `corner_dots4` | Corner dots (4) |
+| `corner_dots6` | Corner dots (6) |
+| `corner_dots8` | Corner dots (8) |
+| `ring` | Center ring |
+| `custom_orb` | Custom edge markers |
+| `random_orb` | Random edge markers |
+| `border_frame` | Border frame |
+| `custom_image` | Custom image |
+| `edge_arrows` | Edge arrows |
 
-## 自定义 PNG 贴图
+## Custom PNG Decals
 
-你可以加载任意 PNG 图片作为视觉锚点，程序会将其解码并绘制在屏幕中心。
+You can load any PNG image as a visual anchor. The program decodes it and draws it at the center of the screen.
 
-## 设置与预览
+## Settings & Preview
 
-设置面板使用 Tauri + React 构建，提供：
+The settings panel is built with Tauri + React, providing:
 
-- 实时参数调节
-- 即时预览
-- 自动保存与配置校验
+- Real-time parameter adjustment
+- Instant preview
+- Auto-save and config validation
 
-### 设置项
+### Settings
 
-以下设置位于独立的「设置」窗口中（非配置项），不随 profile 切换：
+The following settings are stored in the standalone **Settings** window (not profile-specific) and do not change when switching profiles:
 
-- **拖拽时实时显示**：开启后窗口拖拽时覆盖层实时跟随，关闭时（默认）拖拽停止后延迟恢复，降低 CPU 占用。
-- **GPU 硬件加速**：开启后启用 WebView2 GPU 渲染（默认关闭），关闭时使用纯 CPU 渲染以减少 GPU 进程内存占用。
-- **开始覆盖时自动切换到游戏**：每次询问 / 是 / 否。
-- **语言**：简体中文 / English / 跟随系统。
+- **Real-time display while dragging**: When enabled, the overlay follows window movement in real time while dragging. When disabled (default), it resumes after a delay when dragging stops, reducing CPU usage.
+- **GPU hardware acceleration**: When enabled, WebView2 GPU rendering is used (disabled by default). When disabled, pure CPU rendering is used to reduce GPU process memory usage.
+- **Auto-switch to game when starting overlay**: Ask every time / Yes / No.
+- **Language**: Simplified Chinese / English / Follow system.
 
-## 进程触发（占位）
+## Process Trigger (Placeholder)
 
-`TriggerRule`（按进程自动启用）已在配置模型中定义，但尚未接入平台 API，后续版本实现。
+`TriggerRule` (auto-enable by process) is already defined in the configuration model, but it has not yet been connected to the platform API. It will be implemented in a future version.

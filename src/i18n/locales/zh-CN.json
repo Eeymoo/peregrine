@@ -3,6 +3,92 @@
     "title": "Peregrine",
     "version": "版本"
   },
+  "layers": {
+    "title": "图层",
+    "editorTitle": "图层编辑器",
+    "backToLegacy": "切换单图层",
+    "switchToLayers": "切换多图层",
+    "selectPrompt": "选择一个图层以编辑",
+    "materialNotFound": "未找到该图层使用的物料",
+    "dynamicHint": "动态物料（跟随输入）",
+    "name": "图层名称",
+    "params": "参数",
+    "styleSection": "样式",
+    "transformSection": "变换",
+    "add": "添加图层",
+    "empty": "暂无图层，点击 + 添加",
+    "hide": "隐藏",
+    "show": "显示",
+    "lock": "锁定",
+    "unlock": "解锁",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "duplicate": "复制",
+    "delete": "删除",
+    "addTitle": "添加图层",
+    "dynamic": "动态",
+    "builtin": "内置",
+    "layerName": "图层名称",
+    "noParams": "无参数",
+    "color": "颜色",
+    "alpha": "透明度（Alpha）",
+    "opacity": "不透明度",
+    "offsetX": "水平偏移",
+    "offsetY": "垂直偏移",
+    "scale": "缩放",
+    "rotation": "旋转"
+  },
+  "common": {
+    "add": "添加",
+    "cancel": "取消",
+    "ok": "确定",
+    "close": "关闭",
+    "reload": "重新加载",
+    "copy": "复制",
+    "save": "保存",
+    "delete": "删除",
+    "reset": "重置",
+    "loading": "加载中…",
+    "error": "错误",
+    "unknown": "未知"
+  },
+  "developer": {
+    "title": "开发者",
+    "devTools": "DevTools",
+    "reload": "刷新",
+    "resetConfig": "重置配置",
+    "resetConfirm": "确定要清空当前配置并写入默认配置吗？\n\n此操作会备份现有 config.json 为 .bak。",
+    "resetCalled": "配置重置接口已调用。完整重置请删除 %APPDATA%/Peregrine/config.json 后重启应用。",
+    "resetFailed": "重置失败",
+    "toggle": "开发者模式已开启",
+    "unlockHint": "点击 3 次解锁开发者面板",
+    "remaining": "次解锁开发者",
+    "tag": "DEV",
+    "showConfig": "显示 config.json",
+    "hideConfig": "隐藏 config.json",
+    "devToolsDisabled": "此构建未启用 DevTools feature。\n\n开发模式（npx tauri dev）下可用，或需要在 Cargo.toml 启用 tauri devtools feature。",
+    "openDevToolsFailed": "打开 DevTools 失败",
+    "logTitle": "开发者日志",
+    "autoScroll": "自动滚动",
+    "clearLog": "清空",
+    "logEmpty": "暂无日志"
+  },
+  "error": {
+    "title": "Peregrine 遇到了错误",
+    "description": "应用没有崩溃，但页面渲染失败。可以尝试下面的按钮恢复，或把错误信息复制贴给开发者。",
+    "reload": "重新加载页面",
+    "recover": "尝试恢复（不刷新）",
+    "copy": "复制错误信息",
+    "copied": "错误已复制到剪贴板，请贴给开发者。",
+    "copyFallback": "无法访问剪贴板，请手动截图。\n\n",
+    "openDevTools": "打开 DevTools",
+    "devToolsDisabled": "此构建未启用 DevTools。",
+    "openDevToolsFailed": "打开 DevTools 失败",
+    "details": "错误详情（点击折叠）",
+    "unknown": "(unknown error)",
+    "noStack": "(no stack)",
+    "componentStack": "Component Stack:"
+  },
   "config": {
     "title": "配置",
     "loading": "加载中…",
@@ -13,11 +99,24 @@
     "refresh": "刷新",
     "none": "（未选择）",
     "startOverlay": "开始覆盖",
-    "stopOverlay": "停止覆盖"
+    "stopOverlay": "停止覆盖",
+    "invalidFormat": "配置格式异常",
+    "switchToLayersFallback": "切换到图层编辑器"
+  },
+  "profile": {
+    "title": "配置方案",
+    "selectPlaceholder": "选择配置方案",
+    "namePlaceholder": "新方案名称",
+    "new": "新建",
+    "rename": "重命名",
+    "copySuffix": "副本",
+    "incompatible": "当前配置包含多个图层，请在多图层模式下编辑",
+    "cannotDeleteLast": "至少保留一个配置方案"
   },
   "overlay": {
     "autoSwitchTitle": "是否自动隐藏配置窗口并切换到游戏？",
     "autoSwitchDesc": "开始覆盖后将隐藏配置窗口并将焦点切换到目标游戏窗口，需要时可从托盘恢复。",
+    "windowModeBlockedHint": "覆盖层运行中，请先停止覆盖层再切换模式",
     "rememberChoice": "下次记住选择",
     "switchYes": "是，自动隐藏并切换",
     "switchNo": "否，保持配置窗口显示",
@@ -42,13 +141,16 @@
   },
   "quickColors": {
     "title": "快捷颜色",
-    "hint": "点击色块快速切换准心颜色，可在设置中自定义"
+    "hint": "点击色块快速切换准心颜色，可在设置中自定义",
+    "reset": "重置"
   },
   "hotkeys": {
     "title": "快捷键",
     "hint": "点击输入框后按下组合键，再按 Esc 清除",
     "placeholder": "点击设置…",
-    "clear": "清除"
+    "clear": "清除",
+    "pressCombo": "按下组合键…",
+    "unhandled": "Promise 未捕获"
   },
   "hotkeyActions": {
     "toggle_overlay": "切换覆盖层",
@@ -192,7 +294,8 @@
     "gridAlignment": "对齐方式"
   },
   "preview": {
-    "placeholder": "请选择 PNG 文件"
+    "placeholder": "请选择 PNG 文件",
+    "rendering": "渲染中…"
   },
   "tray": {
     "config": "配置",

@@ -1,14 +1,16 @@
-# 配置说明
+# Configuration Guide
 
-配置文件为 JSON 格式，位于：
+The configuration file is in JSON format and is located at:
 
-- Windows：`%APPDATA%\Peregrine\config.json`
-- macOS：`~/Library/Application Support/Peregrine/config.json`
-- Linux：`~/.config/Peregrine/config.json`
+- Windows: `%APPDATA%\Peregrine\config.json`
+- macOS: `~/Library/Application Support/Peregrine/config.json`
+- Linux: `~/.config/Peregrine/config.json`
 
-首次运行会自动生成默认配置。你可以直接编辑该文件，保存后程序会在约 300ms 去抖后自动热重载，无需重启。
+> Peregrine is a Windows-only tool. The config paths above are listed because the configuration crate uses OS-standard directories; the overlay and core user-facing features are implemented only on Windows.
 
-## 配置结构
+A default configuration is generated automatically on first launch. You can edit this file directly. After saving, the program will hot-reload after about 300 ms of debouncing, with no restart required.
+
+## Configuration Structure
 
 ```json
 {
@@ -70,115 +72,115 @@
 }
 ```
 
-## 字段说明
+## Field Reference
 
 ### AppConfig
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `active_profile` | string | 当前激活的 Profile 名称，必须在 `profiles` 中存在 |
-| `profiles` | map | 所有 Profile，键为名称，至少包含一个 |
+| `active_profile` | string | The name of the currently active profile. It must exist in `profiles`. |
+| `profiles` | map | All profiles, keyed by name. Must contain at least one. |
 
 ### Profile
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `crosshair` | Crosshair | 视觉锚点配置 |
-| `trigger` | TriggerRule | 进程触发规则（占位，尚未生效） |
-| `settings_hotkey` | string | 打开设置面板的热键字符串 |
-| `target_window` | string | 目标窗口标题（可选）。空字符串表示不跟随特定窗口，覆盖层将固定显示在屏幕中心 |
+| `crosshair` | Crosshair | Visual anchor configuration |
+| `trigger` | TriggerRule | Process trigger rules (placeholder, not yet active) |
+| `settings_hotkey` | string | Hotkey string to open the settings panel |
+| `target_window` | string | Target window title (optional). An empty string means no specific window is followed, and the overlay stays fixed at the center of the screen |
 
 ### Crosshair
 
-| 字段 | 类型 | 默认值 | 说明 |
+| Field | Type | Default | Description |
 |------|------|--------|------|
-| `style` | CrosshairStyle | `"edge_rect"` | 视觉锚点样式 |
-| `size` | number | `120.0` | 主尺寸（px）。边缘矩形用作宽度，十字准星用作臂长，边缘箭头用作大小 |
-| `secondary_size` | number | `80.0` | 次尺寸（px）。边缘矩形用作高度 |
-| `thickness` | number | `2.0` | 线条/矩形条厚度（px），必须为正 |
-| `radius` | number | `0.0` | 圆形边缘标记半径（px）。`<=0` 时按 `thickness * 3` 自动计算 |
-| `offset` | number | `0.0` | 元素距屏幕外侧的距离（px），必须为非负数 |
-| `color` | `[f32; 4]` | `[1.0, 1.0, 1.0, 1.0]` | RGBA 颜色，各通道范围 `[0.0, 1.0]` |
-| `opacity` | number | `0.6` | 不透明度，`0.0` 完全透明，`1.0` 不透明 |
-| `gap` | number | `4.0` | 十字准星中心间隙（px） |
-| `corner_radius` | number | `4.0` | 边缘矩形圆角半径（px） |
-| `anchor` | Anchor | `"top"` | 边缘矩形的锚点位置 |
-| `margin` | number | `0.0` | 边缘矩形与锚边外侧的边距（px） |
-| `ring_radius_pct` | number | `0.05` | 中心圆环半径占屏幕高度的比例，范围 `[0.03, 0.08]` |
-| `ring_style` | RingStyle | `"solid"` | 中心圆环线型 |
-| `orb_positions` | integer | `3` | 自定义边缘标记/边缘箭头的位置位掩码：`TOP=1`、`BOTTOM=2`、`LEFT=4`、`RIGHT=8` |
-| `random_mode` | RandomOrbMode | `"lock_on_start"` | 随机边缘标记工作模式 |
-| `random_center_deviation` | number | `0.2` | 随机边缘标记相对屏幕中心的偏移范围，范围 `[0.1, 0.3]` |
-| `random_radius_min` | number | `4.0` | 随机边缘标记最小半径（px），必须为正 |
-| `random_radius_max` | number | `12.0` | 随机边缘标记最大半径（px），必须为正且不小于 `random_radius_min` |
-| `random_orb_x` | number | `0.0` | `LockOnStart` 模式下已锁定的相对中心 X 偏移 |
-| `random_orb_y` | number | `0.0` | `LockOnStart` 模式下已锁定的相对中心 Y 偏移 |
-| `border_frame_style` | BorderFrameStyle | `"solid"` | 边框样式 |
-| `border_gap` | boolean | `false` | 边框四边中间是否留 20% 缺口 |
-| `border_inset` | boolean | `true` | 边框矩形条是否位于屏幕内侧 |
-| `custom_orb_top_count` | integer | `3` | 自定义边缘标记上边缘数量（1~10） |
-| `custom_orb_bottom_count` | integer | `3` | 自定义边缘标记下边缘数量（1~10） |
-| `custom_orb_left_count` | integer | `3` | 自定义边缘标记左边缘数量（预留） |
-| `custom_orb_right_count` | integer | `3` | 自定义边缘标记右边缘数量（预留） |
-| `random_orb_count` | integer | `3` | 随机边缘标记每边数量，必须为正 |
-| `random_orb_offset` | number | `100.0` | 随机边缘标记距屏幕边缘的固定偏移（px） |
-| `random_orb_jitter` | number | `40.0` | 随机边缘标记位置随机扰动范围（px） |
-| `image_path` | string | `""` | 自定义图片的 PNG 文件路径，空字符串表示未选择 |
-| `image_scale` | number | `1.0` | 自定义图片缩放比例，必须为正 |
-| `image_offset_x` | number | `0.0` | 自定义图片相对屏幕中心的水平偏移（px） |
-| `image_offset_y` | number | `0.0` | 自定义图片相对屏幕中心的垂直偏移（px） |
-| `arrow_distance` | number | `0.0` | 边缘箭头距屏幕边缘的像素距离（`0` 表示贴边） |
-| `arrow_width` | number | `0.0` | 边缘箭头尾宽（px），`0` 表示等于箭头大小 |
-| `arrow_tail_per_edge` | boolean | `false` | 是否为每边单独设置尾部长度 |
-| `arrow_tail_top` | number | `0.0` | 上边缘尾部长度（px） |
-| `arrow_tail_bottom` | number | `0.0` | 下边缘尾部长度（px） |
-| `arrow_tail_left` | number | `0.0` | 左边缘尾部长度（px） |
-| `arrow_tail_right` | number | `0.0` | 右边缘尾部长度（px） |
+| `style` | CrosshairStyle | `"edge_rect"` | Visual anchor style |
+| `size` | number | `120.0` | Main size (px). Used as width for edge rectangles, arm length for crosshairs, and size for edge arrows |
+| `secondary_size` | number | `80.0` | Secondary size (px). Used as height for edge rectangles |
+| `thickness` | number | `2.0` | Line / bar thickness (px). Must be positive |
+| `radius` | number | `0.0` | Radius of circular edge markers (px). When `<=0`, it is automatically calculated as `thickness * 3` |
+| `offset` | number | `0.0` | Distance of the element from the outer screen edge (px). Must be non-negative |
+| `color` | `[f32; 4]` | `[1.0, 1.0, 1.0, 1.0]` | RGBA color. Each channel is in the range `[0.0, 1.0]` |
+| `opacity` | number | `0.6` | Opacity. `0.0` is fully transparent, `1.0` is fully opaque |
+| `gap` | number | `4.0` | Center gap of the crosshair (px) |
+| `corner_radius` | number | `4.0` | Corner radius of the edge rectangle (px) |
+| `anchor` | Anchor | `"top"` | Anchor position of the edge rectangle |
+| `margin` | number | `0.0` | Outer margin of the edge rectangle from the anchored edge (px) |
+| `ring_radius_pct` | number | `0.05` | Center ring radius as a percentage of screen height. Range `[0.03, 0.08]` |
+| `ring_style` | RingStyle | `"solid"` | Center ring line style |
+| `orb_positions` | integer | `3` | Bitmask for custom edge marker / edge arrow positions: `TOP=1`, `BOTTOM=2`, `LEFT=4`, `RIGHT=8` |
+| `random_mode` | RandomOrbMode | `"lock_on_start"` | Random edge marker working mode |
+| `random_center_deviation` | number | `0.2` | Random edge marker offset range relative to the screen center. Range `[0.1, 0.3]` |
+| `random_radius_min` | number | `4.0` | Minimum radius of random edge markers (px). Must be positive |
+| `random_radius_max` | number | `12.0` | Maximum radius of random edge markers (px). Must be positive and no less than `random_radius_min` |
+| `random_orb_x` | number | `0.0` | Locked relative center X offset in `LockOnStart` mode |
+| `random_orb_y` | number | `0.0` | Locked relative center Y offset in `LockOnStart` mode |
+| `border_frame_style` | BorderFrameStyle | `"solid"` | Border frame style |
+| `border_gap` | boolean | `false` | Whether to leave a 20% gap in the middle of each border side |
+| `border_inset` | boolean | `true` | Whether the border bars are placed inside the screen |
+| `custom_orb_top_count` | integer | `3` | Number of custom edge markers on the top edge (1~10) |
+| `custom_orb_bottom_count` | integer | `3` | Number of custom edge markers on the bottom edge (1~10) |
+| `custom_orb_left_count` | integer | `3` | Number of custom edge markers on the left edge (reserved) |
+| `custom_orb_right_count` | integer | `3` | Number of custom edge markers on the right edge (reserved) |
+| `random_orb_count` | integer | `3` | Number of random edge markers per edge. Must be positive |
+| `random_orb_offset` | number | `100.0` | Fixed offset of random edge markers from the screen edge (px) |
+| `random_orb_jitter` | number | `40.0` | Random jitter range of random edge marker positions (px) |
+| `image_path` | string | `""` | PNG file path for the custom image. An empty string means none is selected |
+| `image_scale` | number | `1.0` | Custom image scale. Must be positive |
+| `image_offset_x` | number | `0.0` | Horizontal offset of the custom image relative to the screen center (px) |
+| `image_offset_y` | number | `0.0` | Vertical offset of the custom image relative to the screen center (px) |
+| `arrow_distance` | number | `0.0` | Pixel distance of edge arrows from the screen edge (`0` means flush with the edge) |
+| `arrow_width` | number | `0.0` | Tail width of edge arrows (px). `0` means equal to the arrow size |
+| `arrow_tail_per_edge` | boolean | `false` | Whether to set the tail length separately for each edge |
+| `arrow_tail_top` | number | `0.0` | Tail length on the top edge (px) |
+| `arrow_tail_bottom` | number | `0.0` | Tail length on the bottom edge (px) |
+| `arrow_tail_left` | number | `0.0` | Tail length on the left edge (px) |
+| `arrow_tail_right` | number | `0.0` | Tail length on the right edge (px) |
 
 ### CrosshairStyle
 
-枚举值（`snake_case`）：
+Enum values (`snake_case`):
 
-| 枚举值 | 说明 |
+| Enum Value | Description |
 |--------|------|
-| `edge_rect` | 边缘矩形：可锚定屏幕四边或居中的半透明矩形 |
-| `cross` | 十字准星：屏幕中心十字线 |
-| `large_cross` | 大型十字准星：从屏幕边缘延伸到中心的横竖线 |
-| `corner_dots4` | 四角边缘标记 |
-| `corner_dots6` | 四角 + 上下中点边缘标记 |
-| `corner_dots8` | 四角 + 上下左右中点边缘标记 |
-| `ring` | 中心圆环 |
-| `custom_orb` | 自定义边缘标记 |
-| `random_orb` | 随机边缘标记 |
-| `border_frame` | 边框 |
-| `custom_image` | 自定义 PNG 图片 |
-| `edge_arrows` | 边缘箭头 |
+| `edge_rect` | Edge rectangle: a semi-transparent rectangle anchored to one of the four screen edges or centered |
+| `cross` | Crosshair: cross lines at the center of the screen |
+| `large_cross` | Large crosshair: horizontal and vertical lines extending from the screen edges to the center |
+| `corner_dots4` | Four corner edge markers |
+| `corner_dots6` | Four corners plus top and middle edge markers |
+| `corner_dots8` | Four corners plus top, bottom, left, and right middle edge markers |
+| `ring` | Center ring |
+| `custom_orb` | Custom edge markers |
+| `random_orb` | Random edge markers |
+| `border_frame` | Border frame |
+| `custom_image` | Custom PNG image |
+| `edge_arrows` | Edge arrows |
 
-> 旧配置文件中的 `toilet_paper` 仍会被识别为 `edge_rect`，保存后会写入 `edge_rect`。
+> In older config files, `toilet_paper` is still recognized as `edge_rect` and will be written as `edge_rect` on save.
 
 ### Anchor
 
-锚点位置枚举（`snake_case`）：`top`、`bottom`、`left`、`right`、`center`。
+Anchor position enum (`snake_case`): `top`, `bottom`, `left`, `right`, `center`.
 
 ### RingStyle
 
-中心圆环线型枚举（`snake_case`）：`solid`（实线）、`dashed`（虚线）、`double`（双线）。
+Center ring line style enum (`snake_case`): `solid`, `dashed`, `double`.
 
 ### RandomOrbMode
 
-随机边缘标记模式枚举（`snake_case`）：`lock_on_start`（启动后固定）、`reshuffle`（每次启动重新随机）。
+Random edge marker mode enum (`snake_case`): `lock_on_start` (fixed after launch), `reshuffle` (re-randomized on every launch).
 
 ### BorderFrameStyle
 
-边框样式枚举（`snake_case`）：`solid`（完整四边）、`gap`（四边中间留缺口）。
+Border frame style enum (`snake_case`): `solid` (full four sides), `gap` (gap in the middle of each side).
 
 ### TriggerRule
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `enabled` | boolean | 是否启用触发器（占位） |
-| `process_names` | `string[]` | 触发进程名列表，空数组表示不限制（占位） |
+| `enabled` | boolean | Whether the trigger is enabled (placeholder) |
+| `process_names` | `string[]` | List of triggering process names. An empty array means no restriction (placeholder) |
 
-## 热重载
+## Hot Reload
 
-配置文件被外部编辑器修改并保存后，`ConfigWatcher` 会在约 300ms 去抖后检测变更，并通过 `ConfigNotifier` 广播新配置，渲染器立即使用最新设置，无需重启。
+After the config file is modified and saved in an external editor, `ConfigWatcher` detects the change after about 300 ms of debouncing and broadcasts the new config through `ConfigNotifier`. The renderer immediately uses the latest settings without requiring a restart.

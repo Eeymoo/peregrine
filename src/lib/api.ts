@@ -1,6 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import type { AppConfig } from "@/types/config";
+import type {
+  AppConfig,
+  BuiltShape,
+  Layer,
+  LayerPatch,
+  MaterialInfo,
+  Profile,
+} from "@/types/config";
 
 export { getCurrentWebviewWindow };
 
@@ -114,3 +121,90 @@ export async function setCrosshairColor(
 ): Promise<void> {
   return invoke("set_crosshair_color", { color });
 }
+
+// ===== 四层架构：图层 / 物料 API =====
+
+/** 计算当前激活 Profile 的图元列表（供前端预览绘制）。 */
+export async function buildShapes(
+  screenW: number,
+  screenH: number,
+): Promise<BuiltShape[]> {
+  return invoke<BuiltShape[]>("build_shapes_ipc", { screenW, screenH });
+}
+
+/** 列出全部已注册物料（内置 + 用户）。 */
+export async function listMaterials(): Promise<MaterialInfo[]> {
+  return invoke<MaterialInfo[]>("list_materials");
+}
+
+/** 在当前激活 Profile 末尾添加图层。 */
+export async function addLayer(materialId: string, name: string): Promise<Layer> {
+  return invoke<Layer>("add_layer", { materialId, name });
+}
+
+/** 删除指定 id 的图层。 */
+export async function removeLayer(layerId: string): Promise<void> {
+  return invoke("remove_layer", { layerId });
+}
+
+/** 调整图层顺序。 */
+export async function moveLayer(layerId: string, newIndex: number): Promise<void> {
+  return invoke("move_layer", { layerId, newIndex });
+}
+
+/** 复制图层（生成新 id）。 */
+export async function duplicateLayer(layerId: string): Promise<Layer> {
+  return invoke<Layer>("duplicate_layer", { layerId });
+}
+
+/** 批量更新图层字段。 */
+export async function updateLayer(
+  layerId: string,
+  patch: LayerPatch,
+): Promise<void> {
+  return invoke("update_layer", { layerId, patch });
+}
+
+/** 列出当前激活 Profile 的全部图层。 */
+export async function listLayers(): Promise<Layer[]> {
+  return invoke<Layer[]>("list_layers");
+}
+
+// ===== Profile 管理 API =====
+
+export async function listProfiles(): Promise<string[]> {
+  return invoke<string[]>("list_profiles");
+}
+
+export async function createProfile(name: string): Promise<Profile> {
+  return invoke<Profile>("create_profile", { name });
+}
+
+export async function renameProfile(oldName: string, newName: string): Promise<void> {
+  return invoke("rename_profile", { oldName, newName });
+}
+
+export async function deleteProfile(name: string): Promise<void> {
+  return invoke("delete_profile", { name });
+}
+
+export async function setActiveProfile(name: string): Promise<void> {
+  return invoke("set_active_profile", { name });
+}
+
+export async function getProfile(name: string): Promise<Profile> {
+  return invoke<Profile>("get_profile", { name });
+}
+
+export async function isProfileLegacyCompatible(profile: Profile): Promise<boolean> {
+  return invoke<boolean>("is_profile_legacy_compatible", { profile });
+}
+
+export async function getActiveProfileName(): Promise<string> {
+  return invoke<string>("get_active_profile_name");
+}
+
+export async function copyProfile(baseName: string): Promise<string> {
+  return invoke<string>("copy_profile", { baseName });
+}
+

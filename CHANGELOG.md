@@ -1,257 +1,289 @@
-# 更新日志
+# Changelog
 
-仅记录正式版本发布。测试版 / 预览版本见 **[CHANGELOG_ALPHA.md](CHANGELOG_ALPHA.md)**。
+[English](CHANGELOG.md) · [简体中文](CHANGELOG.zh-cn.md)
+
+Only stable releases are recorded here. For beta / prerelease versions, see **[CHANGELOG_ALPHA.md](CHANGELOG_ALPHA.md)**.
+
+---
+
+## [v0.1.15] — 2026-07-18
+
+Stable release. Added per-style crosshair defaults and one-click color reset; fixed window mode toggle and live drag preview issues; restructured documentation with full bilingual support.
+
+### Added
+
+- **Per-style default crosshair presets**: Each built-in crosshair style now provides out-of-the-box default parameters (size, thickness, offset, opacity, etc.) instead of sharing one global default, so switching styles no longer yields invisible or unusable crosshairs. (#8) @Eeymoo
+- **Quick color reset**: Added a "Reset" button next to the quick color presets title that restores the 5 default colors in one click. (#7) @Eeymoo
+
+### Fixed
+
+- Fixed window mode toggle being blocked when the overlay is active: switching window mode (fullscreen/windowed) while the overlay is running is now properly disabled in the tray menu, the backend command, and the frontend. (#9) @Eeymoo
+- Fixed "Live Drag Preview" not updating the crosshair position in real time during window dragging: the follower thread now requests a redraw immediately after repositioning the overlay. (#14) @Eeymoo
+
+### Docs
+
+- Restructured documentation site to English-first with full Simplified Chinese variants, including language switcher and bilingual README, HELP, contributing guide, and changelogs. @Eeymoo
+
+### Build
+
+- Added PR snapshot build workflow and opencode trigger workflow for automated CI. (#15) @Eeymoo
+
+### Download
+
+- Windows x86 / x86_64 / ARM64 NSIS installer (supports auto-update) available in Release Assets.
+- Windows x86 / x86_64 / ARM64 portable zip available in Release Assets.
 
 ---
 
 ## [v0.1.9] — 2026-07-13
 
-正式版本。新增 SVG 矢量渲染后端、网格准心样式、全局快捷键与快捷颜色预设，覆盖层抗锯齿默认开启。
+Stable release. Added an SVG vector rendering backend, a Grid crosshair style, global hotkeys, and quick color presets; overlay anti-aliasing is now enabled by default.
 
-### 新增
+### Added
 
-- **SVG 渲染后端**：覆盖层新增可选 SVG 渲染后端（基于 resvg + tiny-skia），在「设置 → 覆盖层 → 渲染后端」中切换。SVG 模式抗锯齿质量更高；CPU 模式（默认）零额外依赖、更轻量。两套方案并行，SVG 光栅化失败时自动回退到 CPU 渲染。 @Eeymoo
-- **网格准心样式**：新增 `Grid` 准心样式，可调整网格行列数、线宽与颜色，为需要规则参照的用户提供更多选择。 @Eeymoo
-- **全局快捷键体系**：支持为「开始/停止覆盖」等功能绑定全局热键，可在「设置 → 快捷键」中配置。 @Eeymoo
-- **快捷颜色预设**：颜色选择器新增常用预设，一键切换准心颜色。 @Eeymoo
-- **覆盖层抗锯齿**：CPU 渲染模式新增抗锯齿开关，默认开启，边缘更平滑；需要最低延迟时可关闭。 @Eeymoo
-- **滚动条样式优化**：自定义滚动条样式，默认透明、悬停淡入，6px 宽圆角，与整体界面风格统一。 @Eeymoo
+- **SVG rendering backend**: The overlay now supports an optional SVG rendering backend (based on resvg + tiny-skia), switchable in "Settings → Overlay → Rendering Backend". SVG mode offers higher anti-aliasing quality; CPU mode (default) has zero extra dependencies and is more lightweight. Both backends run in parallel, and SVG rasterization automatically falls back to CPU rendering on failure. @Eeymoo
+- **Grid crosshair style**: Added the `Grid` crosshair style, with adjustable rows, columns, line width, and color, giving users who need a regular reference more choices. @Eeymoo
+- **Global hotkey system**: Supports binding global hotkeys for functions such as "Start/Stop Overlay", configurable in "Settings → Hotkeys". @Eeymoo
+- **Quick color presets**: The color picker now includes common presets for one-click crosshair color switching. @Eeymoo
+- **Overlay anti-aliasing**: CPU rendering mode adds an anti-aliasing toggle, enabled by default for smoother edges; can be disabled when minimum latency is required. @Eeymoo
+- **Scrollbar styling improvements**: Custom scrollbar styling with default transparency and fade-in on hover, 6 px wide rounded corners, unified with the overall UI style. @Eeymoo
 
-### 修复
+### Fixed
 
-- 移除拖拽实时显示在某些场景下被强制禁用的限制，交互更连贯。 @Eeymoo
+- Removed the restriction that caused drag-and-drop live preview to be forcibly disabled in some scenarios, making interactions more consistent. @Eeymoo
 
-### 下载
+### Download
 
-- Windows x86 / x86_64 / ARM64 NSIS 安装包（支持自动更新）见 Release Assets。
-- Windows x86 / x86_64 / ARM64 便携 zip 见 Release Assets。
+- Windows x86 / x86_64 / ARM64 NSIS installer (supports auto-update) available in Release Assets.
+- Windows x86 / x86_64 / ARM64 portable zip available in Release Assets.
 
 ---
 
 ## [v0.1.7] — 2026-07-12
 
-正式版本。移除 Gitee 镜像改用 gh-proxy 加速代理；新增 GitHub Releases 自动更新、GPU 硬件加速开关与窗口模式优化。
+Stable release. Removed the Gitee mirror in favor of the gh-proxy acceleration proxy; added GitHub Releases auto-updater, a GPU hardware acceleration toggle, and window mode improvements.
 
-### 新增
+### Added
 
-- **GitHub Releases 自动更新**：内置更新检查与下载安装，支持正式版（stable）与尝鲜版（prerelease）双通道。
-- **中国大陆加速代理**：通过 gh-proxy 加速 GitHub 下载，简体中文用户默认开启；可在设置中选择加速站（v4 / v6 / cdn / 自定义）。
-- **GPU 硬件加速开关**：设置中可开关 WebView2 GPU 硬件加速，关闭可降低约 60MB 内存占用。
+- **GitHub Releases auto-updater**: Built-in update check and download/install support for both stable and prerelease channels.
+- **Mainland China acceleration proxy**: Accelerates GitHub downloads via gh-proxy, enabled by default for Simplified Chinese users; acceleration endpoints (v4 / v6 / cdn / custom) can be selected in settings.
+- **GPU hardware acceleration toggle**: WebView2 GPU hardware acceleration can now be toggled in settings; disabling it reduces memory usage by approximately 60 MB.
 
-### 修复
+### Fixed
 
-- 修复设置窗口最小化后闪退。
+- Fixed a crash after minimizing the settings window.
 
-### 重构
+### Refactored
 
-- 将默认样式「卫生纸」重命名为「贴边矩形」并同步文档术语规范。
+- Renamed the default style "Toilet Paper" to "Edge-Aligned Rectangle" and aligned documentation terminology accordingly.
 
-### 构建
+### Build
 
-- 修复 CI 构建失败（javascriptcoregtk 依赖缺失）。
-- 文档部署仅在正式版 Release 时触发。
+- Fixed CI build failure (missing javascriptcoregtk dependency).
+- Documentation deployment is now triggered only on stable releases.
 
 ---
 
 ## [v0.1.5] — 2026-07-11
 
-正式版本。新增 NSIS 安装程序与内置自动更新功能，支持正式版（stable）与尝鲜版（prerelease）双通道检测。
+Stable release. Added the NSIS installer and built-in auto-updater, supporting both stable and prerelease channel detection.
 
-### 新增
+### Added
 
-- **NSIS 安装程序**：提供 `setup.exe` 安装包，安装后支持自动更新；便携 zip 仍保留。
-- **内置自动更新**：设置页「检查更新」按钮，自动检测并下载安装新版本；下载进度条实时显示。
-- **启动自动检测**：打开配置页面时延迟 3 秒自动检测新版本，发现后弹窗提示。
-- **双通道更新**：正式版（stable）走 `releases/latest/download/stable.json`，尝鲜版（prerelease）走对应 tag 的 `prerelease.json`，用户可在设置中切换更新通道。
-- **关于页面发行者信息**：关于对话框显示发行者（Eeymoo）、许可（MIT）、仓库链接与动态版本号。
+- **NSIS installer**: Provides a `setup.exe` installer that supports auto-update; the portable zip is still retained.
+- **Built-in auto-updater**: A "Check for Updates" button in the settings page automatically detects, downloads, and installs new versions, with a real-time download progress bar.
+- **Auto-check on launch**: Automatically checks for new versions 3 seconds after opening the settings page and shows a popup if an update is found.
+- **Dual-channel updates**: Stable releases use `releases/latest/download/stable.json`, while prerelease versions use the corresponding tag's `prerelease.json`; users can switch update channels in settings.
+- **About page publisher info**: The About dialog now shows the publisher (Eeymoo), license (MIT), repository link, and dynamic version number.
 
-### 修复
+### Fixed
 
-- 修复点击更新后弹窗未清除导致重复检测。
-- 修复 `PreferencesPatch` 缺少 `update_channel` 字段导致 CI 编译失败。
-- 修复 CI 签名缺失时未报错退出的问题。
-- 移除设置页面冗余提示文案。
+- Fixed repeated detection caused by an uncleared popup after clicking update.
+- Fixed CI compilation failure due to the missing `update_channel` field in `PreferencesPatch`.
+- Fixed CI not exiting with an error when signing was missing.
+- Removed redundant hint text on the settings page.
 
-### 构建
+### Build
 
-- CI 启用 `createUpdaterArtifacts`，自动为 NSIS 安装包生成 `.sig` 签名文件。
-- CI 清理调试日志，精简构建步骤。
+- CI enables `createUpdaterArtifacts`, automatically generating `.sig` signature files for the NSIS installer.
+- CI cleans up debug logs and streamlines build steps.
 
-### 下载
+### Download
 
-- Windows x86 / x86_64 / ARM64 NSIS 安装包（支持自动更新）见 Release Assets。
-- Windows x86 / x86_64 / ARM64 便携 zip 见 Release Assets。
+- Windows x86 / x86_64 / ARM64 NSIS installer (supports auto-update) available in Release Assets.
+- Windows x86 / x86_64 / ARM64 portable zip available in Release Assets.
 
 ---
 
 ## [v0.1.4] — 2026-07-11
 
-正式版本。协议变更为 MIT 完全开源；新增全屏/窗口覆盖模式、GPU 加速开关、屏幕缩放自适应；大幅优化内存占用与 CPU 消耗。
+Stable release. License changed to MIT fully open source; added full-screen / window overlay modes, a GPU acceleration toggle, and screen scaling adaptation; significantly optimized memory usage and CPU consumption.
 
-### 新增
+### Added
 
-- **全屏 / 窗口覆盖模式**：全屏模式（默认）直接覆盖整个屏幕，无需选择目标窗口；窗口模式仅覆盖目标窗口区域。配置页面勾选「窗口模式」或托盘菜单切换，两侧自动同步。
-- **拖拽时实时显示设置**：在「设置」中开启后窗口拖拽时覆盖层实时跟随；关闭时（默认）停止拖拽约 1200ms 后恢复显示，降低 CPU 占用。
-- **GPU 硬件加速开关**：在「设置」中可开启 GPU 硬件加速（默认关闭），关闭时使用纯 CPU 渲染以减少 GPU 进程内存占用；切换后弹出重启确认对话框。
-- **版本号自动化**：版本号从 git tag 动态读取，CI 打包时自动同步到各处，不再手动维护。
+- **Full-screen / Window overlay modes**: Full-screen mode (default) covers the entire screen directly without needing to select a target window; window mode covers only the target window area. Toggle via the checkbox in the configuration page or the tray menu, with both sides syncing automatically.
+- **Live display during dragging**: When enabled in "Settings", the overlay follows in real time while the window is being dragged; when disabled (default), display resumes about 1200 ms after dragging stops, reducing CPU usage.
+- **GPU hardware acceleration toggle**: GPU hardware acceleration can be enabled in "Settings" (default off); when off, pure CPU rendering is used to reduce GPU process memory usage. A restart confirmation dialog is shown when switching.
+- **Automated versioning**: The version number is now read dynamically from the git tag, and CI automatically syncs it everywhere during packaging, eliminating manual maintenance.
 
-### 修复
+### Fixed
 
-- 修复全屏模式下覆盖层位置错误：首次创建时未预定位到屏幕区域。
-- 修复屏幕分辨率/DPI 缩放变化后覆盖层不跟随更新：全屏模式现在持续检测屏幕尺寸变化。
-- 修复打开配置页面时覆盖状态显示错误：`get_overlay_active` 改为直接读取原子状态。
-- 修复左侧预览在窗口尺寸变化后不刷新：加入 ResizeObserver，拖拽/缩放时立即重绘。
-- 修复预览比例与实际覆盖层不一致：预览以真实分辨率构建准心形状再等比缩放。
-- 修复 ESC 对话框行为：ESC 取消等同于停止覆盖；保持配置窗口不会停止覆盖。
-- 修复 WebView2 进程在窗口关闭后未释放内存：改为真正销毁而非隐藏到托盘。
-- 修复托盘「退出」失效：`ExitRequested` 全局阻止退出会拦截主动退出。
-- 修复文档部署 CI 失败：VitePress 构建时继承根目录 PostCSS 配置导致找不到 tailwindcss 模块。
+- Fixed incorrect overlay positioning in full-screen mode: the overlay was not pre-positioned to the screen area on first creation.
+- Fixed overlay not following screen resolution / DPI scaling changes: full-screen mode now continuously monitors screen size changes.
+- Fixed incorrect overlay status display when opening the configuration page: `get_overlay_active` now reads the atomic state directly.
+- Fixed left-side preview not refreshing after window resize: added a ResizeObserver so the preview redraws immediately during dragging or scaling.
+- Fixed preview proportions not matching the actual overlay: the preview now builds crosshair shapes at the real resolution and scales them proportionally.
+- Fixed ESC dialog behavior: ESC cancel now equals stopping the overlay; keeping the configuration window open does not stop the overlay.
+- Fixed WebView2 process memory not being released after the window was closed: the window is now truly destroyed instead of hidden to the tray.
+- Fixed tray "Exit" not working: the global `ExitRequested` prevention was intercepting active exit requests.
+- Fixed documentation deployment CI failure: VitePress build was inheriting the root PostCSS config and failing to find the tailwindcss module.
 
-### 优化
+### Improved
 
-- **静态准心不再持续重绘**：引入脏标记机制，静止不动的准心不再每帧重绘，显著降低覆盖层 CPU 占用。
-- **配置保存防抖**：拖滑块等连续操作时只在停止后 300ms 写入一次，避免频繁触发文件 watcher。
-- **启动时不预创建设置窗口**：按需创建，降低启动内存。
-- 发布产物 zip 内增加 README.md 与 LICENSE，exe 文件名包含版本号。
-- `cargo fmt` 格式化全部 Rust 代码。
+- **Static crosshairs no longer redraw continuously**: Introduced a dirty-flag mechanism so stationary crosshairs are no longer redrawn every frame, significantly reducing overlay CPU usage.
+- **Config save debouncing**: Continuous operations such as dragging sliders now write only once 300 ms after the user stops, avoiding frequent file watcher triggers.
+- **Settings window is no longer pre-created at startup**: created on demand to reduce startup memory.
+- Release artifact zips now include README.md and LICENSE; exe filenames include the version number.
+- Formatted all Rust code with `cargo fmt`.
 
-### 变更
+### Changed
 
-- **协议变更为 MIT**：从 PolyForm Noncommercial 1.0.0 改为 MIT，完全开源，允许商业使用。
+- **License changed to MIT**: From PolyForm Noncommercial 1.0.0 to MIT, fully open source and allowing commercial use.
 
-### 下载
+### Download
 
-- Windows x86 / x86_64 / ARM64 便携 zip 见 Release Assets（内含 `peregrine-v0.1.4.exe`、`README.md`、`LICENSE`）。
+- Windows x86 / x86_64 / ARM64 portable zip available in Release Assets (contains `peregrine-v0.1.4.exe`, `README.md`, and `LICENSE`).
 
 ---
 
 ## [v0.1.3] — 2026-07-11
 
-正式版本。迁移到 Tauri + React 设置面板，新增中英文国际化与自动切换游戏窗口，发布产物改为便携 zip，图标清晰度大幅提升。
+Stable release. Migrated to Tauri + React settings panel; added Simplified Chinese / English internationalization and auto-switching to the game window; release artifacts changed to portable zip; icon clarity greatly improved.
 
-### 新增
+### Added
 
-- 全新设置界面：基于 Tauri + React + shadcn/ui 重新构建，配置窗口与设置窗口分离。
-- 应用国际化：支持简体中文与英文，设置页一键切换，窗口标题、托盘菜单、错误提示同步切换；支持「跟随系统语言」。
-- 文档站点英文版：完整英文使用说明、配置说明与术语表。
-- 开始覆盖时自动切换到游戏：支持「每次询问 / 是 / 否」三种偏好，未选目标窗口时禁用开始覆盖按钮。
+- New settings UI: rebuilt based on Tauri + React + shadcn/ui, with the configuration window and settings window separated.
+- App internationalization: Supports Simplified Chinese and English, switchable in the settings page with window titles, tray menus, and error messages updating accordingly; supports "Follow system language".
+- Documentation site English version: complete English usage instructions, configuration guide, and glossary.
+- Auto-switch to game when starting overlay: Supports three preferences—"Ask every time", "Yes", and "No"; the Start Overlay button is disabled when no target window is selected.
 
-### 修复
+### Fixed
 
-- 修复托盘菜单语言跟随系统语言失效：Windows 上改用 Win32 API `GetUserDefaultLocaleName` 检测系统语言。
-- 修复「开始覆盖后自动隐藏并切换到游戏」失效：用 `AttachThreadInput` + `BringWindowToTop` 替代 `SetForegroundWindow`。
-- 修复设置窗口修改偏好设置后配置窗口未同步：新增 `peregrine:settings-changed` 事件广播。
-- 修复配置预览区棋盘格背景错乱：运算符优先级导致格子模式错误。
-- 修复 CI 中 `npm ci` 因 `picomatch` 版本不一致而失败的问题。
+- Fixed tray menu language not following system language: on Windows, system language detection now uses the Win32 API `GetUserDefaultLocaleName`.
+- Fixed "Auto-hide and switch to game after starting overlay": replaced `SetForegroundWindow` with `AttachThreadInput` + `BringWindowToTop`.
+- Fixed configuration window not syncing after changing preferences in the settings window: added a `peregrine:settings-changed` event broadcast.
+- Fixed checkerboard background misalignment in the configuration preview: operator precedence was causing an incorrect grid pattern.
+- Fixed CI `npm ci` failure due to inconsistent `picomatch` versions.
 
-### 变更
+### Changed
 
-- 发布产物从 NSIS 安装程序（`*-setup.exe`）改回便携 zip 压缩包：下载解压即可运行，无需安装。
-- 移除无实际渲染效果的「边框：四边中缝缺口（20%）」选项。
-- 暂时隐藏「自定义图片」准心样式（存在已知问题，待后续修复）。
+- Release artifacts reverted from NSIS installer (`*-setup.exe`) to portable zip: download, extract, and run without installation.
+- Removed the "Border: four-side center gap (20%)" option, which had no actual rendering effect.
+- Temporarily hid the "Custom Image" crosshair style (known issues, to be fixed later).
 
-### 优化
+### Improved
 
-- 图标清晰度大幅提升：图标生成脚本改用 8x 超采样抗锯齿，ICO 包含 16/32/48/64/128/256 六档；托盘与窗口标题栏使用 1024×1024 高分辨率 PNG 源图，高 DPI 下清晰锐利。
+- Greatly improved icon clarity: the icon generation script now uses 8x supersampling anti-aliasing; the ICO contains 16/32/48/64/128/256 sizes; the tray and window title bar use a 1024×1024 high-resolution PNG source image, remaining sharp and clear at high DPI.
 
-### 下载
+### Download
 
-- Windows x86 / x86_64 / ARM64 便携 zip 见 Release Assets。
+- Windows x86 / x86_64 / ARM64 portable zip available in Release Assets.
 
 ---
 
 ## [v0.1.2] — 2026-07-08
 
-正式版本。修复 wgpu 崩溃与图标显示问题，优化 UI 样式命名。
+Stable release. Fixed wgpu crashes and icon display issues; optimized UI style naming.
 
-### 修复
+### Fixed
 
-- 修复设置窗口最小化时 wgpu 视口校验失败导致程序崩溃（`set_viewport` 尺寸为 0）。
-- 设置 wgpu 错误处理器，将未捕获错误降级为日志记录而非直接 panic。
-- 修复任务栏与窗口标题栏图标不正确：托盘图标改为从 exe 嵌入资源加载。
-- 恢复窗口标题栏图标显示，提升像素图尺寸至 256×256。
+- Fixed a crash when the settings window was minimized caused by wgpu viewport validation failure (`set_viewport` size was 0).
+- Set a wgpu error handler so uncaught errors are downgraded to log records instead of panicking.
+- Fixed incorrect taskbar and window title bar icons: the tray icon now loads from the exe's embedded resources.
+- Restored the window title bar icon display and increased the pixel art size to 256×256.
 
-### 变更
+### Changed
 
-- 「卫生纸」样式显示名改为「矩形」。
+- The display name of the "Toilet Paper" style changed to "Rectangle".
 
-### 文档
+### Documentation
 
-- 新增「缓解晕 3D」与「推荐配置」页面，扩充项目介绍。
+- Added "Alleviating 3D Motion Sickness" and "Recommended Configurations" pages, expanding the project introduction.
 
-### 下载
+### Download
 
-- Windows x86 / x86_64 / ARM64 可执行文件见 Release Assets。
+- Windows x86 / x86_64 / ARM64 executables available in Release Assets.
 
 ---
 
 ## [v0.1.1] — 2026-07-07
 
-首个正式版本后的补丁更新。修复 macOS 启动崩溃，Windows 产物改为静态链接 C 运行时，实现下载解压即可运行，无需额外安装 VC++ Redistributable。
+Patch update after the first stable release. Fixed macOS startup crash; Windows artifacts now statically link the C runtime, enabling download-extract-run without installing the VC++ Redistributable.
 
-### 修复
+### Fixed
 
-- macOS 上 wgpu surface 不支持 `Inherit` alpha 模式导致启动 panic，改为按 capabilities 自动选择。
+- On macOS, wgpu surface did not support the `Inherit` alpha mode, causing a startup panic; now automatically selected based on capabilities.
 
-### 构建
+### Build
 
-- Windows MSVC 三个目标（x86/x64/ARM64）开启 `+crt-static` 静态链接 C 运行时，exe 不再依赖 `VCRUNTIME140.dll` 等外部 DLL。
-- Release CI 增加 DLL 依赖验证步骤，确保产物不含 VC 运行时动态依赖。
+- Enabled `+crt-static` static C runtime linking for all three Windows MSVC targets (x86 / x64 / ARM64), so the exe no longer depends on external DLLs such as `VCRUNTIME140.dll`.
+- Release CI added a DLL dependency verification step to ensure artifacts have no dynamic VC runtime dependencies.
 
-### 文档
+### Documentation
 
-- 新增 VitePress 文档站点与 GitHub Pages 自动部署。
-- 完善 README、HELP 与 AGENTS 文档，首页增加立即下载按钮。
-- 新增发布流程规范与贡献指南。
+- Added VitePress documentation site and GitHub Pages automatic deployment.
+- Improved README, HELP, and AGENTS documentation; added a Download Now button on the homepage.
+- Added release process specifications and contribution guidelines.
 
-### 下载
+### Download
 
-- Windows x86 / x86_64 / ARM64 可执行文件见 Release Assets。
+- Windows x86 / x86_64 / ARM64 executables available in Release Assets.
 
 ---
 
 ## [v0.1.0] — 2026-07-07
 
-首个正式版本。一个用于缓解 3D 眩晕的桌面辅助贴图工具，在屏幕上方显示半透明视觉锚点，帮助玩家在 3D 游戏中获得固定参照。
+First stable release. A desktop auxiliary sticker tool for alleviating 3D motion sickness, displaying semi-transparent visual anchors above the screen to help players get a fixed reference in 3D games.
 
-### 新增
+### Added
 
-- Windows 透明覆盖层窗口：置顶、鼠标穿透的 Overlay 窗口，可悬浮于游戏或应用上方。
-- 目标窗口跟随：通过下拉列表选择目标窗口，覆盖层可跟随其位置与尺寸。
-- 多种准心样式：十字、大十字、四角/六角/八角定位点、中心环、自定义球、随机球、边框框、贴边矩形等。
-- 自定义 PNG 贴图：支持加载 PNG 图片作为覆盖层内容。
-- 实时设置面板：独立设置窗口，实时调整样式、颜色、透明度、尺寸等参数并即时预览。
-- 配置文件热重载：配置 JSON 文件被外部编辑后自动重载生效。
-- 多 Profile 支持：为不同场景保存独立配置。
-- Windows 平台自动构建与发布：GitHub Actions 自动构建 Windows x86 / x86_64 / ARM64 产物。
+- Windows transparent overlay window: an always-on-top, click-through overlay window that can float above games or applications.
+- Target window following: select a target window from a dropdown list, and the overlay can follow its position and size.
+- Multiple crosshair styles: cross, large cross, four / six / eight corner dots, center ring, custom orb, random orb, border frame, edge-aligned rectangle, etc.
+- Custom PNG decal: supports loading PNG images as overlay content.
+- Real-time settings panel: a standalone settings window for adjusting style, color, opacity, size, and other parameters with instant preview.
+- Config file hot-reload: the configuration JSON file is automatically reloaded when edited externally.
+- Multi-profile support: save independent configurations for different scenarios.
+- Windows platform automated build and release: GitHub Actions automatically builds Windows x86 / x86_64 / ARM64 artifacts.
 
-### 修复
+### Fixed
 
-- Windows 透明度彻底失效：强制 Bgra8Unorm 避免 sRGB gamma 导致颜色键不匹配。
-- 颜色键吃黑色准心、覆盖层切换闪烁、窗口标题匹配逻辑。
-- HWND 跨线程获取失败、未选窗口时程序崩溃、窗口尺寸恢复。
-- 穿透窗口收不到 RedrawRequested 导致 overlay 不渲染。
-- 32 位 Windows 下 `SetWindowLongPtrW` / `GetWindowLongPtrW` 类型不匹配。
+- Windows transparency completely ineffective: forced Bgra8Unorm to avoid sRGB gamma causing color-key mismatch.
+- Color key eating black crosshairs, overlay switching flicker, and window title matching logic.
+- HWND cross-thread retrieval failure, program crash when no window was selected, and window size restoration.
+- Click-through window not receiving `RedrawRequested`, causing the overlay not to render.
+- `SetWindowLongPtrW` / `GetWindowLongPtrW` type mismatch on 32-bit Windows.
 
-### 变更
+### Changed
 
-- 架构重构：双窗口架构（独立设置窗口 + 独立 Overlay 窗口）。
-- 覆盖层改用 per-pixel alpha 透明方案（softbuffer 像素缓冲区）。
-- 目标窗口从输入框改为下拉列表。
-- 预览区跟随目标窗口宽高比。
-- 协议改为 PolyForm Noncommercial 1.0.0。
-- 嵌入 Windows exe 图标。
+- Architecture refactor: dual-window architecture (standalone settings window + standalone overlay window).
+- Overlay switched to per-pixel alpha transparency solution (softbuffer pixel buffer).
+- Target window changed from an input box to a dropdown list.
+- Preview area follows the target window's aspect ratio.
+- License changed to PolyForm Noncommercial 1.0.0.
+- Embedded Windows exe icon.
 
-### 构建
+### Build
 
-- 仅构建并发布 Windows x86 / x86_64 / ARM64 三个平台。
+- Only builds and releases for Windows x86 / x86_64 / ARM64.
 
-### 下载
+### Download
 
-- Windows x86 / x86_64 / ARM64 可执行文件见 Release Assets。
+- Windows x86 / x86_64 / ARM64 executables available in Release Assets.
 
 ---
 
+[v0.1.15]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.15
 [v0.1.9]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.9
 [v0.1.5]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.5
 [v0.1.4]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.4

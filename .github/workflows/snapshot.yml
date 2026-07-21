@@ -1,0 +1,119 @@
+name: Snapshot
+
+# 在提交 PR 到 main/master/dev 时触发，构建 Windows 快照制品（NSIS + 便携 zip）用于测试。
+# 版本号取 PR head commit 短 hash（格式 0.0.0-dev.<short_sha>），不签名、不发布正式
+# GitHub Release。制品作为 workflow artifact 上传，可在 PR 检查页面下载。复用
+# release.yml 的构建逻辑，但去掉签名与发布步骤，便于在无签名密钥的 PR 上下文中产出
+# 可安装 / 可运行的测试包。也支持手动 workflow_dispatch 触发。
+on:
+  pull_request:
+    branches: [main, master, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Snapshot ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: i686-pc-windows-msvc
+            asset_name: windows-x86
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset_name: windows-x64
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            asset_name: windows-arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 版本号取 PR head commit 短 hash（手动触发时回退到当前 commit），包装为合法
+      # semver 0.0.0-dev.<short_sha>，以满足 Tauri / NSIS 对版本号的格式要求。
+      - name: Compute snapshot version
+        id: meta
+        shell: bash
+        run: |
+          SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          SHORT="${SHA:0:7}"
+          VERSION="0.0.0-dev.${SHORT}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Snapshot version: $VERSION (sha: $SHA)"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: snapshot-${{ matrix.target }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # 同步版本号到 Cargo.toml / package.json / tauri.conf.json。
+      # 关闭 createUpdaterArtifacts（避免签名要求），但保留 updater pubkey（插件 init 必需）。
+      - name: Sync version & disable updater signing
+        shell: bash
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          echo "Syncing version: $VERSION"
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+          node -e "const fs=require('fs');const p=require('./package.json');p.version='$VERSION';fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
+          node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';p.bundle.createUpdaterArtifacts=false;fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
+
+      # PR 构建不签名（不设置 TAURI_SIGNING_PRIVATE_KEY），仅产出未签名 NSIS。
+      - name: Build Tauri (NSIS, unsigned)
+        shell: bash
+        run: npx tauri build --target ${{ matrix.target }} --bundles nsis
+
+      - name: Rename NSIS installer
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          $VERSION = "$env:VERSION"
+          $nsisDir = "target/${{ matrix.target }}/release/bundle/nsis"
+          $setup = Get-ChildItem "$nsisDir/*-setup.exe" | Select-Object -First 1
+          if ($setup) {
+            $dst = "peregrine-${VERSION}-${{ matrix.asset_name }}-setup.exe"
+            Copy-Item $setup.FullName $dst
+          } else {
+            Write-Host "::error::No NSIS installer found"
+            exit 1
+          }
+
+      - name: Create portable zip
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          $VERSION = "$env:VERSION"
+          $srcExe = "target/${{ matrix.target }}/release/peregrine-tauri.exe"
+          $dstExe = "peregrine-${VERSION}.exe"
+          Copy-Item $srcExe $dstExe
+          $zip = "peregrine-${VERSION}-${{ matrix.asset_name }}.zip"
+          Compress-Archive -Path $dstExe, README.md, LICENSE -DestinationPath $zip
+
+      - name: Upload snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-${{ matrix.asset_name }}
+          path: |
+            peregrine-${{ steps.meta.outputs.version }}-${{ matrix.asset_name }}-setup.exe
+            peregrine-${{ steps.meta.outputs.version }}-${{ matrix.asset_name }}.zip
+          if-no-files-found: error

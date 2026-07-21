@@ -19,40 +19,50 @@ const BORDER_STYLES: BorderFrameStyle[] = ["solid", "gap"];
 const GRID_ALIGNMENTS: GridAlignment[] = ["center", "edge"];
 
 interface StyleFieldsProps {
+  /** 准星样式配置对象，包含当前准星的所有样式属性 */
   crosshair: Crosshair;
+  /** 样式变更的回调函数，接收部分更新后的准星配置 */
   onChange: (patch: Partial<Crosshair>) => void;
+  /** 是否禁用所有输入控件，默认为false */
+  disabled?: boolean;
 }
 
 /** 根据当前准心样式分发到对应小组件。 */
-export function StyleFields({ crosshair, onChange }: StyleFieldsProps) {
-  switch (crosshair.style) {
-    case "edge_rect":
-      return <EdgeRectFields crosshair={crosshair} onChange={onChange} />;
-    case "cross":
-      return <CrossFields crosshair={crosshair} onChange={onChange} />;
-    case "large_cross":
-      return <LargeCrossFields crosshair={crosshair} onChange={onChange} />;
-    case "corner_dots4":
-    case "corner_dots6":
-    case "corner_dots8":
-      return <CornerDotsFields crosshair={crosshair} onChange={onChange} />;
-    case "ring":
-      return <RingFields crosshair={crosshair} onChange={onChange} />;
-    case "custom_orb":
-      return <CustomOrbFields crosshair={crosshair} onChange={onChange} />;
-    case "random_orb":
-      return <RandomOrbFields crosshair={crosshair} onChange={onChange} />;
-    case "border_frame":
-      return <BorderFrameFields crosshair={crosshair} onChange={onChange} />;
-    case "custom_image":
-      return <CustomImageFields crosshair={crosshair} onChange={onChange} />;
-    case "edge_arrows":
-      return <EdgeArrowsFields crosshair={crosshair} onChange={onChange} />;
-    case "grid":
-      return <GridFields crosshair={crosshair} onChange={onChange} />;
-    default:
-      return null;
+export function StyleFields({ crosshair, onChange, disabled }: StyleFieldsProps) {
+  const fields = (() => {
+    switch (crosshair.style) {
+      case "edge_rect":
+        return <EdgeRectFields crosshair={crosshair} onChange={onChange} />;
+      case "cross":
+        return <CrossFields crosshair={crosshair} onChange={onChange} />;
+      case "large_cross":
+        return <LargeCrossFields crosshair={crosshair} onChange={onChange} />;
+      case "corner_dots4":
+      case "corner_dots6":
+      case "corner_dots8":
+        return <CornerDotsFields crosshair={crosshair} onChange={onChange} />;
+      case "ring":
+        return <RingFields crosshair={crosshair} onChange={onChange} />;
+      case "custom_orb":
+        return <CustomOrbFields crosshair={crosshair} onChange={onChange} />;
+      case "random_orb":
+        return <RandomOrbFields crosshair={crosshair} onChange={onChange} />;
+      case "border_frame":
+        return <BorderFrameFields crosshair={crosshair} onChange={onChange} />;
+      case "custom_image":
+        return <CustomImageFields crosshair={crosshair} onChange={onChange} />;
+      case "edge_arrows":
+        return <EdgeArrowsFields crosshair={crosshair} onChange={onChange} />;
+      case "grid":
+        return <GridFields crosshair={crosshair} onChange={onChange} />;
+      default:
+        return null;
+    }
+  })();
+  if (disabled) {
+    return <div className="pointer-events-none opacity-60">{fields}</div>;
   }
+  return fields;
 }
 
 /** 贴边矩形。 */
@@ -265,7 +275,15 @@ function CustomImageFields({ crosshair, onChange }: StyleFieldsProps) {
   );
 }
 
-/** 通用滑块字段。 */
+/** 通用滑块字段组件
+ * 
+ * @param label - 字段标签文本
+ * @param value - 当前值
+ * @param min - 最小值
+ * @param max - 最大值
+ * @param step - 步进值，默认为1
+ * @param onChange - 值变化回调函数
+ */
 function SliderField({
   label,
   value,
@@ -274,11 +292,17 @@ function SliderField({
   step = 1,
   onChange,
 }: {
+  /** 字段标签文本 */
   label: string;
+  /** 当前值 */
   value: number;
+  /** 最小值 */
   min: number;
+  /** 最大值 */
   max: number;
+  /** 步进值，默认为1 */
   step?: number;
+  /** 值变化回调函数，接收新值 */
   onChange: (v: number) => void;
 }) {
   return (
@@ -317,7 +341,7 @@ function OrbPositionCheck({ crosshair, onChange }: StyleFieldsProps) {
   return (
     <div className="space-y-2">
       <Label className="text-sm">{t("fields.enabled")}</Label>
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         {items.map(({ flag, key, label }) => (
           <div key={key} className="flex items-center gap-1">
             <Checkbox

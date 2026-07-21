@@ -1,5 +1,6 @@
 import { useI18n } from "@/lib/i18n";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -117,7 +118,25 @@ export function OverlayTab({
 
       {/* 快捷颜色 */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium">{t("quickColors.title")}</Label>
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">{t("quickColors.title")}</Label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const defaultColors: [number, number, number, number][] = [
+                [1, 1, 1, 1],
+                [0, 1, 0, 1],
+                [0.2, 0.5, 1, 1],
+                [1, 0, 0, 1],
+                [1, 0.5, 0, 1],
+              ];
+              updateSetting("quick_colors", defaultColors);
+            }}
+          >
+            {t("quickColors.reset")}
+          </Button>
+        </div>
         <p className="text-xs text-muted-foreground">{t("quickColors.hint")}</p>
         <div className="flex gap-3 pt-1">
           {(config?.settings?.quick_colors ?? [

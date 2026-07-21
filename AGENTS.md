@@ -1,206 +1,230 @@
 # AGENTS.md
 
-本文件面向在此仓库中工作的 AI 编码代理，帮助你在不了解背景的情况下快速理解 Peregrine 项目并安全地做出修改。内容基于实际代码核对，如与代码不一致以代码为准。
+This file is intended for AI coding agents working in this repository. It helps you quickly understand the Peregrine project and make changes safely, even without prior context. The content is verified against the actual codebase; if anything conflicts with the code, the code takes precedence.
 
-## 项目概述
+## Project Overview
 
-Peregrine 是一个桌面视觉锚点（覆盖层）工具，**主要用途是防 3D 眩晕**：在屏幕中心或边缘绘制半透明的视觉锚点，为玩家在 3D 游戏中提供固定参照物，缓解眩晕感。
+Peregrine is a desktop visual anchor (overlay) tool. **Its primary purpose is to reduce 3D motion sickness**: it draws semi-transparent visual anchors at the center or edges of the screen, giving players a fixed reference point in 3D games to alleviate dizziness.
 
-- 语言 / 生态：**Rust**，Cargo **workspace**（`resolver = "3"`，`edition = "2024"`，`rust-version = 1.85`，MIT 许可）。
-- 图形栈：**Tauri**（设置窗口 Webview）+ **React + Tailwind + shadcn/ui**（设置面板），覆盖层仍用 `winit` + `softbuffer`；原 `wgpu` + `egui` 实现已移除。
-- 异步运行时：`tokio`（配置读写、文件热重载、后台跟随任务）。
-- 目标平台：**Windows**（x86 / x86_64 / ARM64）。CI 同时在 macOS / Linux 做编译验证，但 overlay 的透明 / 穿透 / 跟随能力仅 Windows 实现。
-- 当前状态：**v0.1.0 正式版已发布**。Windows 透明置顶穿透覆盖层、目标窗口跟随、12 种准心样式、自定义 PNG 贴图、配置热重载等功能已可用。"进程触发" 仍为配置占位。
+- Language / ecosystem: **Rust**, Cargo **workspace** (`resolver = "3"`, `edition = "2024"`, `rust-version = 1.85`, MIT licensed).
+- Graphics stack: **Tauri** (settings window Webview) + **React + Tailwind + shadcn/ui** (settings panel). The overlay still uses `winit` + `softbuffer`; the original `wgpu` + `egui` implementation has been removed.
+- Async runtime: `tokio` (configuration read/write, file hot-reload, background follow task).
+- Target platform: **Windows** (x86 / x86_64 / ARM64). Overlay transparency / click-through / window-following capabilities are intentionally Windows-only and are not planned for other platforms.
+- Current status: **v0.1.0 stable released**. Windows transparent, always-on-top, click-through overlay; target window following; 12 crosshair styles; custom PNG decals; configuration hot-reload are all functional. "Process trigger" remains a configuration placeholder.
 
-代码注释与文档一律使用**简体中文**。请沿用中文撰写新注释、文档与提交信息主体，保持一致。
+All code comments and documentation use **Simplified Chinese**. Please continue writing new comments, documentation, and commit message bodies in Chinese for consistency.
 
-## 仓库结构
+## Repository Structure
 
 ```
 peregrine/
-├── Cargo.toml            # workspace 根：成员、workspace.package、workspace.dependencies、编译 profile
+├── Cargo.toml            # workspace root: members, workspace.package, workspace.dependencies, build profiles
 ├── Cargo.lock
-├── .gitignore            # 忽略 /target、*.log、.DS_Store、docs 构建产物等
-├── assets/               # 应用图标（icon.ico）与图标生成脚本（gen_icon.py）
-├── docs/                 # VitePress 文档站点（部署到 GitHub Pages）
-│   ├── .vitepress/       # VitePress 配置（config.mts）、主题、构建产物 dist/
-│   ├── guide/            # 使用说明、介绍、快速开始、功能、配置、开发构建
-│   ├── public/           # 静态资源（logo.svg 等）
-│   ├── index.md          # 文档首页
-│   └── package.json      # vitepress + mermaid + llms 插件
-├── .github/workflows/    # ci.yml（三平台编译 + lint）、release.yml（打 tag 发布）、pages.yml（文档部署）
-├── .agent/skills/        # AI agent 技能定义（release 发布流程规范）
-├── src-tauri/            # peregrine-tauri：Tauri 后端入口、tray、commands、overlay 管理
+├── .gitignore            # ignores /target, *.log, .DS_Store, docs build artifacts, etc.
+├── assets/               # application icon (icon.ico) and icon generation script (gen_icon.py)
+├── docs/                 # VitePress documentation site (deployed to GitHub Pages)
+│   ├── .vitepress/       # VitePress config (config.mts), theme, dist/ build output
+│   ├── guide/            # user guide, introduction, quick start, features, configuration, development/build
+│   ├── public/           # static assets (logo.svg, etc.)
+│   ├── index.md          # documentation homepage
+│   └── package.json      # vitepress + mermaid + llms plugins
+├── .github/workflows/    # ci.yml (three-platform compile + lint), release.yml (tag-based release), pages.yml (docs deployment)
+├── .agent/skills/        # AI agent skill definitions (release workflow specification)
+├── src-tauri/            # peregrine-tauri: Tauri backend entry, tray, commands, overlay management
 │   ├── Cargo.toml
 │   ├── build.rs
 │   ├── tauri.conf.json
 │   ├── capabilities/
 │   ├── icons/
 │   └── src/
-│       ├── lib.rs             # Tauri 启动入口：配置初始化、tray、commands、watcher
-│       ├── main.rs            # 二进制入口，调用 lib::run
-│       └── overlay.rs         # 独立线程运行 winit 事件循环管理 overlay
-├── package.json          # 前端 npm 依赖（React / Vite / Tailwind / shadcn / Tauri JS API）
+│       ├── lib.rs             # Tauri startup entry: config init, tray, commands, watcher
+│       ├── main.rs            # binary entrypoint, calls lib::run
+│       └── overlay.rs         # runs winit event loop on a dedicated thread to manage overlay
+├── package.json          # frontend npm dependencies (React / Vite / Tailwind / shadcn / Tauri JS API)
 ├── vite.config.ts
 ├── tailwind.config.ts
 ├── components.json
 ├── tsconfig.json
 ├── index.html
-└── src/                  # 前端源码
+└── src/                  # frontend source
     ├── main.tsx
-    ├── App.tsx              # 设置面板主组件
+    ├── App.tsx              # settings panel main component
     ├── index.css
     ├── lib/
-    │   ├── api.ts           # Tauri invoke 封装
-    │   └── shapes.ts        # 前端预览几何计算
-    ├── types/config.ts      # TypeScript 配置类型
+    │   ├── api.ts           # Tauri invoke wrapper
+    │   └── shapes.ts        # frontend preview geometry calculations
+    ├── types/config.ts      # TypeScript configuration types
     ├── components/
-    │   └── Preview.tsx      # Canvas 实时预览
-    │   └── ui/              # shadcn/ui 基础组件
+    │   └── Preview.tsx      # Canvas real-time preview
+    │   └── ui/              # shadcn/ui base components
     └── ...
 └── crates/
-    ├── config/           # peregrine_config：纯逻辑库（无 UI / GPU / 窗口代码）
+    ├── config/           # peregrine_config: pure logic crate (no UI / GPU / window code)
     │   └── src/
-    │       ├── lib.rs        # 模块导出 + 统一错误类型 ConfigError / Result
-    │       ├── schema.rs     # 配置数据结构 AppConfig / Profile / Crosshair 等 + 校验 + 单测
-    │       ├── storage.rs    # 配置文件路径管理、原子读写、默认配置生成（含内联 dirs 模块）
-    │       ├── notifier.rs   # 基于 tokio::sync::watch 的配置变更广播
-    │       └── watcher.rs    # 基于 notify crate 的配置文件热重载（含去抖）
-    └── peregrine/        # peregrine：共享库（供 Tauri 复用）
-        ├── Cargo.toml        # 仅提供 lib
+    │       ├── lib.rs        # module exports + unified error type ConfigError / Result
+    │       ├── schema.rs     # configuration data structures AppConfig / Profile / Crosshair / Element / Layer / MaterialRef / Transform2D + validation + unit tests
+    │       ├── storage.rs    # config file path management, atomic read/write, default config generation, legacy migration (includes inline dirs module)
+    │       ├── migration.rs  # legacy Crosshair → Layer migration field mapping
+    │       ├── rng.rs        # SimpleRng (cross-crate shared with material runtime)
+    │       ├── notifier.rs   # config change broadcast based on tokio::sync::watch
+    │       └── watcher.rs    # config file hot-reload based on notify crate (with debouncing)
+    ├── material/         # peregrine_material: Rhai material runtime (CPU-safe embedded scripting)
+    │   ├── Cargo.toml
+    │   ├── builtin/          # 11 built-in .rhai material scripts (cross / ring / edge_arrows / grid / image / ...)
+    │   │   ├── cross.rhai
+    │   │   └── ...
+    │   └── src/
+    │       ├── lib.rs             # module exports + BUILTIN_MATERIALS const (include_str!)
+    │       ├── material.rs        # Material struct: load() / evaluate() / Rhai Engine + host function registration
+    │       ├── registry.rs        # MaterialRegistry: builtin + user material loading and lookup
+    │       ├── context.rs         # DynamicContext: time_ms / mouse_pos / key_down / rng_seed
+    │       └── error.rs           # MaterialError / MaterialResult
+    └── peregrine/        # peregrine: shared library (reused by Tauri)
+        ├── Cargo.toml        # provides lib only
         └── src/
-            ├── lib.rs             # 导出 overlay_renderer / shapes / platform
-            ├── overlay_renderer.rs # softbuffer（CPU 像素光栅化）**覆盖层**渲染器，透明置顶穿透窗口
-            ├── shapes.rs           # 准心几何共享模块，预览与覆盖层共用同一套公式（所见即所得）
+            ├── lib.rs             # exports overlay_renderer / shapes / platform
+            ├── overlay_renderer.rs # softbuffer (CPU pixel rasterization) **overlay** renderer, dual-path: legacy Crosshair fallback + new layers + material evaluation
+            ├── shapes.rs           # dual entry: build_shapes (legacy) + build_layers_shapes (new); Shape is type alias for Element
+            ├── svg_renderer.rs     # SVG backend (resvg + tiny-skia)
             └── platform/
-                ├── mod.rs          # 平台模块入口，非 Windows 编译为占位
-                └── windows.rs      # Win32 API：透明/置顶/穿透、目标窗口查找与跟随
+                ├── mod.rs          # platform module entry + poll_dynamic_context(); compiled as a placeholder on non-Windows targets
+                └── windows.rs      # Win32 API: transparency / always-on-top / click-through, target window lookup/following, GetCursorPos/GetAsyncKeyState for dynamic input
 ```
 
-**分层原则**：`peregrine_config` 不得依赖任何 UI / GPU / 窗口平台代码（`winit` / `wgpu` / `egui`）；平台与渲染逻辑放在 `peregrine` 共享库与 `src-tauri` 二进制 crate。修改时请保持这一边界。
+**Layering principle**: `peregrine_config` must not depend on any UI / GPU / window platform code (`winit` / `wgpu` / `egui`). Platform and rendering logic belong in the `peregrine` shared library and the `src-tauri` binary crate. Please preserve this boundary when making changes.
 
-## 技术栈与关键依赖
+## Tech Stack and Key Dependencies
 
-依赖版本统一在根 `Cargo.toml` 的 `[workspace.dependencies]` 中声明，各 crate 用 `{ workspace = true }` 引用。新增依赖优先加到 workspace 层。
+Dependency versions are declared centrally in the root `Cargo.toml` under `[workspace.dependencies]`; each crate references them with `{ workspace = true }`. Prefer adding new dependencies at the workspace level.
 
-- `crates/config`（`peregrine_config`）：`tokio`（features: sync/rt/rt-multi-thread/macros/time/fs）、`serde`（derive）、`serde_json`、`notify` 7.0、`thiserror` 2.0、`tracing`；dev 依赖 `tempfile`。
-- `crates/peregrine`（共享库）：`peregrine_config`（path 依赖）、`winit` 0.30、`softbuffer` 0.4（覆盖层 CPU 光栅化）、`png` 0.17（自定义 PNG 准心解码）、`tokio`、`tracing`、`thiserror`（平台层 `OverlayError`）。
-- `src-tauri`（`peregrine-tauri`，主入口）：`peregrine` / `peregrine_config`（path 依赖）、`tauri` 2.x（`tray-icon` feature）、`tauri-plugin-dialog`、`tauri-build`、前端产物（`dist/`）。
-- 前端：`React` 18 + `Vite` 5 + `TypeScript` 5 + `Tailwind CSS` 3 + `shadcn/ui` + `@tauri-apps/api` / `@tauri-apps/cli` 2.x。
-- `[target.'cfg(windows)'.dependencies]`：`windows` 0.58（Win32 UI / Foundation / Gdi features）。
-- `[profile.dev]` 设置 `opt-level = 1`（加速图形栈的调试运行）。
-- `[profile.release]` 启用 `opt-level = "z"` + `lto` + `codegen-units = 1` + `strip` + `panic = "abort"` + `overflow-checks = false`，优先级为减小体积与提升性能。
+- `crates/config` (`peregrine_config`): `tokio` (features: sync/rt/rt-multi-thread/macros/time/fs), `serde` (derive), `serde_json`, `notify` 7.0, `thiserror` 2.0, `tracing`; dev dependency `tempfile`.
+- `crates/material` (`peregrine_material`): `peregrine_config` (path dep), `rhai` 1.25 (features: `sync`), `ahash` 0.8, `serde`, `serde_json`, `tracing`, `thiserror`.
+- `crates/peregrine` (shared library): `peregrine_config` (path dep), `peregrine_material` (path dep), `winit` 0.30, `softbuffer` 0.4 (overlay CPU rasterization), `png` 0.17 (custom PNG crosshair decoding), `serde` / `serde_json`, `tokio`, `tracing`, `thiserror` (platform layer `OverlayError`).
+- `src-tauri` (`peregrine-tauri`, main entry): `peregrine` / `peregrine_config` (path deps), `tauri` 2.x (`tray-icon` feature), `tauri-plugin-dialog`, `tauri-build`, frontend artifacts (`dist/`).
+- Frontend: `React` 18 + `Vite` 5 + `TypeScript` 5 + `Tailwind CSS` 3 + `shadcn/ui` + `@tauri-apps/api` / `@tauri-apps/cli` 2.x.
+- `[target.'cfg(windows)'.dependencies]`: `windows` 0.58 (Win32 UI / Foundation / Gdi features).
+- `[profile.dev]` sets `opt-level = 1` (speeds up debug runs of the graphics stack).
+- `[profile.release]` enables `opt-level = "z"` + `lto` + `codegen-units = 1` + `strip` + `panic = "abort"` + `overflow-checks = false`, prioritizing binary size reduction and performance.
 
-注意：`storage.rs` 内有一个**内联的 `dirs` 模块**自行实现跨平台配置目录（Windows `%APPDATA%`、macOS `~/Library/Application Support`、Linux `$XDG_CONFIG_HOME` 或 `~/.config`），并非外部 `dirs` crate，不要误加依赖。
+Note: `storage.rs` contains an **inline `dirs` module** that implements cross-platform configuration directories itself (Windows `%APPDATA%`, macOS `~/Library/Application Support`, Linux `$XDG_CONFIG_HOME` or `~/.config`). It is not the external `dirs` crate; do not add that dependency by mistake.
 
-## 构建、运行与测试
+## Build, Run, and Test
 
-在仓库根目录执行（不要在 `target/` 内执行）：
+Run these from the repository root (do not run inside `target/`):
 
 ```bash
-# 安装前端依赖（首次）
+# Install frontend dependencies (first time)
 npm install
 
-# 构建整个 workspace
+# Build the entire workspace
 cargo build
 cargo build --release
 
-# 运行 Tauri 版本
+# Run the Tauri version
 npx tauri dev
 
-# 构建 Tauri release 产物
+# Build Tauri release artifacts
 npx tauri build
 
-# 运行全部测试
+# Run all tests
 cargo test
 
-# 只测配置库
+# Run tests with JUnit XML report (requires cargo-nextest)
+cargo nextest run --workspace --profile ci
+
+# Test only the config crate
 cargo test -p peregrine_config
 
-# 代码检查 / 格式化
+# Lint / format
 cargo fmt
 cargo clippy
 ```
 
-- 目前**所有单元测试都在 `crates/config`** 中（`schema.rs` / `storage.rs` / `notifier.rs` / `watcher.rs`），`peregrine` 共享库与 `src-tauri` 暂无测试。
-- 涉及 tokio 的测试使用 `#[tokio::test]`；`watcher.rs` 的测试需要多线程运行时，标注为 `#[tokio::test(flavor = "multi_thread")]`。
-- `watcher` 测试依赖真实文件系统事件并有最长 5s 的超时等待，属于偏集成性质，偶发受环境影响。
+- Currently, **all unit tests live in `crates/config`** (`schema.rs` / `storage.rs` / `notifier.rs` / `watcher.rs`), **`crates/material`** (`material.rs` / `context.rs`), and **`crates/peregrine`** (`shapes.rs`). The `src-tauri` binary crate has no tests yet.
+- Tests involving tokio use `#[tokio::test]`; tests in `watcher.rs` require a multi-thread runtime and are annotated `#[tokio::test(flavor = "multi_thread")]`.
+- `watcher` tests rely on real filesystem events and have a maximum 5-second timeout wait; they are integration-leaning and may occasionally be affected by the environment.
 
-## 运行期架构（Tauri 版本）
+## Runtime Architecture (Tauri Version)
 
-1. `src-tauri/src/lib.rs::run()`：初始化 `tracing_subscriber`（控制台 stderr + `%APPDATA%/Peregrine/peregrine.log` 滚动文件，默认 `info` 级别）；通过 `ConfigStorage::with_default_path()` 定位配置文件并 `load_or_create_default()`；用配置构造 `ConfigNotifier`；在独立线程启动 `overlay::run_overlay_loop` 管理覆盖层窗口；启动 `ConfigWatcher` 并把 notifier 变更同步到共享快照与 overlay 线程；创建 Tauri app，配置 tray 图标与 commands，运行事件循环。
-2. **设置窗口**（Tauri Webview）：普通带边框窗口（标题 "Peregrine 设置"，逻辑尺寸 960×560），承载 React + Tailwind + shadcn/ui 设置面板。关闭时**收起到状态栏**（`api.prevent_close()` + `window.hide()`）。
-3. **系统托盘**（Tauri tray）：启动即建立，菜单含「设置」「退出」。点击「设置」恢复窗口；点击「退出」结束应用，Tauri `RunEvent::Exit` 中通知 overlay 线程停止。
-4. **覆盖层窗口**（`src-tauri/src/overlay.rs`）：在独立线程中运行原生 `winit` 事件循环，创建透明、置顶、鼠标穿透窗口，由 `OverlayRenderer`（softbuffer CPU 光栅化）渲染准心。通过 Tauri command `start_overlay` / `stop_overlay` 创建/销毁。**创建前必须已选择目标窗口**。Windows 下调用 `platform::windows::setup_overlay_window` 补充 `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`。
-5. **目标窗口跟随**（`platform::windows::follow_target_window`）：Windows 下以 16ms 周期轮询，对齐覆盖层到目标窗口；目标窗口最小化/非前台时隐藏 overlay；目标窗口被销毁时结束跟随。
-6. 配置流动：前端改动 → Tauri command `save_config` → `ConfigStorage::save`（原子写）+ `ConfigNotifier::update` → `ConfigWatcher` 检测到文件变化后再次广播 → 共享快照更新 → overlay 渲染器读取。前端通过 `get_config` 获取初始配置。
+1. `src-tauri/src/lib.rs::run()`: initializes `tracing_subscriber` (console stderr + `%APPDATA%/Peregrine/peregrine.log` rolling file, default `info` level); locates the config file via `ConfigStorage::with_default_path()` and calls `load_or_create_default()`; constructs a `ConfigNotifier` from the config; starts `overlay::run_overlay_loop` on a dedicated thread to manage the overlay window; starts `ConfigWatcher` and syncs notifier changes to the shared snapshot and overlay thread; creates the Tauri app, configures the tray icon and commands, and runs the event loop.
+2. **Settings window** (Tauri Webview): a normal bordered window (title "Peregrine 设置", logical size 960×560) hosting the React + Tailwind + shadcn/ui settings panel. Closing it **hides the window to the system tray** (`api.prevent_close()` + `window.hide()`).
+3. **System tray** (Tauri tray): created at launch with a menu containing "Settings" and "Exit". Clicking "Settings" restores the window; clicking "Exit" terminates the app, and Tauri's `RunEvent::Exit` notifies the overlay thread to stop.
+4. **Overlay window** (`src-tauri/src/overlay.rs`): runs a native `winit` event loop on a dedicated thread, creating a transparent, always-on-top, click-through window rendered by `OverlayRenderer` (softbuffer CPU rasterization). Created / destroyed via the Tauri commands `start_overlay` / `stop_overlay`. **A target window must be selected before creation**. On Windows, `platform::windows::setup_overlay_window` adds `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`.
+5. **Target window following** (`platform::windows::follow_target_window`): on Windows, polls every 16 ms to align the overlay with the target window; hides the overlay when the target is minimized or not foreground; stops following when the target window is destroyed.
+6. Configuration flow: frontend changes → Tauri command `save_config` → `ConfigStorage::save` (atomic write) + `ConfigNotifier::update` → `ConfigWatcher` detects the file change and broadcasts again → shared snapshot updated → overlay renderer reads it. The frontend gets the initial config via `get_config`.
 
-### 配置模型与存储
+### Configuration Model and Storage
 
-- 配置根为 `AppConfig`（`active_profile` + 多个命名 `Profile`），每个 `Profile` 含 `crosshair`（`Crosshair`）、`trigger`（`TriggerRule`）、`settings_hotkey`、`target_window`。
-- `Crosshair.style`（`CrosshairStyle`，12 种）：贴边矩形 `EdgeRect`、准星 `Cross`、大准星 `LargeCross`、定位球 `CornerDots4/6/8`、中心环 `Ring`、自定义定位球 `CustomOrb`、随机球 `RandomOrb`、边框 `BorderFrame`、自定义图片 `CustomImage`、箭头 `EdgeArrows`。各样式可调尺寸、厚度、颜色、透明度、间隙、贴边位置、边距等参数；`CustomImage` 额外有路径、缩放、偏移。
-- 配置文件为 JSON，路径由 OS 标准目录决定：
-  - Windows：`%APPDATA%/Peregrine/config.json`
-  - macOS：`~/Library/Application Support/Peregrine/config.json`
-  - Linux：`~/.config/Peregrine/config.json`
-- 写入为原子操作（同目录临时文件 + `rename`），写入前必先 `AppConfig::validate()` 校验，避免落盘非法配置。
-- `load_or_create_default`：文件不存在则生成默认配置；**解析或校验失败时不报错**，而是把损坏文件备份为 `<name>.bak` 后回退到默认配置并重新写入，保证程序始终能启动。
+- The configuration root is `AppConfig` (`active_profile` + multiple named `Profile`s). Each `Profile` contains `crosshair` (`Crosshair`), `trigger` (`TriggerRule`), `settings_hotkey`, and `target_window`.
+- `Crosshair.style` (`CrosshairStyle`, 12 variants): edge-aligned rectangle `EdgeRect`, cross `Cross`, large cross `LargeCross`, corner dots `CornerDots4/6/8`, center ring `Ring`, custom orb `CustomOrb`, random orb `RandomOrb`, border frame `BorderFrame`, custom image `CustomImage`, and arrows `EdgeArrows`. Each style supports adjustable size, thickness, color, opacity, gap, edge position, margin, etc.; `CustomImage` additionally has path, scale, and offset.
+- The configuration file is JSON; its path is determined by the OS standard directory:
+  - Windows: `%APPDATA%/Peregrine/config.json`
+  - macOS: `~/Library/Application Support/Peregrine/config.json`
+  - Linux: `~/.config/Peregrine/config.json`
+- Writes are atomic (temp file in the same directory + `rename`), and `AppConfig::validate()` is always called before writing to avoid persisting invalid config.
+- `load_or_create_default`: if the file does not exist, a default config is generated; **if parsing or validation fails, no error is raised**. Instead, the corrupted file is backed up as `<name>.bak`, the app falls back to the default config, and the default is rewritten to ensure the program can always start.
 
-## 代码风格与约定
+## Code Style and Conventions
 
-- 遵循标准 Rust 风格（`cargo fmt` 默认配置）。仓库未定制 rustfmt/clippy 规则；CI 中 `cargo clippy -p peregrine_config -- -D warnings` 把 config crate 的 lint 警告视为错误。
-- **所有公开项都写中文文档注释**（`///`），模块顶部用 `//!` 说明职责。新增代码请保持同样密度的中文注释。
-- 错误处理：库层统一用 `thiserror` 定义的 `ConfigError` 与 `crate::Result<T>`；不要在库中 `panic`/`unwrap`（校验失败返回 `ConfigError::Validation`）。二进制层可用 `expect`/`unwrap` 处理初始化期的致命错误；平台层（`platform/windows.rs`）定义自己的 `OverlayError`。
-- 日志：使用 `tracing`（`info!`/`warn!`/`error!`/`debug!`），不要新增 `println!`/`eprintln!`。
-- 序列化兼容：向 `Crosshair` 等结构新增字段时，务必加 `#[serde(default)]` 或 `#[serde(default = "...")]`，以保证旧配置文件仍可反序列化（现有字段大量使用此模式，`old_config_without_image_fields_loads` 测试专门验证这一点）。
-- 枚举序列化统一 `#[serde(rename_all = "snake_case")]`。
-- 新增可配置项时，通常需要同步改动五处：`schema.rs`（字段 + 默认值 + 校验）、`shapes.rs`（几何形状定义，`build_shapes`）、`src/App.tsx`（React 设置面板控件）、`src/lib/shapes.ts`（前端预览几何计算）、`overlay_renderer.rs`（如引入新图元类型，补光栅化）。预览（React Canvas）与覆盖层（softbuffer）都基于同一套几何逻辑，保证所见即所得。
-- 并发：跨 tokio 与 winit 线程共享的配置快照使用**标准库 `std::sync::Mutex`**（注释明确：避免在 runtime 线程内调用 tokio `blocking_lock` 导致 panic）。沿用此约定，不要随意替换为 `tokio::sync::Mutex`。
-- 配置快照类型为 `ConfigSnapshot = Arc<AppConfig>`，通过 `Arc` 共享避免深拷贝。
+- Follow standard Rust style (default `cargo fmt` configuration). The repository does not customize rustfmt/clippy rules; in CI, `cargo clippy -p peregrine_config -- -D warnings` treats lint warnings in the config crate as errors.
+- **All public items must have Chinese documentation comments** (`///`); module tops use `//!` to describe responsibilities. Please keep the same density of Chinese comments in new code.
+- Error handling: library code uses the `thiserror`-defined `ConfigError` and `crate::Result<T>` uniformly; do not `panic`/`unwrap` in libraries (validation failures return `ConfigError::Validation`). The binary layer may use `expect`/`unwrap` for fatal initialization errors; the platform layer (`platform/windows.rs`) defines its own `OverlayError`.
+- Logging: use `tracing` (`info!`/`warn!`/`error!`/`debug!`); do not add `println!`/`eprintln!`.
+- Serialization compatibility: when adding fields to structures such as `Crosshair`, always add `#[serde(default)]` or `#[serde(default = "...")]` so old configuration files can still be deserialized (existing fields already use this pattern extensively; the `old_config_without_image_fields_loads` test specifically verifies this).
+- Enum serialization uniformly uses `#[serde(rename_all = "snake_case")]`.
+- When adding a new configurable item, you usually need to update five places in sync: `schema.rs` (field + default + validation), `shapes.rs` (geometry shape definitions, `build_shapes`), `src/App.tsx` (React settings panel controls), `src/lib/shapes.ts` (frontend preview geometry calculations), and `overlay_renderer.rs` (if a new primitive type is introduced, add rasterization). Both the preview (React Canvas) and the overlay (softbuffer) are based on the same geometry logic to ensure WYSIWYG.
+- Concurrency: the configuration snapshot shared across tokio and winit threads uses **the standard library `std::sync::Mutex`** (comments explicitly state: avoids calling tokio `blocking_lock` inside the runtime thread, which would panic). Follow this convention; do not replace it with `tokio::sync::Mutex` casually.
+- The configuration snapshot type is `ConfigSnapshot = Arc<AppConfig>`, shared via `Arc` to avoid deep copies.
 
-## 测试约定
+## Testing Conventions
 
-- 单元测试与被测代码同文件，置于 `#[cfg(test)] mod tests`。
-- `schema.rs` 侧重校验逻辑（尺寸/透明度/范围/枚举）、默认值、以及 serde round-trip（含旧配置兼容性）；`storage.rs` 用 `tempfile::tempdir()` 做真实文件读写（含损坏配置恢复）；`notifier.rs` 验证广播订阅与订阅者计数；`watcher.rs` 验证外部文件改动能被检测并广播。
-- 修改 `schema` 的校验规则或默认值时，请同步更新/新增对应测试；改动配置结构后至少跑 `cargo test -p peregrine_config`。
+- Unit tests live in the same file as the code under test, inside `#[cfg(test)] mod tests`.
+- `schema.rs` focuses on validation logic (size / opacity / range / enums), default values, and serde round-trip (including old-config compatibility); `storage.rs` uses `tempfile::tempdir()` for real file read/write tests (including corrupted-config recovery); `notifier.rs` verifies broadcast subscriptions and subscriber counts; `watcher.rs` verifies that external file changes are detected and broadcast.
+- When modifying validation rules or defaults in `schema`, please update/add corresponding tests; after changing configuration structures, at least run `cargo test -p peregrine_config`.
 
-## CI / CD 与发布
+## CI / CD and Release
 
-三个 workflow（`.github/workflows/`）：
+Three workflows (`.github/workflows/`):
 
-- **`ci.yml`**：push 到 main/master 或提交 PR 时触发。`build` job 在 **Windows（x86_64-msvc）/ macOS（aarch64 + x86_64 交叉编译）/ Linux（x86_64-gnu）** 三平台矩阵运行 `cargo test -p peregrine_config --locked` + `npm ci && npm run build && cargo build --manifest-path src-tauri/Cargo.toml --bins --features tauri/custom-protocol --release --target <target>`（Tauri 入口）；Linux job 需先安装 GUI 依赖（xcb/x11/wayland/gtk/WebKit 等）。CI 不打包 NSIS，避免签名密钥缺失导致 Windows 构建失败。`lint` job 仅在 Linux 跑 `cargo fmt --all -- --check` 与 `cargo clippy -p peregrine_config -- -D warnings`。
-- **`release.yml`**：推送 `v*` 标签时触发。在 Windows 构建 i686 / x86_64 / aarch64 三个 target 的 Tauri release 产物，包含 **NSIS 安装包（带 Tauri updater 签名）+ 便携 zip + `latest.json` 更新清单**，用 `softprops/action-gh-release` 创建 GitHub Release。CI 从 GitHub Secrets 读取 `TAURI_SIGNING_PRIVATE_KEY` 和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 对安装包签名。标签带 `-`（如 `v0.2.0-alpha.0`）判定为预发布，纯版本号（如 `v0.1.0`）为正式版。Release body 与 updater `notes` 由 CI 根据当前 tag 与上一个 tag 之间的 commit 自动生成，按 conventional commit 前缀分为「新增 / 修复 / 变更 / 构建 / 文档 / 其他」；无可用提交时回退到 tag 消息或最近 commit message。
-- **`pages.yml`**：发布 **正式版 Release** 或手动触发时部署文档。用 Node 22 在 `docs/` 下 `npm ci` + `npm run docs:build` 构建 VitePress 站点，上传产物并部署到 GitHub Pages。尝鲜版（prerelease）不会自动触发文档部署。
+- **`ci.yml`**: triggered on push to main/master/dev or on pull requests. Runs 4 jobs in parallel:
+  - `build` (Windows): `cargo test` (3 crates) + `npm ci && npm run build` + `cargo build --release` (x86_64-msvc)
+  - `test-report` (Windows): uses `cargo-nextest` to run all workspace tests and generate **JUnit XML test reports** (published via `action-junit-report`, uploaded as artifacts, with summary in GitHub Step Summary)
+  - `frontend-report` (Linux): TypeScript check + frontend build + build size report
+  - `lint` (Linux): `cargo fmt --check` + `cargo clippy -- -D warnings` (3 crates)
+  - `quality-gate`: aggregates all job results, fails if any check fails
+  - CI does not package NSIS, avoiding Windows build failures due to missing signing keys.
+- **`release.yml`**: triggered on pushes of `v*` tags. Builds Tauri release artifacts on Windows for i686 / x86_64 / aarch64 targets, including **NSIS installer (signed with Tauri updater) + portable zip + `latest.json` updater manifest**, then creates a GitHub Release with `softprops/action-gh-release`. CI reads `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` from GitHub Secrets to sign the installer. Tags containing `-` (e.g., `v0.2.0-alpha.0`) are treated as prereleases; pure version tags (e.g., `v0.1.0`) are stable releases. The release body and updater `notes` are auto-generated by CI from commits between the current tag and the previous tag, grouped by conventional commit prefixes into "Added / Fixed / Changed / Build / Docs / Other"; if no commits are available, it falls back to the tag message or the most recent commit message.
+- **`pages.yml`**: deploys documentation on a **stable Release** publish or manual trigger. Uses Node 22 to run `npm ci` + `npm run docs:build` under `docs/`, uploads the artifact, and deploys to GitHub Pages. Prereleases do not automatically trigger documentation deployment.
 
-发布流程规范见 `.agent/skills/release/SKILL.md`：遵循 SemVer（major/minor/patch + `-alpha.N`/`-beta.N` 预发布后缀），**正式版用奇数版本号**（0.1.1, 0.1.3, 0.1.5, 0.1.7 …），**尝鲜版用偶数/预发布版本号**（0.1.8-alpha.0 …）。Release Notes 按「新增 / 修复 / 变更 / 构建」分类，打 tag 推送前需向用户确认版本号与 tag 消息。`CHANGELOG.md` 记录正式版，`CHANGELOG_ALPHA.md` 记录测试版。
+The release workflow specification is in `.agent/skills/release/SKILL.md`: follow SemVer (major/minor/patch + `-alpha.N`/`-beta.N` prerelease suffixes), **stable releases use odd version numbers** (0.1.1, 0.1.3, 0.1.5, 0.1.7, ...), **preview releases use even/prerelease version numbers** (0.1.8-alpha.0, ...). Release notes are grouped into "Added / Fixed / Changed / Build". Before pushing a tag, confirm the version number and tag message with the user. `CHANGELOG.md` records stable releases; `CHANGELOG_ALPHA.md` records preview releases.
 
-### 分支策略
+### Branch Strategy
 
-- **main**：稳定分支，仅包含正式版代码。正式版发布后合并。
-- **dev**：开发分支，包含正在测试的功能（如自动更新等）。测试通过后合并到 main 发布正式版。
+- **main**: stable branch, contains only stable-release code. Merged after a stable release.
+- **dev**: development branch, contains features under test (such as auto-updater). After testing passes, merge into main to publish a stable release.
 
-### 自动更新
+### Auto-Updater
 
-项目集成了 `tauri-plugin-updater`（Rust 插件 + 前端 `@tauri-apps/plugin-updater`）：
-- NSIS 安装包用户可通过「设置 → 检查更新」自动下载安装新版本，便携 zip 不支持。
-- 签名密钥对存在本地 `.tauri/`（已被 `.gitignore` 排除），公钥写入 `tauri.conf.json` 的 `plugins.updater.pubkey`。
-- CI 从 GitHub Secrets 读取私钥签名；`latest.json` 清单由 CI 自动生成并上传。
-- 私钥与密码丢失后将无法发布可自动更新的版本，需妥善备份。
+The project integrates `tauri-plugin-updater` (Rust plugin + frontend `@tauri-apps/plugin-updater`):
+- NSIS installer users can automatically download and install new versions via "Settings → Check for Updates"; portable zip does not support this.
+- The signing key pair is stored locally in `.tauri/` (excluded by `.gitignore`); the public key is written to `plugins.updater.pubkey` in `tauri.conf.json`.
+- CI reads the private key from GitHub Secrets for signing; the `latest.json` manifest is auto-generated and uploaded by CI.
+- If the private key and password are lost, you will no longer be able to publish auto-updatable releases; keep them backed up safely.
 
-## 文档站点
+## Documentation Site
 
-`docs/` 是基于 **VitePress** 的文档站点（`lang: zh-CN`，`base: /`，部署到自定义域名 `https://peregrine.eeymoo.com/`），含 mermaid 图表插件与 `vitepress-plugin-llms`（生成 `llms.txt` / `llms-full.txt`）。本地预览：`cd docs && npm ci && npm run docs:dev`。内容在 `docs/guide/`（使用说明、项目介绍、快速开始、功能特性、配置说明、开发构建）。
+`docs/` is a **VitePress**-based documentation site (`lang: en-US`, `base: /`, deployed to the custom domain `https://peregrine.eeymoo.com/`), including a mermaid diagram plugin and `vitepress-plugin-llms` (generates `llms.txt` / `llms-full.txt`). Local preview: `cd docs && npm ci && npm run docs:dev`. Content is in `docs/guide/` (user guide, introduction, quick start, features, configuration, development/build). The Simplified Chinese version is located under `docs/zh-cn/`.
 
-## 安全与注意事项
+## Security and Notes
 
-- **不要提交敏感信息**；配置文件位于用户目录，不随仓库分发。
-- 配置写入已做原子化与合法性校验；改动 `storage.rs` 时保持"先校验后写入、临时文件 + rename"的不变量，避免损坏用户配置。
-- `target/` 是 Cargo 构建产物目录，已被 `.gitignore` 忽略。所有源码改动、构建与测试都应针对仓库根进行。
+- **Do not commit sensitive information**; configuration files live in the user directory and are not distributed with the repository.
+- Config writes are atomic and validated; when modifying `storage.rs`, preserve the invariant of "validate before write, temp file + rename" to avoid corrupting user configs.
+- `target/` is the Cargo build output directory and is ignored by `.gitignore`. All source changes, builds, and tests should target the repository root.
 
-### 已知局限（改动相关代码时留意）
+### Known Limitations (keep in mind when touching related code)
 
-- 覆盖层的透明、置顶、鼠标穿透等 overlay 特性通过 `platform/windows.rs` 的 Win32 API 实现：透明/穿透/置顶由 winit 窗口属性（`with_transparent` + `set_cursor_hittest(false)` + `WindowLevel::AlwaysOnTop`）设置，`setup_overlay_window` 仅补充 `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`。`overlay_renderer.rs` 走 softbuffers CPU 光栅化而非 wgpu swapchain，以避开 DirectComposition 的透明坑。
-- **覆盖层必须选择目标窗口才能创建**：`target_window` 为空时 `create_overlay` 直接返回，不会创建全屏 overlay。
-- `TriggerRule`（进程触发）在 schema 中已定义（`enabled` + `process_names`），但**二进制层未消费**——当前没有任何按前台进程名自动启用/隐藏覆盖层的逻辑，属于纯配置占位。
-- `RandomOrb` 的 `LockOnStart` / `Reshuffle` 两种模式在当前渲染实现中行为相同——均每帧从配置参数派生种子重新生成（预览与 overlay 用相同的 `SimpleRng` 实现 + 种子，保证一致）。schema 中的 `random_orb_x/y` 持久化字段已定义但渲染层尚未消费，待后续接入。
-- CI 的 config 测试与 release 编译在三平台运行；`windows` crate 通过 `[target.'cfg(windows)'.dependencies]` 声明，非 Windows target 不拉取。
+- Overlay transparency, always-on-top, and click-through behavior are implemented via the Win32 API in `platform/windows.rs`: transparency / click-through / always-on-top are set by winit window attributes (`with_transparent` + `set_cursor_hittest(false)` + `WindowLevel::AlwaysOnTop`); `setup_overlay_window` only adds `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`. `overlay_renderer.rs` uses softbuffer CPU rasterization instead of a wgpu swapchain to avoid DirectComposition transparency pitfalls.
+- **The overlay must have a target window selected before creation**: when `target_window` is empty, `create_overlay` returns immediately and does not create a fullscreen overlay.
+- `TriggerRule` (process trigger) is already defined in the schema (`enabled` + `process_names`), but **the binary layer does not consume it** — there is currently no logic to automatically enable/hide the overlay based on foreground process names; it is purely a configuration placeholder.
+- The two modes of `RandomOrb`, `LockOnStart` / `Reshuffle`, behave identically in the current rendering implementation — both regenerate every frame from a seed derived from configuration parameters (preview and overlay use the same `SimpleRng` implementation + seed for consistency). The `random_orb_x/y` persistent fields in the schema are defined but not yet consumed by the renderer; they will be wired up later.
+- CI config tests and release compilation run on three platforms; the `windows` crate is declared under `[target.'cfg(windows)'.dependencies]` and is not pulled in on non-Windows targets.

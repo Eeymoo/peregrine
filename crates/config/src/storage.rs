@@ -55,6 +55,10 @@ impl ConfigStorage {
     /// 若现有配置文件无法解析或校验失败（通常是版本不兼容或被手动改坏），
     /// 不再直接报错，而是**备份损坏文件**后回退到默认配置并重新写入，
     /// 保证程序始终能启动。写入默认配置前会先校验其合法性。
+    ///
+    /// **迁移**：若检测到旧格式（含 `crosshair` 字段且 `layers` 为空），
+    /// 自动调用 `migration::migrate_profile` 把旧 Crosshair 转换为新 layers，
+    /// 备份原文件为 `<name>.legacy.bak`，写入新格式。
     pub async fn load_or_create_default(&self) -> crate::Result<AppConfig> {
         if !self.config_path.exists() {
             let default = AppConfig::default_config();
@@ -63,7 +67,11 @@ impl ConfigStorage {
             return Ok(default);
         }
         match self.load().await {
-            Ok(config) => Ok(config),
+            Ok(config) => {
+                // 检测并执行旧格式迁移。
+                let migrated = self.migrate_if_needed(config).await?;
+                Ok(migrated)
+            }
             Err(e) => {
                 tracing::warn!(
                     "配置文件不兼容或已损坏，将备份原文件并重置为默认配置: {}",
@@ -75,6 +83,55 @@ impl ConfigStorage {
                 self.save(&default).await?;
                 Ok(default)
             }
+        }
+    }
+
+    /// 检测配置是否为旧格式（含 crosshair 字段），若是则迁移。
+    ///
+    /// 迁移过程：
+    /// 1. 备份原文件为 `<name>.legacy.bak`
+    /// 2. 调用 `migration::migrate_profile` 把每个 profile 的 crosshair 转为 layers
+    /// 3. 写入新格式配置
+    async fn migrate_if_needed(&self, mut config: AppConfig) -> crate::Result<AppConfig> {
+        let needs_migration = config
+            .profiles
+            .values()
+            .any(|p| p.crosshair.is_some() && p.layers.is_empty());
+
+        if !needs_migration {
+            return Ok(config);
+        }
+
+        tracing::info!("检测到旧格式配置（含 crosshair 字段），开始迁移到新 layers 格式");
+        self.backup_legacy_config().await;
+
+        for profile in config.profiles.values_mut() {
+            if profile.crosshair.is_some() && profile.layers.is_empty() {
+                let migrated = crate::migration::migrate_profile(profile);
+                *profile = migrated;
+            }
+        }
+
+        config.validate()?;
+        self.save(&config).await?;
+        tracing::info!("配置迁移完成，新格式已写入");
+        Ok(config)
+    }
+
+    /// 把旧格式配置文件备份为 `<name>.legacy.bak`（区别于损坏文件的 `.bak`）。
+    async fn backup_legacy_config(&self) {
+        let mut backup = self.config_path.clone();
+        let file_name = backup
+            .file_name()
+            .map(|n| n.to_os_string())
+            .unwrap_or_default();
+        let mut backup_name = file_name;
+        backup_name.push(".legacy.bak");
+        backup.set_file_name(backup_name);
+
+        match tokio::fs::rename(&self.config_path, &backup).await {
+            Ok(()) => tracing::info!("已将旧格式配置备份到 {}", backup.display()),
+            Err(e) => tracing::warn!("备份旧格式配置失败: {}", e),
         }
     }
 
@@ -108,6 +165,7 @@ impl ConfigStorage {
     /// 将配置原子写入磁盘：先写临时文件，再重命名。
     ///
     /// 写入前会先校验合法性，避免把无效配置落盘。
+    /// 临时文件名包含进程 ID 与纳秒时间戳，避免并发写入时互相覆盖。
     pub async fn save(&self, config: &AppConfig) -> crate::Result<()> {
         config.validate()?;
         let parent = self
@@ -118,7 +176,12 @@ impl ConfigStorage {
 
         let content = serde_json::to_string_pretty(config)?;
         // 临时文件与目标文件放在同一目录，保证 rename 原子且跨文件系统可靠。
-        let temp_path = parent.join(format!(".config.tmp.{}", std::process::id()));
+        // 文件名包含进程 ID + 纳秒时间戳，避免多个并发 save 互相覆盖导致 rename 找不到文件。
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let temp_path = parent.join(format!(".config.tmp.{}.{}", std::process::id(), nanos));
         tokio::fs::write(&temp_path, content).await?;
         tokio::fs::rename(&temp_path, &self.config_path).await?;
         Ok(())
@@ -166,6 +229,7 @@ mod dirs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MaterialRef;
 
     #[tokio::test]
     async fn roundtrip_default_config() {
@@ -197,8 +261,13 @@ mod tests {
         let path = dir.path().join("config.json");
         let storage = ConfigStorage::new(&path);
 
-        let mut cfg = AppConfig::default_config();
-        cfg.active_profile_mut().unwrap().crosshair.opacity = 2.0;
+        let mut cfg = AppConfig::legacy_default_config();
+        cfg.active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap()
+            .opacity = 2.0;
         assert!(storage.save(&cfg).await.is_err());
         assert!(!path.exists());
     }
@@ -228,5 +297,121 @@ mod tests {
         assert!(path.exists());
         let reloaded = storage.load().await.unwrap();
         assert_eq!(reloaded.active_profile, "default");
+    }
+
+    #[tokio::test]
+    async fn load_or_create_default_migrates_legacy_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        let storage = ConfigStorage::new(&path);
+
+        // 写入一份旧格式配置（含 crosshair.style=cross，无 layers）。
+        let legacy_json = r#"{
+            "active_profile": "default",
+            "profiles": {
+                "default": {
+                    "crosshair": {
+                        "style": "cross",
+                        "size": 50.0,
+                        "secondary_size": 48.0,
+                        "thickness": 3.0,
+                        "radius": 0.0,
+                        "offset": 0.0,
+                        "color": [1.0, 0.0, 0.0, 1.0],
+                        "opacity": 0.8,
+                        "gap": 6.0,
+                        "corner_radius": 4.0,
+                        "anchor": "center",
+                        "margin": 0.0,
+                        "ring_radius_pct": 0.05,
+                        "ring_style": "solid",
+                        "orb_positions": 3,
+                        "random_mode": "lock_on_start",
+                        "random_center_deviation": 0.2,
+                        "random_radius_min": 4.0,
+                        "random_radius_max": 12.0,
+                        "random_orb_x": 0.0,
+                        "random_orb_y": 0.0,
+                        "border_frame_style": "solid",
+                        "border_inset": true,
+                        "custom_orb_top_count": 3,
+                        "custom_orb_bottom_count": 3,
+                        "custom_orb_left_count": 3,
+                        "custom_orb_right_count": 3,
+                        "random_orb_count": 3,
+                        "random_orb_offset": 100.0,
+                        "random_orb_jitter": 40.0
+                    },
+                    "trigger": { "enabled": true, "process_names": [] },
+                    "settings_hotkey": "F10",
+                    "target_window": ""
+                }
+            }
+        }"#;
+        tokio::fs::write(&path, legacy_json).await.unwrap();
+
+        // 加载时应自动迁移。
+        let cfg = storage.load_or_create_default().await.unwrap();
+
+        // 默认 profile 现在应该有 layers，且 crosshair 保留以便单图层 UI 继续编辑。
+        let profile = cfg.profiles.get("default").unwrap();
+        assert!(
+            profile.crosshair.is_some(),
+            "crosshair should be preserved after migration"
+        );
+        assert_eq!(
+            profile.layers.len(),
+            1,
+            "should have 1 layer after migration"
+        );
+
+        // 图层引用 builtin.cross 物料。
+        let layer = &profile.layers[0];
+        assert_eq!(
+            layer.material,
+            MaterialRef::Builtin {
+                id: "builtin.cross".to_string()
+            }
+        );
+
+        // 参数应保留旧值（size=50, thickness=3, gap=6）。
+        let params = layer.params.as_object().unwrap();
+        assert_eq!(params.get("size").unwrap(), 50.0);
+        assert_eq!(params.get("thickness").unwrap(), 3.0);
+        assert_eq!(params.get("gap").unwrap(), 6.0);
+
+        // 颜色与不透明度应保留。
+        assert_eq!(layer.style.color, [1.0, 0.0, 0.0, 1.0]);
+        assert!((layer.style.opacity - 0.8).abs() < 1e-6);
+
+        // 原文件应备份为 .legacy.bak。
+        let backup = dir.path().join("config.json.legacy.bak");
+        assert!(backup.exists(), "旧配置应备份为 .legacy.bak");
+
+        // 新格式配置已写入，可重新加载。
+        let reloaded = storage.load().await.unwrap();
+        let p = reloaded.profiles.get("default").unwrap();
+        assert!(p.crosshair.is_some());
+        assert_eq!(p.layers.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn load_or_create_default_no_migration_for_new_format() {
+        // 新格式配置（含 layers、无 crosshair）不应触发迁移。
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        let storage = ConfigStorage::new(&path);
+
+        let new_config = AppConfig::default_config();
+        storage.save(&new_config).await.unwrap();
+
+        let loaded = storage.load_or_create_default().await.unwrap();
+        let profile = loaded.profiles.get("default").unwrap();
+        assert!(profile.crosshair.is_none());
+        assert_eq!(profile.layers.len(), 1);
+
+        // 不应生成 .legacy.bak 文件。
+        let backup = dir.path().join("config.json.legacy.bak");
+        assert!(!backup.exists());
     }
 }

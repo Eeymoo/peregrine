@@ -14,6 +14,8 @@ use windows::Win32::Foundation::{
     BOOL, GetLastError, HWND, LPARAM, POINT, RECT, SetLastError, WIN32_ERROR,
 };
 use windows::Win32::Graphics::Gdi::ClientToScreen;
+use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetForegroundWindow, GetWindowLongPtrW,
     GetWindowRect, GetWindowTextLengthW, GetWindowTextW, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic,
@@ -349,6 +351,11 @@ unsafe impl Send for SendHwnd {}
 /// - 目标窗口最小化时隐藏 Overlay（`SW_HIDE`）。
 /// - 目标窗口恢复时重新显示 Overlay（`SW_SHOWNA`，不激活）。
 ///
+/// `on_moved` 回调在每次成功调整 overlay 位置/尺寸后调用，
+/// 用于通知渲染线程刷新一帧（拖拽实时显示时尤为重要：
+/// 窗口仅移动而不改变尺寸时不会产生 `Resized` 事件，
+/// 需要借助此回调触发重绘，避免准心位置停留在旧画面）。
+///
 /// 通过 `stop_rx` 可以优雅地终止轮询循环。
 ///
 /// # 错误
@@ -360,10 +367,12 @@ pub async fn follow_target_window(
     fullscreen: bool,
     live_drag: bool,
     mut stop_rx: oneshot::Receiver<()>,
+    on_moved: impl FnMut() + Send + 'static,
 ) -> Result<()> {
     let mut last_rect = RECT::default();
     let mut visible = true;
     let mut interval = tokio::time::interval(Duration::from_millis(16));
+    let mut on_moved = on_moved;
 
     // 全屏模式下记录上次屏幕尺寸，变化时（分辨率/DPI 缩放调整）立即更新 overlay。
     let mut last_screen_size: Option<(i32, i32)> = None;
@@ -399,6 +408,7 @@ pub async fn follow_target_window(
                             )?;
                             last_screen_size = Some((screen_w, screen_h));
                             tracing::debug!(screen_w, screen_h, "update overlay to fullscreen");
+                            on_moved();
                         }
                         continue;
                     }
@@ -479,6 +489,7 @@ pub async fn follow_target_window(
                             SWP_NOACTIVATE | SWP_NOOWNERZORDER,
                         )?;
                         last_rect = rect;
+                        on_moved();
                     } else if !live_drag && dragging_hidden {
                         // 拖拽延迟模式：矩形已停止变化，检查是否超过延迟。
                         let ready = last_change_time
@@ -499,6 +510,7 @@ pub async fn follow_target_window(
                             )?;
                             dragging_hidden = false;
                             visible = false; // 下面的 !visible 逻辑会重新 show
+                            on_moved();
                         } else {
                             continue;
                         }
@@ -512,4 +524,143 @@ pub async fn follow_target_window(
             }
         }
     }
+}
+
+// ===== 动态输入采集（Step 10） =====
+
+/// Win32 虚拟键码 → Peregrine 按键字符串的映射表。
+///
+/// 仅映射物料脚本可能关心的常用按键；未列出的按键不会出现在 key_state 中。
+const VK_MAP: &[(i32, &str)] = &[
+    // 字母键 A-Z（VK 0x41-0x5A）。
+    (0x41, "a"),
+    (0x42, "b"),
+    (0x43, "c"),
+    (0x44, "d"),
+    (0x45, "e"),
+    (0x46, "f"),
+    (0x47, "g"),
+    (0x48, "h"),
+    (0x49, "i"),
+    (0x4A, "j"),
+    (0x4B, "k"),
+    (0x4C, "l"),
+    (0x4D, "m"),
+    (0x4E, "n"),
+    (0x4F, "o"),
+    (0x50, "p"),
+    (0x51, "q"),
+    (0x52, "r"),
+    (0x53, "s"),
+    (0x54, "t"),
+    (0x55, "u"),
+    (0x56, "v"),
+    (0x57, "w"),
+    (0x58, "x"),
+    (0x59, "y"),
+    (0x5A, "z"),
+    // 数字键 0-9（VK 0x30-0x39）。
+    (0x30, "0"),
+    (0x31, "1"),
+    (0x32, "2"),
+    (0x33, "3"),
+    (0x34, "4"),
+    (0x35, "5"),
+    (0x36, "6"),
+    (0x37, "7"),
+    (0x38, "8"),
+    (0x39, "9"),
+    // 修饰键。
+    (0x10, "shift"),
+    (0x11, "ctrl"),
+    (0x12, "alt"),
+    (0x5B, "super"),
+    (0x5C, "super"),
+    // 方向键。
+    (0x25, "left"),
+    (0x26, "up"),
+    (0x27, "right"),
+    (0x28, "down"),
+    // 功能键 F1-F12。
+    (0x70, "f1"),
+    (0x71, "f2"),
+    (0x72, "f3"),
+    (0x73, "f4"),
+    (0x74, "f5"),
+    (0x75, "f6"),
+    (0x76, "f7"),
+    (0x77, "f8"),
+    (0x78, "f9"),
+    (0x79, "f10"),
+    (0x7A, "f11"),
+    (0x7B, "f12"),
+    // 特殊键。
+    (0x20, "space"),
+    (0x0D, "enter"),
+    (0x1B, "escape"),
+    (0x09, "tab"),
+];
+
+/// 读取当前动态输入上下文（Windows 实现）。
+///
+/// - 鼠标位置：`GetCursorPos`（屏幕坐标）。
+/// - 键盘状态：`GetAsyncKeyState` 查询 VK_MAP 中的按键。
+/// - 时间：自进程启动以来的毫秒数。
+///
+/// 日志隐私：仅记录按键数量，不记录具体按键代码。
+pub fn poll_dynamic_context(_screen_w: f32, _screen_h: f32) -> peregrine_material::DynamicContext {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    // 鼠标位置。
+    let mut point = POINT { x: 0, y: 0 };
+    let mouse_pos = unsafe {
+        if GetCursorPos(&mut point).is_ok() {
+            (point.x as f32, point.y as f32)
+        } else {
+            (0.0, 0.0)
+        }
+    };
+
+    // 键盘状态：查询 VK_MAP 中每个键，按下的加入 key_state。
+    let mut key_state = peregrine_material::KeyState::new();
+    let mut pressed_count = 0u32;
+    for (vk, name) in VK_MAP {
+        unsafe {
+            let state = GetAsyncKeyState(*vk);
+            // GetAsyncKeyState 返回 i16，最高位为 1 表示当前按下。
+            if (state as u16) & 0x8000 != 0 {
+                key_state.press(name);
+                pressed_count += 1;
+            }
+        }
+    }
+
+    // 时间戳（毫秒）。
+    let time_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    tracing::trace!(
+        pressed_count,
+        mouse_x = mouse_pos.0,
+        mouse_y = mouse_pos.1,
+        "polled dynamic context"
+    );
+
+    peregrine_material::DynamicContext {
+        time_ms,
+        mouse_pos,
+        key_state,
+        // 种子：基于时间戳 + 一次计数器，确保每帧不同。
+        rng_seed: time_ms.wrapping_add(frame_counter()),
+        version: time_ms,
+    }
+}
+
+/// 简单的帧计数器（用于派生 RNG 种子）。
+fn frame_counter() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    COUNTER.fetch_add(1, Ordering::Relaxed)
 }

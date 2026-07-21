@@ -3,33 +3,33 @@ layout: home
 
 hero:
   name: Peregrine
-  text: 缓解 3D 眩晕的桌面工具
-  tagline: 通过可定制的视觉锚点稳定你的视觉系统，让你正常游玩容易眩晕的 3D 游戏
+  text: Desktop Tool for Relieving 3D Motion Sickness
+  tagline: Stabilize your visual system with customizable visual anchors so you can comfortably play 3D games that tend to cause motion sickness
   image:
     src: /logo.svg
     alt: Peregrine
   actions:
     - theme: brand
-      text: 立即下载
+      text: Download Now
       link: https://github.com/eeymoo/peregrine/releases
     - theme: alt
-      text: 立即了解
+      text: Learn More
       link: /guide/intro
     - theme: alt
-      text: GitHub 仓库
+      text: GitHub Repository
       link: https://github.com/eeymoo/peregrine
 
 features:
-  - title: 透明置顶覆盖层
-    details: 使用 Win32 分层窗口与每像素 Alpha 实现透明、置顶、鼠标穿透的覆盖层，不影响游戏操作。
-  - title: 目标窗口跟随
-    details: 自动查找并跟随指定游戏窗口移动，锚点始终保持在正确位置。
-  - title: 多种视觉锚点样式
-    details: 内置边缘矩形、十字准星、大型十字准星、边缘标记、中心圆环、边框等多种样式，所见即所得。
-  - title: 自定义 PNG 贴图
-    details: 支持加载自定义 PNG 图片作为视觉锚点，满足个性化需求。
-  - title: 实时设置与预览
-    details: 内置设置面板，调整参数后可立即预览并自动持久化到配置文件。
-  - title: 热重载配置
-    details: 配置文件修改后自动检测并广播更新，无需重启程序。
+  - title: Transparent Always-on-Top Overlay
+    details: Uses Win32 layered windows with per-pixel alpha to create a transparent, always-on-top, click-through overlay that doesn't interfere with gameplay.
+  - title: Target Window Following
+    details: Automatically finds and follows the selected game window so the anchor always stays in the right place.
+  - title: Multiple Visual Anchor Styles
+    details: Built-in edge rectangle, crosshair, large crosshair, edge markers, center ring, border frame, and more, with true WYSIWYG preview.
+  - title: Custom PNG Decal
+    details: Supports loading custom PNG images as visual anchors to match your personal preferences.
+  - title: Real-Time Settings & Preview
+    details: Built-in settings panel with instant preview; parameters are automatically persisted to the config file.
+  - title: Hot-Reload Configuration
+    details: Automatically detects and broadcasts updates when the config file changes, no restart required.
 ---

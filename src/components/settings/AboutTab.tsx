@@ -63,7 +63,7 @@ export function AboutTab({ version }: AboutTabProps) {
         size="xs"
         className="w-full"
         onClick={() => {
-          const info = `Peregrine v${version}\n发行者: Eeymoo\n许可: MIT\n仓库: https://github.com/Eeymoo/peregrine`;
+          const info = `Peregrine v${version}\n${t("settings.about.publisher")}: Eeymoo\n${t("settings.about.license")}: MIT\n${t("settings.about.repository")}: https://github.com/Eeymoo/peregrine`;
           navigator.clipboard?.writeText(info).catch(() => {});
         }}
       >

@@ -1,35 +1,35 @@
-# 快速开始
+# Quick Start
 
-## 下载安装
+## Download & Install
 
-访问 [GitHub Releases](https://github.com/eeymoo/peregrine/releases) 页面，下载对应平台的可执行文件。
+Visit the [GitHub Releases](https://github.com/eeymoo/peregrine/releases) page and download the executable for your platform.
 
-> 当前主要支持 Windows（x86 / x86_64 / ARM64）。
+> Currently, Windows is the primary supported platform (x86 / x86_64 / ARM64).
 
-## 启动程序
+## Launch the App
 
-下载后双击 `peregrine.exe` 运行。程序启动后会显示**配置窗口**，在该窗口中配置视觉锚点样式与参数。
+After downloading, double-click `peregrine.exe` to run it. When the app starts, the **settings window** will appear; configure the visual anchor style and parameters there.
 
-## 常用操作
+## Common Actions
 
-| 操作 | 作用 |
+| Action | Effect |
 |------|------|
-| 配置窗口中按 `Esc` | 隐藏到系统托盘 |
-| 点击 **开始覆盖** | 创建透明置顶覆盖层 |
-| 点击 **停止覆盖** | 关闭覆盖层 |
-| 托盘图标右键 **配置** | 重新显示配置窗口 |
-| 托盘图标右键 **退出** | 退出程序 |
+| Press `Esc` in the settings window | Hide to system tray |
+| Click **Start Overlay** | Create the transparent always-on-top overlay |
+| Click **Stop Overlay** | Close the overlay |
+| Right-click tray icon → **Settings** | Show the settings window again |
+| Right-click tray icon → **Exit** | Quit the app |
 
-## 第一步：选择视觉锚点样式
+## Step 1: Choose a Visual Anchor Style
 
-1. 在设置面板中点击 **类型** 下拉框，选择你喜欢的样式，例如 `十字准星`、`中心圆环`、`边缘矩形`。
-2. 调整尺寸、透明度、颜色等参数，左侧预览会实时更新。
-3. 点击 **开始覆盖**，视觉锚点将显示在屏幕中心。
+1. In the settings panel, click the **Style** dropdown and choose a style you like, such as `Crosshair`, `Center Ring`, or `Edge Rectangle`.
+2. Adjust parameters like size, opacity, and color; the preview on the left updates in real time.
+3. Click **Start Overlay**, and the visual anchor will appear at the center of the screen.
 
-## 配置文件
+## Config File
 
-配置文件位于：
+The config file is located at:
 
-- Windows：`%APPDATA%\Peregrine\config.json`
+- Windows: `%APPDATA%\Peregrine\config.json`
 
-你可以直接编辑该文件，保存后程序会自动热重载。
+You can edit this file directly; the app will automatically hot-reload after you save.

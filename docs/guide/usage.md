@@ -1,50 +1,50 @@
-# 使用说明
+# Usage Guide
 
-## 下载
+## Download
 
-1. 打开 [GitHub Releases](https://github.com/eeymoo/peregrine/releases) 页面。
-2. 下载最新正式版（Release）对应你系统的压缩包：
-   - `peregrine-<版本>-windows-x64.zip`（64 位系统，最常见）
-   - `peregrine-<版本>-windows-x86.zip`（32 位系统）
-   - `peregrine-<版本>-windows-arm64.zip`（ARM64 设备）
-3. 解压到任意文件夹。
+1. Open the [GitHub Releases](https://github.com/eeymoo/peregrine/releases) page.
+2. Download the latest stable release archive for your system:
+   - `peregrine-<version>-windows-x64.zip` (64-bit systems, most common)
+   - `peregrine-<version>-windows-x86.zip` (32-bit systems)
+   - `peregrine-<version>-windows-arm64.zip` (ARM64 devices)
+3. Extract the archive to any folder.
 
-## 启动
+## Launch
 
-双击解压后的 `peregrine.exe`，程序启动后默认打开**配置窗口**。
+Double-click `peregrine.exe` after extraction. The app will open the **Settings window** by default.
 
-## 基础操作
+## Basic Controls
 
-| 按键 | 作用 |
+| Key | Action |
 |------|------|
-| `Esc` | 配置窗口下隐藏到系统托盘 |
+| `Esc` | Hide the settings window to the system tray |
 
-## 三步上手
+## Get Started in Three Steps
 
-0. **选择目标窗口**：先在 **目标窗口** 下拉框中选择你要跟随的游戏窗口。若未选择，点击开始覆盖不会生效。
-1. **选择样式**：在设置面板找到 **类型**，选择 `十字准星`、`中心圆环`、`边缘矩形` 等样式。
-2. **调整外观**：修改 **尺寸**、**线宽**、**颜色**、**透明度** 等参数，左侧预览会实时更新。
-3. **进入游戏**：点击 **开始覆盖**，视觉锚点将显示在屏幕中心，且不会阻挡鼠标和键盘。
+0. **Select a target window**: First, choose the game window you want to follow from the **Target Window** dropdown. If no window is selected, clicking **Start Overlay** will not take effect.
+1. **Choose a style**: In the settings panel, find **Style** and select options like `Cross`, `Center Ring`, or `Edge Rect`.
+2. **Adjust appearance**: Modify parameters such as **Size**, **Thickness**, **Color**, and **Opacity**. The preview on the left updates in real time.
+3. **Enter the game**: Click **Start Overlay**, and the visual anchor will appear at the center of the screen without blocking mouse or keyboard input.
 
-::: tip 全屏游戏提示
-若游戏运行在**独占全屏**（Exclusive Fullscreen）模式下，Peregrine 的覆盖层可能无法显示在游戏上方。建议将游戏显示模式设置为**无边框全屏窗口化**（Borderless Fullscreen / 全屏窗口化）或类似模式，再点击 **开始覆盖**。
+::: tip Fullscreen Game Tip
+If the game is running in **Exclusive Fullscreen** mode, Peregrine's overlay may not appear above the game. We recommend setting the game display mode to **Borderless Fullscreen** (or fullscreen windowed), then clicking **Start Overlay**.
 :::
 
-## 自定义 PNG 贴图
+## Custom PNG Decal
 
-1. 准备一张带透明背景的 PNG 图片。
-2. 在设置面板中将 **类型** 切换到 `自定义图片`。
-3. 在文件路径文本框中粘贴 PNG 文件路径（或使用 **浏览…** 按钮），并调整缩放比例与偏移。
+1. Prepare a PNG image with a transparent background.
+2. In the settings panel, switch **Style** to `Custom Image`.
+3. Paste the PNG file path into the file path text box (or use the **Browse...** button), and adjust the scale and offset.
 
-## 跟随游戏窗口
+## Follow a Game Window
 
-在 **目标窗口** 下拉框中选择游戏窗口，Peregrine 会尝试跟随该窗口移动。选择 **（未选择）** 则固定显示在屏幕中心。
+Select a game window from the **Target Window** dropdown, and Peregrine will try to follow its movement. Select **(Not selected)** to keep the anchor fixed at the center of the screen.
 
-## 退出程序
+## Exit the Program
 
-点击系统托盘图标右键菜单中的 **退出**，或在任务管理器中结束进程。
+Right-click the system tray icon and choose **Exit**, or end the process in Task Manager.
 
-## 遇到问题？
+## Need Help?
 
-- 查看 [配置说明](./config) 了解配置文件格式。
-- 到 [GitHub Issues](https://github.com/eeymoo/peregrine/issues) 反馈问题。
+- Check the [Configuration Guide](./config) to learn about the config file format.
+- Report issues on [GitHub Issues](https://github.com/eeymoo/peregrine/issues).

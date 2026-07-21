@@ -28,6 +28,8 @@ pub struct OverlayRenderer {
     surface: softbuffer::Surface<Arc<Window>, Arc<Window>>,
     /// 当前配置快照。
     config: Arc<Mutex<peregrine_config::ConfigSnapshot>>,
+    /// 物料注册表（用于图层求值）。
+    material_registry: Arc<peregrine_material::MaterialRegistry>,
     /// PNG 图片缓存：路径 → 解码后的 RGBA 像素。
     image_cache: Option<CachedImage>,
 }
@@ -46,7 +48,11 @@ struct CachedImage {
 
 impl OverlayRenderer {
     /// 创建渲染器。
-    pub fn new(window: Arc<Window>, config: Arc<Mutex<peregrine_config::ConfigSnapshot>>) -> Self {
+    pub fn new(
+        window: Arc<Window>,
+        config: Arc<Mutex<peregrine_config::ConfigSnapshot>>,
+        material_registry: Arc<peregrine_material::MaterialRegistry>,
+    ) -> Self {
         // softbuffer 要求 Context 和 Surface 共享同一个 window 引用。
         let context = softbuffer::Context::new(window.clone()).expect("create softbuffer context");
         let surface =
@@ -57,6 +63,7 @@ impl OverlayRenderer {
             context,
             surface,
             config,
+            material_registry,
             image_cache: None,
         }
     }
@@ -93,12 +100,25 @@ impl OverlayRenderer {
 
         // 读取当前准心配置。
         let config = self.config.lock().expect("config lock");
-        let crosshair = config
-            .active_profile()
-            .map(|p| p.crosshair.clone())
-            .unwrap_or_else(Crosshair::default_crosshair);
+        let profile = config.active_profile();
         let antialiasing = config.settings.antialiasing;
         let renderer_backend = config.settings.renderer_backend;
+
+        // 判断走新格式（layers）还是旧格式（crosshair）：
+        // - 新格式：layers 非空 → 调用 build_layers_shapes
+        // - 旧格式：crosshair = Some(...) → 调用旧 build_shapes
+        let use_new_format = profile.map(|p| !p.layers.is_empty()).unwrap_or(false);
+
+        // 旧格式路径：克隆 crosshair，供 build_shapes 使用。
+        let legacy_crosshair = if !use_new_format {
+            profile
+                .and_then(|p| p.crosshair.clone())
+                .unwrap_or_else(Crosshair::default_crosshair)
+        } else {
+            // 新格式不使用 crosshair，但保留默认值用于 is_custom_image 检查。
+            Crosshair::default_crosshair()
+        };
+        let profile_clone = profile.cloned();
         drop(config);
 
         // 在像素缓冲区上绘制准心。
@@ -114,9 +134,36 @@ impl OverlayRenderer {
 
         // CustomImage 需要访问 image_cache，单独处理。
         // 先加载图片（在获取 buffer 之前，避免与 surface 借用冲突）。
-        let is_custom_image = crosshair.style == CrosshairStyle::CustomImage;
+        // 新格式路径下，image 加载延迟到光栅化 Image 图元时处理。
+        let is_custom_image =
+            !use_new_format && legacy_crosshair.style == CrosshairStyle::CustomImage;
         if is_custom_image {
-            self.ensure_image_loaded(&crosshair.image_path);
+            self.ensure_image_loaded(&legacy_crosshair.image_path);
+        }
+
+        // 新格式路径：扫描 layers 中所有 Image 图元的路径，预加载到缓存。
+        if use_new_format {
+            if let Some(ref profile) = profile_clone {
+                // 渲染时用真实动态输入（Win32 API 鼠标键盘 / 时间）。
+                let ctx = crate::platform::poll_dynamic_context(logical_w, logical_h);
+                let shapes = crate::shapes::build_layers_shapes(
+                    &rect,
+                    profile,
+                    &self.material_registry,
+                    &ctx,
+                );
+                // 收集需要预加载的 image path。
+                let image_paths: Vec<String> = shapes
+                    .iter()
+                    .filter_map(|(e, _, _)| match e {
+                        peregrine_config::Element::Image { path, .. } => Some(path.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                for path in image_paths {
+                    self.ensure_image_loaded(&path);
+                }
+            }
         }
 
         let mut buffer = match self.surface.buffer_mut() {
@@ -137,13 +184,94 @@ impl OverlayRenderer {
             "overlay buffer size check"
         );
 
-        if is_custom_image {
-            // 绘制图片（只读 image_cache，不与 buffer 冲突）。
+        if use_new_format {
+            // ===== 新格式路径：遍历图层 =====
+            let Some(ref profile) = profile_clone else {
+                return;
+            };
+            // 渲染时使用真实动态输入。
+            let ctx = crate::platform::poll_dynamic_context(logical_w, logical_h);
+            let shapes =
+                crate::shapes::build_layers_shapes(&rect, profile, &self.material_registry, &ctx);
+
+            // 分离 Image 图元、CPU 光栅化图元、SVG 后端图元。
+            // Image 由 CPU 直接 blit；Rect/Circle/Triangle 等由 CPU 光栅化；Text/Polygon/Line 由 SVG 后端光栅化。
+            let mut image_elements: Vec<(peregrine_config::Element, [f32; 4], f32)> = Vec::new();
+            let mut cpu_elements: Vec<(peregrine_config::Element, [f32; 4], f32)> = Vec::new();
+            let mut svg_elements: Vec<(peregrine_config::Element, [f32; 4], f32)> = Vec::new();
+            for (element, color, opacity) in shapes {
+                match &element {
+                    peregrine_config::Element::Image { .. } => {
+                        image_elements.push((element, color, opacity));
+                    }
+                    peregrine_config::Element::Rect { .. }
+                    | peregrine_config::Element::Circle { .. }
+                    | peregrine_config::Element::CircleStroke { .. }
+                    | peregrine_config::Element::DashedCircle { .. }
+                    | peregrine_config::Element::Triangle { .. } => {
+                        cpu_elements.push((element, color, opacity));
+                    }
+                    _ => {
+                        svg_elements.push((element, color, opacity));
+                    }
+                }
+            }
+
+            // 1. CPU 光栅化（支持抗锯齿开关）。
+            for (element, color, opacity) in cpu_elements {
+                let color_u32 = make_color(&color, opacity);
+                rasterize_shape(
+                    &mut buffer,
+                    width,
+                    height,
+                    scale,
+                    &element,
+                    color_u32,
+                    antialiasing,
+                );
+            }
+
+            // 2. SVG 后端光栅化（Text / Polygon / Line）。
+            if !svg_elements.is_empty() {
+                let ok = crate::svg_renderer::render_elements_to_buffer(
+                    &mut buffer,
+                    width,
+                    height,
+                    scale,
+                    &rect,
+                    &svg_elements,
+                );
+                if !ok {
+                    tracing::warn!("SVG 光栅化失败，部分图元可能未显示");
+                }
+            }
+
+            // 3. Image 图元（CPU 直接 blit，覆盖在最上层）。
+            for (element, _color, opacity) in image_elements {
+                if let peregrine_config::Element::Image { x, y, w, h, .. } = &element {
+                    if let Some(img) = &self.image_cache {
+                        draw_image_at_left_top(
+                            &mut buffer,
+                            width,
+                            height,
+                            scale,
+                            *x,
+                            *y,
+                            *w,
+                            *h,
+                            img,
+                            opacity,
+                        );
+                    }
+                }
+            }
+        } else if is_custom_image {
+            // 旧格式 CustomImage 路径（保留兼容）。
             if let Some(img) = &self.image_cache {
-                let opacity = crosshair.opacity;
-                let img_scale = crosshair.image_scale;
-                let offset_x = crosshair.image_offset_x;
-                let offset_y = crosshair.image_offset_y;
+                let opacity = legacy_crosshair.opacity;
+                let img_scale = legacy_crosshair.image_scale;
+                let offset_x = legacy_crosshair.image_offset_x;
+                let offset_y = legacy_crosshair.image_offset_y;
                 draw_image(
                     &mut buffer,
                     width,
@@ -159,20 +287,18 @@ impl OverlayRenderer {
             }
         } else if renderer_backend == RendererBackend::Svg {
             // SVG 后端：将图元转为 SVG 由 resvg/tiny-skia 光栅化。
-            // CustomImage 已在上面单独处理，此分支仅处理矢量图元。
             let ok = crate::svg_renderer::render_shapes_to_buffer(
                 &mut buffer,
                 width,
                 height,
                 scale,
                 &rect,
-                &crosshair,
+                &legacy_crosshair,
             );
             if !ok {
-                // SVG 光栅化失败时回退到 CPU 路径。
                 tracing::warn!("SVG 光栅化失败，回退到 CPU 渲染");
-                let color = make_color(&crosshair.color, crosshair.opacity);
-                let shapes = crate::shapes::build_shapes(&rect, &crosshair);
+                let color = make_color(&legacy_crosshair.color, legacy_crosshair.opacity);
+                let shapes = crate::shapes::build_shapes(&rect, &legacy_crosshair);
                 for shape in shapes {
                     rasterize_shape(
                         &mut buffer,
@@ -186,9 +312,9 @@ impl OverlayRenderer {
                 }
             }
         } else {
-            // CPU 后端：手写像素光栅化（默认）。
-            let color = make_color(&crosshair.color, crosshair.opacity);
-            let shapes = crate::shapes::build_shapes(&rect, &crosshair);
+            // CPU 后端：手写像素光栅化（旧格式路径，默认）。
+            let color = make_color(&legacy_crosshair.color, legacy_crosshair.opacity);
+            let shapes = crate::shapes::build_shapes(&rect, &legacy_crosshair);
             for shape in shapes {
                 rasterize_shape(
                     &mut buffer,
@@ -244,6 +370,67 @@ impl OverlayRenderer {
             Err(e) => {
                 tracing::warn!(path, error = %e, "failed to load crosshair PNG");
                 self.image_cache = None;
+            }
+        }
+    }
+}
+
+/// 将 PNG 图片绘制到指定左上角坐标 + 宽高（用于新格式 Image 图元）。
+///
+/// 与 `draw_image`（基于中心点）不同，这个函数直接用左上角坐标，
+/// 简化 Element::Image 的渲染。
+fn draw_image_at_left_top(
+    buffer: &mut [u32],
+    pixel_w: u32,
+    pixel_h: u32,
+    scale: f32,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    img: &CachedImage,
+    opacity: f32,
+) {
+    let scaled_w = w;
+    let scaled_h = h;
+    let _ = scaled_w;
+    let _ = scaled_h;
+
+    let px_start_x = (x * scale).round() as i32;
+    let px_start_y = (y * scale).round() as i32;
+    let px_w = (w * scale).round() as usize;
+    let px_h = (h * scale).round() as usize;
+
+    for py in 0..px_h {
+        let dst_y = px_start_y + py as i32;
+        if dst_y < 0 || dst_y >= pixel_h as i32 {
+            continue;
+        }
+        for px in 0..px_w {
+            let dst_x = px_start_x + px as i32;
+            if dst_x < 0 || dst_x >= pixel_w as i32 {
+                continue;
+            }
+            let src_x = (px as f32 / px_w as f32 * img.width as f32) as usize;
+            let src_y = (py as f32 / px_h as f32 * img.height as f32) as usize;
+            let src_x = src_x.min(img.width - 1);
+            let src_y = src_y.min(img.height - 1);
+            let (r, g, b, a) = img.pixels[src_y * img.width + src_x];
+
+            let final_alpha = (a as f32 / 255.0 * opacity).clamp(0.0, 1.0);
+            if final_alpha < 0.01 {
+                continue;
+            }
+
+            let ai = (final_alpha * 255.0) as u32;
+            let ri = (r as f32 * final_alpha) as u32;
+            let gi = (g as f32 * final_alpha) as u32;
+            let bi = (b as f32 * final_alpha) as u32;
+            let pixel = (ai << 24) | (ri << 16) | (gi << 8) | bi;
+
+            let idx = dst_y as usize * pixel_w as usize + dst_x as usize;
+            if idx < buffer.len() {
+                buffer[idx] = pixel;
             }
         }
     }
@@ -340,6 +527,16 @@ fn rasterize_shape(
                     buffer, pixel_w, pixel_h, scale, *x1, *y1, *x2, *y2, *x3, *y3, color,
                 );
             }
+        }
+        // 新增图元类型的占位实现（Step 9 会完整实现光栅化）。
+        Shape::Polygon { .. } | Shape::Line { .. } | Shape::Text { .. } => {
+            tracing::debug!(
+                "rasterize_shape: 该图元类型在旧 crosshair 路径下不渲染（Step 9 实现）"
+            );
+        }
+        Shape::Image { x, y, w, h, path } => {
+            // Step 9 完整实现；这里仅记录路径，实际 blit 由上层 CustomImage 分支处理。
+            let _ = (x, y, w, h, path);
         }
     }
 }

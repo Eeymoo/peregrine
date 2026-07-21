@@ -46,21 +46,24 @@ enum UserEvent {
 pub fn run_overlay_loop(
     #[cfg(windows)] config: Arc<Mutex<ConfigSnapshot>>,
     #[cfg(not(windows))] _config: Arc<Mutex<ConfigSnapshot>>,
+    material_registry: Arc<peregrine_material::MaterialRegistry>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
 ) {
     #[cfg(not(windows))]
     {
         // 非 Windows 平台仅消费命令，避免在主线程外创建 winit EventLoop。
+        let _ = material_registry;
         while let Ok(_cmd) = cmd_rx.recv() {}
         return;
     }
     #[cfg(windows)]
-    run_overlay_loop_windows(config, cmd_rx);
+    run_overlay_loop_windows(config, material_registry, cmd_rx);
 }
 
 #[cfg(windows)]
 fn run_overlay_loop_windows(
     config: Arc<Mutex<ConfigSnapshot>>,
+    material_registry: Arc<peregrine_material::MaterialRegistry>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
 ) {
     use winit::platform::windows::EventLoopBuilderExtWindows;
@@ -81,7 +84,9 @@ fn run_overlay_loop_windows(
         }
     });
 
-    let mut app = OverlayApp::new(config);
+    // 复制一份事件循环代理，用于 follower 线程在移动 overlay 后请求重绘。
+    let redraw_proxy = event_loop.create_proxy();
+    let mut app = OverlayApp::new(config, material_registry, redraw_proxy);
     event_loop
         .run_app(&mut app)
         .expect("run overlay event loop");
@@ -90,11 +95,15 @@ fn run_overlay_loop_windows(
 #[cfg(windows)]
 struct OverlayApp {
     config: Arc<Mutex<ConfigSnapshot>>,
+    material_registry: Arc<peregrine_material::MaterialRegistry>,
     window: Option<Arc<Window>>,
     renderer: Option<overlay_renderer::OverlayRenderer>,
     overlay_active: bool,
     target_title: String,
     follower_stop: Option<tokio::sync::oneshot::Sender<()>>,
+    /// 事件循环代理：follower 线程移动 overlay 窗口后，
+    /// 通过它把 `Invalidate` 命令转发回事件循环，触发重绘。
+    redraw_proxy: winit::event_loop::EventLoopProxy<UserEvent>,
     /// 上一帧渲染时间，用于限制 overlay 帧率避免空转占 CPU。
     last_render: Option<Instant>,
     /// 目标帧间隔（60 FPS ≈ 16.6 ms）。
@@ -105,14 +114,20 @@ struct OverlayApp {
 
 #[cfg(windows)]
 impl OverlayApp {
-    fn new(config: Arc<Mutex<ConfigSnapshot>>) -> Self {
+    fn new(
+        config: Arc<Mutex<ConfigSnapshot>>,
+        material_registry: Arc<peregrine_material::MaterialRegistry>,
+        redraw_proxy: winit::event_loop::EventLoopProxy<UserEvent>,
+    ) -> Self {
         Self {
             config,
+            material_registry,
             window: None,
             renderer: None,
             overlay_active: false,
             target_title: String::new(),
             follower_stop: None,
+            redraw_proxy,
             last_render: None,
             frame_interval: Duration::from_nanos(16_666_667),
             needs_redraw: false,
@@ -166,7 +181,12 @@ impl OverlayApp {
             OverlayCommand::QueryActive => {}
             OverlayCommand::Invalidate => {
                 // follower 调整了窗口位置，需要重绘一帧。
+                // 直接调用 request_redraw，避免依赖 about_to_wait 的隐式行为
+                // （与 create_overlay 中 needs_redraw + request_redraw 的写法保持一致）。
                 self.needs_redraw = true;
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
             }
         }
     }
@@ -290,7 +310,11 @@ impl OverlayApp {
             }
         }
 
-        let renderer = overlay_renderer::OverlayRenderer::new(window.clone(), self.config.clone());
+        let renderer = overlay_renderer::OverlayRenderer::new(
+            window.clone(),
+            self.config.clone(),
+            self.material_registry.clone(),
+        );
 
         self.window = Some(window.clone());
         self.renderer = Some(renderer);
@@ -356,6 +380,14 @@ impl OverlayApp {
             let (tx, rx) = tokio::sync::oneshot::channel();
             self.follower_stop = Some(tx);
 
+            // follower 线程在每次移动/调整 overlay 后通过事件循环代理请求重绘。
+            // 这保证了窗口仅移动（尺寸不变）时也能刷新画面，
+            // 修复了「拖拽实时显示」开启后准心位置不跟随更新的问题。
+            let redraw_proxy = self.redraw_proxy.clone();
+            let on_moved = move || {
+                let _ = redraw_proxy.send_event(UserEvent::Command(OverlayCommand::Invalidate));
+            };
+
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("create tokio runtime");
                 rt.block_on(async move {
@@ -365,6 +397,7 @@ impl OverlayApp {
                         fullscreen,
                         live_drag,
                         rx,
+                        on_moved,
                     )
                     .await
                     {
@@ -447,10 +480,23 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
         };
 
         // 判断当前准心是否为动画样式（RandomOrb 需要持续重绘）。
+        // 兼容新旧格式：新格式无 crosshair，统一按 is_dynamic 判断（更准确）。
         let is_animated = {
             let cfg = self.config.lock().expect("config lock");
+            // 新格式：检查 layers 中是否有 is_dynamic 的物料。
+            // 简化：若 layers 非空，按 false 处理（首期）；旧格式按 RandomOrb 判断。
             cfg.active_profile()
-                .map(|p| p.crosshair.style == peregrine_config::CrosshairStyle::RandomOrb)
+                .and_then(|p| {
+                    if !p.layers.is_empty() {
+                        // 新格式：暂不查询物料 is_dynamic（避免 registry 借用），
+                        // 后续通过 overlay_cmd 显式触发动画刷新。
+                        None
+                    } else {
+                        p.crosshair
+                            .as_ref()
+                            .map(|c| c.style == peregrine_config::CrosshairStyle::RandomOrb)
+                    }
+                })
                 .unwrap_or(false)
         };
 

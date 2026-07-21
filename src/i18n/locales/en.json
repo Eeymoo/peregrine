@@ -3,6 +3,92 @@
     "title": "Peregrine",
     "version": "Version"
   },
+  "layers": {
+    "title": "Layers",
+    "editorTitle": "Layer Editor",
+    "backToLegacy": "Single Layer",
+    "switchToLayers": "Multi Layers",
+    "selectPrompt": "Select a layer to edit",
+    "materialNotFound": "Material used by this layer was not found",
+    "dynamicHint": "Dynamic material (follows input)",
+    "name": "Layer Name",
+    "params": "Parameters",
+    "styleSection": "Style",
+    "transformSection": "Transform",
+    "add": "Add Layer",
+    "empty": "No layers yet, click + to add",
+    "hide": "Hide",
+    "show": "Show",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "moveUp": "Move Up",
+    "moveDown": "Move Down",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "addTitle": "Add Layer",
+    "dynamic": "Dynamic",
+    "builtin": "Built-in",
+    "layerName": "Layer name",
+    "noParams": "No parameters",
+    "color": "Color",
+    "alpha": "Alpha",
+    "opacity": "Opacity",
+    "offsetX": "Offset X",
+    "offsetY": "Offset Y",
+    "scale": "Scale",
+    "rotation": "Rotation"
+  },
+  "common": {
+    "add": "Add",
+    "cancel": "Cancel",
+    "ok": "OK",
+    "close": "Close",
+    "reload": "Reload",
+    "copy": "Copy",
+    "save": "Save",
+    "delete": "Delete",
+    "reset": "Reset",
+    "loading": "Loading…",
+    "error": "Error",
+    "unknown": "Unknown"
+  },
+  "developer": {
+    "title": "Developer",
+    "devTools": "DevTools",
+    "reload": "Reload",
+    "resetConfig": "Reset Config",
+    "resetConfirm": "Are you sure you want to clear the current config and write the default config?\n\nThis will back up config.json as .bak.",
+    "resetCalled": "Reset API called. For full reset, delete %APPDATA%/Peregrine/config.json and restart.",
+    "resetFailed": "Reset failed",
+    "toggle": "Developer mode enabled",
+    "unlockHint": "Tap 3 times to unlock developer panel",
+    "remaining": "tap(s) to unlock",
+    "tag": "DEV",
+    "showConfig": "Show config.json",
+    "hideConfig": "Hide config.json",
+    "devToolsDisabled": "DevTools feature is not enabled in this build.\n\nAvailable in development mode (npx tauri dev), or enable the tauri devtools feature in Cargo.toml.",
+    "openDevToolsFailed": "Failed to open DevTools",
+    "logTitle": "Developer Log",
+    "autoScroll": "Auto Scroll",
+    "clearLog": "Clear",
+    "logEmpty": "No logs yet"
+  },
+  "error": {
+    "title": "Peregrine encountered an error",
+    "description": "The app didn't crash, but the page failed to render. Try the buttons below to recover, or copy the error info to the developer.",
+    "reload": "Reload Page",
+    "recover": "Try to Recover (no reload)",
+    "copy": "Copy Error Info",
+    "copied": "Error copied to clipboard. Please paste it to the developer.",
+    "copyFallback": "Cannot access clipboard. Please take a screenshot.\n\n",
+    "openDevTools": "Open DevTools",
+    "devToolsDisabled": "DevTools is not enabled in this build.",
+    "openDevToolsFailed": "Failed to open DevTools",
+    "details": "Error Details (click to collapse)",
+    "unknown": "(unknown error)",
+    "noStack": "(no stack)",
+    "componentStack": "Component Stack:"
+  },
   "config": {
     "title": "Config",
     "loading": "Loading…",
@@ -13,11 +99,24 @@
     "refresh": "Refresh",
     "none": "(none)",
     "startOverlay": "Start overlay",
-    "stopOverlay": "Stop overlay"
+    "stopOverlay": "Stop overlay",
+    "invalidFormat": "Invalid config format",
+    "switchToLayersFallback": "Switch to Layer Editor"
+  },
+  "profile": {
+    "title": "Profile",
+    "selectPlaceholder": "Select profile",
+    "namePlaceholder": "New profile name",
+    "new": "New",
+    "rename": "Rename",
+    "copySuffix": "Copy",
+    "incompatible": "Current profile has multiple layers, please edit in multi-layer mode",
+    "cannotDeleteLast": "At least one profile is required"
   },
   "overlay": {
     "autoSwitchTitle": "Hide config window and switch to game?",
     "autoSwitchDesc": "After starting the overlay, the config window will be hidden and focus will switch to the target game window. You can restore it from the tray.",
+    "windowModeBlockedHint": "Overlay is active. Stop the overlay before changing the mode.",
     "rememberChoice": "Remember my choice",
     "switchYes": "Yes, hide and switch",
     "switchNo": "No, keep config window visible",
@@ -42,13 +141,16 @@
   },
   "quickColors": {
     "title": "Quick Colors",
-    "hint": "Click swatches to quickly change crosshair color. Customizable here."
+    "hint": "Click swatches to quickly change crosshair color. Customizable here.",
+    "reset": "Reset"
   },
   "hotkeys": {
     "title": "Hotkeys",
     "hint": "Click the input, then press a key combination. Press Esc to clear.",
     "placeholder": "Click to set…",
-    "clear": "Clear"
+    "clear": "Clear",
+    "pressCombo": "Press key combo…",
+    "unhandled": "Promise unhandled"
   },
   "hotkeyActions": {
     "toggle_overlay": "Toggle Overlay",
@@ -192,7 +294,8 @@
     "gridAlignment": "Alignment"
   },
   "preview": {
-    "placeholder": "Please select a PNG file"
+    "placeholder": "Please select a PNG file",
+    "rendering": "Rendering…"
   },
   "tray": {
     "config": "Config",

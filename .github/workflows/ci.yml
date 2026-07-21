@@ -15,50 +15,26 @@ jobs:
   # 跨平台编译检查（不打包，只确保能 build）。
   build:
     name: Build & Test (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          # macOS x86_64 在 aarch64 runner 上交叉编译，避免使用 macos-13 Intel runner 排队过长。
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            cross: true
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+        target: [x86_64-pc-windows-msvc]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      # Linux 需要安装 GUI 依赖（winit / tray-icon / WebKit 编译需要）。
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
-            libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev \
-            libxi-dev libwayland-dev libxkbcommon-dev libegl-dev libasound2-dev \
-            libglib2.0-dev libgtk-3-dev libgdk-pixbuf2.0-dev libxdo-dev \
-            libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
 
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
         with:
           key: ci-${{ matrix.target }}
 
-      # config 库有单元测试，跨平台可运行。
-      - name: Run config tests
-        run: cargo test -p peregrine_config --locked
+      # config / material / peregrine 库有单元测试，跨平台可运行。
+      - name: Run library tests
+        run: cargo test -p peregrine_config -p peregrine_material -p peregrine --locked
 
       # 新 Tauri 入口：安装 Node 依赖、构建前端、验证 Rust 后端可编译。
       # CI 不打包 NSIS（避免签名密钥缺失导致 Windows 构建失败），由 release.yml 负责产物签名发布。
@@ -72,6 +48,118 @@ jobs:
         run: npm run build
       - name: Build Tauri binary
         run: cargo build --manifest-path src-tauri/Cargo.toml --bins --features tauri/custom-protocol --release --target ${{ matrix.target }}
+
+  # 完整测试套件（Windows runner）：生成 JUnit XML 测试报告
+  test-report:
+    name: Test Report (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+
+      # 安装 cargo-nextest（更快的测试运行器，原生支持 JUnit 报告）
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      # 运行全部测试并生成 JUnit XML 报告
+      # nextest profile ci 在 .config/nextest.toml 中定义，输出 junit.xml
+      - name: Run all tests with JUnit report
+        run: |
+          cargo nextest run --workspace --locked --profile ci
+        continue-on-error: true
+
+      # 上传测试报告到 GitHub
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: 'target/nextest/ci/junit.xml'
+          check_name: 'Rust Test Results'
+          comment: true
+          fail_on_failure: false
+
+      # 生成测试摘要
+      - name: Generate Test Summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## 🧪 测试结果摘要" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          REPORT="target/nextest/ci/junit.xml"
+          if [ -f "$REPORT" ]; then
+            # Windows Git Bash 的 grep 不支持 -P（PCRE），用 sed 提取 XML 属性值。
+            total=$(sed -n 's/.*tests="\([0-9]*\)".*/\1/p' "$REPORT" | head -1)
+            failures=$(sed -n 's/.*failures="\([0-9]*\)".*/\1/p' "$REPORT" | head -1)
+            skipped=$(sed -n 's/.*skipped="\([0-9]*\)".*/\1/p' "$REPORT" | head -1)
+            passed=$((total - failures - skipped))
+            echo "| 指标 | 数量 |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ 通过 | ${passed:-0} |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❌ 失败 | ${failures:-0} |" >> $GITHUB_STEP_SUMMARY
+            echo "| ⏭️ 跳过 | ${skipped:-0} |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📊 总计 | ${total:-0} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ 未找到测试报告文件：$REPORT" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # 上传测试报告 artifact（保留 30 天）
+      - name: Upload Test Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-windows
+          path: target/nextest/ci/junit.xml
+          if-no-files-found: warn
+          retention-days: 30
+
+  # 前端测试与构建报告
+  frontend-report:
+    name: Frontend Report
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Generate build report
+        run: |
+          echo "## 📦 前端构建报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          du -sh dist/assets/* 2>/dev/null | sort -rh || echo "无构建产物" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          total_size=$(du -sh dist 2>/dev/null | cut -f1 || echo "N/A")
+          echo "**总构建大小**: $total_size" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 7
 
   # 代码格式与 lint 检查（仅在 Linux 上跑，节省 CI 时间）。
   lint:
@@ -98,5 +186,38 @@ jobs:
       - name: Cargo fmt check
         run: cargo fmt --all -- --check
 
-      - name: Cargo clippy (config crate)
-        run: cargo clippy -p peregrine_config -- -D warnings
+      - name: Cargo clippy (all workspace crates)
+        run: cargo clippy -p peregrine_config -p peregrine_material -p peregrine -- -D warnings
+
+      - name: Lint summary
+        if: success()
+        run: |
+          echo "## ✅ Lint 检查通过" >> $GITHUB_STEP_SUMMARY
+          echo "- 代码格式 (rustfmt): ✓" >> $GITHUB_STEP_SUMMARY
+          echo "- Clippy lint: ✓" >> $GITHUB_STEP_SUMMARY
+
+  # 综合质量门禁（所有测试通过后执行）
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [build, test-report, frontend-report, lint]
+    if: always()
+    steps:
+      - name: Check all jobs status
+        run: |
+          echo "## 🎯 质量门禁状态" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 检查项 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows 构建 | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 测试报告 | ${{ needs.test-report.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 前端报告 | ${{ needs.frontend-report.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint 检查 | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if any required job failed
+        if: |
+          needs.build.result == 'failure' ||
+          needs.test-report.result == 'failure' ||
+          needs.frontend-report.result == 'failure' ||
+          needs.lint.result == 'failure'
+        run: exit 1

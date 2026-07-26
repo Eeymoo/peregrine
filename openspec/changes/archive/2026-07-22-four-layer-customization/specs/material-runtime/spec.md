@@ -156,3 +156,28 @@ schema 返回值的每个条目 MUST 包含字段：
 - **WHEN** 图层引用 `builtin.image` 物料且参数含 `image_path`
 - **THEN** 物料脚本 SHALL 返回单个 `Element::Image` 图元
 - **AND** 渲染器 MUST 复用现有 PNG 加载/缓存逻辑（`overlay_renderer.rs::ensure_image_loaded`）
+
+### Requirement: 物料创作遵循标准化流程（元素 → 物料）
+
+系统 SHALL 为"从基础图元到可复用物料"提供标准化创作流程。物料创作 MUST 遵循五步：选图元 → 定布局 → 抽参数 → 声明 `defaults()`/`schema()` → 验证。
+
+物料脚本 MUST 只输出 element-primitives 定义的图元类型。`schema()` 声明的每个参数 `key` MUST 在 `defaults()` 中存在对应默认值；该一致性 MUST 在物料加载期（`Material::load`）校验，不满足时加载 SHALL 失败。`defaults()` 中存在但 `schema()` 未声明的参数允许加载成功，但前端 MUST NOT 为其生成控件。
+
+#### Scenario: schema 声明了 defaults 中不存在的参数
+
+- **WHEN** 物料脚本的 `schema()` 返回 `{key: "size", ...}` 但 `defaults()` 中没有 `size` 字段
+- **THEN** `Material::load` SHALL 返回校验错误
+- **AND** 错误信息 MUST 包含不一致的参数名 `size`
+
+#### Scenario: defaults 包含 schema 未声明的参数
+
+- **WHEN** `defaults()` 返回 `{size: 24, debug: false}` 而 `schema()` 只声明了 `size`
+- **THEN** 加载 SHALL 成功
+- **AND** 前端 MUST 只为 `size` 生成控件
+- **AND** `build(params, screen)` 仍可读取 `params.debug`
+
+#### Scenario: 创作示例与文档可用
+
+- **WHEN** 用户需要编写自定义物料
+- **THEN** 文档站 MUST 提供物料创作指南（三函数约定、动态输入 API、完整示例）
+- **AND** 仓库 MUST 提供至少 3 个可加载的示例物料（覆盖静态、时间动态、输入动态），且每个示例 MUST 通过 `Material::load` 校验并成功求值

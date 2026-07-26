@@ -272,6 +272,8 @@ pub fn run() {
     // 注意：延迟到 tauri setup 钩子里 spawn，避免在 tokio runtime 启动前 spawn 导致任务丢失。
     let materials_dir_for_setup = materials_dir.clone();
     let registry_for_setup = material_registry.clone();
+    // 物料热重载后通知 overlay 线程刷新动态性判定缓存。
+    let materials_overlay_cmd_tx = overlay_cmd_tx.clone();
     // 启动 watcher 任务，把 notifier 变更同步到共享快照。
     let watcher_storage = storage.clone();
     let watcher_notifier = notifier.clone();
@@ -365,8 +367,14 @@ pub fn run() {
             if let Some(ref materials_dir) = materials_dir_for_setup {
                 let watcher_registry = registry_for_setup.clone();
                 let materials_dir_clone = materials_dir.clone();
+                let watcher_overlay_cmd_tx = materials_overlay_cmd_tx.clone();
                 tauri::async_runtime::spawn(async move {
-                    spawn_material_watcher(watcher_registry, materials_dir_clone).await;
+                    spawn_material_watcher(
+                        watcher_registry,
+                        materials_dir_clone,
+                        watcher_overlay_cmd_tx,
+                    )
+                    .await;
                 });
             }
 
@@ -1353,10 +1361,27 @@ fn build_shapes_ipc(
         max_x: screen_w,
         max_y: screen_h,
     };
-    let ctx = DynamicContext::preview_snapshot(screen_w, screen_h);
 
-    let shapes =
-        peregrine::shapes::build_layers_shapes(&screen, profile, &state.material_registry, &ctx);
+    // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，预览与 overlay 一致，
+    // 强制走旧版 Crosshair 路径（crosshair 缺失时回退默认准星），不消费物料 / 动态上下文。
+    let shapes = if peregrine::MATERIAL_RUNTIME_ENABLED {
+        let ctx = DynamicContext::preview_snapshot(screen_w, screen_h);
+        peregrine::shapes::build_layers_shapes(&screen, profile, &state.material_registry, &ctx)
+    } else {
+        let crosshair = profile
+            .crosshair
+            .clone()
+            .or_else(|| {
+                // 迁移后新格式可能仅含 layers，从 layers[0] 反向生成 Crosshair，
+                // 保证预览 IPC 与 overlay 渲染一致。
+                profile
+                    .layers
+                    .first()
+                    .and_then(peregrine::shapes::layer_to_crosshair)
+            })
+            .unwrap_or_else(peregrine_config::Crosshair::default_crosshair);
+        peregrine::shapes::build_shapes_from_crosshair(&screen, &crosshair)
+    };
 
     Ok(shapes
         .into_iter()
@@ -1623,7 +1648,12 @@ async fn persist_and_broadcast(
         .update(config.clone())
         .map_err(|e| e.to_string())?;
     let snapshot: ConfigSnapshot = Arc::new(config.clone());
-    *state.config.lock().map_err(|e| e.to_string())? = snapshot;
+    *state.config.lock().map_err(|e| e.to_string())? = snapshot.clone();
+    // 同步把新配置快照推送给 overlay 线程，使 active profile 切换等变更
+    // 不必等待 ConfigWatcher 轮询即可生效。
+    let _ = state
+        .overlay_cmd_tx
+        .send(overlay::OverlayCommand::UpdateConfig(snapshot));
     Ok(())
 }
 
@@ -1855,7 +1885,11 @@ fn uuid_like_id() -> String {
 /// registry 内部会先清空旧 user.* 物料再插入新物料。
 ///
 /// 重载后通过 app.emit 广播 `peregrine:materials-changed` 事件（待 AppHandle 接入）。
-async fn spawn_material_watcher(registry: MaterialRegistry, materials_dir: std::path::PathBuf) {
+async fn spawn_material_watcher(
+    registry: MaterialRegistry,
+    materials_dir: std::path::PathBuf,
+    overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
+) {
     use notify::{Config as NotifyConfig, Event, RecommendedWatcher, RecursiveMode, Watcher};
     use std::time::Duration;
     use tokio::sync::mpsc;
@@ -1923,7 +1957,9 @@ async fn spawn_material_watcher(registry: MaterialRegistry, materials_dir: std::
                             count = registry.len(),
                             "user materials reloaded"
                         );
-                        // 广播事件（AppHandle 通过 setup_hook 注入更优雅，此处简化）。
+                        // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，
+                        // overlay 不再消费物料动态性变化，无需通知 overlay 刷新。
+                        // 仍广播事件供前端将来接入（预留）。
                         // TODO: 接入 app.emit("peregrine:materials-changed", &())
                     }
                 }

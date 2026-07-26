@@ -69,8 +69,17 @@ impl ConfigStorage {
         match self.load().await {
             Ok(config) => {
                 // 检测并执行旧格式迁移。
-                let migrated = self.migrate_if_needed(config).await?;
-                Ok(migrated)
+                match self.migrate_if_needed(config).await {
+                    Ok(migrated) => Ok(migrated),
+                    Err(e) => {
+                        tracing::warn!("旧配置迁移失败，将备份原文件并重置为默认配置: {}", e);
+                        self.backup_legacy_error_config().await;
+                        let default = AppConfig::default_config();
+                        default.validate()?;
+                        self.save(&default).await?;
+                        Ok(default)
+                    }
+                }
             }
             Err(e) => {
                 tracing::warn!(
@@ -132,6 +141,26 @@ impl ConfigStorage {
         match tokio::fs::rename(&self.config_path, &backup).await {
             Ok(()) => tracing::info!("已将旧格式配置备份到 {}", backup.display()),
             Err(e) => tracing::warn!("备份旧格式配置失败: {}", e),
+        }
+    }
+
+    /// 把迁移失败的配置文件备份为 `<name>.legacy.bak.error`（区别于正常迁移的 `.legacy.bak`
+    /// 与损坏文件的 `.bak`）。
+    ///
+    /// 采用重命名而非删除，避免丢失用户既有配置，便于事后人工恢复。
+    async fn backup_legacy_error_config(&self) {
+        let mut backup = self.config_path.clone();
+        let file_name = backup
+            .file_name()
+            .map(|n| n.to_os_string())
+            .unwrap_or_default();
+        let mut backup_name = file_name;
+        backup_name.push(".legacy.bak.error");
+        backup.set_file_name(backup_name);
+
+        match tokio::fs::rename(&self.config_path, &backup).await {
+            Ok(()) => tracing::warn!("已将迁移失败的旧格式配置备份到 {}", backup.display()),
+            Err(e) => tracing::warn!("备份迁移失败的旧格式配置失败: {}", e),
         }
     }
 
@@ -353,11 +382,11 @@ mod tests {
         // 加载时应自动迁移。
         let cfg = storage.load_or_create_default().await.unwrap();
 
-        // 默认 profile 现在应该有 layers，且 crosshair 保留以便单图层 UI 继续编辑。
+        // 默认 profile 现在应该有 layers，crosshair 已清除（迁移后新格式要求）。
         let profile = cfg.profiles.get("default").unwrap();
         assert!(
-            profile.crosshair.is_some(),
-            "crosshair should be preserved after migration"
+            profile.crosshair.is_none(),
+            "crosshair should be cleared after migration"
         );
         assert_eq!(
             profile.layers.len(),
@@ -391,8 +420,22 @@ mod tests {
         // 新格式配置已写入，可重新加载。
         let reloaded = storage.load().await.unwrap();
         let p = reloaded.profiles.get("default").unwrap();
-        assert!(p.crosshair.is_some());
+        assert!(p.crosshair.is_none());
         assert_eq!(p.layers.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn backup_legacy_error_config_naming() {
+        // 直接验证迁移失败备份函数生成的文件名格式为 .legacy.bak.error。
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        let storage = ConfigStorage::new(&path);
+
+        tokio::fs::write(&path, "{}").await.unwrap();
+        storage.backup_legacy_error_config().await;
+
+        let backup = dir.path().join("config.json.legacy.bak.error");
+        assert!(backup.exists(), "迁移失败备份应使用 .legacy.bak.error");
     }
 
     #[tokio::test]

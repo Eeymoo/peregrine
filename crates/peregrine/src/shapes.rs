@@ -571,7 +571,227 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
     shapes
 }
 
-/// 在一条边上均匀分布绘制圆点（与 overlay_renderer / 前端 Preview 的逻辑一致）。
+/// 旧格式准心 → 带颜色 / 不透明度的图元列表（供 `build_shapes_ipc` 软禁用时复用）。
+///
+/// 几何沿用 [`build_shapes`]，颜色 / 不透明度直接取自 `Crosshair` 字段，
+/// 与 overlay 旧路径（`make_color(&crosshair.color, crosshair.opacity)`）语义一致，
+/// 保证预览（IPC）与覆盖层在 `MATERIAL_RUNTIME_ENABLED = false` 时 WYSIWYG。
+pub fn build_shapes_from_crosshair(
+    screen: &RectF,
+    crosshair: &Crosshair,
+) -> Vec<(Element, [f32; 4], f32)> {
+    let color = crosshair.color;
+    let opacity = crosshair.opacity;
+    build_shapes(screen, crosshair)
+        .into_iter()
+        .map(|element| (element, color, opacity))
+        .collect()
+}
+
+/// 根据 `Layer` 反向生成一个 `Crosshair`。
+///
+/// 当 `Profile.crosshair` 为 `None` 但存在单图层时，
+/// 旧版（Crosshair）渲染路径可调用此函数，把 layers[0] 还原为可编辑的 Crosshair，
+/// 确保用户视觉与迁移前一致。
+///
+/// 与前端 `layerToCrosshair` 保持语义一致：无法精确还原的字段使用默认值。
+/// 仅处理 `MaterialRef::Builtin` 物料；其它类型返回 `None`。
+pub fn layer_to_crosshair(layer: &Layer) -> Option<Crosshair> {
+    let id = layer.material.material_id();
+    let style = material_id_to_crosshair_style(id)?;
+    let mut crosshair = Crosshair::default_for_style(style);
+    crosshair.color = layer.style.color;
+    crosshair.opacity = layer.style.opacity;
+
+    let params = layer.params.as_object()?;
+    match style {
+        CrosshairStyle::EdgeRect => {
+            crosshair.size = get_f32(params, "size").unwrap_or(crosshair.size);
+            crosshair.secondary_size =
+                get_f32(params, "secondary_size").unwrap_or(crosshair.secondary_size);
+            crosshair.anchor = get_str(params, "anchor")
+                .and_then(str_to_anchor)
+                .unwrap_or(crosshair.anchor);
+            crosshair.margin = get_f32(params, "margin").unwrap_or(crosshair.margin);
+            crosshair.corner_radius =
+                get_f32(params, "corner_radius").unwrap_or(crosshair.corner_radius);
+        }
+        CrosshairStyle::CustomImage => {
+            crosshair.image_path = get_str(params, "path")
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            crosshair.image_scale = get_f32(params, "scale").unwrap_or(crosshair.image_scale);
+            crosshair.image_offset_x =
+                get_f32(params, "offset_x").unwrap_or(crosshair.image_offset_x);
+            crosshair.image_offset_y =
+                get_f32(params, "offset_y").unwrap_or(crosshair.image_offset_y);
+            crosshair.size = get_f32(params, "width").unwrap_or(crosshair.size);
+        }
+        CrosshairStyle::Cross => {
+            crosshair.size = get_f32(params, "size").unwrap_or(crosshair.size);
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+            crosshair.gap = get_f32(params, "gap").unwrap_or(crosshair.gap);
+        }
+        CrosshairStyle::LargeCross => {
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+        }
+        CrosshairStyle::CornerDots4 | CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8 => {
+            let count = get_u32(params, "count").unwrap_or(4);
+            crosshair.style = match count {
+                6 => CrosshairStyle::CornerDots6,
+                8 => CrosshairStyle::CornerDots8,
+                _ => CrosshairStyle::CornerDots4,
+            };
+            crosshair.offset = get_f32(params, "offset").unwrap_or(crosshair.offset);
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+            crosshair.radius = get_f32(params, "radius").unwrap_or(crosshair.radius);
+        }
+        CrosshairStyle::Ring => {
+            crosshair.ring_radius_pct =
+                get_f32(params, "radius_pct").unwrap_or(crosshair.ring_radius_pct);
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+            crosshair.ring_style = get_str(params, "style")
+                .and_then(str_to_ring_style)
+                .unwrap_or(crosshair.ring_style);
+        }
+        CrosshairStyle::CustomOrb => {
+            crosshair.radius = get_f32(params, "radius").unwrap_or(crosshair.radius);
+            crosshair.offset = get_f32(params, "offset").unwrap_or(crosshair.offset);
+            crosshair.orb_positions = get_u32(params, "orb_positions")
+                .map(|v| OrbPosition(v as u8))
+                .unwrap_or(crosshair.orb_positions);
+            crosshair.custom_orb_top_count =
+                get_u32(params, "top_count").unwrap_or(crosshair.custom_orb_top_count);
+            crosshair.custom_orb_bottom_count =
+                get_u32(params, "bottom_count").unwrap_or(crosshair.custom_orb_bottom_count);
+            crosshair.custom_orb_left_count =
+                get_u32(params, "left_count").unwrap_or(crosshair.custom_orb_left_count);
+            crosshair.custom_orb_right_count =
+                get_u32(params, "right_count").unwrap_or(crosshair.custom_orb_right_count);
+        }
+        CrosshairStyle::RandomOrb => {
+            crosshair.random_orb_count =
+                get_u32(params, "count").unwrap_or(crosshair.random_orb_count);
+            crosshair.random_orb_offset =
+                get_f32(params, "offset").unwrap_or(crosshair.random_orb_offset);
+            crosshair.random_orb_jitter =
+                get_f32(params, "jitter").unwrap_or(crosshair.random_orb_jitter);
+            crosshair.random_radius_min =
+                get_f32(params, "radius_min").unwrap_or(crosshair.random_radius_min);
+            crosshair.random_radius_max =
+                get_f32(params, "radius_max").unwrap_or(crosshair.random_radius_max);
+        }
+        CrosshairStyle::BorderFrame => {
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+            crosshair.offset = get_f32(params, "offset").unwrap_or(crosshair.offset);
+            crosshair.border_frame_style = get_str(params, "style")
+                .and_then(str_to_border_frame_style)
+                .unwrap_or(crosshair.border_frame_style);
+            crosshair.border_inset = get_bool(params, "inset").unwrap_or(crosshair.border_inset);
+        }
+        CrosshairStyle::EdgeArrows => {
+            crosshair.size = get_f32(params, "size").unwrap_or(crosshair.size);
+            crosshair.arrow_width = get_f32(params, "arrow_width").unwrap_or(crosshair.arrow_width);
+            crosshair.arrow_distance =
+                get_f32(params, "distance").unwrap_or(crosshair.arrow_distance);
+            crosshair.arrow_tail_per_edge =
+                get_bool(params, "tail_per_edge").unwrap_or(crosshair.arrow_tail_per_edge);
+            crosshair.arrow_tail_top =
+                get_f32(params, "tail_top").unwrap_or(crosshair.arrow_tail_top);
+            crosshair.arrow_tail_bottom =
+                get_f32(params, "tail_bottom").unwrap_or(crosshair.arrow_tail_bottom);
+            crosshair.arrow_tail_left =
+                get_f32(params, "tail_left").unwrap_or(crosshair.arrow_tail_left);
+            crosshair.arrow_tail_right =
+                get_f32(params, "tail_right").unwrap_or(crosshair.arrow_tail_right);
+            crosshair.orb_positions = get_u32(params, "positions_mask")
+                .map(|v| OrbPosition(v as u8))
+                .unwrap_or(crosshair.orb_positions);
+        }
+        CrosshairStyle::Grid => {
+            crosshair.grid_size = get_f32(params, "grid_size").unwrap_or(crosshair.grid_size);
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+            crosshair.grid_alignment = get_str(params, "alignment")
+                .and_then(str_to_grid_alignment)
+                .unwrap_or(crosshair.grid_alignment);
+        }
+    }
+
+    Some(crosshair)
+}
+
+fn material_id_to_crosshair_style(id: &str) -> Option<CrosshairStyle> {
+    match id {
+        "builtin.cross" => Some(CrosshairStyle::Cross),
+        "builtin.edge_rect" => Some(CrosshairStyle::EdgeRect),
+        "builtin.large_cross" => Some(CrosshairStyle::LargeCross),
+        "builtin.corner_dots" => Some(CrosshairStyle::CornerDots4),
+        "builtin.ring" => Some(CrosshairStyle::Ring),
+        "builtin.custom_orb" => Some(CrosshairStyle::CustomOrb),
+        "builtin.random_orb" => Some(CrosshairStyle::RandomOrb),
+        "builtin.border_frame" => Some(CrosshairStyle::BorderFrame),
+        "builtin.edge_arrows" => Some(CrosshairStyle::EdgeArrows),
+        "builtin.grid" => Some(CrosshairStyle::Grid),
+        "builtin.image" => Some(CrosshairStyle::CustomImage),
+        _ => None,
+    }
+}
+
+fn get_f32(params: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<f32> {
+    params.get(key).and_then(|v| v.as_f64()).map(|v| v as f32)
+}
+
+fn get_u32(params: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<u32> {
+    params.get(key).and_then(|v| v.as_f64()).map(|v| v as u32)
+}
+
+fn get_str<'a>(
+    params: &'a serde_json::Map<String, serde_json::Value>,
+    key: &'a str,
+) -> Option<&'a str> {
+    params.get(key).and_then(|v| v.as_str())
+}
+
+fn get_bool(params: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<bool> {
+    params.get(key).and_then(|v| v.as_bool())
+}
+
+fn str_to_anchor(s: &str) -> Option<Anchor> {
+    match s {
+        "top" => Some(Anchor::Top),
+        "bottom" => Some(Anchor::Bottom),
+        "left" => Some(Anchor::Left),
+        "right" => Some(Anchor::Right),
+        "center" => Some(Anchor::Center),
+        _ => None,
+    }
+}
+
+fn str_to_ring_style(s: &str) -> Option<RingStyle> {
+    match s {
+        "solid" => Some(RingStyle::Solid),
+        "dashed" => Some(RingStyle::Dashed),
+        "double" => Some(RingStyle::Double),
+        _ => None,
+    }
+}
+
+fn str_to_border_frame_style(s: &str) -> Option<BorderFrameStyle> {
+    match s {
+        "solid" => Some(BorderFrameStyle::Solid),
+        "gap" => Some(BorderFrameStyle::Gap),
+        _ => None,
+    }
+}
+
+fn str_to_grid_alignment(s: &str) -> Option<GridAlignment> {
+    match s {
+        "center" => Some(GridAlignment::Center),
+        "edge" => Some(GridAlignment::Edge),
+        _ => None,
+    }
+}
+
 fn edge_orb_shapes(
     shapes: &mut Vec<Shape>,
     x0: f32,
@@ -1140,6 +1360,7 @@ fn apply_transform(
             y,
             content,
             font_size,
+            font_weight,
         } => {
             let (tx, ty) = transform_point(x, y);
             vec![Element::Text {
@@ -1147,6 +1368,8 @@ fn apply_transform(
                 y: ty,
                 content,
                 font_size: font_size * transform.scale,
+                // 字重不随几何变换缩放，原样透传。
+                font_weight,
             }]
         }
         Element::Image { path, x, y, w, h } => vec![Element::Image {
@@ -1181,7 +1404,7 @@ mod layer_tests {
     use peregrine_material::MaterialRegistry;
 
     fn load_registry() -> MaterialRegistry {
-        let mut r = MaterialRegistry::new();
+        let r = MaterialRegistry::new();
         r.load_builtin().expect("load builtin materials");
         r
     }
@@ -1403,5 +1626,80 @@ mod layer_tests {
         let shapes = build_layers_shapes(&screen, &profile, &registry, &ctx);
         // 物料不存在时应跳过，返回空列表（不 panic）。
         assert_eq!(shapes.len(), 0);
+    }
+
+    /// `build_shapes_from_crosshair` 应给每个几何图元附带 crosshair 的颜色 / 不透明度，
+    /// 用于 `MATERIAL_RUNTIME_ENABLED = false` 时预览 IPC 与 overlay 行为一致。
+    #[test]
+    fn build_shapes_from_crosshair_carries_color_and_opacity() {
+        let crosshair = Crosshair {
+            style: CrosshairStyle::Cross,
+            size: 20.0,
+            thickness: 2.0,
+            gap: 4.0,
+            color: [0.1, 0.2, 0.3, 1.0],
+            opacity: 0.5,
+            ..Crosshair::default_crosshair()
+        };
+        let screen = test_screen();
+        let out = build_shapes_from_crosshair(&screen, &crosshair);
+        // Cross 至少生成 4 条臂。
+        assert!(out.len() >= 4);
+        for (_element, color, opacity) in &out {
+            assert_eq!(*color, [0.1, 0.2, 0.3, 1.0]);
+            assert_eq!(*opacity, 0.5);
+        }
+    }
+
+    /// 迁移后新格式的 layers[0] 应能反向还原为 Crosshair，
+    /// 保证旧版渲染路径在 crosshair = None 时仍能显示用户原配置。
+    #[test]
+    fn layer_to_crosshair_reconstructs_migrated_cross() {
+        use peregrine_config::{LayerStyle, MaterialRef};
+        let layer = Layer {
+            id: "migrated_cross".into(),
+            name: "准星".into(),
+            material: MaterialRef::Builtin {
+                id: "builtin.cross".into(),
+            },
+            params: serde_json::json!({
+                "size": 50.0,
+                "thickness": 3.0,
+                "gap": 6.0,
+            }),
+            style: LayerStyle {
+                color: [1.0, 0.0, 0.0, 1.0],
+                opacity: 0.8,
+                blend_mode: peregrine_config::BlendMode::Normal,
+            },
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        };
+        let crosshair = layer_to_crosshair(&layer).expect("cross layer should convert");
+        assert_eq!(crosshair.style, CrosshairStyle::Cross);
+        assert_eq!(crosshair.size, 50.0);
+        assert_eq!(crosshair.thickness, 3.0);
+        assert_eq!(crosshair.gap, 6.0);
+        assert_eq!(crosshair.color, [1.0, 0.0, 0.0, 1.0]);
+        assert_eq!(crosshair.opacity, 0.8);
+    }
+
+    #[test]
+    fn layer_to_crosshair_returns_none_for_unknown_material() {
+        use peregrine_config::{LayerStyle, MaterialRef};
+        let layer = Layer {
+            id: "unknown".into(),
+            name: "未知".into(),
+            material: MaterialRef::Builtin {
+                id: "builtin.does_not_exist".into(),
+            },
+            params: serde_json::json!({}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        };
+        assert!(layer_to_crosshair(&layer).is_none());
     }
 }

@@ -202,20 +202,23 @@ engine.register_fn("key_down", |code: &str| ctx.key_state.is_down(code));
 
 **理由**：完全复用 `update_preferences_inner`（`src-tauri/src/lib.rs:819-959`）的成熟模式，不引入新的同步路径。
 
-### 决策 8：迁移逻辑放在 `crates/config`，使用真实物料库求值做回归测试
+### 决策 8：迁移逻辑放在 `crates/config`，schema 双字段承载旧格式
 
-**选择**：新建 `crates/config/src/migration.rs`：
-- `pub fn migrate_legacy_crosshair(crosshair: &LegacyCrosshair) -> Result<Layer>`
-- `pub fn migrate_app_config(legacy: &serde_json::Value) -> Result<AppConfig>`
-- 依赖一份静态的"样式 → 物料 id + params 映射"表（无需 Rhai，只做字段搬运）。
+**选择**（已按实际实现修正）：
+- 不建独立 `legacy.rs` 模块 / `LegacyAppConfig` 类型：旧 `Crosshair` / `CrosshairStyle` 保留在 `schema.rs`，`Profile` 采用双字段共存——`crosshair: Option<Crosshair>`（迁移源，迁移完成后从配置中消失）+ `layers: Vec<Layer>`。
+- 旧格式识别内建于 schema 语义：`crosshair.is_some() && layers.is_empty()`；两者同时存在时以 `layers` 为准并记录警告。
+- `crates/config/src/migration.rs` 提供纯字段搬运函数（无需 Rhai）：
+  - `pub fn migrate_crosshair_to_layer(crosshair: &Crosshair) -> Layer`（含 `migrate_edge_rect` / `migrate_custom_image` 特例）
+  - `pub fn migrate_profile(profile: &Profile) -> Profile`
+- 迁移触发点在 `storage.rs::load_or_create_default`：识别旧格式 → 备份 `.legacy.bak` → 迁移 → 校验 → 写回新格式。
 
 迁移测试策略：
-- 单元测试用 `include_str!("../../../../crates/material/builtin/cross.rhai")` 加载真实物料，迁移后调用 `peregrine_material::evaluate` 求值，与旧 `build_shapes` 输出对比。
-- 测试放在 `crates/config/tests/migration_regression.rs`（集成测试，允许依赖 `peregrine_material`）。
+- 单元测试（14 个）覆盖每种旧 style 的字段级迁移 + 异常输入降级；storage 层另有 `load_or_create_default_migrates_legacy_config` 测试覆盖加载路径。
+- 视觉等价性集成测试（迁移后物料求值 vs 旧 `build_shapes` 逐元素对比）**尚未实施**，移至后续 change `material-e2e-validation`。
 
 **理由**：
-- 迁移逻辑属于配置层，放 `crates/config` 符合分层。
-- 不依赖 Rhai 即可完成字段映射（迁移本身不调用物料）；视觉等价性由集成测试验证。
+- 双字段方案无需维护一份 deprecated 类型副本即可完成平滑迁移，比独立 legacy 模块更简单。
+- 迁移逻辑属于配置层，放 `crates/config` 符合分层；不依赖 Rhai 即可完成字段映射（迁移本身不调用物料）；视觉等价性由后续集成测试验证。
 
 ### 决策 9：Rh(i) 错误隔离，单个图层失败不阻塞整体渲染
 
@@ -232,6 +235,27 @@ engine.register_fn("key_down", |code: &str| ctx.key_state.is_down(code));
 - 稳定版：`v0.2.1`（奇数 patch，按 AGENTS.md 约定）
 
 **理由**：架构重构属于 BREAKING change（内部数据模型），需要 alpha 阶段收集反馈。
+
+### 决策 11：元素 → 物料的创作流程（Authoring Path）
+
+**背景**：决策 2 / 5 定义了物料的运行时形态与求值管线（物料 → 元素方向），但未规定反向的创作路径——如何从零开始把基础图元组合为一个可复用物料。缺少标准化流程会让内置物料翻译与用户自定义各自为政，参数抽取口径漂移。
+
+**选择**：将"元素 → 物料"创作标准化为五步流程：
+
+1. **选图元**：从 element-primitives 定义的 9 种图元（`rect` / `circle` / `circle_stroke` / `dashed_circle` / `triangle` / `polygon` / `line` / `text` / `image`）中选取构成视觉的最小集合。物料 MUST 只输出这些图元，未知类型在求值期报错。
+2. **定布局**：在 `build(params, screen)` 内以纯函数计算图元坐标，使用屏幕逻辑坐标（DPI 无关）。物料不感知图层变换——位移 / 缩放 / 旋转由决策 5 的管线在物料输出之后统一应用。
+3. **抽参数**：把"用户可能想调"的数值 / 开关 / 枚举提取为 params，其余保持脚本内常量。12 份内置物料的 params 集合即抽取范例（尺寸 / 粗细 / 间距抽出；几何常数如角点分布留在脚本内）。
+4. **声明元数据**：`defaults()` 给出每个参数的默认值，`schema()` 给出控件元数据。**一致性约束**：`schema()` 的每个 `key` MUST 在 `defaults()` 中存在（加载期校验）；`defaults()` 中未在 `schema()` 声明的 key 允许存在，但对用户不可见（不生成控件）。
+5. **验证**：三层验证——(a) `Material::load` 结构校验（三函数存在 + schema/defaults 一致性）；(b) 前端 Preview 实时预览；(c) 内置物料走迁移回归测试。配套交付物：`docs/guide/material-scripting.md` 用户创作指南与 `crates/material/examples/` 示例物料（随 change `material-docs-examples` 交付）。
+
+**理由**：
+- 创作流程显式化后，"参数抽多少"不再凭感觉：内置物料即参照系。
+- schema/defaults 一致性在加载期静态校验，把错误暴露在加载时而非求值时。
+- 与创作指南文档（五步流程即文档骨架）和示例物料对齐，用户有完整的"照抄 → 修改 → 验证"路径。
+
+**备选方案与拒绝理由**：
+- *自由创作、不设流程*：内置物料与用户物料的参数风格必然漂移，UI 控件生成质量不可控。
+- *可视化物料编辑器*（拖拽图元拼合物料）：超出本期范围，留作后续独立 change。
 
 ## Risks / Trade-offs
 
@@ -271,7 +295,7 @@ engine.register_fn("key_down", |code: &str| ctx.key_state.is_down(code));
 
 ### 回滚策略
 
-- 保留旧 `build_shapes` 代码到 `crates/peregrine/src/legacy_shapes.rs`（标 `#[deprecated]`），稳定版前可一键切换。
+- 旧 `Crosshair` 渲染路径以 dual-path 形式内联保留在 `crates/peregrine/src/overlay_renderer.rs`（`Profile.crosshair` 非空时走旧分支），未抽离为独立 `legacy_shapes.rs`；稳定版后随旧字段一起移除。
 - 用户配置的 `.legacy.bak` 在用户目录保留，用户可手动还原。
 
 ## Open Questions

@@ -19,6 +19,7 @@ import { useConfigSave } from "@/hooks/useConfigSave";
 import { useOverlayActions } from "@/hooks/useOverlayActions";
 import { useUpdate } from "@/hooks/useUpdate";
 import { updatePreferences, getCurrentWebviewWindow } from "@/lib/api";
+import { MATERIAL_RUNTIME_ENABLED } from "@/lib/feature";
 import type { AppConfig, CrosshairStyle } from "@/types/config";
 
 import {
@@ -119,18 +120,22 @@ export default function ConfigApp() {
     return (
       <div className="h-screen flex flex-col items-center justify-center text-muted-foreground gap-4">
         <span className="text-lg">{t("config.invalidFormat")}</span>
-        <button
-          className="text-xs px-3 py-1 border rounded hover:bg-accent"
-          onClick={() => setLayersMode(true)}
-        >
-          {t("config.switchToLayersFallback")}
-        </button>
+        {/* MATERIAL_RUNTIME_ENABLED 门控：图层编辑器入口已隐藏 */}
+        {MATERIAL_RUNTIME_ENABLED && (
+          <button
+            className="text-xs px-3 py-1 border rounded hover:bg-accent"
+            onClick={() => setLayersMode(true)}
+          >
+            {t("config.switchToLayersFallback")}
+          </button>
+        )}
       </div>
     );
   }
 
   // 图层编辑器模式：显示全新 UI。
-  if (layersMode) {
+  // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，永不进入该分支。
+  if (MATERIAL_RUNTIME_ENABLED && layersMode) {
     return (
       <div className="h-screen flex flex-col bg-background text-foreground">
         <LayersEditor
@@ -154,6 +159,10 @@ export default function ConfigApp() {
   // 到这里 crosshair 必为非 null（已从 layers[0] 反向生成）。
   const ch = crosshair!;
 
+  // MATERIAL_RUNTIME_ENABLED 门控：软关闭后 crosshair 重新成为权威配置，
+  // 即使 profile 的 layers 不兼容旧格式也允许编辑（编辑结果直接驱动渲染）。
+  const effectiveCompatible = MATERIAL_RUNTIME_ENABLED ? isLegacyCompatible : true;
+
   return (
     <div className="h-screen flex bg-background text-foreground overflow-hidden">
       {/* 左侧预览 */}
@@ -161,15 +170,18 @@ export default function ConfigApp() {
         <Preview previewKey={profile?.layers} />
 
         {/* 顶部工具栏：仅保留切换到多图层按钮 */}
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-end z-10">
-          <button
-            onClick={() => setLayersMode(true)}
-            className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90"
-            title={t("layers.switchToLayers")}
-          >
-            {t("layers.switchToLayers")}
-          </button>
-        </div>
+        {/* MATERIAL_RUNTIME_ENABLED 门控：图层编辑器入口已隐藏 */}
+        {MATERIAL_RUNTIME_ENABLED && (
+          <div className="absolute top-4 left-4 right-4 flex items-center justify-end z-10">
+            <button
+              onClick={() => setLayersMode(true)}
+              className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90"
+              title={t("layers.switchToLayers")}
+            >
+              {t("layers.switchToLayers")}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 右侧设置面板：顶部固定、中间滚动、底部固定 */}
@@ -185,16 +197,23 @@ export default function ConfigApp() {
           />
 
           {/* 单图层不兼容提示 */}
+          {/* MATERIAL_RUNTIME_ENABLED 门控：软关闭后改为"功能暂停"一次性提示，不再提供图层编辑器入口 */}
           {!isLegacyCompatible && (
             <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-700 dark:text-yellow-400 space-y-1">
-              <div>{t("profile.incompatible")}</div>
-              <button
-                type="button"
-                onClick={() => setLayersMode(true)}
-                className="text-xs underline hover:text-yellow-800 dark:hover:text-yellow-300"
-              >
-                {t("config.switchToLayersFallback")}
-              </button>
+              {MATERIAL_RUNTIME_ENABLED ? (
+                <>
+                  <div>{t("profile.incompatible")}</div>
+                  <button
+                    type="button"
+                    onClick={() => setLayersMode(true)}
+                    className="text-xs underline hover:text-yellow-800 dark:hover:text-yellow-300"
+                  >
+                    {t("config.switchToLayersFallback")}
+                  </button>
+                </>
+              ) : (
+                <div>{t("profile.layersDisabled")}</div>
+              )}
             </div>
           )}
 
@@ -206,7 +225,7 @@ export default function ConfigApp() {
               onValueChange={(v) =>
                 updateCrosshair({ style: v as CrosshairStyle }, { resetDefaults: true })
               }
-              disabled={!isLegacyCompatible}
+              disabled={!effectiveCompatible}
             >
               <SelectTrigger className="h-8 text-sm">
                 <SelectValue />
@@ -235,7 +254,7 @@ export default function ConfigApp() {
                 min={0}
                 max={1}
                 step={0.01}
-                disabled={!isLegacyCompatible}
+                disabled={!effectiveCompatible}
                 onValueChange={([v]) => updateCrosshair({ opacity: v })}
               />
             </div>
@@ -245,7 +264,7 @@ export default function ConfigApp() {
               <input
                 type="color"
                 value={colorCss}
-                disabled={!isLegacyCompatible}
+                disabled={!effectiveCompatible}
                 onChange={(e) => {
                   const hex = e.target.value;
                   const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -270,7 +289,7 @@ export default function ConfigApp() {
                       key={i}
                       type="button"
                       title={css}
-                      disabled={!isLegacyCompatible}
+                      disabled={!effectiveCompatible}
                       onClick={() => updateCrosshair({ color: [...qc] })}
                       className="w-5 h-5 rounded-full border-2 transition-colors disabled:opacity-50"
                       style={{
@@ -294,7 +313,7 @@ export default function ConfigApp() {
           <StyleFields
             crosshair={ch}
             onChange={updateCrosshair}
-            disabled={!isLegacyCompatible}
+            disabled={!effectiveCompatible}
           />
         </div>
 

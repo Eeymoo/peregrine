@@ -107,12 +107,22 @@ impl OverlayRenderer {
         // 判断走新格式（layers）还是旧格式（crosshair）：
         // - 新格式：layers 非空 → 调用 build_layers_shapes
         // - 旧格式：crosshair = Some(...) → 调用旧 build_shapes
-        let use_new_format = profile.map(|p| !p.layers.is_empty()).unwrap_or(false);
+        // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，强制走旧版 Crosshair 路径；
+        // layers 数据保留但忽略，crosshair 缺失时回退默认准星。
+        let use_new_format = crate::MATERIAL_RUNTIME_ENABLED
+            && profile.map(|p| !p.layers.is_empty()).unwrap_or(false);
 
         // 旧格式路径：克隆 crosshair，供 build_shapes 使用。
         let legacy_crosshair = if !use_new_format {
-            profile
-                .and_then(|p| p.crosshair.clone())
+            let from_crosshair = profile.and_then(|p| p.crosshair.clone());
+            from_crosshair
+                .or_else(|| {
+                    // 迁移后新格式可能仅含 layers、crosshair 为 None，
+                    // 此时从 layers[0] 反向生成 Crosshair，确保旧版渲染路径
+                    // 仍能显示用户配置，而非直接回退到默认准星。
+                    profile
+                        .and_then(|p| p.layers.first().and_then(crate::shapes::layer_to_crosshair))
+                })
                 .unwrap_or_else(Crosshair::default_crosshair)
         } else {
             // 新格式不使用 crosshair，但保留默认值用于 is_custom_image 检查。
@@ -142,10 +152,17 @@ impl OverlayRenderer {
         }
 
         // 新格式路径：扫描 layers 中所有 Image 图元的路径，预加载到缓存。
+        // MATERIAL_RUNTIME_ENABLED 门控：仅在物料运行时启用时才进入此分支，
+        // 软关闭时 use_new_format 编译期为 false，此分支不可达。
         if use_new_format {
             if let Some(ref profile) = profile_clone {
                 // 渲染时用真实动态输入（Win32 API 鼠标键盘 / 时间）。
-                let ctx = crate::platform::poll_dynamic_context(logical_w, logical_h);
+                // MATERIAL_RUNTIME_ENABLED 门控：poll_dynamic_context 仅在物料运行时启用时可调用。
+                let ctx = if crate::MATERIAL_RUNTIME_ENABLED {
+                    crate::platform::poll_dynamic_context(logical_w, logical_h)
+                } else {
+                    peregrine_material::DynamicContext::preview_snapshot(logical_w, logical_h)
+                };
                 let shapes = crate::shapes::build_layers_shapes(
                     &rect,
                     profile,
@@ -190,7 +207,13 @@ impl OverlayRenderer {
                 return;
             };
             // 渲染时使用真实动态输入。
-            let ctx = crate::platform::poll_dynamic_context(logical_w, logical_h);
+            // MATERIAL_RUNTIME_ENABLED 门控：poll_dynamic_context 仅在物料运行时启用时可调用，
+            // 软关闭时走静态预览上下文（此分支本身不可达，保留以满足恢复后的代码完整性）。
+            let ctx = if crate::MATERIAL_RUNTIME_ENABLED {
+                crate::platform::poll_dynamic_context(logical_w, logical_h)
+            } else {
+                peregrine_material::DynamicContext::preview_snapshot(logical_w, logical_h)
+            };
             let shapes =
                 crate::shapes::build_layers_shapes(&rect, profile, &self.material_registry, &ctx);
 
@@ -528,14 +551,14 @@ fn rasterize_shape(
                 );
             }
         }
-        // 新增图元类型的占位实现（Step 9 会完整实现光栅化）。
         Shape::Polygon { .. } | Shape::Line { .. } | Shape::Text { .. } => {
-            tracing::debug!(
-                "rasterize_shape: 该图元类型在旧 crosshair 路径下不渲染（Step 9 实现）"
-            );
+            // 旧 crosshair 路径下不渲染这三类图元（旧版 build_shapes 不产出）；
+            // 新格式路径由 SVG 后端光栅化。
+            tracing::debug!("rasterize_shape: 该图元类型在旧 crosshair 路径下不渲染");
         }
         Shape::Image { x, y, w, h, path } => {
-            // Step 9 完整实现；这里仅记录路径，实际 blit 由上层 CustomImage 分支处理。
+            // 旧 crosshair 路径下的 CustomImage 由上层专门分支处理；
+            // 此处仅记录路径，不直接 blit。
             let _ = (x, y, w, h, path);
         }
     }

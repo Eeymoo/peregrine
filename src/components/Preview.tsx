@@ -238,7 +238,8 @@ function drawElement(
       ctx.stroke();
       break;
     case "text":
-      ctx.font = `${element.font_size}px sans-serif`;
+      // 字重 >= 600 时以 bold 渲染，与 overlay 的 SVG font-weight 行为保持一致。
+      ctx.font = `${(element.font_weight ?? 400) >= 600 ? "bold " : ""}${element.font_size}px sans-serif`;
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
       ctx.fillText(element.content, element.x, element.y);

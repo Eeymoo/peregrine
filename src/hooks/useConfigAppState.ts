@@ -12,6 +12,7 @@ import {
 import { useSettingsSync } from "@/hooks/useSettingsSync";
 import { useInitMirror } from "@/hooks/useSettingsSync";
 import { isLayerLegacyCompatible } from "@/lib/layers";
+import { MATERIAL_RUNTIME_ENABLED } from "@/lib/feature";
 import type { AppConfig } from "@/types/config";
 
 export function useConfigAppState() {
@@ -37,7 +38,8 @@ export function useConfigAppState() {
         const profile = cfg.profiles[cfg.active_profile];
         const compatible =
           profile?.layers?.length === 1 && isLayerLegacyCompatible(profile.layers[0]);
-        setLayersMode(!compatible);
+        // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，始终使用旧版（单图层）UI。
+        setLayersMode(MATERIAL_RUNTIME_ENABLED && !compatible);
       })
       .catch(console.error)
       .finally(() => setLoading(false));

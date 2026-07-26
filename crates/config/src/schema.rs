@@ -1059,6 +1059,10 @@ pub enum Element {
         content: String,
         /// 字号（逻辑像素）。
         font_size: f32,
+        /// 字重（100–900 的百位整数倍，`None` 等价于 400 常规）。
+        /// 取值合法性由物料求值转换层校验（Element 为求值输出，不持久化到配置文件）。
+        #[serde(default)]
+        font_weight: Option<u16>,
     },
     /// 图片。
     Image {
@@ -2082,10 +2086,37 @@ mod tests {
             y: 16.0,
             content: "Hello".to_string(),
             font_size: 16.0,
+            font_weight: None,
         };
         let json = serde_json::to_string(&e).unwrap();
         assert!(json.contains("\"type\":\"text\""));
         assert!(json.contains("\"content\":\"Hello\""));
+    }
+
+    #[test]
+    fn element_text_font_weight_compat() {
+        // 旧 JSON 无 font_weight 字段 → None（向后兼容）。
+        let old = r#"{"type":"text","x":0.0,"y":16.0,"content":"Hello","font_size":16.0}"#;
+        let e: Element = serde_json::from_str(old).unwrap();
+        assert!(matches!(
+            e,
+            Element::Text {
+                font_weight: None,
+                ..
+            }
+        ));
+        // 带 font_weight 的 JSON 往返。
+        let bold = r#"{"type":"text","x":0.0,"y":16.0,"content":"Hello","font_size":16.0,"font_weight":700}"#;
+        let e: Element = serde_json::from_str(bold).unwrap();
+        assert!(matches!(
+            e,
+            Element::Text {
+                font_weight: Some(700),
+                ..
+            }
+        ));
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"font_weight\":700"));
     }
 
     #[test]

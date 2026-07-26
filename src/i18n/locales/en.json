@@ -111,6 +111,7 @@
     "rename": "Rename",
     "copySuffix": "Copy",
     "incompatible": "Current profile has multiple layers, please edit in multi-layer mode",
+    "layersDisabled": "Multi-layer feature is temporarily disabled; your layer configuration is preserved. The legacy crosshair settings are shown and editable.",
     "cannotDeleteLast": "At least one profile is required"
   },
   "overlay": {
@@ -302,9 +303,6 @@
     "settings": "Settings",
     "quit": "Quit",
     "windowMode": "Window Mode"
-  },
-  "common": {
-    "close": "Close"
   },
   "license": {
     "mit": "MIT · Open Source · Free to use"

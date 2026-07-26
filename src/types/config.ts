@@ -38,7 +38,7 @@ export type Element =
       y2: number;
       thickness: number;
     }
-  | { type: "text"; x: number; y: number; content: string; font_size: number }
+  | { type: "text"; x: number; y: number; content: string; font_size: number; font_weight?: number | null }
   | { type: "image"; path: string; x: number; y: number; w: number; h: number };
 
 /** 物料引用：图层所用的物料来源。 */

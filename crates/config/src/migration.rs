@@ -88,7 +88,11 @@ pub fn migrate_custom_image(crosshair: &Crosshair) -> Layer {
 }
 
 /// 迁移整个 `Profile`：保留 trigger / hotkey / target_window，
-/// 把 crosshair 转为 layers[0]，同时保留 crosshair 字段供旧版 UI 编辑。
+/// 把 crosshair 转为 layers[0]，并清除 crosshair 字段。
+///
+/// 按 `profile-migration` 规格要求：迁移后 `crosshair` 为 `None`，
+/// 使下次启动时 `load_or_create_default` 检测到仅含 `layers` 的新格式，
+/// 不再重复迁移。
 pub fn migrate_profile(profile: &crate::schema::Profile) -> crate::schema::Profile {
     let crosshair = match &profile.crosshair {
         Some(c) => c,
@@ -105,7 +109,7 @@ pub fn migrate_profile(profile: &crate::schema::Profile) -> crate::schema::Profi
     };
 
     crate::schema::Profile {
-        crosshair: Some(crosshair.clone()),
+        crosshair: None,
         layers: vec![layer],
         trigger: profile.trigger.clone(),
         settings_hotkey: profile.settings_hotkey.clone(),

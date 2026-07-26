@@ -438,6 +438,36 @@ fn dynamic_to_element(material_id: &str, d: Dynamic) -> MaterialResult<Element> 
     };
 
     let type_name = get_str("type")?;
+
+    // 可选字重：缺失 / 显式 () 视为 None；存在时必须是 100–900 的百位整数倍。
+    let get_font_weight = || -> MaterialResult<Option<u16>> {
+        let Some(v) = m.get("font_weight") else {
+            return Ok(None);
+        };
+        if v.is_unit() {
+            return Ok(None);
+        }
+        let w = if let Ok(f) = v.as_float() {
+            f as i64
+        } else if let Ok(i) = v.as_int() {
+            i
+        } else {
+            return Err(MaterialError::ElementField {
+                id: material_id.to_string(),
+                detail: "field 'font_weight' must be number".to_string(),
+            });
+        };
+        if !(100..=900).contains(&w) || w % 100 != 0 {
+            return Err(MaterialError::ElementField {
+                id: material_id.to_string(),
+                detail: format!(
+                    "field 'font_weight' must be a multiple of 100 in 100..=900, got {}",
+                    w
+                ),
+            });
+        }
+        Ok(Some(w as u16))
+    };
     match type_name.as_str() {
         "rect" => Ok(Element::Rect {
             x: get_f32("x")?,
@@ -552,6 +582,7 @@ fn dynamic_to_element(material_id: &str, d: Dynamic) -> MaterialResult<Element> 
             y: get_f32("y")?,
             content: get_str("content")?,
             font_size: get_f32("font_size")?,
+            font_weight: get_font_weight()?,
         }),
         "image" => Ok(Element::Image {
             path: get_str("path")?,
@@ -638,6 +669,7 @@ mod tests {
             y,
             content,
             font_size,
+            ..
         } = &elements[0]
         {
             assert_eq!(*x, 100.0);
@@ -718,6 +750,69 @@ mod tests {
         } else {
             panic!("expected Text element");
         }
+    }
+
+    #[test]
+    fn text_element_font_weight_conversion() {
+        // 构造一个直接输出指定 font_weight 的极简文本物料。
+        let make = |fw_expr: &str| {
+            let src = format!(
+                r#"fn defaults() {{ #{{}} }}
+fn schema() {{ [] }}
+fn build(params, screen) {{
+    [#{{type: "text", x: 0.0, y: 0.0, content: "t", font_size: 16.0, font_weight: {fw_expr}}}]
+}}"#
+            );
+            Material::load("test.fw".to_string(), &src, false).expect("load fw material")
+        };
+        let screen = test_rect();
+        let ctx = DynamicContext::preview_snapshot(1920.0, 1080.0);
+        let params = serde_json::json!({});
+
+        // 缺失字段 → None（时间物料等未声明 font_weight 的旧物料）。
+        let m = Material::load(
+            "test.fw.missing".to_string(),
+            r#"fn defaults() { #{} }
+fn schema() { [] }
+fn build(params, screen) {
+    [#{type: "text", x: 0.0, y: 0.0, content: "t", font_size: 16.0}]
+}"#,
+            false,
+        )
+        .unwrap();
+        let els = m.evaluate(&params, &screen, &ctx).unwrap();
+        assert!(matches!(
+            &els[0],
+            Element::Text {
+                font_weight: None,
+                ..
+            }
+        ));
+
+        // 显式 ()（Rhai unit）→ None。
+        let els = make("()").evaluate(&params, &screen, &ctx).unwrap();
+        assert!(matches!(
+            &els[0],
+            Element::Text {
+                font_weight: None,
+                ..
+            }
+        ));
+
+        // 700 → Some(700)。
+        let els = make("700").evaluate(&params, &screen, &ctx).unwrap();
+        assert!(matches!(
+            &els[0],
+            Element::Text {
+                font_weight: Some(700),
+                ..
+            }
+        ));
+
+        // 非法值：非百位整数倍 → 求值报错。
+        assert!(make("150").evaluate(&params, &screen, &ctx).is_err());
+        // 非法值：超出范围 → 求值报错。
+        assert!(make("1000").evaluate(&params, &screen, &ctx).is_err());
     }
 
     #[test]

@@ -111,6 +111,7 @@
     "rename": "重命名",
     "copySuffix": "副本",
     "incompatible": "当前配置包含多个图层，请在多图层模式下编辑",
+    "layersDisabled": "多图层功能已暂时停用，原有图层配置已保留；当前显示并可编辑旧版准星设置。",
     "cannotDeleteLast": "至少保留一个配置方案"
   },
   "overlay": {
@@ -302,9 +303,6 @@
     "settings": "设置",
     "quit": "退出",
     "windowMode": "窗口模式"
-  },
-  "common": {
-    "close": "关闭"
   },
   "license": {
     "mit": "MIT · 开源 · 自由使用"

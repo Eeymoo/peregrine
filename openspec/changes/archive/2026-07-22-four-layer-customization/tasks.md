@@ -23,9 +23,9 @@
 
 ## 3. 保留旧 Crosshair 作为迁移源类型（crates/config）
 
-- [x] 3.1 把现 `Crosshair` / `CrosshairStyle` / `Anchor` / `RingStyle` / `OrbPosition` / `RandomOrbMode` / `BorderFrameStyle` / `GridAlignment` 等类型移动到 `crates/config/src/legacy.rs`，标 `#[deprecated]`，保留序列化能力
-- [x] 3.2 在 `lib.rs` 重新导出：新 schema 类型走 `pub use schema::*`；旧类型走 `pub use legacy::*`
-- [x] 3.3 验证旧 `config.json`（含 `crosshair` 字段）能通过 `serde_json::from_str::<LegacyAppConfig>` 反序列化
+- [x] 3.1 旧 `Crosshair` / `CrosshairStyle` / `Anchor` / `RingStyle` / `OrbPosition` / `RandomOrbMode` / `BorderFrameStyle` / `GridAlignment` 等类型保留在 `crates/config/src/schema.rs`，`Profile` 改为双字段共存：`crosshair: Option<Crosshair>`（迁移源，迁移完成后从配置中消失）+ `layers: Vec<Layer>`，均保留序列化能力（**实现调整**：未建独立 `legacy.rs` 模块，双字段方案无需 `#[deprecated]` 类型副本即可平滑迁移）
+- [x] 3.2 旧格式识别内建于 schema 双字段语义：加载旧 `config.json` 时 `crosshair.is_some() && layers.is_empty()` 即为旧格式；两者同时存在时以 `layers` 为准并记录警告（**实现调整**：无 `pub use legacy::*` 重导出）
+- [x] 3.3 验证旧 `config.json`（含 `crosshair` 字段）能正常反序列化并在加载时自动迁移（`storage.rs::load_or_create_default_migrates_legacy_config` 测试覆盖；**实现调整**：无独立 `LegacyAppConfig` 类型）
 
 ## 4. 物料运行时实现（crates/material）
 
@@ -65,15 +65,15 @@
 ## 7. 配置迁移逻辑（crates/config/src/migration.rs）
 
 - [x] 7.1 新建 `migration.rs` 模块，在 `lib.rs` 中 `pub mod migration;`
-- [x] 7.2 实现 `migrate_legacy_crosshair(crosshair: &LegacyCrosshair) -> Result<Layer>`：按样式映射表生成单图层
-- [x] 7.3 实现 `migrate_app_config(legacy_value: serde_json::Value) -> Result<AppConfig>`：反序列化旧格式、迁移每个 profile、生成新 schema
-- [x] 7.4 实现 `is_legacy_config(value: &serde_json::Value) -> bool`：检测是否含 `crosshair` 且无 `layers`
+- [x] 7.2 实现 `migrate_crosshair_to_layer(crosshair: &Crosshair) -> Layer`（含 `migrate_edge_rect` / `migrate_custom_image` 特例）：按样式映射表生成单图层（**实现调整**：函数名不同，基于双字段 schema 直接迁移，无 `LegacyCrosshair` 类型）
+- [x] 7.3 实现 `migrate_profile(profile: &Profile) -> Profile`：迁移每个 profile 的 `crosshair` 到 `layers`，由 `storage.rs::load_or_create_default` 在加载路径触发（**实现调整**：无独立的 `migrate_app_config(serde_json::Value)` 入口）
+- [x] 7.4 旧格式检测由 schema 双字段语义承担（`crosshair.is_some() && layers.is_empty()`）（**实现调整**：无独立 `is_legacy_config` 函数）
 - [x] 7.5 修改 `storage.rs::load_or_create_default`：加载时检测旧格式 → 备份 `.legacy.bak` → 迁移 → 校验 → 保存新格式
 - [x] 7.6 异常分支：迁移失败时备份 `.legacy.bak.error`，回退默认配置，记录 warn 日志
-- [x] 7.7 单元测试（13 个）：每种旧 style 的迁移用例 + `toilet_paper` alias
+- [x] 7.7 单元测试（14 个）：每种旧 style 的迁移用例（`toilet_paper` alias 测试位于 `schema.rs::edge_rect_alias_loads_old_toilet_paper`）（**数字修正**：原称 13 个，实际 14 个）
 - [x] 7.8 单元测试：字段值完整保留（数值、字符串、枚举值逐字段断言）
 - [x] 7.9 单元测试：异常输入降级到默认配置
-- [x] 7.10 集成测试 `crates/config/tests/migration_regression.rs`：迁移后调用真实物料求值，与旧 `build_shapes` 输出逐元素对比（13 个 style × 典型参数组合）
+- [ ] 7.10 集成测试 `crates/config/tests/migration_regression.rs`：迁移后调用真实物料求值，与旧 `build_shapes` 输出逐元素对比（13 个 style × 典型参数组合）【**假勾选修正**：该测试从未创建，`crates/config/tests/` 目录不存在 → 移至 change `material-e2e-validation`】
 
 ## 8. 共享库 shapes.rs 重构（crates/peregrine）
 
@@ -95,7 +95,7 @@
 - [x] 9.5 实现 `Element::Line` 光栅化（粗线段，可用旋转矩形近似）
 - [x] 9.6 `Element::Image` 光栅化复用现有 `draw_image` + `ensure_image_loaded` 逻辑
 - [x] 9.7 多图层混合：按图层顺序绘制，每层按 `LayerStyle.opacity` 相乘 alpha
-- [x] 9.8 性能基准：1080p / 3 图层 / 60fps 渲染单帧 < 8ms（debug 可放宽到 < 16ms）
+- [ ] 9.8 性能基准：1080p / 3 图层 / 60fps 渲染单帧 < 8ms（debug 可放宽到 < 16ms）【**假勾选修正**：无实测数据记录，实测基准默认留空 → 移至 `material-e2e-validation` 3.3 复核】
 
 ## 10. 动态输入采集（crates/peregrine/src/platform）
 
@@ -149,7 +149,7 @@
 
 - [x] 15.1 新建 `src/components/LayerPanel.tsx`：左侧或右侧侧边栏显示图层列表
 - [x] 15.2 图层项组件：显示 name / material / visible toggle / locked icon / delete button
-- [x] 15.3 拖拽排序（使用 `@dnd-kit/core` 或原生 HTML5 drag）
+- [x] 15.3 拖拽排序（使用 `@dnd-kit/core` 或原生 HTML5 drag）（**实现调整**：实际以 `LayerPanel.tsx` 的上移 / 下移按钮（ChevronUp / ChevronDown + `moveLayer` IPC）实现排序，未实现拖拽）
 - [x] 15.4 添加图层按钮：弹出物料选择对话框（`list_materials` IPC 返回的列表）
 - [x] 15.5 选中图层后高亮显示，下方显示该图层的参数面板
 - [x] 15.6 顶部工具栏：图层操作（复制 / 删除 / 上移 / 下移）
@@ -157,7 +157,7 @@
 ## 16. 前端动态参数控件（src/components/StyleFields.tsx 重写）
 
 - [x] 16.1 删除旧的按 `CrosshairStyle` switch 的固定控件渲染
-- [x] 16.2 新建 `src/components/MaterialParamControls.tsx`：接收 `schema: MaterialSchema[]`，动态渲染控件
+- [x] 16.2 动态参数控件渲染：接收物料 `schema` 数组动态渲染控件（**实现调整**：功能内建于 `LayersEditor.tsx` / `StyleFields.tsx`，未新建独立 `MaterialParamControls.tsx`）
 - [x] 16.3 实现 `widget: "number"` 控件（数字输入框）
 - [x] 16.4 实现 `widget: "slider"` 控件（复用现有 `ui/slider.tsx`）
 - [x] 16.5 实现 `widget: "color"` 控件（颜色选择器，支持 RGBA）
@@ -169,8 +169,8 @@
 
 ## 17. 前端图层样式 / 变换编辑
 
-- [x] 17.1 新建 `src/components/LayerStyleEditor.tsx`：颜色选择器（RGBA）+ 不透明度滑块 + 混合模式下拉
-- [x] 17.2 新建 `src/components/LayerTransformEditor.tsx`：offset_x / offset_y / scale / rotation_deg 滑块
+- [x] 17.1 图层样式编辑：颜色选择器（RGBA）+ 不透明度滑块 + 混合模式下拉（**实现调整**：合入 `LayerEditors.tsx`，未新建独立 `LayerStyleEditor.tsx`）
+- [x] 17.2 图层变换编辑：offset_x / offset_y / scale / rotation_deg 滑块（**实现调整**：合入 `LayerEditors.tsx`，未新建独立 `LayerTransformEditor.tsx`）
 - [x] 17.3 控件值变化时调用 `update_layer` IPC，节流 16ms
 
 ## 18. ConfigApp 整体改造（src/ConfigApp.tsx）
@@ -182,12 +182,14 @@
 
 ## 19. 文档与示例
 
+> 19.2–19.6 为假勾选修正：对应交付物经核查均未创建，已取消勾选并整体移至 change `material-docs-examples`。
+
 - [x] 19.1 更新 `AGENTS.md`：新增 `crates/material` 架构边界说明、Rhai 物料脚本约定、`DynamicContext` 说明
-- [x] 19.2 新增 `docs/guide/material-scripting.md`：用户向物料脚本编写指南（build / defaults / schema 三函数、动态输入 API、示例）
-- [x] 19.3 新增 `docs/guide/layers.md`：图层管理使用说明
-- [x] 19.4 在 `docs/.vitepress/config.mts` 注册新文档侧边栏条目
-- [x] 19.5 新增 `crates/material/examples/` 目录，提供 3-5 个示例物料脚本（动态时钟、跟随鼠标的点、键盘响应提示）
-- [x] 19.6 更新 README.md（如提及样式数量的描述）
+- [ ] 19.2 新增 `docs/guide/material-scripting.md`：用户向物料脚本编写指南（build / defaults / schema 三函数、动态输入 API、示例）【假勾选修正：文档未创建 → 移至 `material-docs-examples`】
+- [ ] 19.3 新增 `docs/guide/layers.md`：图层管理使用说明【假勾选修正：文档未创建 → 移至 `material-docs-examples`】
+- [ ] 19.4 在 `docs/.vitepress/config.mts` 注册新文档侧边栏条目【假勾选修正：未注册 → 移至 `material-docs-examples`】
+- [ ] 19.5 新增 `crates/material/examples/` 目录，提供 3-5 个示例物料脚本（动态时钟、跟随鼠标的点、键盘响应提示）【假勾选修正：目录未创建；动态时钟 `time.rhai` 误置于 `builtin/` 下 → 移至 `material-docs-examples`】
+- [ ] 19.6 更新 README.md（如提及样式数量的描述）【假勾选修正：README.md 第 59 行仍为旧样式清单，未更新 → 移至 `material-docs-examples`】
 
 ## 20. CI / 发布配置
 
@@ -199,6 +201,8 @@
 - [x] 20.6 `CHANGELOG_ALPHA.md` 新增 v0.2.0-alpha.0 条目（Added: 四层架构 / Rhai 物料 / 多图层；Changed: schema 重构；Migration: 自动迁移）
 
 ## 21. 端到端验证
+
+> 本节 7 条任务整体移至 change `material-e2e-validation`（含 7.10 迁移回归集成测试），此处保留占位以便追溯。stable 发布前必须完成。
 
 - [ ] 21.1 准备 5 份真实用户旧配置（覆盖 12 种样式），手动测试迁移流程，确认零视觉退化
 - [ ] 21.2 性能基准：1080p / 5 图层 / 60fps 渲染 1 小时无明显掉帧（frame time < 16ms）
@@ -215,4 +219,4 @@
 - [x] 22.3 `cargo fmt --all -- --check` 通过（已格式化）
 - [x] 22.4 `npm run build` 前端构建通过，无 TypeScript 错误（✓ dist 构建成功）
 - [x] 22.5 `cargo check --target x86_64-pc-windows-msvc` 编译检查通过（代码无语法错误）
-- [x] 22.6 手工冒烟测试：全新安装 / 旧配置升级 / 多图层叠加 / 用户物料加载 / 动态物料预览
+- [ ] 22.6 手工冒烟测试：全新安装 / 旧配置升级 / 多图层叠加 / 用户物料加载 / 动态物料预览【**假勾选修正**：手工测试默认留空，等待 Windows 实机验证】

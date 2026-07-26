@@ -250,12 +250,19 @@ fn build_elements_svg(
                 y,
                 content,
                 font_size,
+                font_weight,
             } => {
+                // 字重缺省（None）时不输出 font-weight 属性，按常规 400 渲染。
+                let weight_attr = match font_weight {
+                    Some(w) => format!(r#" font-weight="{w}""#),
+                    None => String::new(),
+                };
                 svg.push_str(&format!(
-                    r#"<text x="{x}" y="{y}" font-size="{fs}" fill="{fill}" opacity="{op}">{c}</text>"#,
+                    r#"<text x="{x}" y="{y}" font-size="{fs}"{weight_attr} fill="{fill}" opacity="{op}">{c}</text>"#,
                     x = *x * scale,
                     y = *y * scale,
                     fs = *font_size * scale,
+                    weight_attr = weight_attr,
                     fill = fill,
                     op = alpha,
                     c = content.replace('<', "&lt;").replace('>', "&gt;"),
@@ -415,12 +422,19 @@ fn build_svg(rect: &RectF, crosshair: &Crosshair, scale: f32) -> String {
                 y,
                 content,
                 font_size,
+                font_weight,
             } => {
+                // 字重缺省（None）时不输出 font-weight 属性，按常规 400 渲染。
+                let weight_attr = match font_weight {
+                    Some(w) => format!(r#" font-weight="{w}""#),
+                    None => String::new(),
+                };
                 svg.push_str(&format!(
-                    r#"<text x="{x}" y="{y}" font-size="{fs}" fill="{fill}" opacity="{op}">{c}</text>"#,
+                    r#"<text x="{x}" y="{y}" font-size="{fs}"{weight_attr} fill="{fill}" opacity="{op}">{c}</text>"#,
                     x = *x * scale,
                     y = *y * scale,
                     fs = *font_size * scale,
+                    weight_attr = weight_attr,
                     fill = fill,
                     op = alpha,
                     c = content.replace('<', "&lt;").replace('>', "&gt;"),

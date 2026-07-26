@@ -34,6 +34,10 @@ pub enum OverlayCommand {
     QueryActive,
     /// 标记需要重绘（follower 调整窗口位置后触发）。
     Invalidate,
+    /// 用户物料热重载完成：请求重绘一帧。
+    /// MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，渲染路径不消费物料，
+    /// 此命令仅保留以兼容发送方，语义退化为普通重绘请求。
+    RefreshMaterials,
 }
 
 /// 内部自定义事件：把外部命令转发进 winit 事件循环。
@@ -134,6 +138,17 @@ impl OverlayApp {
         }
     }
 
+    /// 判断当前配置是否需要持续重绘。
+    /// MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，不再查询图层物料的
+    /// `is_dynamic`；仅保留旧格式 RandomOrb 样式的持续重绘判定。
+    fn compute_is_animated(&self) -> bool {
+        let cfg = self.config.lock().expect("config lock");
+        cfg.active_profile()
+            .and_then(|p| p.crosshair.as_ref())
+            .map(|c| c.style == peregrine_config::CrosshairStyle::RandomOrb)
+            .unwrap_or(false)
+    }
+
     fn handle_command(&mut self, event_loop: &ActiveEventLoop, cmd: OverlayCommand) {
         match cmd {
             OverlayCommand::Start(title) => self.create_overlay(event_loop, title),
@@ -179,6 +194,10 @@ impl OverlayApp {
                 }
             }
             OverlayCommand::QueryActive => {}
+            OverlayCommand::RefreshMaterials => {
+                // 物料运行时已软关闭，渲染路径不消费物料；退化为普通重绘请求。
+                self.needs_redraw = true;
+            }
             OverlayCommand::Invalidate => {
                 // follower 调整了窗口位置，需要重绘一帧。
                 // 直接调用 request_redraw，避免依赖 about_to_wait 的隐式行为
@@ -479,26 +498,9 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
             return;
         };
 
-        // 判断当前准心是否为动画样式（RandomOrb 需要持续重绘）。
-        // 兼容新旧格式：新格式无 crosshair，统一按 is_dynamic 判断（更准确）。
-        let is_animated = {
-            let cfg = self.config.lock().expect("config lock");
-            // 新格式：检查 layers 中是否有 is_dynamic 的物料。
-            // 简化：若 layers 非空，按 false 处理（首期）；旧格式按 RandomOrb 判断。
-            cfg.active_profile()
-                .and_then(|p| {
-                    if !p.layers.is_empty() {
-                        // 新格式：暂不查询物料 is_dynamic（避免 registry 借用），
-                        // 后续通过 overlay_cmd 显式触发动画刷新。
-                        None
-                    } else {
-                        p.crosshair
-                            .as_ref()
-                            .map(|c| c.style == peregrine_config::CrosshairStyle::RandomOrb)
-                    }
-                })
-                .unwrap_or(false)
-        };
+        // 判断当前配置是否需要持续重绘（旧格式 RandomOrb 动画样式）。
+        // 判定开销极小（一次锁 + 枚举比较），每轮 about_to_wait 直接计算。
+        let is_animated = self.compute_is_animated();
 
         if is_animated {
             // RandomOrb 保持 60FPS 持续重绘。

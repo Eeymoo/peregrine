@@ -866,6 +866,9 @@ fn execute_hotkey_action(app: &tauri::AppHandle, action: HotkeyAction) {
 ///
 /// 兼容新旧格式：
 /// - 新格式：更新 layers[0] 的 style.color（若 layers 非空）。
+///   同时双写 crosshair.color（若 crosshair 字段存在）：读路径（前端 UI /
+///   overlay 渲染 / 预览 IPC）均为 crosshair 优先，只写 layer 会让 crosshair
+///   保留陈旧颜色，切换 profile 重新拉取配置后表现为颜色丢失。
 /// - 旧格式：更新 crosshair.color（若 crosshair 存在）。
 async fn set_crosshair_color_inner(
     state: State<'_, AppState>,
@@ -893,6 +896,10 @@ async fn set_crosshair_color_inner(
                 if let Some(layer) = profile.layers.iter_mut().find(|l| l.id == id) {
                     layer.style.color = color_arr;
                 }
+            }
+            // 双写：crosshair 字段存在时同步颜色，保持两字段一致（见函数文档）。
+            if let Some(ref mut crosshair) = profile.crosshair {
+                crosshair.color = color_arr;
             }
         } else if let Some(ref mut crosshair) = profile.crosshair {
             // 旧格式 fallback。

@@ -1264,7 +1264,12 @@ impl Layer {
         Ok(())
     }
 
-    /// 判断该图层是否可在单图层（旧版）UI 中编辑。
+    /// 判断该图层是否可在单图层（旧版）UI 中编辑（快速预检查）。
+    ///
+    /// 仅检查物料类型、几何变换与混合模式；
+    /// `params` 等于物料 `defaults` 的完整校验由上层（Tauri 命令
+    /// `is_profile_legacy_compatible`）通过 `MaterialRegistry.defaults()` 完成，
+    /// 因 `peregrine_config` crate 不依赖 `peregrine_material`。
     ///
     /// 条件：
     /// - 使用内置基础物料（与旧版 Crosshair 样式一一对应）；

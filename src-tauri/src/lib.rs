@@ -1705,9 +1705,37 @@ fn get_profile(state: State<AppState>, name: String) -> Result<peregrine_config:
 }
 
 /// 判断一个 Profile 是否可在单图层（旧版）UI 中编辑。
+///
+/// 在 config crate 的快速判定（material id / transform / blend_mode）基础上，
+/// 额外校验图层 `params` 是否等于物料 `defaults()`（design.md:46 要求）。
+/// 若物料未注册或 params 不匹配 defaults，则返回 false。
 #[tauri::command]
-fn is_profile_legacy_compatible(profile: peregrine_config::Profile) -> bool {
-    profile.is_legacy_compatible()
+fn is_profile_legacy_compatible(
+    state: State<AppState>,
+    profile: peregrine_config::Profile,
+) -> bool {
+    if !profile.is_legacy_compatible() {
+        return false;
+    }
+    // 校验 params 等于物料 defaults。
+    let Some(layer) = profile.layers.first() else {
+        return false;
+    };
+    let material_id = layer.material.material_id();
+    let Some(material) = state.material_registry.get(&material_id) else {
+        return false;
+    };
+    // 比较逐字段：layer.params 的每个 key 必须在 defaults 中存在且值相等。
+    let defaults = material.defaults();
+    match (layer.params.as_object(), defaults.as_object()) {
+        (Some(lp), Some(dp)) => {
+            if lp.len() != dp.len() {
+                return false;
+            }
+            lp.iter().all(|(k, v)| dp.get(k) == Some(v))
+        }
+        _ => false,
+    }
 }
 
 /// 创建新的 Profile。

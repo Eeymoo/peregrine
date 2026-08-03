@@ -105,7 +105,7 @@ interface AppState {
 
 - `layersMode` 持久化到 `localStorage`；**启动时无差别恢复关闭前的模式**：单图层关闭→单图层打开，多图层关闭→多图层打开；无持久化值时默认单图层。
 - 恢复后仍套用既有兼容规则：单图层模式下 active profile 不兼容时，提示并切到多图层（并写回持久化值）。
-- 软关闭期间不做特判（见 `disable-material-runtime` D4 修订）：入口隐藏使得软关闭期间不会产生新的多图层状态，仅可能恢复软关闭前遗留的多图层模式。
+- 软关闭期间不做特判（见 `disable-material-runtime` D4 2026-08-03 二次修订）：切换入口全部保留，软关闭期间可自由切换单/多图层模式；但图层编辑不影响 overlay 渲染与预览（均走 crosshair 路径），待运行时重新启用后生效。
 
 ## ProfileManager 组件
 

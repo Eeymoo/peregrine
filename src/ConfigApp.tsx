@@ -134,8 +134,10 @@ export default function ConfigApp() {
   }
 
   // 图层编辑器模式：显示全新 UI。
-  // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，永不进入该分支。
-  if (MATERIAL_RUNTIME_ENABLED && layersMode) {
+  // 模式持久化（2026-08-03 修订）：layersMode 从 localStorage 恢复，进入该分支不再受
+  // MATERIAL_RUNTIME_ENABLED 门控；软关闭期间「进入多图层」的入口仍隐藏（见下文各门控按钮），
+  // 仅可能恢复软关闭前遗留的多图层模式，且返回单图层的出口（onSwitchSingleLayer）保持可用。
+  if (layersMode) {
     return (
       <div className="h-screen flex flex-col bg-background text-foreground">
         <LayersEditor

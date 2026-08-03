@@ -23,9 +23,18 @@ export function useConfigAppState() {
   const [overlayActive, setOverlayActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [version, setVersion] = useState("");
-  // 默认根据当前 active profile 的兼容性选择模式：
-  // 多图层配置 → 打开多图层模式；单图层兼容配置 → 打开单图层（旧版）模式。
-  const [layersMode, setLayersMode] = useState(false);
+  // 模式持久化（2026-08-03 修订）：layersMode 持久化到 localStorage，
+  // 启动时无差别恢复关闭前的模式（单图层关→单图层开，多图层关→多图层开），
+  // 无持久化值时默认单图层。恢复后仍套用兼容性规则（见下方加载逻辑）。
+  const LAYERS_MODE_KEY = "peregrine:layers-mode";
+  const [layersMode, setLayersModeState] = useState(
+    () => localStorage.getItem(LAYERS_MODE_KEY) === "1",
+  );
+  /** 切换编辑器模式并写回 localStorage 持久化值。 */
+  const setLayersMode = (v: boolean) => {
+    setLayersModeState(v);
+    localStorage.setItem(LAYERS_MODE_KEY, v ? "1" : "0");
+  };
 
   useEffect(() => {
     getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("config.title")}`).catch(() => {});
@@ -38,8 +47,13 @@ export function useConfigAppState() {
         const profile = cfg.profiles[cfg.active_profile];
         const compatible =
           profile?.layers?.length === 1 && isLayerLegacyCompatible(profile.layers[0]);
-        // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，始终使用旧版（单图层）UI。
-        setLayersMode(MATERIAL_RUNTIME_ENABLED && !compatible);
+        // MATERIAL_RUNTIME_ENABLED 门控：软关闭期间视为全部兼容，不做强制切换；
+        // 重新启用后恢复「恢复为单图层 + active profile 不兼容 → 强制切多图层」规则。
+        const effectiveCompatible = MATERIAL_RUNTIME_ENABLED ? compatible : true;
+        // 模式恢复优先：仅当恢复为单图层且不兼容时才强制切到多图层（写回持久化值）。
+        if (!layersMode && !effectiveCompatible) {
+          setLayersMode(true);
+        }
       })
       .catch(console.error)
       .finally(() => setLoading(false));

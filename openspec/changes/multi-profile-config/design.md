@@ -101,6 +101,12 @@ interface AppState {
 - 编辑 `config.profiles[config.active_profile]`。
 - 完整图层管理。
 
+### 模式持久化（2026-08-03 修订新增）
+
+- `layersMode` 持久化到 `localStorage`；**启动时无差别恢复关闭前的模式**：单图层关闭→单图层打开，多图层关闭→多图层打开；无持久化值时默认单图层。
+- 恢复后仍套用既有兼容规则：单图层模式下 active profile 不兼容时，提示并切到多图层（并写回持久化值）。
+- 软关闭期间不做特判（见 `disable-material-runtime` D4 修订）：入口隐藏使得软关闭期间不会产生新的多图层状态，仅可能恢复软关闭前遗留的多图层模式。
+
 ## ProfileManager 组件
 
 位置：单图层/多图层模式都显示在顶部栏。

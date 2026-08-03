@@ -31,8 +31,14 @@
 - [x] `npm run build`（✓ 构建成功）
 - [x] `cargo check --target x86_64-pc-windows-msvc`（✓ 编译通过，代码无语法错误）
 
+## 模式持久化（2026-08-03 design 修订新增）
+
+- [x] `layersMode` 持久化到 `localStorage`，启动时无差别恢复关闭前模式（单→单、多→多）
+- [x] 解除 LayersEditor 渲染分支的 `MATERIAL_RUNTIME_ENABLED` 门控（进入入口保持隐藏，返回单图层出口不门控）
+- [x] `npx tsc --noEmit` + `npm run build` 通过
+
 待验证（需要 Windows 运行时环境）：
-- [ ] Windows 上完整 Tauri 构建（需要完整 Windows 开发环境）
-- [ ] 单图层模式下创建/切换/复制 profile 的 UI 交互（需要实际运行验证）
-- [ ] 多图层模式下管理 profile 并编辑图层（需要实际运行验证）
-- [ ] 切换 profile 后 overlay 渲染正确（需要实际运行验证）
+- [x] Windows 上完整 Tauri 构建【由 CI 覆盖：ci.yml 每次 push 跑 release 编译；release.yml 打 v* tag 时跑完整 `npx tauri build --bundles nsis`（三架构），本 change 未改动打包配置】
+- [ ] 单图层模式下创建/切换/复制 profile 的 UI 交互（人工实机验证）
+- [ ] 切换 profile 后 overlay 渲染正确（人工实机验证）
+- [ ] ~~多图层模式下管理 profile 并编辑图层~~【暂缓：物料运行时已软关闭（disable-material-runtime），图层编辑器入口已隐藏，多图层模式当前不可达；待重新启用后补测】

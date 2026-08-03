@@ -61,7 +61,8 @@ let use_new_format = crate::MATERIAL_RUNTIME_ENABLED
 
 ### D4：前端——隐藏入口而非删除组件
 
-- `ConfigApp.tsx` 中 `setLayersMode(true)` 的三处入口（异常兜底按钮、两个切换按钮）以 `MATERIAL_RUNTIME_ENABLED` 常量门控隐藏；`layersMode` 初始值强制 `false`。
+- `ConfigApp.tsx` 中 `setLayersMode(true)` 的三处入口（异常兜底按钮、两个切换按钮）以 `MATERIAL_RUNTIME_ENABLED` 常量门控隐藏；`layersMode` 初始值**从 localStorage 持久化值恢复**（2026-08-03 修订：原决策为「初始值强制 `false`」，经实测推翻——模式恢复不做软关闭特判，与其他时期行为一致，即「怎么关闭的就怎么展开」）。软关闭期间仅隐藏「进入多图层」的入口，不干预模式恢复；入口已隐藏使得软关闭期间不会产生新的多图层状态，仅可能恢复软关闭前遗留的多图层模式。
+- 配套要求（2026-08-03 修订新增）：软关闭期间**返回单图层的出口不门控**（只隐藏入口，不隐藏出口），避免恢复出的遗留多图层模式成为无出口的死胡同。
 - `LayersEditor.tsx`、`LayerPanel.tsx`、`LayerEditors.tsx` 组件文件保留不删，仅不再被引用（或仅在被门控的分支引用）。
 - i18n 文案键保留。
 

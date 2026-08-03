@@ -1369,10 +1369,16 @@ fn build_shapes_ipc(
         max_y: screen_h,
     };
 
-    // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，预览与 overlay 一致，
-    // 强制走旧版 Crosshair 路径（crosshair 缺失时回退默认准星），不消费物料 / 动态上下文。
+    // MATERIAL_RUNTIME_ENABLED 门控：物料运行时启用时走 layers 求值（与 overlay 一致）；
+    // 软关闭时强制走旧版 Crosshair 路径（crosshair 缺失时回退默认准星）。
     let shapes = if peregrine::MATERIAL_RUNTIME_ENABLED {
-        let ctx = DynamicContext::preview_snapshot(screen_w, screen_h);
+        // MATERIAL_DYNAMIC_INPUT_ENABLED 门控：动态输入停用时用 static_context()
+        // （version=0，静态物料永久缓存，动态物料冻结渲染），与 overlay 保持一致。
+        let ctx = if peregrine::MATERIAL_DYNAMIC_INPUT_ENABLED {
+            DynamicContext::preview_snapshot(screen_w, screen_h)
+        } else {
+            DynamicContext::static_context()
+        };
         peregrine::shapes::build_layers_shapes(&screen, profile, &state.material_registry, &ctx)
     } else {
         let crosshair = profile

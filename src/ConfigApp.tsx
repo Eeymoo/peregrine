@@ -120,23 +120,20 @@ export default function ConfigApp() {
     return (
       <div className="h-screen flex flex-col items-center justify-center text-muted-foreground gap-4">
         <span className="text-lg">{t("config.invalidFormat")}</span>
-        {/* MATERIAL_RUNTIME_ENABLED 门控：图层编辑器入口已隐藏 */}
-        {MATERIAL_RUNTIME_ENABLED && (
-          <button
-            className="text-xs px-3 py-1 border rounded hover:bg-accent"
-            onClick={() => setLayersMode(true)}
-          >
-            {t("config.switchToLayersFallback")}
-          </button>
-        )}
+        {/* 异常兜底入口：软关闭不门控模式切换（D4 2026-08-03 二次修订） */}
+        <button
+          className="text-xs px-3 py-1 border rounded hover:bg-accent"
+          onClick={() => setLayersMode(true)}
+        >
+          {t("config.switchToLayersFallback")}
+        </button>
       </div>
     );
   }
 
   // 图层编辑器模式：显示全新 UI。
-  // 模式持久化（2026-08-03 修订）：layersMode 从 localStorage 恢复，进入该分支不再受
-  // MATERIAL_RUNTIME_ENABLED 门控；软关闭期间「进入多图层」的入口仍隐藏（见下文各门控按钮），
-  // 仅可能恢复软关闭前遗留的多图层模式，且返回单图层的出口（onSwitchSingleLayer）保持可用。
+  // 模式切换不门控（D4 2026-08-03 二次修订）：软关闭只作用于渲染链路，
+  // UI 可自由切换单/多图层；软关闭期间图层编辑不影响 overlay 渲染与预览。
   if (layersMode) {
     return (
       <div className="h-screen flex flex-col bg-background text-foreground">
@@ -161,8 +158,9 @@ export default function ConfigApp() {
   // 到这里 crosshair 必为非 null（已从 layers[0] 反向生成）。
   const ch = crosshair!;
 
-  // MATERIAL_RUNTIME_ENABLED 门控：软关闭后 crosshair 重新成为权威配置，
-  // 即使 profile 的 layers 不兼容旧格式也允许编辑（编辑结果直接驱动渲染）。
+  // MATERIAL_RUNTIME_ENABLED 门控：物料运行时启用时使用真实兼容性判定——
+  // 不兼容 profile 禁用单图层编辑（防止改坏多图层配置），引导至多图层模式；
+  // 软关闭期间恒为 true（crosshair 为权威配置，允许按旧准星编辑驱动渲染）。
   const effectiveCompatible = MATERIAL_RUNTIME_ENABLED ? isLegacyCompatible : true;
 
   return (
@@ -172,18 +170,16 @@ export default function ConfigApp() {
         <Preview previewKey={profile?.layers} />
 
         {/* 顶部工具栏：仅保留切换到多图层按钮 */}
-        {/* MATERIAL_RUNTIME_ENABLED 门控：图层编辑器入口已隐藏 */}
-        {MATERIAL_RUNTIME_ENABLED && (
-          <div className="absolute top-4 left-4 right-4 flex items-center justify-end z-10">
-            <button
-              onClick={() => setLayersMode(true)}
-              className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90"
-              title={t("layers.switchToLayers")}
-            >
-              {t("layers.switchToLayers")}
-            </button>
-          </div>
-        )}
+        {/* 模式切换入口：软关闭不门控（D4 2026-08-03 二次修订） */}
+        <div className="absolute top-4 left-4 right-4 flex items-center justify-end z-10">
+          <button
+            onClick={() => setLayersMode(true)}
+            className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90"
+            title={t("layers.switchToLayers")}
+          >
+            {t("layers.switchToLayers")}
+          </button>
+        </div>
       </div>
 
       {/* 右侧设置面板：顶部固定、中间滚动、底部固定 */}
@@ -198,24 +194,19 @@ export default function ConfigApp() {
             onProfilesChange={setProfiles}
           />
 
-          {/* 单图层不兼容提示 */}
-          {/* MATERIAL_RUNTIME_ENABLED 门控：软关闭后改为"功能暂停"一次性提示，不再提供图层编辑器入口 */}
+          {/* 单图层不兼容提示：切换入口不门控（D4 2026-08-03 二次修订）；
+              软关闭期间附加「功能暂停」说明，提示图层编辑暂不影响渲染 */}
           {!isLegacyCompatible && (
             <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-700 dark:text-yellow-400 space-y-1">
-              {MATERIAL_RUNTIME_ENABLED ? (
-                <>
-                  <div>{t("profile.incompatible")}</div>
-                  <button
-                    type="button"
-                    onClick={() => setLayersMode(true)}
-                    className="text-xs underline hover:text-yellow-800 dark:hover:text-yellow-300"
-                  >
-                    {t("config.switchToLayersFallback")}
-                  </button>
-                </>
-              ) : (
-                <div>{t("profile.layersDisabled")}</div>
-              )}
+              <div>{t("profile.incompatible")}</div>
+              {!MATERIAL_RUNTIME_ENABLED && <div>{t("profile.layersDisabled")}</div>}
+              <button
+                type="button"
+                onClick={() => setLayersMode(true)}
+                className="text-xs underline hover:text-yellow-800 dark:hover:text-yellow-300"
+              >
+                {t("config.switchToLayersFallback")}
+              </button>
             </div>
           )}
 

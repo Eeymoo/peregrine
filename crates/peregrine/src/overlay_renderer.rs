@@ -156,12 +156,13 @@ impl OverlayRenderer {
         // 软关闭时 use_new_format 编译期为 false，此分支不可达。
         if use_new_format {
             if let Some(ref profile) = profile_clone {
-                // 渲染时用真实动态输入（Win32 API 鼠标键盘 / 时间）。
-                // MATERIAL_RUNTIME_ENABLED 门控：poll_dynamic_context 仅在物料运行时启用时可调用。
-                let ctx = if crate::MATERIAL_RUNTIME_ENABLED {
+                // 动态上下文选择：MATERIAL_DYNAMIC_INPUT_ENABLED 门控。
+                // 启用时轮询真实动态输入（Win32 鼠标键盘 / 时间）；
+                // 停用时用 static_context()（version=0，静态物料永久缓存，动态物料冻结渲染）。
+                let ctx = if crate::MATERIAL_DYNAMIC_INPUT_ENABLED {
                     crate::platform::poll_dynamic_context(logical_w, logical_h)
                 } else {
-                    peregrine_material::DynamicContext::preview_snapshot(logical_w, logical_h)
+                    peregrine_material::DynamicContext::static_context()
                 };
                 let shapes = crate::shapes::build_layers_shapes(
                     &rect,
@@ -206,13 +207,13 @@ impl OverlayRenderer {
             let Some(ref profile) = profile_clone else {
                 return;
             };
-            // 渲染时使用真实动态输入。
-            // MATERIAL_RUNTIME_ENABLED 门控：poll_dynamic_context 仅在物料运行时启用时可调用，
-            // 软关闭时走静态预览上下文（此分支本身不可达，保留以满足恢复后的代码完整性）。
-            let ctx = if crate::MATERIAL_RUNTIME_ENABLED {
+            // 动态上下文选择：MATERIAL_DYNAMIC_INPUT_ENABLED 门控。
+            // 启用时轮询真实动态输入；停用时用 static_context()（version=0，
+            // 静态物料永久缓存，动态物料冻结渲染）。
+            let ctx = if crate::MATERIAL_DYNAMIC_INPUT_ENABLED {
                 crate::platform::poll_dynamic_context(logical_w, logical_h)
             } else {
-                peregrine_material::DynamicContext::preview_snapshot(logical_w, logical_h)
+                peregrine_material::DynamicContext::static_context()
             };
             let shapes =
                 crate::shapes::build_layers_shapes(&rect, profile, &self.material_registry, &ctx);

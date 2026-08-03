@@ -47,8 +47,9 @@ export function useConfigAppState() {
         const profile = cfg.profiles[cfg.active_profile];
         const compatible =
           profile?.layers?.length === 1 && isLayerLegacyCompatible(profile.layers[0]);
-        // MATERIAL_RUNTIME_ENABLED 门控：软关闭期间视为全部兼容，不做强制切换；
-        // 重新启用后恢复「恢复为单图层 + active profile 不兼容 → 强制切多图层」规则。
+        // MATERIAL_RUNTIME_ENABLED 门控：启用时使用真实兼容性判定——
+        // 恢复为单图层且 active profile 不兼容时强制切多图层（写回持久化值）；
+        // 软关闭期间恒为兼容，不做强制切换。
         const effectiveCompatible = MATERIAL_RUNTIME_ENABLED ? compatible : true;
         // 模式恢复优先：仅当恢复为单图层且不兼容时才强制切到多图层（写回持久化值）。
         if (!layersMode && !effectiveCompatible) {

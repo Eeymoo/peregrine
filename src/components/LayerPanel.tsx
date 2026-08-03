@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Trash2, Copy, ChevronUp, ChevronDown, Plus, Eye, EyeOff, Lock, Unlock } from "lucide-react";
 import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
+import { MATERIAL_DYNAMIC_INPUT_ENABLED } from "@/lib/feature";
 
 interface LayerPanelProps {
   /** 图层数组，包含所有显示的图层信息 */
@@ -40,8 +41,16 @@ export function LayerPanel({
   const [showAddDialog, setShowAddDialog] = useState(false);
 
   // 加载物料列表（仅一次）。
+  // MATERIAL_DYNAMIC_INPUT_ENABLED 门控：动态输入停用时过滤 is_dynamic 物料，
+  // 动态物料在选择器中不可选（配置保留，渲染冻结）。
   useEffect(() => {
-    listMaterials().then(setMaterials).catch(console.error);
+    listMaterials()
+      .then((list) =>
+        setMaterials(
+          MATERIAL_DYNAMIC_INPUT_ENABLED ? list : list.filter((m) => !m.is_dynamic),
+        ),
+      )
+      .catch(console.error);
   }, []);
 
   const handleAdd = async (materialId: string, name: string) => {

@@ -82,10 +82,54 @@ npx tauri dev
 
 ### B4. 动态物料效果（任务 21.7）
 
+> ⚠️ **2026-08-03 起预期反转**：`material-static-rendering` 已停用动态输入（`MATERIAL_DYNAMIC_INPUT_ENABLED = false`）。
+> 时钟物料不再每秒更新（冻结渲染），鼠标跟随/键盘响应不生效，物料选择器中不出现 `builtin.time`。
+> 以下条目仅在未来翻回动态开关后适用，当前跳过。
+
 - [ ] **B4.1** 添加 `builtin.time`（时钟物料）图层 → overlay 每秒更新
 - [ ] **B4.2** 添加鼠标跟随物料（examples 目录）→ 移动鼠标，overlay 延迟 < 50ms
 - [ ] **B4.3** 添加键盘响应物料 → 按键即时响应
 - [ ] **B4.4** 前端预览动态物料 → 显示「动态物料 - 预览为快照」提示
+
+---
+
+## D. material-static-rendering 验证（2026-08-03 快照）
+
+> 对应 OpenSpec 变更 `material-static-rendering` 任务 6.1-6.5 及本轮 bug 修复回归。
+> 大行为变更：overlay 从「永远旧准星」变为「按 layers 多图层渲染」。
+
+### D1. 静态多图层渲染恢复（任务 6.1-6.2）
+
+- [ ] **D1.1** 切到多图层模式，添加两个图层（如 cross + ring）→ overlay 按图层**叠加渲染**，不再是旧版默认准星
+- [ ] **D1.2** 修改某图层颜色/参数并保存 → overlay 与预览**即时更新**（WYSIWYG），无需重启应用
+- [ ] **D1.3** 调整图层顺序/可见性 → overlay 渲染同步变化
+- [ ] **D1.4** 单图层模式下改准星样式 → overlay 同步更新（旧路径不回归）
+
+### D2. 12 种内置物料目检（任务 6.3）
+
+逐个切换物料渲染，确认无退化（重点：文本图元、自定义图片）：
+
+- [ ] **D2.1** cross / large_cross / edge_rect / ring / corner_dots / border_frame
+- [ ] **D2.2** edge_arrows / grid / custom_orb / random_orb / custom_image
+- [ ] **D2.3** random_orb 随机序列与旧版一致（同参数同点位）
+
+### D3. 动态物料停用（任务 6.4）
+
+- [ ] **D3.1** 打开「添加图层」物料选择器 → 列表中**没有** `builtin.time`（时钟）
+- [ ] **D3.2** overlay 挂着时观察任务管理器 → CPU 无动态轮询空转（与纯静态一致）
+- [ ] **D3.3**（可选）手工在 config.json 给某图层指定 `builtin.time` → 时钟按固定时间冻结渲染，不崩溃不刷新
+
+### D4. 旧配置兼容（任务 6.5）
+
+- [ ] **D4.1** 纯旧 crosshair 配置（无 layers）→ 渲染外观与上个版本一致
+- [ ] **D4.2** 含 layers 的配置编辑保存后 → config.json 中 layers 数据完整，不降级
+
+### D5. 本轮修复回归
+
+- [ ] **D5.1** 颜色不丢（fix `fe0b2f4`）：单图层 UI 改样式 → 快捷键/快捷色换色 → 切换 profile 再切回 → **颜色保持**
+- [ ] **D5.2** 模式记忆（feat `62cff53`）：多图层模式关应用 → 重开仍是多图层；切单图层关应用 → 重开单图层
+- [ ] **D5.3** 入口保留：不兼容 profile 提示区有「切换到图层编辑器」按钮，可正常进入；返回单图层出口可用
+- [ ] **D5.4** 兼容判定恢复：不兼容 profile 在单图层模式下编辑控件**禁用**（防改坏多图层配置）；切到该 profile 时自动进入多图层模式
 
 ---
 
@@ -119,14 +163,15 @@ npx tauri dev
 
 ## 验证结果记录
 
-| 日期 | 系统 | 版本 | 验证人 | A1 | A2 | A3 | B1 | B2 | B3 | B4 | C1-C4 | 备注 |
-|------|------|------|--------|----|----|----|----|----|----|----|-------|------|
-|      |      |      |        |    |    |    |    |    |    |    |       |      |
+| 日期 | 系统 | 版本 | 验证人 | A1 | A2 | A3 | B1 | B2 | B3 | B4 | C1-C4 | D1-D5 | 备注 |
+|------|------|------|--------|----|----|----|----|----|----|----|-------|-------|------|
+|      |      |      |        |    |    |    |    |    |    |    |       |       |      |
 
 全部通过后：
 ```bash
 # 更新 OpenSpec 任务状态，然后归档变更
 openspec archive multi-profile-config
+openspec archive material-static-rendering
 openspec archive four-layer-customization
 openspec archive merge-dev-into-four-layer
 ```

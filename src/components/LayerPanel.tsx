@@ -43,11 +43,13 @@ export function LayerPanel({
   // 加载物料列表（仅一次）。
   // MATERIAL_DYNAMIC_INPUT_ENABLED 门控：动态输入停用时过滤 is_dynamic 物料，
   // 动态物料在选择器中不可选（配置保留，渲染冻结）。
+  // custom_image 暂隐藏：图片渲染链路当前不可用（不渲染图片），待后续修复后恢复。
   useEffect(() => {
     listMaterials()
       .then((list) =>
         setMaterials(
-          MATERIAL_DYNAMIC_INPUT_ENABLED ? list : list.filter((m) => !m.is_dynamic),
+          (MATERIAL_DYNAMIC_INPUT_ENABLED ? list : list.filter((m) => !m.is_dynamic))
+            .filter((m) => m.id !== "builtin.custom_image"),
         ),
       )
       .catch(console.error);
@@ -75,7 +77,9 @@ export function LayerPanel({
   const handleMove = async (id: string, direction: "up" | "down") => {
     const idx = layers.findIndex((l) => l.id === id);
     if (idx < 0) return;
-    const newIdx = direction === "up" ? Math.max(0, idx - 1) : Math.min(layers.length - 1, idx + 1);
+    // 列表反序显示（顶层图层在最上，Photoshop 习惯），
+    // 因此视觉上"上移" = 数组索引 +1（更晚渲染、更靠顶层）。
+    const newIdx = direction === "up" ? Math.min(layers.length - 1, idx + 1) : Math.max(0, idx - 1);
     if (newIdx === idx) return;
     logAction("move-layer", { id, from: idx, to: newIdx });
     await moveLayer(id, newIdx);

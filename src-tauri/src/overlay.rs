@@ -185,7 +185,12 @@ impl OverlayApp {
                 *self.config.lock().expect("config lock") = snap;
 
                 // 配置变化，静态准心需要重绘。
+                // 必须主动 request_redraw：事件驱动模型下没有事件就不会有下一帧，
+                // 否则配置变更要等任意后续事件才上屏（表现为"慢一拍"）。
                 self.needs_redraw = true;
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
 
                 if need_restart_follower {
                     let title = self.target_title.clone();

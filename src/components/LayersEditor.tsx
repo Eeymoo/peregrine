@@ -238,7 +238,9 @@ export function LayersEditor({
                     value={selectedLayer.name}
                     disabled={selectedLayer.locked}
                     onChange={(e) => {
-                      updateLayerName(selectedLayer.id, e.target.value, () => {
+                      // 防抖 400ms：避免每击键一次 IPC；在途请求可能在图层被删除后
+                      // 才到达后端（layer not found），错误捕获后仅记录不抛出。
+                      debouncedUpdateLayerName(selectedLayer.id, e.target.value, () => {
                         refresh();
                         triggerPreviewRefresh();
                       });
@@ -377,6 +379,22 @@ export function LayersEditor({
 
 async function updateLayerName(layerId: string, name: string, onChanged: () => void) {
   const { updateLayer } = await import("@/lib/api");
-  await updateLayer(layerId, { name });
-  onChanged();
+  try {
+    await updateLayer(layerId, { name });
+    onChanged();
+  } catch (err) {
+    // 图层可能已被删除（在途请求晚到），仅记录不抛出未捕获 Promise。
+    console.error("updateLayerName failed:", err);
+  }
+}
+
+/** 图层名输入防抖定时器（模块级单例，输入框同时只有一个）。 */
+let nameTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 防抖版图层名更新：停止输入 400ms 后才写后端。 */
+function debouncedUpdateLayerName(layerId: string, name: string, onChanged: () => void) {
+  if (nameTimer) clearTimeout(nameTimer);
+  nameTimer = setTimeout(() => {
+    updateLayerName(layerId, name, onChanged);
+  }, 400);
 }

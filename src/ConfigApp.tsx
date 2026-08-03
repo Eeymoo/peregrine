@@ -86,16 +86,20 @@ export default function ConfigApp() {
     () => localStorage.getItem("peregrine:dev-tab") === "1",
   );
   const [versionClickCount, setVersionClickCount] = useState(0);
+  const [justUnlocked, setJustUnlocked] = useState(false);
 
-  // 点击版本号 3 次（连续，间隔 < 1.5s）解锁开发者面板。
+  // 点击版本号 5 次（连续，间隔 < 1.5s）解锁开发者面板；第 3 击起有剩余次数提示。
   // 解锁状态写入 localStorage，下次启动仍然有效；可在开发者面板里关闭。
   useEffect(() => {
     if (versionClickCount === 0) return;
     const timer = setTimeout(() => setVersionClickCount(0), 1500);
-    if (versionClickCount >= 3) {
+    if (versionClickCount >= 5) {
       setVersionClickCount(0);
       setDevTabUnlocked(true);
       localStorage.setItem("peregrine:dev-tab", "1");
+      // 解锁成功提示：版本号旁短暂显示「已开启开发者模式」，3 秒后消失。
+      setJustUnlocked(true);
+      setTimeout(() => setJustUnlocked(false), 3000);
     }
     return () => clearTimeout(timer);
   }, [versionClickCount]);
@@ -234,7 +238,8 @@ export default function ConfigApp() {
           </div>
 
           {/* 公共配置 */}
-          <div className="space-y-3">
+          {/* 公共配置：禁用态与 StyleFields 一致（pointer-events-none + opacity-60 wrapper） */}
+          <div className={effectiveCompatible ? "space-y-3" : "space-y-3 pointer-events-none opacity-60"}>
             <div className="space-y-2">
               <div className="flex justify-between">
                 <Label className="text-sm">{t("config.opacity")}</Label>
@@ -247,7 +252,6 @@ export default function ConfigApp() {
                 min={0}
                 max={1}
                 step={0.01}
-                disabled={!effectiveCompatible}
                 onValueChange={([v]) => updateCrosshair({ opacity: v })}
               />
             </div>
@@ -257,7 +261,6 @@ export default function ConfigApp() {
               <input
                 type="color"
                 value={colorCss}
-                disabled={!effectiveCompatible}
                 onChange={(e) => {
                   const hex = e.target.value;
                   const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -377,7 +380,7 @@ export default function ConfigApp() {
           </div>
         )}
 
-        {/* 底部信息：连续点击 3 次解锁开发者面板 */}
+        {/* 底部信息：连续点击 5 次解锁开发者面板 */}
         <div
           className="text-xs text-muted-foreground text-right cursor-pointer select-none shrink-0"
           onClick={() => {
@@ -386,12 +389,17 @@ export default function ConfigApp() {
           title={devTabUnlocked ? t("developer.toggle") : t("developer.unlockHint")}
         >
           Peregrine v{version || "..."}
-          {versionClickCount > 0 && versionClickCount < 3 && (
+          {versionClickCount > 0 && versionClickCount < 5 && (
             <span className="ml-1 text-[10px] opacity-60">
-              ({3 - versionClickCount} {t("developer.remaining")})
+              ({5 - versionClickCount} {t("developer.remaining")})
             </span>
           )}
-          {devTabUnlocked && (
+          {justUnlocked && (
+            <span className="ml-1 text-[10px] text-green-500">
+              {t("developer.unlocked")}
+            </span>
+          )}
+          {devTabUnlocked && !justUnlocked && (
             <span className="ml-1 text-[10px] text-yellow-500">
               {t("developer.tag")}
             </span>

@@ -61,7 +61,7 @@
     "resetCalled": "Reset API called. For full reset, delete %APPDATA%/Peregrine/config.json and restart.",
     "resetFailed": "Reset failed",
     "toggle": "Developer mode enabled",
-    "unlockHint": "Tap 3 times to unlock developer panel",
+    "unlockHint": "Tap 5 times to unlock developer panel",
     "remaining": "tap(s) to unlock",
     "tag": "DEV",
     "showConfig": "Show config.json",
@@ -71,7 +71,8 @@
     "logTitle": "Developer Log",
     "autoScroll": "Auto Scroll",
     "clearLog": "Clear",
-    "logEmpty": "No logs yet"
+    "logEmpty": "No logs yet",
+    "unlocked": "✓ Developer mode enabled"
   },
   "error": {
     "title": "Peregrine encountered an error",

@@ -61,7 +61,7 @@
     "resetCalled": "配置重置接口已调用。完整重置请删除 %APPDATA%/Peregrine/config.json 后重启应用。",
     "resetFailed": "重置失败",
     "toggle": "开发者模式已开启",
-    "unlockHint": "点击 3 次解锁开发者面板",
+    "unlockHint": "点击 5 次解锁开发者面板",
     "remaining": "次解锁开发者",
     "tag": "DEV",
     "showConfig": "显示 config.json",
@@ -71,7 +71,8 @@
     "logTitle": "开发者日志",
     "autoScroll": "自动滚动",
     "clearLog": "清空",
-    "logEmpty": "暂无日志"
+    "logEmpty": "暂无日志",
+    "unlocked": "✓ 已开启开发者模式"
   },
   "error": {
     "title": "Peregrine 遇到了错误",

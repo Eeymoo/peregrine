@@ -85,6 +85,7 @@
     "devToolsDisabled": "此构建未启用 DevTools。",
     "openDevToolsFailed": "打开 DevTools 失败",
     "details": "错误详情（点击折叠）",
+    "viewStack": "查看堆栈",
     "unknown": "(unknown error)",
     "noStack": "(no stack)",
     "componentStack": "Component Stack:"
@@ -202,6 +203,7 @@
     "mirrorSite": "加速站",
     "mirrorCustom": "自定义…",
     "mirrorCustomUrl": "镜像地址",
+    "mirrorRecommended": "（推荐）",
     "about": {
       "title": "关于 Peregrine",
       "description": "Peregrine 是一款通过屏幕视觉锚点帮助缓解 3D 眩晕的桌面工具。",

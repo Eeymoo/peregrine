@@ -55,6 +55,12 @@ function showToast(message: string, stack?: string): void {
   }, 10000);
 }
 
+/** 读取当前语言并翻译指定 key（与 installGlobalErrorHandler 内的闭包逻辑一致，供模块级渲染使用）。 */
+function tt(key: string): string {
+  const locale = (localStorage.getItem("peregrine:locale") as "auto" | "zh-CN" | "en") ?? "auto";
+  return translate(locale, key);
+}
+
 function renderToasts(): void {
   let container = document.getElementById("__peregrine_error_toasts__");
   if (!container) {
@@ -92,7 +98,7 @@ function renderToasts(): void {
         cursor: pointer; font-size: 14px; line-height: 1;
       ">×</button>
       <div style="font-weight: bold; margin-bottom: 4px;">⚠️ ${escapeHtml(t.message).slice(0, 100)}</div>
-      ${t.stack ? `<details><summary style="cursor:pointer;opacity:0.8">查看堆栈</summary><pre style="white-space:pre-wrap;font-size:11px;margin-top:4px;max-height:150px;overflow:auto">${escapeHtml(t.stack)}</pre></details>` : ""}
+      ${t.stack ? `<details><summary style="cursor:pointer;opacity:0.8">${tt("error.viewStack")}</summary><pre style="white-space:pre-wrap;font-size:11px;margin-top:4px;max-height:150px;overflow:auto">${escapeHtml(t.stack)}</pre></details>` : ""}
     </div>
   `,
     )

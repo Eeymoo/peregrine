@@ -85,6 +85,7 @@
     "devToolsDisabled": "DevTools is not enabled in this build.",
     "openDevToolsFailed": "Failed to open DevTools",
     "details": "Error Details (click to collapse)",
+    "viewStack": "View stack",
     "unknown": "(unknown error)",
     "noStack": "(no stack)",
     "componentStack": "Component Stack:"
@@ -202,6 +203,7 @@
     "mirrorSite": "Mirror",
     "mirrorCustom": "Custom…",
     "mirrorCustomUrl": "Mirror URL",
+    "mirrorRecommended": " (Recommended)",
     "about": {
       "title": "About Peregrine",
       "description": "Peregrine is a desktop tool that helps reduce 3D motion sickness with on-screen visual anchors.",

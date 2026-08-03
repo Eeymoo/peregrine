@@ -161,18 +161,22 @@ export function ProfileManager({
 
   return (
     <div className="flex items-center gap-2">
-      <Select value={activeProfile} onValueChange={switchProfile} disabled={busy}>
-        <SelectTrigger className="h-7 text-xs w-40">
-          <SelectValue placeholder={t("profile.selectPlaceholder")} />
-        </SelectTrigger>
-        <SelectContent>
-          {profileList.map((p) => (
-            <SelectItem key={p} value={p} className="text-xs">
-              {p}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* 编辑态（新建 / 重命名）下隐藏切换下拉框，由输入框占据其位置，
+          避免「下拉框 + 输入框 + 确认 + 取消」在 320px 宽面板内溢出 */}
+      {!isEditing && (
+        <Select value={activeProfile} onValueChange={switchProfile} disabled={busy}>
+          <SelectTrigger className="h-7 text-xs w-40">
+            <SelectValue placeholder={t("profile.selectPlaceholder")} />
+          </SelectTrigger>
+          <SelectContent>
+            {profileList.map((p) => (
+              <SelectItem key={p} value={p} className="text-xs">
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {isEditing ? (
         <div className="flex items-center gap-1">
@@ -190,7 +194,7 @@ export function ProfileManager({
               }
             }}
             placeholder={t("profile.namePlaceholder")}
-            className="h-7 px-2 text-xs rounded border bg-background w-32"
+            className="h-7 px-2 text-xs rounded border bg-background flex-1 min-w-0"
             disabled={busy}
             autoFocus
           />

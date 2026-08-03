@@ -6,6 +6,67 @@ Only stable releases are recorded here. For beta / prerelease versions, see **[C
 
 ---
 
+## [v0.1.16] — 2026-08-03
+
+Stable release. This release aggregates all changes since the previous even stable release v0.1.4, covering v0.1.5, v0.1.7, v0.1.9, v0.1.15 and the subsequent CI/build improvements on main.
+
+### Added
+
+- **NSIS installer**: Provides a `setup.exe` installer that supports auto-update; the portable zip is still retained. @Eeymoo
+- **Built-in auto-updater**: A "Check for Updates" button in the settings page automatically detects, downloads, and installs new versions, with a real-time download progress bar. @Eeymoo
+- **Auto-check on launch**: Automatically checks for new versions 3 seconds after opening the settings page and shows a popup if an update is found. @Eeymoo
+- **Dual-channel updates**: Stable releases use `releases/latest/download/stable.json`, while prerelease versions use the corresponding tag's `prerelease.json`; users can switch update channels in settings. @Eeymoo
+- **About page publisher info**: The About dialog now shows the publisher (Eeymoo), license (MIT), repository link, and dynamic version number. @Eeymoo
+- **GitHub Releases auto-updater**: Built-in update check and download/install support for both stable and prerelease channels. @Eeymoo
+- **Mainland China acceleration proxy**: Accelerates GitHub downloads via gh-proxy, enabled by default for Simplified Chinese users; acceleration endpoints (v4 / v6 / cdn / custom) can be selected in settings. @Eeymoo
+- **GPU hardware acceleration toggle**: WebView2 GPU hardware acceleration can now be toggled in settings; disabling it reduces memory usage by approximately 60 MB. @Eeymoo
+- **SVG rendering backend**: The overlay now supports an optional SVG rendering backend (based on resvg + tiny-skia), switchable in "Settings → Overlay → Rendering Backend". SVG mode offers higher anti-aliasing quality; CPU mode (default) has zero extra dependencies and is more lightweight. Both backends run in parallel, and SVG rasterization automatically falls back to CPU rendering on failure. @Eeymoo
+- **Grid crosshair style**: Added the `Grid` crosshair style, with adjustable rows, columns, line width, and color, giving users who need a regular reference more choices. @Eeymoo
+- **Global hotkey system**: Supports binding global hotkeys for functions such as "Start/Stop Overlay", configurable in "Settings → Hotkeys". @Eeymoo
+- **Quick color presets**: The color picker now includes common presets for one-click crosshair color switching. @Eeymoo
+- **Overlay anti-aliasing**: CPU rendering mode adds an anti-aliasing toggle, enabled by default for smoother edges; can be disabled when minimum latency is required. @Eeymoo
+- **Scrollbar styling improvements**: Custom scrollbar styling with default transparency and fade-in on hover, 6 px wide rounded corners, unified with the overall UI style. @Eeymoo
+- **Per-style default crosshair presets**: Each built-in crosshair style now provides out-of-the-box default parameters (size, thickness, offset, opacity, etc.) instead of sharing one global default, so switching styles no longer yields invisible or unusable crosshairs. (#8) @Eeymoo
+- **Quick color reset**: Added a "Reset" button next to the quick color presets title that restores the 5 default colors in one click. (#7) @Eeymoo
+
+### Fixed
+
+- Fixed repeated detection caused by an uncleared popup after clicking update. @Eeymoo
+- Fixed CI compilation failure due to the missing `update_channel` field in `PreferencesPatch`. @Eeymoo
+- Fixed CI not exiting with an error when signing was missing. @Eeymoo
+- Removed redundant hint text on the settings page. @Eeymoo
+- Fixed a crash after minimizing the settings window. @Eeymoo
+- Removed the restriction that caused drag-and-drop live preview to be forcibly disabled in some scenarios, making interactions more consistent. @Eeymoo
+- Fixed window mode toggle being blocked when the overlay is active: switching window mode (fullscreen/windowed) while the overlay is running is now properly disabled in the tray menu, the backend command, and the frontend. (#9) @Eeymoo
+- Fixed "Live Drag Preview" not updating the crosshair position in real time during window dragging: the follower thread now requests a redraw immediately after repositioning the overlay. (#14) @Eeymoo
+
+### Refactored / Changed
+
+- Renamed the default style "Toilet Paper" to "Edge-Aligned Rectangle" and aligned documentation terminology accordingly. @Eeymoo
+
+### Docs
+
+- Restructured documentation site to English-first with full Simplified Chinese variants, including language switcher and bilingual README, HELP, contributing guide, and changelogs. @Eeymoo
+
+### Build
+
+- CI enables `createUpdaterArtifacts`, automatically generating `.sig` signature files for the NSIS installer. @Eeymoo
+- CI cleans up debug logs and streamlines build steps. @Eeymoo
+- Fixed CI build failure (missing javascriptcoregtk dependency). @Eeymoo
+- Documentation deployment is now triggered only on stable releases. @Eeymoo
+- Added PR snapshot build workflow and opencode trigger workflow for automated CI. (#15) @Eeymoo
+- Removed macOS/Linux builds from CI; Windows is now the only build platform. @Eeymoo
+- Added an Issue/PR auto-labeler workflow. @Eeymoo
+- Integrated the auto-labeler into the opencode workflow. @Eeymoo
+- Removed the `--locked` flag from CI to avoid cache-related build failures. @Eeymoo
+
+### Download
+
+- Windows x86 / x86_64 / ARM64 NSIS installer (supports auto-update) available in Release Assets.
+- Windows x86 / x86_64 / ARM64 portable zip available in Release Assets.
+
+---
+
 ## [v0.1.15] — 2026-07-18
 
 Stable release. Added per-style crosshair defaults and one-click color reset; fixed window mode toggle and live drag preview issues; restructured documentation with full bilingual support.
@@ -283,6 +344,7 @@ First stable release. A desktop auxiliary sticker tool for alleviating 3D motion
 
 ---
 
+[v0.1.16]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.16
 [v0.1.15]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.15
 [v0.1.9]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.9
 [v0.1.5]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.5

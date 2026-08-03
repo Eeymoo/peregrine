@@ -6,6 +6,67 @@
 
 ---
 
+## [v0.1.16] — 2026-08-03
+
+正式版本。汇总自上一个偶数稳定版本 v0.1.4 以来的全部改动，覆盖 v0.1.5、v0.1.7、v0.1.9、v0.1.15 以及 main 分支上后续的 CI/构建改进。
+
+### 新增
+
+- **NSIS 安装程序**：提供 `setup.exe` 安装包，安装后支持自动更新；便携 zip 仍保留。 @Eeymoo
+- **内置自动更新**：设置页「检查更新」按钮，自动检测并下载安装新版本；下载进度条实时显示。 @Eeymoo
+- **启动自动检测**：打开配置页面时延迟 3 秒自动检测新版本，发现后弹窗提示。 @Eeymoo
+- **双通道更新**：正式版（stable）走 `releases/latest/download/stable.json`，尝鲜版（prerelease）走对应 tag 的 `prerelease.json`，用户可在设置中切换更新通道。 @Eeymoo
+- **关于页面发行者信息**：关于对话框显示发行者（Eeymoo）、许可（MIT）、仓库链接与动态版本号。 @Eeymoo
+- **GitHub Releases 自动更新**：内置更新检查与下载安装，支持正式版（stable）与尝鲜版（prerelease）双通道。 @Eeymoo
+- **中国大陆加速代理**：通过 gh-proxy 加速 GitHub 下载，简体中文用户默认开启；可在设置中选择加速站（v4 / v6 / cdn / 自定义）。 @Eeymoo
+- **GPU 硬件加速开关**：设置中可开关 WebView2 GPU 硬件加速，关闭可降低约 60MB 内存占用。 @Eeymoo
+- **SVG 渲染后端**：覆盖层新增可选 SVG 渲染后端（基于 resvg + tiny-skia），在「设置 → 覆盖层 → 渲染后端」中切换。SVG 模式抗锯齿质量更高；CPU 模式（默认）零额外依赖、更轻量。两套方案并行，SVG 光栅化失败时自动回退到 CPU 渲染。 @Eeymoo
+- **网格准心样式**：新增 `Grid` 准心样式，可调整网格行列数、线宽与颜色，为需要规则参照的用户提供更多选择。 @Eeymoo
+- **全局快捷键体系**：支持为「开始/停止覆盖」等功能绑定全局热键，可在「设置 → 快捷键」中配置。 @Eeymoo
+- **快捷颜色预设**：颜色选择器新增常用预设，一键切换准心颜色。 @Eeymoo
+- **覆盖层抗锯齿**：CPU 渲染模式新增抗锯齿开关，默认开启，边缘更平滑；需要最低延迟时可关闭。 @Eeymoo
+- **滚动条样式优化**：自定义滚动条样式，默认透明、悬停淡入，6px 宽圆角，与整体界面风格统一。 @Eeymoo
+- **各准心样式独立默认参数**：每种内置准心样式不再共用一套全局默认值，而是提供开箱即用的独立参数（尺寸、粗细、偏移、不透明度等），切换样式后不会出现准心看不见或无法使用的情况。 (#8) @Eeymoo
+- **快捷颜色一键恢复默认**：快捷颜色预设标题旁新增「恢复默认」按钮，一键恢复 5 种默认颜色。 (#7) @Eeymoo
+
+### 修复
+
+- 修复点击更新后弹窗未清除导致重复检测。 @Eeymoo
+- 修复 `PreferencesPatch` 缺少 `update_channel` 字段导致 CI 编译失败。 @Eeymoo
+- 修复 CI 签名缺失时未报错退出的问题。 @Eeymoo
+- 移除设置页面冗余提示文案。 @Eeymoo
+- 修复设置窗口最小化后闪退。 @Eeymoo
+- 移除拖拽实时显示在某些场景下被强制禁用的限制，交互更连贯。 @Eeymoo
+- 修复覆盖层运行时切换窗口模式被错误阻止：覆盖层运行中，托盘菜单、后端命令及前端界面均已禁用窗口模式切换。 (#9) @Eeymoo
+- 修复「拖拽实时显示」开启后拖拽过程中准心位置不实时更新：跟随线程在重定位覆盖层后立即请求重绘。 (#14) @Eeymoo
+
+### 重构 / 变更
+
+- 将默认样式「卫生纸」重命名为「贴边矩形」并同步文档术语规范。 @Eeymoo
+
+### 文档
+
+- 文档站点重构为英文优先，并新增完整的简体中文对照版（含语言切换器及双语 README、HELP、贡献指南、更新日志）。 @Eeymoo
+
+### 构建
+
+- CI 启用 `createUpdaterArtifacts`，自动为 NSIS 安装包生成 `.sig` 签名文件。 @Eeymoo
+- CI 清理调试日志，精简构建步骤。 @Eeymoo
+- 修复 CI 构建失败（javascriptcoregtk 依赖缺失）。 @Eeymoo
+- 文档部署仅在正式版 Release 时触发。 @Eeymoo
+- 新增 PR 快照构建工作流与 opencode 触发工作流以自动化 CI。 (#15) @Eeymoo
+- CI 移除 macOS/Linux 构建，仅保留 Windows 平台。 @Eeymoo
+- 新增 Issue/PR 自动打标签工作流。 @Eeymoo
+- 将自动打标签功能集成到 opencode 工作流。 @Eeymoo
+- CI 移除 `--locked` 参数以避免缓存导致构建失败。 @Eeymoo
+
+### 下载
+
+- Windows x86 / x86_64 / ARM64 NSIS 安装包（支持自动更新）见 Release Assets。
+- Windows x86 / x86_64 / ARM64 便携 zip 见 Release Assets。
+
+---
+
 ## [v0.1.15] — 2026-07-18
 
 正式版本。新增各准心样式独立的默认参数与一键恢复默认颜色；修复窗口模式切换与拖拽实时显示问题；文档重构为英文优先并完善简体中文对照版。
@@ -283,6 +344,7 @@
 
 ---
 
+[v0.1.16]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.16
 [v0.1.15]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.15
 [v0.1.9]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.9
 [v0.1.5]: https://github.com/Eeymoo/peregrine/releases/tag/v0.1.5

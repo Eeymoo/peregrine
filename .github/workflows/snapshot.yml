@@ -76,8 +76,15 @@ jobs:
           node -e "const fs=require('fs');const p=require('./package.json');p.version='$VERSION';fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
           node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';p.bundle.createUpdaterArtifacts=false;fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
 
-      # PR 构建不签名（不设置 TAURI_SIGNING_PRIVATE_KEY），仅产出未签名 NSIS。
+      # PR/快照构建不签名（不设置 TAURI_SIGNING_PRIVATE_KEY），仅产出未签名 NSIS。
+      # 遥测：快照/测试包上报至 GlitchTip TEST 项目（secrets.GLITCHTIP_DSN_TEST）。
+      # 因是 release-profile 构建，代码读取的环境变量名为 GLITCHTIP_DSN /
+      # VITE_GLITCHTIP_DSN（cfg!(debug_assertions)=false），故把 TEST 值映射到
+      # 这两个名字；未配置时 SDK 不初始化、零网络请求（应用功能完全正常）。
       - name: Build Tauri (NSIS, unsigned)
+        env:
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN_TEST }}
+          VITE_GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN_TEST }}
         shell: bash
         run: npx tauri build --target ${{ matrix.target }} --bundles nsis
 

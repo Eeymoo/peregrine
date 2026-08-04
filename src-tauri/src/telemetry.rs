@@ -125,8 +125,8 @@ mod imp {
         }
         let id = uuid::Uuid::new_v4().to_string();
         // 落盘失败仅记录日志（best-effort），不影响启动。
-        if let Err(e) = std::fs::create_dir_all(app_data_dir)
-            .and_then(|_| atomic_write(&path, id.as_bytes()))
+        if let Err(e) =
+            std::fs::create_dir_all(app_data_dir).and_then(|_| atomic_write(&path, id.as_bytes()))
         {
             tracing::warn!(error = %e, "failed to persist install_id");
         }
@@ -589,12 +589,7 @@ mod imp {
                 // 展开为当前函数名字符串字面量。
                 scope.set_tag("function", function_name!());
             },
-            || {
-                sentry::capture_message(
-                    "peregrine telemetry test report",
-                    sentry::Level::Error,
-                )
-            },
+            || sentry::capture_message("peregrine telemetry test report", sentry::Level::Error),
         );
         Ok(())
     }

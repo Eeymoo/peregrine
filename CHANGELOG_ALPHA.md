@@ -22,6 +22,7 @@ This is the first preview release of the **four-layer customization architecture
 - **Config migration**: Legacy `config.json` with `crosshair` field is automatically migrated to the new `layers` format on first load. The original file is backed up as `config.json.legacy.bak`.
 - **Tauri IPC commands**: `build_shapes_ipc`, `list_materials`, `add_layer`, `remove_layer`, `move_layer`, `duplicate_layer`, `update_layer`, `list_layers`.
 - **Frontend layer editor** (`LayersEditor`): Three-column layout with live preview, layer panel, and dynamic parameter controls driven by material `schema()`.
+- **Anonymous telemetry (partial)**: GlitchTip (Sentry protocol) integration with first-run consent dialog, settings toggle, pending-report storage with one-time authorized upload, and CI-injected DSN split by channel (TEST / production project).
 
 ### Changed
 

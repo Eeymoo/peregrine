@@ -22,6 +22,7 @@
 - **配置迁移**：首次加载时，含 `crosshair` 字段的旧 `config.json` 自动迁移到新 `layers` 格式。原文件备份为 `config.json.legacy.bak`。
 - **Tauri IPC 命令**：`build_shapes_ipc`、`list_materials`、`add_layer`、`remove_layer`、`move_layer`、`duplicate_layer`、`update_layer`、`list_layers`。
 - **前端图层编辑器**（`LayersEditor`）：三栏布局（实时预览 / 图层面板 / 物料 `schema()` 驱动的动态参数控件）。
+- **匿名遥测（部分实现）**：接入 GlitchTip（Sentry 协议），含首次启动授权弹窗、设置开关、待上报存储与一次性授权上传；CI 按通道注入 DSN（TEST / 正式项目分离）。
 
 ### 变更
 

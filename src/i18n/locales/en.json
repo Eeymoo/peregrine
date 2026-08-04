@@ -88,7 +88,11 @@
     "details": "Error Details (click to collapse)",
     "unknown": "(unknown error)",
     "noStack": "(no stack)",
-    "componentStack": "Component Stack:"
+    "componentStack": "Component Stack:",
+    "uploadReport": "Upload anonymous error report",
+    "uploading": "Uploading…",
+    "uploaded": "✓ Uploaded, thank you",
+    "uploadFailed": "Upload failed"
   },
   "config": {
     "title": "Config",
@@ -210,7 +214,18 @@
       "publisher": "Publisher",
       "license": "License",
       "repository": "Repository"
-    }
+    },
+    "telemetry": "Anonymous crash reports & usage stats",
+    "telemetryHint": "No personal data is collected. Takes effect after restart.",
+    "telemetryRestartTitle": "Restart app",
+    "telemetryRestartDesc": "The change takes effect after restart. Restart now?",
+    "telemetryRestartNow": "Restart now",
+    "telemetryRestartLater": "Restart later",
+    "telemetryPendingRestart": "⚠ Takes effect after restart",
+    "telemetryTestReport": "Test report",
+    "telemetryTestReportHint": "Send a test error event to verify the pipeline (dev mode only)",
+    "telemetryTestReportDone": "Sent ✓",
+    "telemetryTestReportFailed": "Test report failed"
   },
   "styles": {
     "edge_rect": "Edge Rectangle",
@@ -307,5 +322,11 @@
   },
   "license": {
     "mit": "MIT · Open Source · Free to use"
+  },
+  "telemetry": {
+    "consentTitle": "Anonymous telemetry",
+    "consentDesc": "Allow anonymous crash reports and usage statistics? No personal data is collected.",
+    "consentAllow": "Allow",
+    "consentDeny": "Deny"
   }
 }

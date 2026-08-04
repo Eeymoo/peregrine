@@ -244,4 +244,9 @@ export interface AppSettings {
   renderer_backend: "cpu" | "svg";
   quick_colors: [number, number, number, number][];
   hotkey_bindings: HotkeyBindings;
+  /**
+   * 遥测授权开关：字段缺失/null = 首次启动未授权（弹出唯一授权对话框）；
+   * true/false = 用户已做出选择。
+   */
+  telemetry_enabled?: boolean | null;
 }

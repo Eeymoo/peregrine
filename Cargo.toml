@@ -38,6 +38,13 @@ tiny-skia = "0.11"
 rhai = { version = "1.19", features = ["sync"] }
 ahash = "0.8"
 
+# 遥测（GlitchTip / sentry SDK 与辅助）
+# sentry 默认特性含 reqwest transport；uuid 用于 install_id（v4 + serde）；
+# function-name 提供函数名获取（遥测上报 tag）。
+sentry = "0.46"
+uuid = { version = "1", features = ["v4", "serde"] }
+function_name = "0.3"
+
 [profile.dev]
 # debug 构建保留 opt-level=1，平衡图形栈调试运行速度与编译速度。
 opt-level = 1

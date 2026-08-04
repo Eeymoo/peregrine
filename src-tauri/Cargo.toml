@@ -28,6 +28,12 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 reqwest = { version = "0.12", features = ["json"] }
 url = "2"
+sentry = { workspace = true }
+uuid = { workspace = true }
+function_name = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_Globalization", "Win32_System_Threading"] }
+
+[dev-dependencies]
+tempfile = "3"

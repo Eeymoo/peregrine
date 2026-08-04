@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -20,6 +20,10 @@ import { useOverlayActions } from "@/hooks/useOverlayActions";
 import { useUpdate } from "@/hooks/useUpdate";
 import { updatePreferences, getCurrentWebviewWindow } from "@/lib/api";
 import { MATERIAL_RUNTIME_ENABLED } from "@/lib/feature";
+import {
+  TELEMETRY_DSN_AVAILABLE,
+  initTelemetry,
+} from "@/lib/telemetry";
 import type { AppConfig, CrosshairStyle } from "@/types/config";
 
 import {
@@ -103,6 +107,35 @@ export default function ConfigApp() {
     }
     return () => clearTimeout(timer);
   }, [versionClickCount]);
+
+  // 首次启动遥测授权弹窗（唯一授权提示）：
+  // telemetry_enabled 字段缺失（null/undefined）时询问一次，默认允许；
+  // 结果写入配置后不再出现任何形式的授权提示。
+  // 无 DSN 构建（编译期禁用）直接跳过，不弹窗。
+  const telemetryConsentAsked = useRef(false);
+  useEffect(() => {
+    if (!config || telemetryConsentAsked.current) return;
+    if (!TELEMETRY_DSN_AVAILABLE) return;
+    const consent = config.settings.telemetry_enabled;
+    if (consent !== null && consent !== undefined) return;
+    telemetryConsentAsked.current = true;
+    (async () => {
+      try {
+        const { ask } = await import("@tauri-apps/plugin-dialog");
+        const allow = await ask(t("telemetry.consentDesc"), {
+          title: t("telemetry.consentTitle"),
+          okLabel: t("telemetry.consentAllow"),
+          cancelLabel: t("telemetry.consentDeny"),
+          kind: "info",
+        });
+        await updatePreferences({ telemetry_enabled: allow });
+        // 前端 SDK 即时生效；Rust 侧 SDK 下次启动时初始化。
+        if (allow) initTelemetry(true);
+      } catch (e) {
+        console.error("[telemetry] consent dialog failed:", e);
+      }
+    })();
+  }, [config, t]);
 
   /** 更新应用级偏好设置（仅更新指定字段，不覆盖整个配置）。 */
   const updateSettings = (patch: Partial<AppConfig["settings"]>) => {

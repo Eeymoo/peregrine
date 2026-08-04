@@ -70,6 +70,15 @@ pub struct AppSettings {
     /// Vec<(action, key)> 保证序列化稳定，运行时可转 HashMap 查找。
     #[serde(default = "default_hotkey_bindings")]
     pub hotkey_bindings: Vec<(HotkeyAction, String)>,
+    /// 遥测（匿名崩溃上报 + 启动统计）授权开关。
+    ///
+    /// - `None`（字段缺失）：首次启动、尚未授权，前端弹出唯一授权对话框；
+    /// - `Some(true)`：允许上报，启动时初始化 SDK；
+    /// - `Some(false)`：拒绝上报，SDK 不初始化、零网络请求，错误仅落盘 pending。
+    ///
+    /// 序列化时 None 不写出，保证「字段缺失 = 未授权」语义。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telemetry_enabled: Option<bool>,
 }
 
 fn default_auto_switch_on_overlay() -> String {
@@ -128,6 +137,7 @@ impl Default for AppSettings {
             renderer_backend: default_renderer_backend(),
             quick_colors: default_quick_colors(),
             hotkey_bindings: default_hotkey_bindings(),
+            telemetry_enabled: None,
         }
     }
 }
@@ -1788,6 +1798,7 @@ mod tests {
             renderer_backend: RendererBackend::Cpu,
             quick_colors: default_quick_colors(),
             hotkey_bindings: default_hotkey_bindings(),
+            telemetry_enabled: Some(true),
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -1978,6 +1989,7 @@ mod tests {
                 [1.0, 1.0, 0.0, 1.0],
             ],
             hotkey_bindings: default_hotkey_bindings(),
+            telemetry_enabled: Some(true),
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -2028,6 +2040,7 @@ mod tests {
             renderer_backend: RendererBackend::Cpu,
             quick_colors: default_quick_colors(),
             hotkey_bindings: bindings.clone(),
+            telemetry_enabled: None,
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -2054,8 +2067,37 @@ mod tests {
         assert_eq!(restored.quick_colors.len(), 5);
     }
 
-    // ===== 四层架构类型测试 =====
+    #[test]
+    fn old_settings_without_telemetry_enabled_loads() {
+        // 旧配置无 telemetry_enabled 字段：反序列化为 None（首次启动未授权），
+        // 且 None 在序列化时不写出该字段（保持「字段缺失 = 未授权」语义）。
+        let json = r#"{
+            "auto_switch_on_overlay": "ask",
+            "locale": "auto",
+            "fullscreen_overlay": true,
+            "live_drag_preview": false,
+            "gpu_acceleration": false,
+            "update_channel": "stable",
+            "cn_mirror": false,
+            "mirror_url": "https://v4.gh-proxy.org",
+            "antialiasing": true
+        }"#;
+        let restored: AppSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(restored.telemetry_enabled, None);
 
+        // None 不写出；Some(true/false) 正常写出并往返。
+        let serialized = serde_json::to_string(&restored).unwrap();
+        assert!(!serialized.contains("telemetry_enabled"));
+
+        let mut with_consent = restored;
+        with_consent.telemetry_enabled = Some(false);
+        let serialized = serde_json::to_string(&with_consent).unwrap();
+        assert!(serialized.contains("\"telemetry_enabled\":false"));
+        let roundtrip: AppSettings = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(roundtrip.telemetry_enabled, Some(false));
+    }
+
+    // ===== 四层架构类型测试 =====
     #[test]
     fn element_rect_serialization() {
         let e = Element::Rect {

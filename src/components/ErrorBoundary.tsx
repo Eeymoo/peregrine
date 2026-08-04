@@ -1,8 +1,19 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
+import {
+  REPORT_CODES,
+  TELEMETRY_DSN_AVAILABLE,
+  authorizeUploadAll,
+  captureFrontendError,
+  listPendingReports,
+  telemetrySdkActive,
+} from "@/lib/telemetry";
+import { useEffect, useState } from "react";
 
 interface Props {
   children: ReactNode;
+  /** 边界名称，上报时作为 component tag 携带（定位错误来源组件）。 */
+  name?: string;
 }
 
 interface State {
@@ -19,6 +30,7 @@ interface State {
  * - 复制错误按钮（贴给我即可定位）
  * - 重新加载按钮
  * - 打开 DevTools 按钮（如果可用）
+ * - 遥测未开启时的「匿名上传错误报告」一次性授权按钮
  *
  * 不捕获：事件回调、setTimeout、异步错误（用 window.onerror 兜底）。
  */
@@ -35,6 +47,10 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     this.setState({ errorInfo });
     console.error("ErrorBoundary caught:", error, errorInfo);
+    // 遥测上报出口：SDK 激活时上报（携带组件名 tag），关闭时落盘 pending。
+    captureFrontendError(REPORT_CODES.REACT_BOUNDARY, error, {
+      component: this.props.name ?? "unknown",
+    });
   }
 
   handleReload = (): void => {
@@ -52,6 +68,14 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
+/**
+ * SafeBoundary（可选）：带 name 的 ErrorBoundary 高阶组件，仅包装关键组件，
+ * 上报事件携带该 name 作为 component tag。
+ */
+export function SafeBoundary({ name, children }: { name: string; children: ReactNode }) {
+  return <ErrorBoundary name={name}>{children}</ErrorBoundary>;
+}
+
 interface FallbackProps {
   error: Error | null;
   errorInfo: ErrorInfo | null;
@@ -61,9 +85,21 @@ interface FallbackProps {
 
 function ErrorBoundaryFallback({ error, errorInfo, onReload, onReset }: FallbackProps) {
   const { t } = useI18n();
+  // 遥测未开启时的临时授权入口状态：pending 历史条数 / 上传中 / 已完成。
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [uploadState, setUploadState] = useState<"idle" | "uploading" | "done">("idle");
+  // 仅当 SDK 未激活且 DSN 已注入时提供一次性授权按钮。
+  const showUploadButton = !telemetrySdkActive() && TELEMETRY_DSN_AVAILABLE;
 
-  const handleCopy = async (): Promise<void> => {
-    const text = [
+  useEffect(() => {
+    if (!showUploadButton) return;
+    listPendingReports()
+      .then((count) => setPendingCount(count))
+      .catch(() => setPendingCount(null));
+  }, [showUploadButton]);
+
+  const buildErrorText = (): string =>
+    [
       "Peregrine Error Report",
       "================",
       `Time: ${new Date().toISOString()}`,
@@ -79,6 +115,9 @@ function ErrorBoundaryFallback({ error, errorInfo, onReload, onReset }: Fallback
       t("error.componentStack"),
       errorInfo?.componentStack ?? "",
     ].join("\n");
+
+  const handleCopy = async (): Promise<void> => {
+    const text = buildErrorText();
     try {
       await navigator.clipboard.writeText(text);
       alert(t("error.copied"));
@@ -109,6 +148,19 @@ function ErrorBoundaryFallback({ error, errorInfo, onReload, onReset }: Fallback
     }
   };
 
+  // 一次性显式授权：上传当前错误 + 全部 pending 历史，完成后不继续上报。
+  const handleAuthorizeUpload = async (): Promise<void> => {
+    setUploadState("uploading");
+    try {
+      await authorizeUploadAll(REPORT_CODES.REACT_BOUNDARY, buildErrorText());
+      setUploadState("done");
+    } catch (e) {
+      console.error("[telemetry] authorize upload failed:", e);
+      alert(`${t("error.uploadFailed")}: ${String(e)}`);
+      setUploadState("idle");
+    }
+  };
+
   return (
     <div className="min-h-screen p-8 bg-destructive/10 text-destructive-foreground dark:text-foreground font-mono text-sm">
       <h1 className="text-lg font-semibold text-destructive mb-4">
@@ -132,6 +184,25 @@ function ErrorBoundaryFallback({ error, errorInfo, onReload, onReset }: Fallback
         <button type="button" onClick={handleOpenDevTools} className="px-3.5 py-2 rounded bg-violet-600 text-white text-xs font-medium">
           {t("error.openDevTools")}
         </button>
+        {showUploadButton && uploadState !== "done" && (
+          <button
+            type="button"
+            onClick={handleAuthorizeUpload}
+            disabled={uploadState === "uploading"}
+            className="px-3.5 py-2 rounded bg-amber-600 text-white text-xs font-medium disabled:opacity-50"
+          >
+            {uploadState === "uploading"
+              ? t("error.uploading")
+              : pendingCount && pendingCount > 1
+                ? `${t("error.uploadReport")} (${pendingCount})`
+                : t("error.uploadReport")}
+          </button>
+        )}
+        {showUploadButton && uploadState === "done" && (
+          <span className="px-3.5 py-2 text-xs text-green-600">
+            {t("error.uploaded")}
+          </span>
+        )}
       </div>
 
       <details open>

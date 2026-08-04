@@ -1,4 +1,5 @@
 import { translate } from "./i18n";
+import { REPORT_CODES, captureFrontendError } from "./telemetry";
 
 /**
  * 全局错误兜底：捕获 window.onerror 和 unhandledrejection。
@@ -6,7 +7,8 @@ import { translate } from "./i18n";
  * 把异步错误（事件回调、setTimeout、Promise reject）也显示给用户，
  * 而不是静默吞掉。
  *
- * 用 toast 风格的右上角提示，不打断操作，可点击展开详情。
+ * 同时挂接遥测上报出口（SDK 激活时上报、关闭时落盘 pending），
+ * 原有 toast 行为不变。
  */
 export function installGlobalErrorHandler(): void {
   if (typeof window === "undefined") return;
@@ -18,6 +20,7 @@ export function installGlobalErrorHandler(): void {
 
   window.addEventListener("error", (event) => {
     console.error("[global error]", event.error ?? event.message);
+    captureFrontendError(REPORT_CODES.GLOBAL_ONERROR, event.error ?? event.message);
     showToast(event.message || String(event.error), event.error?.stack);
   });
 
@@ -27,6 +30,7 @@ export function installGlobalErrorHandler(): void {
       reason instanceof Error ? reason.message : typeof reason === "string" ? reason : "(promise rejection)";
     const stack = reason instanceof Error ? reason.stack : undefined;
     console.error("[unhandled rejection]", reason);
+    captureFrontendError(REPORT_CODES.UNHANDLED_REJECTION, reason);
     showToast(`${t("hotkeys.unhandled")}: ${message}`, stack);
   });
 }

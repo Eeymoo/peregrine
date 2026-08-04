@@ -25,6 +25,43 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 mod overlay;
+pub mod telemetry;
+
+/// safe_try!：关键路径错误上报宏（abort 兼容，不依赖 catch_unwind）。
+///
+/// 包装返回 Result 的调用：失败时自动携带函数名 / 文件 / 行号上报
+/// （SDK 未激活时改为落盘 pending 存储，零网络请求），并原样返回 Err
+/// 供调用方降级；成功时直接返回 Ok，不产生任何上报。
+///
+/// 仅限关键路径使用（文件 IO / 渲染 / 窗口桥接 / 外部调用），
+/// 禁止全量包裹普通方法；Code 必须在 `REPORT_CODES.md` 登记。
+#[macro_export]
+macro_rules! safe_try {
+    ($expr:expr, $code:expr) => {{
+        // 函数名：type_name 技巧取调用点所在函数（与 function_name!() 等效，
+        // 无需逐函数加 #[named] 注解）。
+        fn __pgr_fn_marker() {}
+        fn __pgr_type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
+        let __pgr_fn_name = __pgr_type_name_of(__pgr_fn_marker)
+            .strip_suffix("::__pgr_fn_marker")
+            .unwrap_or("unknown");
+        let __pgr_result = $expr;
+        if let Err(ref __pgr_err) = __pgr_result {
+            // Location::caller() 在宏展开处指向调用点（混合位点卫生），
+            // 等效于 #[track_caller] 语义：文件 / 行号均为 safe_try! 调用处。
+            let __pgr_loc = std::panic::Location::caller();
+            $crate::telemetry::report_safe_try_error(
+                $code,
+                __pgr_fn_name,
+                format!("{}:{}", __pgr_loc.file(), __pgr_loc.line()),
+                &format!("{}", __pgr_err),
+            );
+        }
+        __pgr_result
+    }};
+}
 
 /// 支持的后端 UI 语言。
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -239,6 +276,22 @@ pub fn run() {
     let notifier = ConfigNotifier::new(config);
     let snapshot = notifier.subscribe().borrow().clone();
     let shared_config = Arc::new(Mutex::new(snapshot.clone()));
+
+    // 遥测初始化（启动早期）：
+    // - install_id 解析 + panic hook 注册（无论开关都执行，保证崩溃必落盘 pending）；
+    // - SDK 仅在开关开启且编译期注入了 DSN 时初始化，否则零网络请求。
+    // `telemetry_enabled` 为 None（首次启动未授权）时按关闭处理，
+    // 由前端授权弹窗写入选择后下次启动生效。
+    let app_data_dir = storage
+        .path()
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let telemetry_active = telemetry::init(
+        app_data_dir,
+        snapshot.settings.telemetry_enabled.unwrap_or(false),
+    );
+    tracing::info!(active = telemetry_active, "telemetry initialized");
 
     // 加载物料注册表（内置 + 用户）。registry 内部 Arc<RwLock<...>>，可 Clone。
     // 内置物料加载失败时记录 warn 但不 panic（让应用能启动），仅相关物料不可用。
@@ -479,6 +532,7 @@ pub fn run() {
                                     renderer_backend: None,
                                     quick_colors: None,
                                     hotkey_bindings: None,
+                                    telemetry_enabled: None,
                                 },
                             )
                             .await;
@@ -516,6 +570,12 @@ pub fn run() {
             let app_handle = app.app_handle();
             register_hotkeys(&app_handle, &snapshot.settings.hotkey_bindings);
 
+            // 遥测收尾（主循环进入前）：
+            // 开关开启时无感静默上传 pending 历史（无弹窗/同意请求），
+            // 随后上报 Info 级启动统计事件；开关关闭时两者均为 no-op。
+            telemetry::upload_pending_silently();
+            telemetry::report_startup();
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -530,6 +590,11 @@ pub fn run() {
             focus_target_window,
             get_app_version,
             relaunch_app,
+            restart_app,
+            store_pending_report,
+            list_pending_reports,
+            authorize_upload_all,
+            test_report,
             check_update,
             download_install_update,
             set_crosshair_color,
@@ -711,6 +776,42 @@ fn get_app_version(app: tauri::AppHandle) -> String {
 #[tauri::command]
 fn relaunch_app(app: tauri::AppHandle) {
     app.restart();
+}
+
+/// 重启应用（遥测开关变更确认弹窗「立即重启」选项调用）。
+///
+/// 与 `relaunch_app` 语义一致，单独命名以便前端区分入口。
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
+// ===== 遥测 commands =====
+
+/// 前端错误落盘 pending 存储（遥测关闭时调用，零网络请求）。
+#[tauri::command]
+fn store_pending_report(code: String, message: String) -> Result<(), String> {
+    telemetry::store_pending_report(&code, &message)
+}
+
+/// 查询本地 pending 历史记录条数（报错页面提示用）。
+#[tauri::command]
+fn list_pending_reports() -> usize {
+    telemetry::list_pending_reports()
+}
+
+/// 报错页面「匿名上传错误报告」一次性授权：
+/// 上传当前错误 + 全部 pending 历史，完成后关闭 SDK 不继续上报。
+/// 返回上传条数。
+#[tauri::command]
+fn authorize_upload_all(code: String, message: String) -> Result<u32, String> {
+    telemetry::authorize_upload_all(&code, &message)
+}
+
+/// 开发者模式「测试上报」：发送一条 Error 级测试事件。
+#[tauri::command]
+fn test_report() -> Result<(), String> {
+    telemetry::test_report()
 }
 
 /// 更新应用级偏好设置（locale / auto_switch_on_overlay / fullscreen_overlay / live_drag_preview）。
@@ -939,6 +1040,7 @@ struct PreferencesPatch {
     renderer_backend: Option<RendererBackend>,
     quick_colors: Option<Vec<[f32; 4]>>,
     hotkey_bindings: Option<Vec<(HotkeyAction, String)>>,
+    telemetry_enabled: Option<bool>,
 }
 
 /// 更新偏好设置的共享逻辑，供 Tauri command 和托盘菜单事件复用。
@@ -1005,6 +1107,9 @@ async fn update_preferences_inner(
     }
     if let Some(hk) = &preferences.hotkey_bindings {
         config.settings.hotkey_bindings = hk.clone();
+    }
+    if let Some(telemetry) = preferences.telemetry_enabled {
+        config.settings.telemetry_enabled = Some(telemetry);
     }
 
     config.validate().map_err(|e| e.to_string())?;
@@ -1077,6 +1182,7 @@ async fn update_preferences_inner(
         "renderer_backend": snapshot.as_ref().settings.renderer_backend,
         "quick_colors": snapshot.as_ref().settings.quick_colors,
         "hotkey_bindings": snapshot.as_ref().settings.hotkey_bindings,
+        "telemetry_enabled": snapshot.as_ref().settings.telemetry_enabled,
     });
     app.emit("peregrine:settings-changed", &settings_json)
         .map_err(|e| e.to_string())?;
@@ -1603,7 +1709,7 @@ async fn update_layer(
         }
         if let Some(params) = patch.params {
             // 字段级合并：把 patch.params 合并到 layer.params。
-            if let (Some(mut dst), Some(src)) = (layer.params.as_object_mut(), params.as_object()) {
+            if let (Some(dst), Some(src)) = (layer.params.as_object_mut(), params.as_object()) {
                 for (k, v) in src {
                     dst.insert(k.clone(), v.clone());
                 }
@@ -1929,7 +2035,7 @@ fn uuid_like_id() -> String {
 async fn spawn_material_watcher(
     registry: MaterialRegistry,
     materials_dir: std::path::PathBuf,
-    overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
+    _overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
 ) {
     use notify::{Config as NotifyConfig, Event, RecommendedWatcher, RecursiveMode, Watcher};
     use std::time::Duration;
@@ -1948,7 +2054,7 @@ async fn spawn_material_watcher(
 
     // spawn_blocking 包装同步 watcher。
     let dir_for_spawn = materials_dir.clone();
-    let mut watcher = match tokio::task::spawn_blocking(move || {
+    let _watcher = match tokio::task::spawn_blocking(move || {
         RecommendedWatcher::new(
             move |res| {
                 let _ = tx.blocking_send(res);
@@ -2007,6 +2113,6 @@ async fn spawn_material_watcher(
             }
         }
     }
-    // watcher 离开作用域时自动停止。
-    let _ = watcher;
+    // _watcher 在循环期间保持存活（其 Drop 实现会停止文件监视）；
+    // 循环退出即函数返回，watcher 随之释放。
 }

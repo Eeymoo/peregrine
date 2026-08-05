@@ -79,6 +79,14 @@ pub struct AppSettings {
     /// 序列化时 None 不写出，保证「字段缺失 = 未授权」语义。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub telemetry_enabled: Option<bool>,
+    /// 开发者模式解锁标志（安卓式连点版本号解锁）。
+    ///
+    /// - `false`（默认）：DevTools 默认禁用，设置窗口不显示「开发」Tab；
+    /// - `true`：解锁后重开窗口启用 DevTools，并显示「开发」Tab。
+    ///
+    /// 解锁状态持久化到配置文件，重启后保持。
+    #[serde(default)]
+    pub developer_mode: bool,
 }
 
 fn default_auto_switch_on_overlay() -> String {
@@ -138,6 +146,7 @@ impl Default for AppSettings {
             quick_colors: default_quick_colors(),
             hotkey_bindings: default_hotkey_bindings(),
             telemetry_enabled: None,
+            developer_mode: false,
         }
     }
 }
@@ -1799,6 +1808,7 @@ mod tests {
             quick_colors: default_quick_colors(),
             hotkey_bindings: default_hotkey_bindings(),
             telemetry_enabled: Some(true),
+            developer_mode: false,
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -1990,6 +2000,7 @@ mod tests {
             ],
             hotkey_bindings: default_hotkey_bindings(),
             telemetry_enabled: Some(true),
+            developer_mode: false,
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -2041,6 +2052,7 @@ mod tests {
             quick_colors: default_quick_colors(),
             hotkey_bindings: bindings.clone(),
             telemetry_enabled: None,
+            developer_mode: false,
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -2273,5 +2285,51 @@ mod tests {
         assert_eq!(r.height(), 1080.0);
         assert_eq!(r.center_x(), 960.0);
         assert_eq!(r.center_y(), 540.0);
+    }
+
+    #[test]
+    fn developer_mode_defaults_to_false() {
+        // 默认配置 developer_mode 为 false。
+        let cfg = AppConfig::default_config();
+        assert!(!cfg.settings.developer_mode);
+        // AppSettings::default() 同样为 false。
+        assert!(!AppSettings::default().developer_mode);
+    }
+
+    #[test]
+    fn old_config_without_developer_mode_loads_as_false() {
+        // 构造一份没有 developer_mode 字段的旧 AppSettings JSON。
+        let old = r#"{
+            "auto_switch_on_overlay": "ask",
+            "locale": "auto",
+            "fullscreen_overlay": true,
+            "live_drag_preview": false,
+            "gpu_acceleration": false,
+            "update_channel": "stable",
+            "cn_mirror": false,
+            "mirror_url": "https://v4.gh-proxy.org",
+            "antialiasing": true,
+            "renderer_backend": "cpu",
+            "quick_colors": [[1.0,1.0,1.0,1.0],[0.0,1.0,0.0,1.0],[0.2,0.5,1.0,1.0],[1.0,0.0,0.0,1.0],[1.0,0.5,0.0,1.0]],
+            "hotkey_bindings": [["toggle_overlay","Ctrl+Alt+O"]]
+        }"#;
+        let parsed: AppSettings = serde_json::from_str(old).expect("老配置应成功反序列化");
+        assert!(
+            !parsed.developer_mode,
+            "老配置反序列化 developer_mode 必须为 false"
+        );
+    }
+
+    #[test]
+    fn developer_mode_serde_round_trip() {
+        // round-trip：true / false 均应保留。
+        let mut cfg = AppConfig::default_config();
+        cfg.settings.developer_mode = true;
+        let json = serde_json::to_string(&cfg).expect("serialize");
+        let back: AppConfig = serde_json::from_str(&json).expect("deserialize");
+        assert!(back.settings.developer_mode);
+
+        // 序列化时应当包含 developer_mode 字段（不是 skip_serializing）。
+        assert!(json.contains("\"developer_mode\""));
     }
 }

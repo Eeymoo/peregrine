@@ -52,28 +52,6 @@
     "error": "Error",
     "unknown": "Unknown"
   },
-  "developer": {
-    "title": "Developer",
-    "devTools": "DevTools",
-    "reload": "Reload",
-    "resetConfig": "Reset Config",
-    "resetConfirm": "Are you sure you want to clear the current config and write the default config?\n\nThis will back up config.json as .bak.",
-    "resetCalled": "Reset API called. For full reset, delete %APPDATA%/Peregrine/config.json and restart.",
-    "resetFailed": "Reset failed",
-    "toggle": "Developer mode enabled",
-    "unlockHint": "Tap 5 times to unlock developer panel",
-    "remaining": "tap(s) to unlock",
-    "tag": "DEV",
-    "showConfig": "Show config.json",
-    "hideConfig": "Hide config.json",
-    "devToolsDisabled": "DevTools feature is not enabled in this build.\n\nAvailable in development mode (npx tauri dev), or enable the tauri devtools feature in Cargo.toml.",
-    "openDevToolsFailed": "Failed to open DevTools",
-    "logTitle": "Developer Log",
-    "autoScroll": "Auto Scroll",
-    "clearLog": "Clear",
-    "logEmpty": "No logs yet",
-    "unlocked": "✓ Developer mode enabled"
-  },
   "error": {
     "title": "Peregrine encountered an error",
     "description": "The app didn't crash, but the page failed to render. Try the buttons below to recover, or copy the error info to the developer.",
@@ -225,7 +203,15 @@
     "telemetryTestReport": "Test report",
     "telemetryTestReportHint": "Send a test error event to verify the pipeline (dev mode only)",
     "telemetryTestReportDone": "Sent ✓",
-    "telemetryTestReportFailed": "Test report failed"
+    "telemetryTestReportFailed": "Test report failed",
+    "sectionDev": "Dev",
+    "devUnlockHint": "Tap 5 times to unlock developer mode",
+    "devRemaining": "tap(s) to unlock",
+    "devUnlocked": "✓ Developer mode enabled (DevTools available after reopening the window)",
+    "devOpenDevTools": "Open DevTools",
+    "devOpenDevToolsHint": "Takes effect after reopening the window",
+    "devToolsDisabled": "DevTools is not enabled in this build.\n\nTap the version number 5 times on the About tab to unlock developer mode, then reopen the window.",
+    "devOpenDevToolsFailed": "Failed to open DevTools"
   },
   "styles": {
     "edge_rect": "Edge Rectangle",

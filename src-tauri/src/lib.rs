@@ -193,6 +193,21 @@ fn read_gpu_setting(app: &impl tauri::Manager<tauri::Wry>) -> bool {
         .unwrap_or(false)
 }
 
+/// 从配置快照读取开发者模式标志，用于判定是否启用 DevTools。
+///
+/// 返回 `developer_mode || cfg!(debug_assertions)`：debug 构建恒为 true，
+/// release 构建依赖用户是否在设置窗口连点版本号解锁。
+fn read_developer_mode(app: &impl tauri::Manager<tauri::Wry>) -> bool {
+    let state = app.state::<AppState>();
+    let developer_mode = state
+        .config
+        .lock()
+        .ok()
+        .map(|guard| guard.as_ref().settings.developer_mode)
+        .unwrap_or(false);
+    developer_mode || cfg!(debug_assertions)
+}
+
 /// 创建配置窗口（config）。关闭时由 on_window_event 销毁 WebView2。
 fn create_config_window(
     app: &impl tauri::Manager<tauri::Wry>,
@@ -200,11 +215,15 @@ fn create_config_window(
     let win_icon =
         Image::from_bytes(include_bytes!("../icons/icon.png")).expect("failed to load window icon");
     let gpu_enabled = read_gpu_setting(app);
+    let devtools_enabled = read_developer_mode(app);
     let mut webview_builder =
         WebviewWindowBuilder::new(app, "config", WebviewUrl::App("index.html".into()));
     if !gpu_enabled {
         webview_builder = webview_builder.additional_browser_args("--disable-gpu");
     }
+    // DevTools 默认禁用；开发者模式解锁或 debug 构建下启用。
+    // 该选项只在创建时生效，解锁后需重开窗口才生效（窗口关闭即销毁、重开即重建）。
+    webview_builder = webview_builder.devtools(devtools_enabled);
     let window = webview_builder
         .title("Peregrine 配置")
         .inner_size(1080.0, 720.0)
@@ -225,11 +244,14 @@ fn create_settings_window(
     let win_icon =
         Image::from_bytes(include_bytes!("../icons/icon.png")).expect("failed to load window icon");
     let gpu_enabled = read_gpu_setting(app);
+    let devtools_enabled = read_developer_mode(app);
     let mut webview_builder =
         WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()));
     if !gpu_enabled {
         webview_builder = webview_builder.additional_browser_args("--disable-gpu");
     }
+    // 与配置窗口一致：DevTools 默认禁用，解锁或 debug 构建下启用。
+    webview_builder = webview_builder.devtools(devtools_enabled);
     let window = webview_builder
         .title("Peregrine 设置")
         .inner_size(480.0, 540.0)
@@ -533,6 +555,7 @@ pub fn run() {
                                     quick_colors: None,
                                     hotkey_bindings: None,
                                     telemetry_enabled: None,
+                                    developer_mode: None,
                                 },
                             )
                             .await;
@@ -1041,6 +1064,7 @@ struct PreferencesPatch {
     quick_colors: Option<Vec<[f32; 4]>>,
     hotkey_bindings: Option<Vec<(HotkeyAction, String)>>,
     telemetry_enabled: Option<bool>,
+    developer_mode: Option<bool>,
 }
 
 /// 更新偏好设置的共享逻辑，供 Tauri command 和托盘菜单事件复用。
@@ -1110,6 +1134,9 @@ async fn update_preferences_inner(
     }
     if let Some(telemetry) = preferences.telemetry_enabled {
         config.settings.telemetry_enabled = Some(telemetry);
+    }
+    if let Some(dev_mode) = preferences.developer_mode {
+        config.settings.developer_mode = dev_mode;
     }
 
     config.validate().map_err(|e| e.to_string())?;
@@ -1183,6 +1210,7 @@ async fn update_preferences_inner(
         "quick_colors": snapshot.as_ref().settings.quick_colors,
         "hotkey_bindings": snapshot.as_ref().settings.hotkey_bindings,
         "telemetry_enabled": snapshot.as_ref().settings.telemetry_enabled,
+        "developer_mode": snapshot.as_ref().settings.developer_mode,
     });
     app.emit("peregrine:settings-changed", &settings_json)
         .map_err(|e| e.to_string())?;

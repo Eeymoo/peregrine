@@ -249,4 +249,10 @@ export interface AppSettings {
    * true/false = 用户已做出选择。
    */
   telemetry_enabled?: boolean | null;
+  /**
+   * 开发者模式解锁标志（连点版本号解锁）。
+   * false/缺失 = 未解锁（DevTools 默认禁用，无「开发」Tab）；
+   * true = 已解锁（重开窗口后 DevTools 可用，「开发」Tab 可见）。
+   */
+  developer_mode?: boolean;
 }

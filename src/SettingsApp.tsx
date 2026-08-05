@@ -13,6 +13,7 @@ import { OverlayTab } from "@/components/settings/OverlayTab";
 import { HotkeysTab } from "@/components/settings/HotkeysTab";
 import { UpdateTab, type UpdateState } from "@/components/settings/UpdateTab";
 import { AboutTab } from "@/components/settings/AboutTab";
+import { DevTab } from "@/components/settings/DevTab";
 import { updatePreferences } from "@/lib/api";
 import type { AppConfig } from "@/types/config";
 
@@ -22,6 +23,8 @@ export default function SettingsApp() {
   const version = useAppVersion();
   const [autoSwitch, setAutoSwitchState] = useState<string>("ask");
   const [updateState, setUpdateState] = useState<UpdateState>({ status: "idle" });
+  // 开发者模式：解锁后或开发构建（import.meta.env.DEV）下显示「开发」Tab。
+  const devUnlocked = !!config?.settings?.developer_mode || import.meta.env.DEV;
 
   useEffect(() => {
     getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("settings.title")}`).catch(() => {});
@@ -48,6 +51,16 @@ export default function SettingsApp() {
     updatePreferences({ auto_switch_on_overlay: value }).catch(console.error);
   };
 
+  // AboutTab 解锁成功后立即更新本地 config state（updatePreferences 已写盘 +
+  // 广播，useSettingsSync 会同步，这里立即刷新避免等待广播延迟）。
+  const handleDeveloperModeChange = (unlocked: boolean) => {
+    if (!config) return;
+    setConfig({
+      ...config,
+      settings: { ...config.settings, developer_mode: unlocked },
+    });
+  };
+
   if (!config) {
     return (
       <div className="h-screen flex items-center justify-center text-muted-foreground">
@@ -60,12 +73,13 @@ export default function SettingsApp() {
     <div className="h-screen flex flex-col bg-background text-foreground">
       <Tabs defaultValue="general" className="flex flex-col h-full">
         <div className="px-6 pt-5">
-          <TabsList className="grid grid-cols-5 w-full">
+          <TabsList className={`grid w-full ${devUnlocked ? "grid-cols-6" : "grid-cols-5"}`}>
             <TabsTrigger value="general">{t("settings.sectionGeneral")}</TabsTrigger>
             <TabsTrigger value="overlay">{t("settings.sectionOverlay")}</TabsTrigger>
             <TabsTrigger value="hotkeys">{t("settings.sectionHotkeys")}</TabsTrigger>
             <TabsTrigger value="update">{t("settings.sectionUpdate")}</TabsTrigger>
             <TabsTrigger value="about">{t("settings.sectionAbout")}</TabsTrigger>
+            {devUnlocked && <TabsTrigger value="dev">{t("settings.sectionDev")}</TabsTrigger>}
           </TabsList>
         </div>
 
@@ -130,10 +144,24 @@ export default function SettingsApp() {
         <TabsContent value="about" className="flex-1 overflow-y-auto m-0 p-6">
           <Card>
             <CardContent className="space-y-6 pt-6">
-              <AboutTab version={version} />
+              <AboutTab
+                version={version}
+                developerMode={!!config.settings.developer_mode}
+                onDeveloperModeChange={handleDeveloperModeChange}
+              />
             </CardContent>
           </Card>
         </TabsContent>
+
+        {devUnlocked && (
+          <TabsContent value="dev" className="flex-1 overflow-y-auto m-0 p-6">
+            <Card>
+              <CardContent className="space-y-6 pt-6">
+                <DevTab />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

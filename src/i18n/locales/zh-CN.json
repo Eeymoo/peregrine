@@ -52,28 +52,6 @@
     "error": "错误",
     "unknown": "未知"
   },
-  "developer": {
-    "title": "开发者",
-    "devTools": "DevTools",
-    "reload": "刷新",
-    "resetConfig": "重置配置",
-    "resetConfirm": "确定要清空当前配置并写入默认配置吗？\n\n此操作会备份现有 config.json 为 .bak。",
-    "resetCalled": "配置重置接口已调用。完整重置请删除 %APPDATA%/Peregrine/config.json 后重启应用。",
-    "resetFailed": "重置失败",
-    "toggle": "开发者模式已开启",
-    "unlockHint": "点击 5 次解锁开发者面板",
-    "remaining": "次解锁开发者",
-    "tag": "DEV",
-    "showConfig": "显示 config.json",
-    "hideConfig": "隐藏 config.json",
-    "devToolsDisabled": "此构建未启用 DevTools feature。\n\n开发模式（npx tauri dev）下可用，或需要在 Cargo.toml 启用 tauri devtools feature。",
-    "openDevToolsFailed": "打开 DevTools 失败",
-    "logTitle": "开发者日志",
-    "autoScroll": "自动滚动",
-    "clearLog": "清空",
-    "logEmpty": "暂无日志",
-    "unlocked": "✓ 已开启开发者模式"
-  },
   "error": {
     "title": "Peregrine 遇到了错误",
     "description": "应用没有崩溃，但页面渲染失败。可以尝试下面的按钮恢复，或把错误信息复制贴给开发者。",
@@ -225,7 +203,15 @@
     "telemetryTestReport": "测试上报",
     "telemetryTestReportHint": "发送一条测试错误事件，验证上报链路（仅开发者模式可见）",
     "telemetryTestReportDone": "已发送 ✓",
-    "telemetryTestReportFailed": "测试上报失败"
+    "telemetryTestReportFailed": "测试上报失败",
+    "sectionDev": "开发",
+    "devUnlockHint": "点击 5 次解锁开发者模式",
+    "devRemaining": "次解锁开发者",
+    "devUnlocked": "✓ 已开启开发者模式（重新打开窗口后 DevTools 可用）",
+    "devOpenDevTools": "开启 DevTools",
+    "devOpenDevToolsHint": "重新打开窗口后生效",
+    "devToolsDisabled": "此构建未启用 DevTools。\n\n请先在「关于」Tab 连点版本号解锁开发者模式，并重开窗口。",
+    "devOpenDevToolsFailed": "打开 DevTools 失败"
   },
   "styles": {
     "edge_rect": "边缘矩形",

@@ -9,7 +9,6 @@ import { Preview } from "@/components/Preview";
 import { StyleFields } from "@/components/StyleFields";
 import { LayersEditor } from "@/components/LayersEditor";
 import { ProfileManager } from "@/components/ProfileManager";
-import { DeveloperPanel } from "@/components/DeveloperPanel";
 import { AutoSwitchDialog } from "@/components/config/AutoSwitchDialog";
 import { UpdateDialog } from "@/components/config/UpdateDialog";
 import { UpdateProgress } from "@/components/config/UpdateProgress";
@@ -84,29 +83,6 @@ export default function ConfigApp() {
 
   const { updateAvailable, updating, updateProgress, setUpdateAvailable, startUpdate } =
     useUpdate(config);
-
-  // 点击版本号 3 次后启用"开发者"面板，写入 localStorage 持久化。
-  const [devTabUnlocked, setDevTabUnlocked] = useState<boolean>(
-    () => localStorage.getItem("peregrine:dev-tab") === "1",
-  );
-  const [versionClickCount, setVersionClickCount] = useState(0);
-  const [justUnlocked, setJustUnlocked] = useState(false);
-
-  // 点击版本号 5 次（连续，间隔 < 1.5s）解锁开发者面板；第 3 击起有剩余次数提示。
-  // 解锁状态写入 localStorage，下次启动仍然有效；可在开发者面板里关闭。
-  useEffect(() => {
-    if (versionClickCount === 0) return;
-    const timer = setTimeout(() => setVersionClickCount(0), 1500);
-    if (versionClickCount >= 5) {
-      setVersionClickCount(0);
-      setDevTabUnlocked(true);
-      localStorage.setItem("peregrine:dev-tab", "1");
-      // 解锁成功提示：版本号旁短暂显示「已开启开发者模式」，3 秒后消失。
-      setJustUnlocked(true);
-      setTimeout(() => setJustUnlocked(false), 3000);
-    }
-    return () => clearTimeout(timer);
-  }, [versionClickCount]);
 
   // 首次启动遥测授权弹窗（唯一授权提示）：
   // telemetry_enabled 字段缺失（null/undefined）时询问一次，默认允许；
@@ -399,44 +375,11 @@ export default function ConfigApp() {
           </div>
         </div>
 
-        {/* 开发者面板（仅 devTabUnlocked=true 时显示） */}
-        {devTabUnlocked && (
-          <div className="shrink-0 border-t pt-2 mt-2 max-h-48 overflow-y-auto">
-            <DeveloperPanel
-              config={config}
-              version={version}
-              onClose={() => {
-                setDevTabUnlocked(false);
-                localStorage.removeItem("peregrine:dev-tab");
-              }}
-            />
-          </div>
-        )}
+        {/* 开发者面板已移除（合并到设置窗口的「开发」Tab） */}
 
-        {/* 底部信息：连续点击 5 次解锁开发者面板 */}
-        <div
-          className="text-xs text-muted-foreground text-right cursor-pointer select-none shrink-0"
-          onClick={() => {
-            setVersionClickCount((n) => n + 1);
-          }}
-          title={devTabUnlocked ? t("developer.toggle") : t("developer.unlockHint")}
-        >
+        {/* 底部信息：版本号（纯文本，配置窗口无解锁彩蛋） */}
+        <div className="text-xs text-muted-foreground text-right select-none shrink-0">
           Peregrine v{version || "..."}
-          {versionClickCount > 0 && versionClickCount < 5 && (
-            <span className="ml-1 text-[10px] opacity-60">
-              ({5 - versionClickCount} {t("developer.remaining")})
-            </span>
-          )}
-          {justUnlocked && (
-            <span className="ml-1 text-[10px] text-green-500">
-              {t("developer.unlocked")}
-            </span>
-          )}
-          {devTabUnlocked && !justUnlocked && (
-            <span className="ml-1 text-[10px] text-yellow-500">
-              {t("developer.tag")}
-            </span>
-          )}
         </div>
       </div>
 

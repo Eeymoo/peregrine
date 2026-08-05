@@ -18,11 +18,14 @@ interface AboutTabProps {
  *
  * 版本号可点击：连续点击 5 次（间隔 < 1.5s 超时清零）解锁开发者模式，
  * 持久化到 `AppSettings.developer_mode`，重启后保持。第 3 击起显示剩余次数提示。
+ * 已解锁后版本号恢复为普通文本（不再可点击）。
  */
 export function AboutTab({ version, developerMode, onDeveloperModeChange }: AboutTabProps) {
   const { t } = useI18n();
   const [clickCount, setClickCount] = useState(0);
   const [justUnlocked, setJustUnlocked] = useState(false);
+  // 已解锁（或开发构建）后版本号不可点击、无计数逻辑。
+  const unlocked = developerMode || import.meta.env.DEV;
 
   // 连续点击计数：间隔超过 1.5s 自动清零；满 5 次解锁并持久化。
   useEffect(() => {
@@ -59,31 +62,29 @@ export function AboutTab({ version, developerMode, onDeveloperModeChange }: Abou
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">{t("settings.about.version")}</span>
-          <button
-            type="button"
-            className="cursor-pointer select-none hover:text-foreground"
-            onClick={() => setClickCount((n) => n + 1)}
-            title={
-              developerMode || import.meta.env.DEV
-                ? t("settings.devUnlocked")
-                : t("settings.devUnlockHint")
-            }
-          >
-            {version || "..."}
-            {clickCount >= 3 && clickCount < 5 && (
-              <span className="ml-1 text-[10px] opacity-60">
-                ({5 - clickCount} {t("settings.devRemaining")})
-              </span>
-            )}
-            {justUnlocked && (
-              <span className="ml-1 text-[10px] text-green-500">
-                {t("settings.devUnlocked")}
-              </span>
-            )}
-            {(developerMode || import.meta.env.DEV) && !justUnlocked && (
-              <span className="ml-1 text-[10px] text-yellow-500">DEV</span>
-            )}
-          </button>
+          {unlocked ? (
+            // 已解锁后版本号为纯文本，不再可点击。
+            <span>{version || "..."}</span>
+          ) : (
+            <button
+              type="button"
+              className="cursor-pointer select-none hover:text-foreground"
+              onClick={() => setClickCount((n) => n + 1)}
+              title={t("settings.devUnlockHint")}
+            >
+              {version || "..."}
+              {clickCount >= 3 && clickCount < 5 && (
+                <span className="ml-1 text-[10px] opacity-60">
+                  ({5 - clickCount} {t("settings.devRemaining")})
+                </span>
+              )}
+              {justUnlocked && (
+                <span className="ml-1 text-[10px] text-green-500">
+                  {t("settings.devUnlocked")}
+                </span>
+              )}
+            </button>
+          )}
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">{t("settings.about.publisher")}</span>

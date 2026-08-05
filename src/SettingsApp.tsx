@@ -157,7 +157,7 @@ export default function SettingsApp() {
           <TabsContent value="dev" className="flex-1 overflow-y-auto m-0 p-6">
             <Card>
               <CardContent className="space-y-6 pt-6">
-                <DevTab />
+                <DevTab config={config} setConfig={setConfig} />
               </CardContent>
             </Card>
           </TabsContent>

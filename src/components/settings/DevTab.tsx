@@ -1,51 +1,63 @@
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { updatePreferences, relaunchApp } from "@/lib/api";
 import { TELEMETRY_DSN_AVAILABLE, testReport } from "@/lib/telemetry";
+import type { AppConfig } from "@/types/config";
+
+interface DevTabProps {
+  config: AppConfig;
+  setConfig: (cfg: AppConfig) => void;
+}
 
 /**
  * 「开发」Tab：仅在开发者模式已解锁（或开发构建）时显示。
  *
- * 仅包含两个区块：
- * - 「开启 DevTools」：调用前端 `getCurrentWebviewWindow().openDevTools()`。
- *   未解锁构建（DevTools feature 关闭）会失败，提示用户重开窗口。
- * - 「测试上报」：触发一条 Error 级测试事件（仅 DSN 可用时显示）。
+ * - DevTools switch：控制 `developer_mode`，切换后弹窗提示重启生效。
+ *   开启后重开窗口右键可检查、Ctrl+Shift+I 可用；关闭后完全禁用。
+ * - 测试上报：触发一条 Error 级测试事件（仅 DSN 可用时显示）。
  */
-export function DevTab() {
+export function DevTab({ config, setConfig }: DevTabProps) {
   const { t } = useI18n();
   const [testReportState, setTestReportState] = useState<"idle" | "sending" | "done">("idle");
 
-  const openDevTools = async () => {
-    try {
-      const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-      const win = getCurrentWebviewWindow() as unknown as {
-        openDevTools?: () => Promise<void>;
-      };
-      if (typeof win.openDevTools === "function") {
-        await win.openDevTools();
-      } else {
-        alert(t("settings.devToolsDisabled"));
-      }
-    } catch (e) {
-      alert(`${t("settings.devOpenDevToolsFailed")}: ${String(e)}`);
-    }
-  };
-
   return (
     <div className="space-y-6">
-      {/* 开启 DevTools */}
+      {/* DevTools 开关：参考 GPU 加速 switch 交互 */}
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-0.5">
-          <Label className="text-sm font-medium">{t("settings.devOpenDevTools")}</Label>
-          <p className="text-xs text-muted-foreground">{t("settings.devOpenDevToolsHint")}</p>
+          <Label className="text-sm font-medium">{t("settings.devTools")}</Label>
+          <p className="text-xs text-muted-foreground">
+            {t("settings.devToolsHint")}
+          </p>
         </div>
-        <button
-          type="button"
-          className="px-3 py-1.5 rounded bg-muted text-muted-foreground text-xs font-medium"
-          onClick={openDevTools}
-        >
-          {t("settings.devOpenDevTools")}
-        </button>
+        <Switch
+          checked={config.settings.developer_mode ?? false}
+          onCheckedChange={async (v) => {
+            // 先弹窗确认重启，再写入配置（避免 DevTab 因 developer_mode=false 立即消失）。
+            try {
+              const { ask } = await import("@tauri-apps/plugin-dialog");
+              const confirmed = await ask(t("settings.devToolsRestartDesc"), {
+                title: t("settings.devToolsRestartTitle"),
+                okLabel: t("settings.gpuRestartNow"),
+                cancelLabel: t("settings.gpuRestartLater"),
+                kind: "info",
+              });
+              const newConfig: AppConfig = {
+                ...config,
+                settings: { ...config.settings, developer_mode: v },
+              };
+              setConfig(newConfig);
+              await updatePreferences({ developer_mode: v });
+              if (confirmed) {
+                await relaunchApp();
+              }
+            } catch (e) {
+              console.error("[DevTools] dialog/relaunch failed:", e);
+            }
+          }}
+        />
       </div>
 
       {/* 测试上报：仅在编译期注入了遥测 DSN 的构建中显示。 */}

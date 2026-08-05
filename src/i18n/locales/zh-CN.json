@@ -208,9 +208,10 @@
     "devUnlockHint": "点击 5 次解锁开发者模式",
     "devRemaining": "次解锁开发者",
     "devUnlocked": "✓ 已开启开发者模式（重新打开窗口后 DevTools 可用）",
-    "devOpenDevTools": "开启 DevTools",
-    "devOpenDevToolsHint": "重新打开窗口后生效",
-    "devToolsDisabled": "此构建未启用 DevTools。\n\n请先在「关于」Tab 连点版本号解锁开发者模式，并重开窗口。",
+    "devTools": "DevTools",
+    "devToolsHint": "开启后可使用右键「检查」与 Ctrl+Shift+I，关闭可降低内存占用，重启窗口后生效",
+    "devToolsRestartTitle": "DevTools 设置已更改",
+    "devToolsRestartDesc": "DevTools 设置需要重启应用后才能生效。是否立即重启？",
     "devOpenDevToolsFailed": "打开 DevTools 失败"
   },
   "styles": {

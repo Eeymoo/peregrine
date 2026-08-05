@@ -15,7 +15,7 @@ import { listLayers, listMaterials, saveConfig } from "@/lib/api";
 import { listen } from "@tauri-apps/api/event";
 import { Preview } from "@/components/Preview";
 import { LayerPanel, MaterialParamControls } from "@/components/LayerPanel";
-import { LayerStyleEditor, LayerTransformEditor } from "@/components/LayerEditors";
+import { LayerStyleEditor } from "@/components/LayerEditors";
 import { ProfileManager } from "@/components/ProfileManager";
 import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
@@ -50,7 +50,7 @@ interface LayersEditorProps {
 /**
  * 图层编辑器：完整的四层架构编辑 UI。
  *
- * 布局：左侧 Preview | 中间图层面板 | 右侧参数 / 样式 / 变换 + 通用控制面板
+ * 布局：左侧 Preview | 中间图层面板 | 右侧参数 / 样式 + 通用控制面板（「变换」区块暂未就绪，已隐藏）
  *
  * 通过 Tauri commands 直接操作 backend，所有变化即时持久化。
  * 右侧底部保留通用控制：窗口模式、目标窗口、快捷颜色、开始/停止覆盖。
@@ -205,7 +205,7 @@ export function LayersEditor({
           />
         </div>
 
-        {/* 右侧：参数 + 样式 + 变换 + 通用控制 */}
+        {/* 右侧：参数 + 样式 + 通用控制（「变换」区块暂未就绪，已隐藏） */}
         <div className="w-80 border-l bg-card p-4 flex flex-col gap-4 overflow-hidden h-full">
           {/* 上方：图层编辑参数（可滚动） */}
           <div className="flex-1 min-h-0 overflow-y-auto pr-1">
@@ -282,18 +282,10 @@ export function LayersEditor({
               />
                 </div>
 
-                <div className="space-y-2 pt-4 border-t">
-                  <h4 className="text-xs font-semibold uppercase text-muted-foreground">
-                    {t("layers.transformSection")}
-                  </h4>
-                  <LayerTransformEditor
-                    layer={selectedLayer}
-                    onChanged={() => {
-                      refresh();
-                      triggerPreviewRefresh();
-                    }}
-                  />
-                </div>
+                {/* 「变换」区块已暂时移除：位移 / 缩放 / 旋转功能暂未就绪，
+                    随物料运行时软关闭一并隐藏（LayerTransformEditor 组件、
+                    layers.transformSection 等 i18n key 与 transform 数据均保留）。
+                    恢复时在此处还原标题 + <LayerTransformEditor /> 挂载即可。 */}
               </div>
             )}
           </div>

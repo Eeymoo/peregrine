@@ -139,7 +139,7 @@ export function UpdateTab({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="https://gh-proxy.org">gh-proxy.org</SelectItem>
-                  <SelectItem value="https://v4.gh-proxy.org">v4.gh-proxy.org（推荐）</SelectItem>
+                  <SelectItem value="https://v4.gh-proxy.org">{`v4.gh-proxy.org${t("settings.mirrorRecommended")}`}</SelectItem>
                   <SelectItem value="https://v6.gh-proxy.org">v6.gh-proxy.org</SelectItem>
                   <SelectItem value="https://cdn.gh-proxy.org">cdn.gh-proxy.org</SelectItem>
                   <SelectItem value="__custom__">{t("settings.mirrorCustom")}</SelectItem>

@@ -23,12 +23,36 @@ fn main() {
     // 本地 dev 未设置 GLITCHTIP_DSN_TEST 时，解析仓库根 .env.development。
     println!("cargo:rerun-if-env-changed=GLITCHTIP_DSN");
     println!("cargo:rerun-if-env-changed=GLITCHTIP_DSN_TEST");
+
+    // 诊断输出（仅长度不泄露值）：
+    // - GLITCHTIP_DSN：release 构建读取，CI release/snapshot 通过 option_env! 进入二进制。
+    // - GLITCHTIP_DSN_TEST：dev 构建读取，本地 .env.development 注入。
+    // CI 日志中可见这两行 warning，用于排查「DSN 是否真的编译进了二进制」。
+    let env_dsn = std::env::var_os("GLITCHTIP_DSN")
+        .and_then(|s| s.to_str().map(|str| str.len()))
+        .unwrap_or(0);
+    let env_dsn_test = std::env::var_os("GLITCHTIP_DSN_TEST")
+        .and_then(|s| s.to_str().map(|str| str.len()))
+        .unwrap_or(0);
+    println!(
+        "cargo:warning=[telemetry-diag] GLITCHTIP_DSN len={} (release path, option_env! reads)",
+        env_dsn
+    );
+    println!(
+        "cargo:warning=[telemetry-diag] GLITCHTIP_DSN_TEST len={} (dev path)",
+        env_dsn_test
+    );
+
     let env_file = Path::new("../.env.development");
     println!("cargo:rerun-if-changed={}", env_file.display());
     if std::env::var_os("GLITCHTIP_DSN_TEST").is_none()
         && let Some(value) = read_env_value(env_file, "GLITCHTIP_DSN_TEST")
     {
         println!("cargo:rustc-env=GLITCHTIP_DSN_TEST={value}");
+        println!(
+            "cargo:warning=[telemetry-diag] GLITCHTIP_DSN_TEST injected from .env.development len={}",
+            value.len()
+        );
     }
 
     tauri_build::build();

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { saveConfig } from "@/lib/api";
 import {
   createDefaultLayer,
@@ -43,19 +43,40 @@ export function useConfigSave(
     return layerToCrosshair(layer);
   }, [profile]);
 
+  // 用 ref 持有最新的 crosshair / config / profile，避免 useCallback 闭包陷阱：
+  // 之前 updateCrosshair 的 deps 含 crosshair，连续拖动时下一次事件拿到的可能是旧闭包，
+  // 导致「修改第二次的第一次才生效」的滞后现象。useEffect 同步 ref 始终指向最新值。
+  const crosshairRef = useRef(crosshair);
+  const configRef = useRef(config);
+  const profileRef = useRef(profile);
+  useEffect(() => {
+    crosshairRef.current = crosshair;
+  }, [crosshair]);
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
   const hasLayers = (profile?.layers?.length ?? 0) > 0;
 
+  // 稳定的 updateCrosshair：不依赖 config/profile/crosshair（全部走 ref），
+  // 因此 useCallback 永远只创建一次，事件处理器始终拿到最新数据。
   const updateCrosshair = useCallback(
     (patch: Partial<Crosshair>, options?: { resetDefaults?: boolean }) => {
-      if (!config || !profile) return;
+      const currentConfig = configRef.current;
+      const currentProfile = profileRef.current;
+      const currentCrosshair = crosshairRef.current;
+      if (!currentConfig || !currentProfile) return;
       const newCrosshair =
         options?.resetDefaults && patch.style !== undefined
           ? getDefaultCrosshairForStyle(patch.style)
-          : crosshair
-            ? { ...crosshair, ...patch }
+          : currentCrosshair
+            ? { ...currentCrosshair, ...patch }
             : getDefaultCrosshairForStyle(patch.style ?? "cross");
 
-      const newProfile = { ...profile, crosshair: newCrosshair };
+      const newProfile = { ...currentProfile, crosshair: newCrosshair };
       // 如果已有 layers，同步更新 layers[0] 使其与 crosshair 一致。
       if (newProfile.layers.length > 0) {
         newProfile.layers = [
@@ -77,32 +98,40 @@ export function useConfigSave(
         ];
       }
       const newConfig = {
-        ...config,
-        profiles: { ...config.profiles, [config.active_profile]: newProfile },
+        ...currentConfig,
+        profiles: { ...currentConfig.profiles, [currentConfig.active_profile]: newProfile },
       };
+      // 立即同步 ref，避免同一事件循环内连续调用拿到旧值。
+      configRef.current = newConfig;
+      profileRef.current = newProfile;
+      crosshairRef.current = newCrosshair;
       setConfig(newConfig);
       debouncedSave(newConfig);
     },
-    [config, profile, crosshair, debouncedSave, setConfig, t],
+    [debouncedSave, setConfig, t],
   );
 
   const updateProfileTargetWindow = useCallback(
     (targetWindow: string) => {
-      if (!config || !profile) return;
+      const currentConfig = configRef.current;
+      const currentProfile = profileRef.current;
+      if (!currentConfig || !currentProfile) return;
       const newConfig = {
-        ...config,
+        ...currentConfig,
         profiles: {
-          ...config.profiles,
-          [config.active_profile]: {
-            ...profile,
+          ...currentConfig.profiles,
+          [currentConfig.active_profile]: {
+            ...currentProfile,
             target_window: targetWindow,
           },
         },
       };
+      configRef.current = newConfig;
+      profileRef.current = newConfig.profiles[currentConfig.active_profile];
       setConfig(newConfig);
       debouncedSave(newConfig);
     },
-    [config, profile, setConfig, debouncedSave],
+    [setConfig, debouncedSave],
   );
 
   const colorCss = useMemo(() => {

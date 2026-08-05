@@ -1,6 +1,15 @@
 # Peregrine 手动 UI 验证清单
 
-> 对应 OpenSpec 变更 `multi-profile-config` 任务 29-31 和 `four-layer-customization` 任务 21.1-21.7。
+> 覆盖以下 OpenSpec 变更的全部"代码已完成、待 Windows 实机验证"项：
+> - `multi-profile-config`（A 区，任务 29-31）
+> - `four-layer-customization`（B 区，任务 21.1-21.7）
+> - `material-static-rendering`（D 区，任务 6.1-6.5 + 修复回归）
+> - `merge-dev-into-four-layer`（C 区，dev v0.1.13 功能回归）
+> - `settings-dev-mode`（E 区，任务 7.3-7.5）
+> - `add-glitchtip-telemetry`（F 区，任务 10.1-10.16）
+> - `unify-widget-fields`（G 区，全局 UI 重构复核）
+> - `overlay-dynamic-text-fixes`（H 区，动态停用语义下复测）
+>
 > 需要在 Windows 环境运行应用后逐项验证。
 
 ## 前置准备
@@ -194,11 +203,199 @@ npx tauri dev
 
 ---
 
+## E. settings-dev-mode 验证
+
+> 对应 OpenSpec 变更 `settings-dev-mode` 任务 §7.3 / 7.4 / 7.5。
+> 重点：**release 构建的 DevTools 门禁**——门没关好等于给所有用户开了 devtools。
+
+### E1. 开发构建（`npx tauri dev`）— 期望恒开放
+
+- [ ] **E1.1** 启动后打开设置窗口 → Tab 栏直接有 6 个 Tab，第 6 个是「开发」（不需要解锁）
+- [ ] **E1.2** 进入「开发」Tab → 看到「开启 DevTools」和「测试上报」两个按钮，**没有**日志/JSON/重置等其他控件
+- [ ] **E1.3** 点「开启 DevTools」→ WebView DevTools 弹出
+- [ ] **E1.4** 网页区域右键 → 有「检查」；Ctrl+Shift+I 也能打开 DevTools
+
+### E2. release 构建（最关键，**门禁测试**）
+
+构建：`npx tauri build` → 跑 `src-tauri/target/release/peregrine-tauri.exe`
+
+- [ ] **E2.1** 首次启动后打开设置窗口 → **只有 5 个 Tab**，没有「开发」
+- [ ] **E2.2** 网页区域右键 → **没有「检查」**；按 Ctrl+Shift+I → **不响应**
+- [ ] **E2.3** 进入「关于」Tab，连点版本号 1、2 次 → 无任何提示（< 3 次不应有提示）
+- [ ] **E2.4** 连点到第 3、4 次 → 出现「再点 N 次解锁」提示
+- [ ] **E2.5** 中间停顿 > 1.5 秒 → 计数清零（下次再点从 0 开始，且无提示）
+- [ ] **E2.6** 一气呵成点满 5 次 → 解锁成功提示（含「DevTools 需重新打开窗口后可用」），「开发」Tab 出现
+- [ ] **E2.7** 检查 `%APPDATA%\Peregrine\config.json` → `settings.developer_mode = true`
+- [ ] **E2.8** 关闭设置窗口再重新打开 → 右键「检查」可用、Ctrl+Shift+I 可用、「开启 DevTools」按钮可用
+- [ ] **E2.9** 完全退出应用（托盘 Exit）后重新启动 → 设置窗口仍显示「开发」Tab（持久化）
+- [ ] **E2.10** 把 config.json 中 `developer_mode` 改回 `false` 后重启 → 退回锁定态，Tab 消失，右键无「检查」
+
+### E3. 配置窗口版本号（防回归）
+
+> `settings-dev-mode` 已移除配置窗口的 DeveloperPanel；本节确认无残留。
+
+- [ ] **E3.1** 打开配置窗口（不是设置窗口）→ 底部版本号是**纯文本**，点击无反应
+- [ ] **E3.2** 配置窗口**没有**「开发」Tab、**没有** DeveloperPanel 残留
+
+---
+
+## F. add-glitchtip-telemetry 验证
+
+> 对应 OpenSpec 变更 `add-glitchtip-telemetry` 任务 §10.1–10.16。
+> **最复杂、最易出问题**：涉及隐私、网络、install_id 持久化、首次授权弹窗不能弹第二次。
+
+### 前置准备
+
+- GlitchTip 后台账号（**两个项目**：TEST 与正式），能查看 Events / Issues
+- 抓包工具（Fiddler / Wireshark / `netstat` / `tasklist /v`），用于"零网络请求"验证
+- 准备好让程序 panic 的方式（例如临时在代码里加 `panic!("test")` 跑一次 release，**别提交**）
+
+### F1. 上报正确分流（10.1 / 10.7 / 10.14 / 10.15）
+
+| 构建 | DSN 环境变量 | 期望 GlitchTip 项目 | event_type tag |
+|---|---|---|---|
+| `npx tauri dev` | `VITE_GLITCHTIP_DSN_TEST` / `GLITCHTIP_DSN_TEST` | TEST | startup=Info |
+| `npx tauri build` | `GLITCHTIP_DSN` | 正式 | startup=Info |
+
+- [ ] **F1.1** dev 启动一次 → TEST 项目收到一条 `app_startup` 事件，level=**Info**，**不进 issue 列表**（Info 不算 issue）
+- [ ] **F1.2** 该事件的 tags 包含：`code=PGR-0001`、`event_type=startup`、`priority=p3`、`install_id`、`version`、`os`、`arch` — **逐个核对**
+- [ ] **F1.3** release 启动一次 → 正式项目同样收到，tags 完整
+- [ ] **F1.4** 在 GlitchTip 后台按 `event_type=crash` / `error` / `startup` 三个 tag 筛选 → 各自只能筛出对应类别
+
+### F2. 开关关闭 / 无 DSN → 零网络（10.2 / 10.13）
+
+- [ ] **F2.1** 设置页关掉遥测开关 → 重启 → 抓包确认**整个启动过程零出站网络请求**到 GlitchTip 域名
+- [ ] **F2.2** 删除本地 `.env*` / 不注入 DSN 跑一次 → SDK 不初始化、零网络、应用功能完全正常
+- [ ] **F2.3** 用 `PEREGRINE_DISABLE_TELEMETRY=1` 编译一次（`PEREGRINE_DISABLE_TELEMETRY=1 npx tauri build`）→ 设置页**遥测 UI 不可见或隐藏**、零网络（这是编译期禁用，最严格）
+
+### F3. panic 落盘 + 静默回传（10.3 / 10.4）
+
+> 这一组是最容易出 bug 的，重点测。
+
+- [ ] **F3.1** 开关开启状态下，临时加 `panic!("test")` 跑 release → 程序崩溃
+- [ ] **F3.2** 检查 `%APPDATA%\Peregrine\pending_reports\`（或类似路径）→ 有 JSON 文件，含 ts/version/install_id/code/message
+- [ ] **F3.3** 删除 GlitchTip 后台对应 issue，再次启动应用 → **无任何弹窗**地静默上传了该 pending 记录，后台又收到
+- [ ] **F3.4** 检查 pending 目录 → 已上传记录被清除
+- [ ] **F3.5** 开关关闭状态下崩溃 → pending 落盘但**不上传**；累积多次崩溃 → pending 目录有多条
+- [ ] **F3.6** pending 累积到超过 5MB → 最旧的被删除（验证容量上限）
+- [ ] **F3.7** 报错页面（ErrorBoundary）点「匿名上传错误报告」按钮 → 一次性上传当前 + 全部历史；上传完成后**SDK 关闭**，后续不再上报（再崩溃又只能落盘）
+
+### F4. 首次授权唯一性（10.5）— 隐私敏感
+
+- [ ] **F4.1** 删掉 config.json 中 `telemetry_enabled` 字段（模拟首次启动）→ 启动时弹出**唯一一次**授权弹窗（"是否允许匿名上报崩溃信息与使用统计？"），默认勾选
+- [ ] **F4.2** 选「允许」→ 字段写入 `true`，再启动**不再弹**
+- [ ] **F4.3** 把字段改成 `false` 再启动 → **不再弹任何授权**（即使关了又开）
+- [ ] **F4.4** 把字段重新删掉 → ⚠️ 行为待确认：是否再弹？（任务 4.1 说"字段缺失=未授权"，请与产品意图对齐）
+
+### F5. install_id 稳定性（10.8）
+
+- [ ] **F5.1** 启动一次 → 查看 install_id 文件（路径通常为 `%APPDATA%\Peregrine\install_id` 或独立文件），记下 UUID
+- [ ] **F5.2** 多次重启 → UUID 不变
+- [ ] **F5.3** 删除整个 config.json 重置 → install_id **不受影响**（独立文件）
+- [ ] **F5.4** 手动把 install_id 文件内容改坏 → 启动时**自动重建**一个新 UUID，不崩溃
+- [ ] **F5.5** 卸载重装（删除整个 Peregrine 目录再装） → UUID 变化（不同安装）
+
+### F6. 脱敏（10.9）— 隐私敏感
+
+- [ ] **F6.1** 用户名为 `C:\Users\张三\...` 的 Windows 账户下触发一次崩溃 → 在 GlitchTip 后台**抽样查看事件原文 JSON**
+- [ ] **F6.2** 确认事件中：**无 IP**、**无 user 字段**、**无 server_name**、**无 machine_name**、所有路径中 `张三` 被替换为 `{user}`
+- [ ] **F6.3** 前端 ErrorBoundary 上报的事件同样脱敏（前后端规则一致）
+
+### F7. DSN 不入库（10.10）
+
+```bash
+git log -p --all | grep -E "GLITCHTIP_DSN|VITE_GLITCHTIP"
+```
+
+- [ ] **F7.1** 上述命令在仓库历史中**只出现 env var 名（如 `option_env!("GLITCHTIP_DSN")`），无真实 DSN 字符串**
+
+### F8. 前端错误上报（10.6）
+
+- [ ] **F8.1** 在 dev 模式下临时让某 React 组件抛错 → ErrorBoundary 接住并显示降级 UI
+- [ ] **F8.2** GlitchTip TEST 项目收到事件，tag 含**组件名**和对应 `PGR-3xxx` code
+
+### F9. 测试上报按钮（10.11）— 与 settings-dev-mode 联动
+
+- [ ] **F9.1** 未解锁的 release 构建 → 设置窗口**没有**「开发」Tab，普通用户**看不到**测试上报按钮
+- [ ] **F9.2** 解锁后（或 dev 构建）→ 「开发」Tab 里点「测试上报」→ GlitchTip 收到一条 **Error 级**事件，**进 issue 列表**
+
+### F10. 开关修改重启弹窗（10.12）
+
+- [ ] **F10.1** 在设置页切换遥测开关 → 弹「修改将在重启后生效」对话框
+- [ ] **F10.2** 选「立即重启」→ 应用重启后新状态生效
+- [ ] **F10.3** 选「稍后重启」→ 设置页保留「待重启生效」标记；手动重启后生效
+
+---
+
+## G. unify-widget-fields 复核（在拆分窗口布局下）
+
+> 对应 OpenSpec 变更 `unify-widget-fields`。
+> 任务已全打勾，但代码改动是**全局 UI 重构**，必须在当前**两窗口（配置 + 设置）+ 12 种样式**下复核一遍。
+> 重点：双向同步、ColorField 非法值兜底、单位后缀显示。
+
+### G1. 单图层模式（配置窗口）— 12 种样式逐个
+
+切到每种 CrosshairStyle，重点验证 widget 渲染正确、双向同步：
+
+- [ ] **G1.1** `cross`：size/thickness/gap 用 SliderField，**拖滑块→数字框同步**、**改数字框→滑块同步**
+- [ ] **G1.2** `large_cross`：同上
+- [ ] **G1.3** `edge_rect`：edge position 是 SelectField（两行布局）
+- [ ] **G1.4** `ring`：anchor 用 SelectField
+- [ ] **G1.5** `corner_dots_4/6/8`：count 用 NumberField（**无滑块**）
+- [ ] **G1.6** `custom_orb`：位掩码组合控件保持独立（OrbPositionCheck）
+- [ ] **G1.7** `random_orb`：seed/positions 等
+- [ ] **G1.8** `border_frame`：thickness/margin
+- [ ] **G1.9** `custom_image`：path 是 ImagePathField（输入框 + 「浏览」按钮），点「浏览」→ 弹文件选择对话框
+- [ ] **G1.10** `edge_arrows`：position + size
+- [ ] **G1.11** `grid`：rows/cols/spacing，alignment 是 SelectField
+
+### G2. ColorField 重点（任务 1.4 + 5.7）
+
+- [ ] **G2.1** hex 输入框输入合法值 `#ff0000` → 色块同步变红
+- [ ] **G2.2** hex 输入框输入**非法值** `#zzz` / `xyz` → **保持当前值不变**（不能崩、不能清空）
+- [ ] **G2.3** 点色块打开系统取色器 → 选色后同步到 hex 框
+- [ ] **G2.4** 快捷色块（如多图层侧 LayerStyleEditor）→ 点击立即应用
+- [ ] **G2.5** RGBA 透明度往返（hex ↔ tuple）无损
+
+### G3. 多图层模式 LayerEditors（任务 5.6）
+
+> ⚠️ 注意：当前物料运行时**静态渲染启用**，多图层模式可达（`material-static-rendering` §D5.2 已验证模式记忆），但**动态物料已停用**。
+
+- [ ] **G3.1** opacity 显示为 `0.85` + `%` 后缀（原始值 0..1，不是 85）
+- [ ] **G3.2** scale 显示为 `1.20` + `x` 后缀
+- [ ] **G3.3** rotation 显示为 `45` + `°` 后缀
+- [ ] **G3.4** 拖 opacity 到 0 → 图层完全透明
+
+---
+
+## H. overlay-dynamic-text-fixes 在动态停用语义下的复测
+
+> 对应 OpenSpec 变更 `overlay-dynamic-text-fixes`。
+> ⚠️ 任务原文 5.5–5.10 描述的是"动态物料应工作"，但**当前动态输入已软禁用**（`MATERIAL_DYNAMIC_INPUT_ENABLED = false`）。
+> 所以这些条目**语义反转**，下表为对照：
+
+| 原任务 | 当前期望 |
+|---|---|
+| 5.5 时钟每秒更新 | ❌ **不应**更新（冻结在固定时间），不崩溃 |
+| 5.6 纯静态无空转 | ✅ CPU 与修复前一致（任务管理器观察） |
+| 5.7 静态↔动态切换重绘 | ⚠️ 动态物料在选择器里被过滤，**无法构造动态 profile**，跳过 |
+| 5.8 时间物料「加粗」 | ⚠️ time.rhai 已从选择器隐藏，**只有手工改 config.json 才能验证** |
+| 5.9 物料热重载改 is_dynamic | ⚠️ 同上，需要手工写物料文件 |
+| 5.10 鼠标/键盘物料 | ❌ 已停用，跳过 |
+
+实际需要测的简化为：
+
+- [ ] **H1** 纯静态 profile overlay 长跑 30 分钟 → 任务管理器 CPU 稳定，**无空转**（动态刷新被关掉的直接证据）
+- [ ] **H2** （可选）手编 config.json 用 `builtin.time` + `bold: true` → overlay 文本**比 bold:false 明显加粗**、Preview 与 overlay 一致
+- [ ] **H3** 字重支持的 serde 兼容：旧 Element JSON（无 `font_weight`）→ 渲染为常规字重（400），不报错
+
+---
+
 ## 验证结果记录
 
-| 日期 | 系统 | 版本 | 验证人 | A1 | A2 | A3 | B1 | B2 | B3 | B4 | C1-C4 | D1-D5 | 备注 |
-|------|------|------|--------|----|----|----|----|----|----|----|-------|-------|------|
-|      |      |      |        |    |    |    |    |    |    |    |       |       |      |
+| 日期 | 系统 | 版本 | 验证人 | A1-A3 | B1-B4 | C1-C4 | D1-D5 | E1-E3 | F1-F10 | G1-G3 | H1-H3 | 备注 |
+|------|------|------|--------|-------|-------|-------|-------|-------|--------|-------|-------|------|
+|      |      |      |        |       |       |       |       |       |        |       |       |      |
 
 全部通过后：
 ```bash
@@ -207,4 +404,8 @@ openspec archive multi-profile-config
 openspec archive material-static-rendering
 openspec archive four-layer-customization
 openspec archive merge-dev-into-four-layer
+openspec archive settings-dev-mode
+openspec archive add-glitchtip-telemetry
+openspec archive unify-widget-fields
+openspec archive overlay-dynamic-text-fixes
 ```

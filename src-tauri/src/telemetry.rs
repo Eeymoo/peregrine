@@ -591,6 +591,14 @@ mod imp {
             },
             || sentry::capture_message("peregrine telemetry test report", sentry::Level::Error),
         );
+        // capture_message 仅把事件入队，由后台传输线程异步发送；
+        // 这里显式 flush 5 秒，确保事件在返回前真正发出。否则用户点击后
+        // 立即关闭窗口会让传输队列被销毁，表现为「已发送 ✓」但 GlitchTip 收不到。
+        if let Ok(guard) = SDK_GUARD.lock()
+            && let Some(g) = guard.as_ref()
+        {
+            g.flush(Some(std::time::Duration::from_secs(5)));
+        }
         Ok(())
     }
 

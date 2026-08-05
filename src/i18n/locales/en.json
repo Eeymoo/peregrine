@@ -201,7 +201,7 @@
     "telemetryRestartLater": "Restart later",
     "telemetryPendingRestart": "⚠ Takes effect after restart",
     "telemetryTestReport": "Test report",
-    "telemetryTestReportHint": "Send a test error event to verify the pipeline (dev mode only)",
+    "telemetryTestReportHint": "Send a test error event",
     "telemetryTestReportDone": "Sent ✓",
     "telemetryTestReportFailed": "Test report failed",
     "sectionDev": "Dev",

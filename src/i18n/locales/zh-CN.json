@@ -201,7 +201,7 @@
     "telemetryRestartLater": "稍后重启",
     "telemetryPendingRestart": "⚠ 待重启生效",
     "telemetryTestReport": "测试上报",
-    "telemetryTestReportHint": "发送一条测试错误事件，验证上报链路（仅开发者模式可见）",
+    "telemetryTestReportHint": "发送一条测试错误事件",
     "telemetryTestReportDone": "已发送 ✓",
     "telemetryTestReportFailed": "测试上报失败",
     "sectionDev": "开发",

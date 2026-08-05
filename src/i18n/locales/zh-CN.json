@@ -194,7 +194,7 @@
       "repository": "仓库"
     },
     "telemetry": "匿名崩溃上报与使用统计",
-    "telemetryHint": "上报内容不含任何个人数据，可随时关闭（重启后生效）",
+    "telemetryHint": "上报内容不含任何个人数据",
     "telemetryRestartTitle": "重启应用",
     "telemetryRestartDesc": "修改将在重启后生效，是否立即重启？",
     "telemetryRestartNow": "立即重启",

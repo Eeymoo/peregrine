@@ -194,7 +194,7 @@
       "repository": "Repository"
     },
     "telemetry": "Anonymous crash reports & usage stats",
-    "telemetryHint": "No personal data is collected. Takes effect after restart.",
+    "telemetryHint": "No personal data is collected.",
     "telemetryRestartTitle": "Restart app",
     "telemetryRestartDesc": "The change takes effect after restart. Restart now?",
     "telemetryRestartNow": "Restart now",

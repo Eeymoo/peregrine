@@ -39,6 +39,6 @@
 
 - [x] 7.1 `npm run build`（含 TypeScript 检查）通过
 - [x] 7.2 `cargo build` 通过；`cargo fmt --check` 与 `cargo clippy -- -D warnings` 通过
-- [ ] 7.3 `npx tauri dev` 手测：「开发」Tab 直接可见；DevTools 可用；测试上报可触发
-- [ ] 7.4 release 构建手测：默认右键无「检查」→ 关于 Tab 连点 5 次解锁 → 出现「开发」Tab → 重开窗口后右键「检查」与「开启 DevTools」可用 → 测试上报在 GlitchTip 产生 issue
-- [ ] 7.5 配置窗口底部版本号点击无任何反应；无 DeveloperPanel 残留
+- [x] 7.3 `npx tauri dev` 手测：「开发」Tab 直接可见；DevTools 可用；测试上报可触发
+- [x] 7.4 release 构建手测：默认右键无「检查」→ 关于 Tab 连点 5 次解锁 → 出现「开发」Tab → 重开窗口后右键「检查」与「开启 DevTools」可用 → 测试上报在 GlitchTip 产生 issue
+- [x] 7.5 配置窗口底部版本号点击无任何反应；无 DeveloperPanel 残留

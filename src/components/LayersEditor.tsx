@@ -15,7 +15,7 @@ import { listLayers, listMaterials, saveConfig } from "@/lib/api";
 import { listen } from "@tauri-apps/api/event";
 import { Preview } from "@/components/Preview";
 import { LayerPanel, MaterialParamControls } from "@/components/LayerPanel";
-import { LayerStyleEditor, LayerTransformEditor } from "@/components/LayerEditors";
+import { LayerStyleEditor } from "@/components/LayerEditors";
 import { ProfileManager } from "@/components/ProfileManager";
 import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
@@ -282,18 +282,7 @@ export function LayersEditor({
               />
                 </div>
 
-                <div className="space-y-2 pt-4 border-t">
-                  <h4 className="text-xs font-semibold uppercase text-muted-foreground">
-                    {t("layers.transformSection")}
-                  </h4>
-                  <LayerTransformEditor
-                    layer={selectedLayer}
-                    onChanged={() => {
-                      refresh();
-                      triggerPreviewRefresh();
-                    }}
-                  />
-                </div>
+                {/* 变换区块（位移/缩放/旋转）暂时隐藏，配置文件中的 transform 字段仍保留并参与渲染 */}
               </div>
             )}
           </div>

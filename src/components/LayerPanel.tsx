@@ -9,12 +9,18 @@ import {
   removeLayer,
   updateLayer,
 } from "@/lib/api";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Trash2, Copy, ChevronUp, ChevronDown, Plus, Eye, EyeOff, Lock, Unlock } from "lucide-react";
 import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
 import { MATERIAL_DYNAMIC_INPUT_ENABLED } from "@/lib/feature";
+import { SliderField } from "@/components/fields/SliderField";
+import { NumberField } from "@/components/fields/NumberField";
+import { TextField } from "@/components/fields/TextField";
+import { ColorField, type Rgba } from "@/components/fields/ColorField";
+import { ToggleField } from "@/components/fields/ToggleField";
+import { SelectField, type SelectOption } from "@/components/fields/SelectField";
+import { ImagePathField } from "@/components/fields/ImagePathField";
 
 interface LayerPanelProps {
   /** 图层数组，包含所有显示的图层信息 */
@@ -347,8 +353,7 @@ export function MaterialParamControls({
       {schema.map((entry) => {
         const value = params[entry.key];
         return (
-          <div key={entry.key} className="space-y-1">
-            <label className="text-xs font-medium">{entry.label}</label>
+          <div key={entry.key}>
             {renderWidget(entry, value, (v) => updateParam(entry.key, v), locked)}
           </div>
         );
@@ -357,6 +362,12 @@ export function MaterialParamControls({
   );
 }
 
+/** 根据物料 schema 的 widget 类型分发到对应的共享字段组件。
+ *
+ * 每个字段组件内部负责渲染自己的 label（统一两行布局规范）。
+ * slider 与 number 必须区分对待：slider 渲染为可拖拽 SliderField，
+ * number 渲染为纯 NumberField（无滑块）。
+ */
 function renderWidget(
   entry: MaterialSchemaEntry,
   value: unknown,
@@ -367,90 +378,80 @@ function renderWidget(
   const disabled = locked;
   switch (entry.widget) {
     case "slider":
-    case "number":
       return (
-        <input
-          type="number"
+        <SliderField
+          label={entry.label}
           value={typeof value === "number" ? value : 0}
           min={entry.min}
           max={entry.max}
           step={entry.step}
           disabled={disabled}
-          onChange={(e) => {
-            const raw = e.target.value;
-            if (raw.trim() === "") {
-              onChange(0);
-              return;
-            }
-            const num = parseFloat(raw);
-            onChange(Number.isFinite(num) ? num : 0);
-          }}
-          className="w-full px-2 py-1 text-sm border rounded bg-background"
+          onChange={(v) => onChange(v)}
         />
       );
-    case "toggle":
-      return <Switch checked={!!value} onCheckedChange={onChange} disabled={disabled} />;
-    case "select":
+    case "number":
       return (
-        <select
-          value={String(value ?? "")}
+        <NumberField
+          label={entry.label}
+          value={typeof value === "number" ? value : 0}
+          min={entry.min}
+          max={entry.max}
+          step={entry.step}
           disabled={disabled}
-          onChange={(e) => {
-            const opt = entry.options?.find((o) => String(o.value) === e.target.value);
-            onChange(opt?.value ?? e.target.value);
-          }}
-          className="w-full px-2 py-1 text-sm border rounded bg-background"
-        >
-          {entry.options?.map((opt) => (
-            <option key={String(opt.value)} value={String(opt.value)}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => onChange(v)}
+        />
       );
     case "text":
       return (
-        <input
-          type="text"
+        <TextField
+          label={entry.label}
           value={String(value ?? "")}
           disabled={disabled}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full px-2 py-1 text-sm border rounded bg-background"
+          onChange={(v) => onChange(v)}
         />
       );
     case "color":
       return (
-        <input
-          type="color"
-          value={rgbToHex(value as [number, number, number, number])}
+        <ColorField
+          label={entry.label}
+          value={(value as Rgba) ?? [1, 1, 1, 1]}
           disabled={disabled}
-          onChange={(e) => onChange(hexToRgba(e.target.value))}
-          className="w-full h-8 border rounded bg-background"
+          onChange={(v) => onChange(v)}
         />
       );
+    case "toggle":
+      return (
+        <ToggleField
+          label={entry.label}
+          value={!!value}
+          disabled={disabled}
+          onChange={(v) => onChange(v)}
+        />
+      );
+    case "select": {
+      // schema entry 的 options 转换为 SelectField 所需的 {value, label}[]。
+      const options: SelectOption[] = (entry.options ?? []).map((opt) => ({
+        value: String(opt.value),
+        label: opt.label,
+      }));
+      return (
+        <SelectField
+          label={entry.label}
+          value={String(value ?? "")}
+          options={options}
+          disabled={disabled}
+          onChange={(v) => onChange(v)}
+        />
+      );
+    }
     case "image_path":
       return (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={String(value ?? "")}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value)}
-            className="flex-1 px-2 py-1 text-sm border rounded bg-background"
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={disabled}
-            onClick={async () => {
-              const { invoke } = await import("@tauri-apps/api/core");
-              const path = await invoke<string | null>("pick_image_path");
-              if (path) onChange(path);
-            }}
-          >
-            {t("fields.browse")}
-          </Button>
-        </div>
+        <ImagePathField
+          label={entry.label}
+          value={String(value ?? "")}
+          disabled={disabled}
+          onChange={(v) => onChange(v)}
+        />
       );
     default:
       return (
@@ -459,19 +460,4 @@ function renderWidget(
         </div>
       );
   }
-}
-
-function rgbToHex(color: [number, number, number, number] | undefined): string {
-  if (!color) return "#ffffff";
-  const r = Math.round(color[0] * 255);
-  const g = Math.round(color[1] * 255);
-  const b = Math.round(color[2] * 255);
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-}
-
-function hexToRgba(hex: string): [number, number, number, number] {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  return [r, g, b, 1];
 }

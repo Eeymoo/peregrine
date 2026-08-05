@@ -1,20 +1,27 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# Project context
+# 技术栈与项目约定，AI 生成产出物时会参考此处
+context: |
+  语言：中文（简体）
+  所有产出物必须用简体中文撰写。
+
+  技术栈：Rust（Cargo workspace，edition 2024）、Tauri 2.x、React 18 + Vite + TypeScript + Tailwind + shadcn/ui
+  运行平台：Windows（overlay 透明置顶点击穿透依赖 Win32 API）
+  项目定位：Peregrine 是桌面视觉锚点（overlay）工具，主要用于缓解 3D 晕眩
 
 # Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+# 为特定产出物添加自定义规则
+rules:
+  proposal:
+    - 提案需用简体中文撰写
+    - 包含明确的"目标"和"非目标"小节
+  design:
+    - 设计文档需用简体中文撰写
+    - 技术术语如 "API"、"Win32"、"winit"、"softbuffer"、"Tauri" 等可保留英文
+  tasks:
+    - 任务列表需用简体中文撰写
+    - 每个任务拆分为可独立验证的最小单元
+  spec:
+    - 规格文档需用简体中文撰写
+    - 代码示例和文件路径保留原文

@@ -1,17 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useI18n } from "@/lib/i18n";
 import { pickImagePath } from "@/lib/api";
 import type { Crosshair, Anchor, RingStyle, BorderFrameStyle, GridAlignment } from "@/types/config";
+import { SliderField } from "@/components/fields/SliderField";
+import { SelectField } from "@/components/fields/SelectField";
 
 const ANCHORS: Anchor[] = ["top", "bottom", "left", "right", "center"];
 const RING_STYLES: RingStyle[] = ["solid", "dashed", "double"];
@@ -73,15 +67,12 @@ function EdgeRectFields({ crosshair, onChange }: StyleFieldsProps) {
       <SliderField label={t("fields.width")} value={crosshair.size} min={10} max={400} onChange={(v) => onChange({ size: v })} />
       <SliderField label={t("fields.height")} value={crosshair.secondary_size} min={10} max={300} onChange={(v) => onChange({ secondary_size: v })} />
       <SliderField label={t("fields.cornerRadius")} value={crosshair.corner_radius} min={0} max={60} onChange={(v) => onChange({ corner_radius: v })} />
-      <div className="space-y-2">
-        <Label className="text-sm">{t("fields.anchor")}</Label>
-        <Select value={crosshair.anchor} onValueChange={(v) => onChange({ anchor: v as Anchor })}>
-          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {ANCHORS.map((a) => <SelectItem key={a} value={a}>{t(`anchors.${a}`)}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      <SelectField
+        label={t("fields.anchor")}
+        value={crosshair.anchor}
+        options={ANCHORS.map((a) => ({ value: a, label: t(`anchors.${a}`) }))}
+        onChange={(v) => onChange({ anchor: v as Anchor })}
+      />
       <SliderField label={t("fields.margin")} value={crosshair.margin} min={0} max={200} onChange={(v) => onChange({ margin: v })} />
     </div>
   );
@@ -134,15 +125,12 @@ function RingFields({ crosshair, onChange }: StyleFieldsProps) {
     <div className="space-y-2">
       <SliderField label={t("fields.ringRadiusPct")} value={crosshair.ring_radius_pct} min={0.03} max={0.08} step={0.001} onChange={(v) => onChange({ ring_radius_pct: v })} />
       <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={1} max={3} onChange={(v) => onChange({ thickness: v })} />
-      <div className="space-y-2">
-        <Label className="text-sm">{t("fields.ringStyle")}</Label>
-        <Select value={crosshair.ring_style} onValueChange={(v) => onChange({ ring_style: v as RingStyle })}>
-          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {RING_STYLES.map((s) => <SelectItem key={s} value={s} className="text-sm">{t(`ringStyles.${s}`)}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      <SelectField
+        label={t("fields.ringStyle")}
+        value={crosshair.ring_style}
+        options={RING_STYLES.map((s) => ({ value: s, label: t(`ringStyles.${s}`) }))}
+        onChange={(v) => onChange({ ring_style: v as RingStyle })}
+      />
     </div>
   );
 }
@@ -186,15 +174,12 @@ function BorderFrameFields({ crosshair, onChange }: StyleFieldsProps) {
     <div className="space-y-2">
       <SliderField label={t("fields.barHeight")} value={crosshair.thickness} min={1} max={20} onChange={(v) => onChange({ thickness: v })} />
       <SliderField label={t("fields.offset")} value={crosshair.offset} min={0} max={100} onChange={(v) => onChange({ offset: v })} />
-      <div className="space-y-2">
-        <Label className="text-sm">{t("fields.borderStyle")}</Label>
-        <Select value={crosshair.border_frame_style} onValueChange={(v) => onChange({ border_frame_style: v as BorderFrameStyle })}>
-          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {BORDER_STYLES.map((s) => <SelectItem key={s} value={s} className="text-sm">{t(`borderStyles.${s}`)}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      <SelectField
+        label={t("fields.borderStyle")}
+        value={crosshair.border_frame_style}
+        options={BORDER_STYLES.map((s) => ({ value: s, label: t(`borderStyles.${s}`) }))}
+        onChange={(v) => onChange({ border_frame_style: v as BorderFrameStyle })}
+      />
     </div>
   );
 }
@@ -232,15 +217,12 @@ function GridFields({ crosshair, onChange }: StyleFieldsProps) {
     <div className="space-y-2">
       <SliderField label={t("fields.gridSize")} value={crosshair.grid_size ?? 80} min={10} max={500} step={5} onChange={(v) => onChange({ grid_size: v })} />
       <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={1} max={20} onChange={(v) => onChange({ thickness: v })} />
-      <div className="space-y-2">
-        <Label className="text-sm">{t("fields.gridAlignment")}</Label>
-        <Select value={crosshair.grid_alignment ?? "center"} onValueChange={(v) => onChange({ grid_alignment: v as GridAlignment })}>
-          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {GRID_ALIGNMENTS.map((a) => <SelectItem key={a} value={a} className="text-sm">{t(`gridAlignments.${a}`)}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      <SelectField
+        label={t("fields.gridAlignment")}
+        value={crosshair.grid_alignment ?? "center"}
+        options={GRID_ALIGNMENTS.map((a) => ({ value: a, label: t(`gridAlignments.${a}`) }))}
+        onChange={(v) => onChange({ grid_alignment: v as GridAlignment })}
+      />
     </div>
   );
 }
@@ -271,53 +253,6 @@ function CustomImageFields({ crosshair, onChange }: StyleFieldsProps) {
       <SliderField label={t("fields.imageScale")} value={crosshair.image_scale} min={0.1} max={5} step={0.1} onChange={(v) => onChange({ image_scale: v })} />
       <SliderField label={t("fields.imageOffsetX")} value={crosshair.image_offset_x} min={-500} max={500} onChange={(v) => onChange({ image_offset_x: v })} />
       <SliderField label={t("fields.imageOffsetY")} value={crosshair.image_offset_y} min={-500} max={500} onChange={(v) => onChange({ image_offset_y: v })} />
-    </div>
-  );
-}
-
-/** 通用滑块字段组件
- * 
- * @param label - 字段标签文本
- * @param value - 当前值
- * @param min - 最小值
- * @param max - 最大值
- * @param step - 步进值，默认为1
- * @param onChange - 值变化回调函数
- */
-function SliderField({
-  label,
-  value,
-  min,
-  max,
-  step = 1,
-  onChange,
-}: {
-  /** 字段标签文本 */
-  label: string;
-  /** 当前值 */
-  value: number;
-  /** 最小值 */
-  min: number;
-  /** 最大值 */
-  max: number;
-  /** 步进值，默认为1 */
-  step?: number;
-  /** 值变化回调函数，接收新值 */
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex justify-between">
-        <Label className="text-sm">{label}</Label>
-        <span className="text-sm text-muted-foreground">{Number(value).toFixed(step < 1 ? 2 : 0)}</span>
-      </div>
-      <Slider
-        value={[value]}
-        min={min}
-        max={max}
-        step={step}
-        onValueChange={([v]) => onChange(v)}
-      />
     </div>
   );
 }

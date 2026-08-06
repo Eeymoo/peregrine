@@ -195,7 +195,7 @@
       "license": "License",
       "repository": "Repository"
     },
-    "telemetry": "Anonymous crash reports & usage stats",
+    "telemetry": "Anonymous crash reports & usage data",
     "telemetryHint": "No personal data is collected.",
     "telemetryRestartTitle": "Restart app",
     "telemetryRestartDesc": "The change takes effect after restart. Restart now?",
@@ -314,7 +314,7 @@
   },
   "telemetry": {
     "consentTitle": "Anonymous telemetry",
-    "consentDesc": "Allow anonymous crash reports and usage statistics? No personal data is collected.",
+    "consentDesc": "Allow anonymous crash reports and usage data? No personal data is collected.",
     "consentAllow": "Allow",
     "consentDeny": "Deny"
   }

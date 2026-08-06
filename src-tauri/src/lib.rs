@@ -291,10 +291,17 @@ pub fn run() {
     });
     tracing::info!(path = ?storage.path(), "config storage");
     let config =
-        tauri::async_runtime::block_on(storage.load_or_create_default()).unwrap_or_else(|e| {
-            tracing::error!(error = %e, "failed to load config; using default");
-            peregrine_config::AppConfig::default_config()
-        });
+        match crate::safe_try!(
+            tauri::async_runtime::block_on(storage.load_or_create_default()),
+            telemetry::report_code::CONFIG_IO
+        ) {
+            Ok(c) => c,
+            Err(_) => {
+                // 失败也启动（回退默认配置），让用户能进入设置排查；
+                // 错误事件已由 safe_try! 上报 PGR-2101。
+                peregrine_config::AppConfig::default_config()
+            }
+        };
     let notifier = ConfigNotifier::new(config);
     let snapshot = notifier.subscribe().borrow().clone();
     let shared_config = Arc::new(Mutex::new(snapshot.clone()));
@@ -715,11 +722,12 @@ fn get_config(state: State<AppState>) -> Result<ConfigSnapshot, String> {
 #[tauri::command]
 async fn save_config(state: State<'_, AppState>, config: ConfigSnapshot) -> Result<(), String> {
     config.validate().map_err(|e| e.to_string())?;
-    state
-        .storage
-        .save(&config)
-        .await
-        .map_err(|e| e.to_string())?;
+    // safe_try! 上报 PGR-2101 后原样返回 Err，转 String 抛给前端。
+    crate::safe_try!(
+        state.storage.save(&config).await,
+        telemetry::report_code::CONFIG_IO
+    )
+    .map_err(|e| e.to_string())?;
     state
         .notifier
         .update((*config).clone())
@@ -1031,16 +1039,16 @@ async fn set_crosshair_color_inner(
         }
     }
     config.validate().map_err(|e| e.to_string())?;
-    state
-        .storage
-        .save(&config)
-        .await
-        .map_err(|e| e.to_string())?;
+    crate::safe_try!(
+        state.storage.save(&config).await,
+        telemetry::report_code::CONFIG_IO
+    )
+    .map_err(|e| e.to_string())?;
     state
         .notifier
         .update(config.clone())
         .map_err(|e| e.to_string())?;
-    let snapshot: ConfigSnapshot = Arc::new(config);
+    let snapshot: ConfigSnapshot = Arc::new(config.clone());
     *state.config.lock().map_err(|e| e.to_string())? = snapshot.clone();
     let _ = state
         .overlay_cmd_tx
@@ -1140,11 +1148,11 @@ async fn update_preferences_inner(
     }
 
     config.validate().map_err(|e| e.to_string())?;
-    state
-        .storage
-        .save(&config)
-        .await
-        .map_err(|e| e.to_string())?;
+    crate::safe_try!(
+        state.storage.save(&config).await,
+        telemetry::report_code::CONFIG_IO
+    )
+    .map_err(|e| e.to_string())?;
     state
         .notifier
         .update(config.clone())
@@ -1777,7 +1785,6 @@ fn list_layers(state: State<AppState>) -> Result<Vec<Layer>, String> {
 }
 
 /// 持久化配置并广播变更（图层操作共用）。
-/// 持久化配置并广播变更（图层操作共用）。
 ///
 /// 同时 emit `peregrine:layers-changed` 事件通知前端刷新。
 async fn persist_and_broadcast(
@@ -1785,11 +1792,11 @@ async fn persist_and_broadcast(
     config: &peregrine_config::AppConfig,
 ) -> Result<(), String> {
     config.validate().map_err(|e| e.to_string())?;
-    state
-        .storage
-        .save(config)
-        .await
-        .map_err(|e| e.to_string())?;
+    crate::safe_try!(
+        state.storage.save(config).await,
+        telemetry::report_code::CONFIG_IO
+    )
+    .map_err(|e| e.to_string())?;
     state
         .notifier
         .update(config.clone())

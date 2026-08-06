@@ -74,12 +74,17 @@ impl OverlayRenderer {
     }
 
     /// 渲染一帧遮盖层。
-    pub fn render_overlay(&mut self) {
+    ///
+    /// 返回 `Result<(), Box<dyn std::error::Error>>`：仅 `surface.resize()` 失败
+    /// 时上抛为 Err（对应 OVERLAY_RENDER PGR-4101），由调用方经 `safe_try!` 上报；
+    /// 内部其他吞错点（`config.lock().expect` / 几何计算 / material evaluate）
+    /// 维持原状（panic 由 PGR-1001 兜底，属逻辑 bug 而非运行时故障）。
+    pub fn render_overlay(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let size = self.window.inner_size();
         let width = size.width;
         let height = size.height;
         if width == 0 || height == 0 {
-            return;
+            return Ok(());
         }
 
         tracing::debug!(
@@ -89,13 +94,14 @@ impl OverlayRenderer {
             "overlay render_overlay: window inner_size"
         );
 
-        // 调整 softbuffer 缓冲区尺寸。
+        // 调整 softbuffer 缓冲区尺寸：唯一上抛为 Err 的故障点（OVERLAY_RENDER）。
+        // 其余内部错误维持吞错原状（见函数文档）。
         if let Err(e) = self.surface.resize(
             NonZeroU32::new(width).unwrap(),
             NonZeroU32::new(height).unwrap(),
         ) {
-            tracing::error!("softbuffer resize failed: {}", e);
-            return;
+            // 不再在此处 tracing::error! 重复记录——safe_try! 上报路径已含错误信息。
+            return Err(e.into());
         }
 
         // 读取当前准心配置。
@@ -187,8 +193,10 @@ impl OverlayRenderer {
         let mut buffer = match self.surface.buffer_mut() {
             Ok(b) => b,
             Err(e) => {
+                // 吞错点：buffer_mut 失败维持原 tracing::error! 行为，不上抛
+                // （仅 surface.resize 失败对应 OVERLAY_RENDER，见函数文档）。
                 tracing::error!("softbuffer buffer_mut failed: {}", e);
-                return;
+                return Ok(());
             }
         };
 
@@ -205,7 +213,7 @@ impl OverlayRenderer {
         if use_new_format {
             // ===== 新格式路径：遍历图层 =====
             let Some(ref profile) = profile_clone else {
-                return;
+                return Ok(());
             };
             // 动态上下文选择：MATERIAL_DYNAMIC_INPUT_ENABLED 门控。
             // 启用时轮询真实动态输入；停用时用 static_context()（version=0，
@@ -363,6 +371,8 @@ impl OverlayRenderer {
         if let Err(e) = buffer.present() {
             tracing::error!("softbuffer present failed: {}", e);
         }
+
+        Ok(())
     }
 
     /// 确保 image_cache 中缓存的是当前路径的图片。

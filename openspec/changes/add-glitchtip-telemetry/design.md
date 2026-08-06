@@ -29,6 +29,7 @@ Peregrine 是 Windows 桌面工具（Tauri 2 + Rust + React/TypeScript），rele
 - 不做性能监控（transactions / tracing 采样）、不做用户反馈表单
 - 不改动 `panic = "abort"`；`safe_try!` 不做 panic 捕获，只处理显式 Result/Option
 - 不采集任何可识别个人信息（IP / 用户名 / 机器名 / 设备 ID / 用户输入）
+- 不实现功能使用分析埋点（`feature_used` / `overlay_created` / `overlay_config_changed` 等）——留作独立 change（`add-feature-usage-analytics`），待现有遥测基础设施落地后再做；本 change 仅在授权文案中预留叙事余地
 - 不为所有方法包 `safe_try!`，仅关键路径
 
 ## Decisions
@@ -87,23 +88,49 @@ Peregrine 是 Windows 桌面工具（Tauri 2 + Rust + React/TypeScript），rele
 - 不做运行时动态启停（SDK 全局单例，动态拆装有竞态且收益低）
 - SDK 初始化集中在 `src-tauri/src/lib.rs::run()` 启动早期，telemetry 逻辑独立为 `src-tauri/src/telemetry.rs` 模块（install_id / pending 存储 / 脱敏 / safe_try! 宏 / 上报函数）
 - 前端 beforeSend 与 Rust `before_send` 双侧脱敏：删 user/server_name/request；路径用户名正则替换为 `{user}`
+- **授权文案用词**：弹窗与设置页标签使用「使用情况」（而非「使用统计」）。理由：「统计」语义偏向数字聚合（启动次数），无法涵盖未来功能使用分析（`feature_used` / `overlay_created` / `overlay_config_changed` 等埋点）；「使用情况」更宽泛，既覆盖当前崩溃 + 启动统计，也预留功能使用分析的叙事余地，避免将来加埋点时文案对不上已授权用户。**本 change 不实现功能使用分析埋点**，仅确保文案一次到位；功能分析层留作独立 change（参考 Non-Goals）
 
-### 决策 7：上报 CODE 体系
 
-- 所有上报事件（启动/崩溃/错误）统一携带 `code` tag，格式 `PGR-<类别><序号>`（如 `PGR-2001`），号段划分：
-  - `PGR-0xxx`：启动/生命周期事件——首个 Code `PGR-0001` = app_startup
-  - `PGR-1xxx`：Rust panic / 崩溃（pending 记录上传时按 panic 位置粗分）
-  - `PGR-2xxx`：safe_try! 关键路径错误——`21xx` 文件 IO、`22xx` 渲染、`23xx` 窗口/覆盖层桥接、`24xx` 外部调用
-  - `PGR-3xxx`：前端 React 错误（ErrorBoundary / 全局 onerror / unhandledrejection）
-- 文档：仓库根新增 `REPORT_CODES.md`，覆盖全部事件类型（不只是错误），每条登记 Code → 含义 → 触发位置（模块/场景）→ 处理建议；开发者向文档，随代码评审同步更新，docs 文档站做链接引用
-- 治理：Code 常量集中定义于遥测模块（Rust 侧 `telemetry.rs` 内 `report_code` 模块，前端侧对应常量文件），禁止散落硬编码；新增上报点必须先登记 Code 再合入；GlitchTip 中按 `code` tag 过滤即得同一来源全量事件
-- **备选**：仅错误事件带码（ERROR_CODE）—— 否决，启动统计同样需要按码聚合筛选，统一体系更简洁；纯自增数字码 —— 否决，号段自带类别语义，GlitchTip 列表一眼可辨
+### 决策 7：上报 CODE 体系（方案 B：四故障域 + 操作域号段）
+
+- 所有上报事件（启动/崩溃/错误）统一携带 `code` tag，格式 `PGR-<域名><序号>`，按**故障域**（横向）与**操作域**（纵向）切分，共 6 个号段、20 个首批 Code：
+  - `PGR-0xxx` **生命周期事件**——`PGR-0001` APP_STARTUP、`PGR-0901` TEST_REPORT（开发者手动触发）
+  - `PGR-1xxx` **Rust panic / 崩溃**——`PGR-1001` RUST_PANIC
+  - `PGR-2xxx` **后端 Rust 通用缺陷**（IO / 外部 / 桥接）——`PGR-2101` CONFIG_IO、`PGR-2102` IMAGE_IO（PNG 解码归后端）、`PGR-2401` EXTERNAL_CALL（占位，TriggerRule 未消费）、`PGR-2501` TAURI_BRIDGE（占位，桥接层失败由前端 3xxx 捕获，首版不接线）
+  - `PGR-3xxx` **前端 React 缺陷**（已有，不变）——`PGR-3001` REACT_BOUNDARY、`PGR-3002` GLOBAL_ONERROR、`PGR-3003` UNHANDLED_REJECTION
+  - `PGR-4xxx` **遮盖层缺陷**（overlay 域，新）——`PGR-4101` OVERLAY_RENDER（主渲染）、`PGR-4102` OVERLAY_RESIZE（预留，softbuffer resize 当前在 render 内）、`PGR-4201` WIN32_SETUP（透明/置顶/点击穿透）、`PGR-4202` WIN32_FOLLOW（目标窗口跟随）
+  - `PGR-5xxx` **方法缺陷**（Tauri command 操作域，新）——按用户操作语义归类，而非每个 command 一码：
+    - `PGR-5101` CONFIG_OP（save_config / update_preferences / set_crosshair_color / create/rename/delete/copy/set_active/get/list_profile）
+    - `PGR-5102` LAYER_OP（add/remove/move/duplicate/update_layer / list_layers）
+    - `PGR-5103` OVERLAY_OP（start_overlay / stop_overlay / focus_target_window）
+    - `PGR-5104` UPDATE_OP（check_update / download_install_update / relaunch_app / restart_app）——更新类虽源自 v0.1.13 合并，纳入覆盖以保持 5xxx 完整
+    - `PGR-5105` TELEMETRY_OP（store_pending_report / list_pending_reports / authorize_upload_all / test_report）
+    - `PGR-5106` META_OP（get_app_version / list_window_titles / list_materials / get_overlay_active / get_active_profile_name / is_profile_legacy_compatible）——纯 getter，失败意义低，首版豁免接线
+- **号段切分理由**：overlay 是项目核心且故障特征各异（渲染挂 / 窗口跟随失效 / PNG 不显示 / Win32 调用失败是完全不同的故障域），从 2xxx 独立为 4xxx 后 GlitchTip 后台筛选体验最佳；5xxx 与 0-4xxx 是"用户操作"的纵向切片，互补
+- **5xxx 粒度选择（方案 A 操作域 vs 方案 B 单方法 vs 方案 C 仅 fail 路径）**：采用**方案 A**——按操作域聚合 6 个 Code，靠 `function` / `location` tag 区分具体方法。方案 B（~30 个单方法 Code）总数爆炸且 REPORT_CODES.md 维护成本高；方案 C（~12 个）粒度不齐。方案 A 在"后台一眼看出哪类操作挂了"与"Code 总数可控"之间取得平衡
+- **首批接线范围（0.2.0 最小必要集）**：20 个 Code 中 4 个已用（0001 / 0901 / 1001 / 3001-3003）+ **2 个 0.2.0 新接线**（2101 CONFIG_IO、4101 OVERLAY_RENDER）+ 9 个预留码声明不接线（2102 IMAGE_IO / 2401 EXTERNAL_CALL / 2501 TAURI_BRIDGE / 4102 OVERLAY_RESIZE / 4201 WIN32_SETUP / 4202 WIN32_FOLLOW / 5101-5105 操作域，留作 0.2.1 增量）+ 1 个登记豁免（5106 META_OP）。**0.2.0 接线只覆盖两条命脉路径**：CONFIG_IO 是配置持久化的命脉（失败 = 配置丢），OVERLAY_RENDER 是遮盖层核心观测（失败 = 画面黑）；其余故障可见性留作 0.2.1，不阻塞 0.2.0 发版
+- 文档：`REPORT_CODES.md` 与 docs 文档站遥测章节**延后到本 change 代码 + 验收稳定后统一编写**（避免边改边写、写完又改；文档仍归本 change，时序在后）；Code 常量集中定义于遥测模块（Rust 侧 `telemetry.rs` 内 `report_code` 模块、前端侧 `src/lib/telemetry.ts` 的 `REPORT_CODES`），禁止散落硬编码；新增上报点必须先在 `report_code` 模块登记常量方可合入；GlitchTip 中按 `code` tag 过滤即得同一来源全量事件
+- **备选（否决）**：仅错误事件带码——启动统计同样需要按码聚合；纯自增数字码——号段自带类别语义更直观；5xxx 单方法一码——总数爆炸；保留旧 4 段（渲染/窗口挤在 2xxx）——overlay 故障特征混杂，筛选体验差
 
 ### 决策 8：编译期禁用与开发者模式
 
 - **编译期禁用**：编译前设置环境变量 `PEREGRINE_DISABLE_TELEMETRY` → build.rs 检测并发出 cfg，telemetry 模块整体编译为 no-op 桩，二进制不含任何上报代码路径与网络请求；与运行时开关相互独立（编译期禁用优先于一切运行时配置）。前端侧通过不注入 DSN 达到同等效果
   - **备选**：cargo feature 开关 —— 否决，环境变量与既有 DSN 注入方式一致，CI 配置更统一
 - **开发者模式**：「测试上报」按钮仅在开发构建（`import.meta.env.DEV`）下显示，正式构建对普通用户隐藏
+
+### 决策 9：safe_try! 接线边界——吞错函数的处理策略
+
+`OverlayRenderer::render_overlay()` 与 `resize()` 当前签名返回 `()`，内部错误经 `tracing::error!` 吞掉或 `.expect()` panic。改为 `safe_try!` 包裹时采用**策略 (b) 最小上抛**：
+
+- 改 `render_overlay(&mut self)` 签名为 `-> Result<(), Box<dyn std::error::Error>>`
+- **仅**将最外层 `surface.resize()` 的失败上抛为 Err（对应 OVERLAY_RENDER 4101）
+- 内部其他吞错点维持原状：
+  - `config.lock().expect("config lock")` 保持（panic 由 PGR-1001 兜底，属逻辑 bug 而非运行时故障）
+  - 几何计算 / material evaluate 失败维持 `tracing::error!` 吞掉（同理）
+- `resize()` 当前是空实现（softbuffer resize 移到 render 内），OVERLAY_RESIZE 4102 作为预留码，待未来拆分 resize 流程时启用
+- 调用点（`overlay.rs` 内）相应改为 `let _ = safe_try!(renderer.render_overlay(), report_code::OVERLAY_RENDER);`
+
+**备选（否决）**：(a) 全部吞错点改返回 Err——工作量大且混淆"运行时故障"与"逻辑 bug"两类不同性质的失败；(c) 完全不改 render_overlay 签名、放弃 OVERLAY_RENDER 接线——遮盖层核心路径无观测，违背本 change 目标
 
 ## Risks / Trade-offs
 

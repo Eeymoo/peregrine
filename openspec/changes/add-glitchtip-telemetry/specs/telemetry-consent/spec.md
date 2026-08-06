@@ -4,7 +4,7 @@
 
 ### Requirement: 首次启动授权弹窗
 
-系统 SHALL 在首次启动（配置中无遥测授权记录）时弹出授权对话框，文案明确说明「是否允许匿名上报崩溃信息与使用统计？不收集任何个人数据」，默认勾选允许。用户取消时，系统 MUST NOT 初始化遥测 SDK，且 MUST NOT 产生任何遥测网络请求。用户的选择 MUST 持久化到 AppSettings/config.json 体系（`telemetry_enabled` 字段，`#[serde(default)]` 兼容旧配置），且 MUST NOT 再次弹窗。
+系统 SHALL 在首次启动（配置中无遥测授权记录）时弹出授权对话框，文案明确说明「是否允许匿名上报崩溃信息与使用情况？不收集任何个人数据」，默认勾选允许。文案用词 SHALL 使用「使用情况」（而非「使用统计」）以预留未来功能使用分析（功能埋点）的叙事余地——当前 change 范围仍只覆盖崩溃上报与启动统计，不实现功能使用分析埋点。用户取消时，系统 MUST NOT 初始化遥测 SDK，且 MUST NOT 产生任何遥测网络请求。用户的选择 MUST 持久化到 AppSettings/config.json 体系（`telemetry_enabled` 字段，`#[serde(default)]` 兼容旧配置），且 MUST NOT 再次弹窗。
 
 #### Scenario: 首次启动默认允许
 

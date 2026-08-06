@@ -485,7 +485,12 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
                     }
                 }
                 if let Some(renderer) = self.renderer.as_mut() {
-                    renderer.render_overlay();
+                    // render_overlay 仅在 surface.resize() 失败时返回 Err（OVERLAY_RENDER）；
+                    // safe_try! 上报后丢弃错误，不阻塞后续帧（下一帧仍会尝试渲染）。
+                    let _ = crate::safe_try!(
+                        renderer.render_overlay(),
+                        crate::telemetry::report_code::OVERLAY_RENDER
+                    );
                     self.last_render = Some(now);
                 }
                 // 静态准心渲染完毕后清除脏标记。

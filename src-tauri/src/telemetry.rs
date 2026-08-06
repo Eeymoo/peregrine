@@ -18,28 +18,59 @@ const PENDING_MAX_BYTES: u64 = 5 * 1024 * 1024;
 
 /// 上报 Code 常量（集中定义，禁止散落硬编码）。
 ///
-/// 号段约定（与仓库根 `REPORT_CODES.md` 一一对应，新增上报点必须先登记）：
+/// 号段约定（与设计决策 7 一一对应，新增上报点必须先登记）：
 /// - `PGR-0xxx`：启动/生命周期事件
 /// - `PGR-1xxx`：Rust panic / 崩溃
-/// - `PGR-2xxx`：safe_try! 关键路径错误（21xx IO / 22xx 渲染 / 23xx 桥接 / 24xx 外部调用）
+/// - `PGR-2xxx`：后端 Rust 通用缺陷（21xx IO / 24xx 外部调用 / 25xx 桥接）
 /// - `PGR-3xxx`：前端 React 错误（常量定义于前端 `src/lib/telemetry.ts`）
+/// - `PGR-4xxx`：遮盖层缺陷（41xx 渲染 / 42xx Win32 窗口）
+/// - `PGR-5xxx`：方法缺陷（Tauri command 操作域，51xx 各类操作）
 pub mod report_code {
+    // ===== 0xxx 生命周期 =====
     /// 启动统计事件（Info 级，不进 issue 列表）。
     pub const APP_STARTUP: &str = "PGR-0001";
     /// 开发者模式「测试上报」按钮触发的测试事件。
     pub const TEST_REPORT: &str = "PGR-0901";
+
+    // ===== 1xxx Rust panic / 崩溃 =====
     /// Rust panic 崩溃记录（panic hook 落盘 / 授权后上传）。
     pub const RUST_PANIC: &str = "PGR-1001";
-    /// 配置文件读写错误。
+
+    // ===== 2xxx 后端 Rust 通用缺陷 =====
+    /// 配置文件读写错误（0.2.0 接线）。
     pub const CONFIG_IO: &str = "PGR-2101";
-    /// 贴图 / 图片文件读写错误。
+    /// 贴图 / 图片文件读写错误（PNG 解码归后端，预留声明，0.2.1 接线）。
     pub const IMAGE_IO: &str = "PGR-2102";
-    /// overlay 渲染入口错误。
-    pub const OVERLAY_RENDER: &str = "PGR-2201";
-    /// 窗口 / 覆盖层桥接操作错误（Win32、对话框等）。
-    pub const WINDOW_BRIDGE: &str = "PGR-2301";
-    /// 外部调用错误（HTTP / 外部进程等）。
+    /// 外部调用错误（HTTP / 外部进程等，预留声明，TriggerRule 未消费）。
     pub const EXTERNAL_CALL: &str = "PGR-2401";
+    /// Tauri 桥接层失败（预留声明，桥接层失败由前端 3xxx 捕获，首版不接线）。
+    pub const TAURI_BRIDGE: &str = "PGR-2501";
+
+    // ===== 4xxx 遮盖层缺陷（overlay 域） =====
+    /// overlay 主渲染入口错误（0.2.0 接线）。
+    pub const OVERLAY_RENDER: &str = "PGR-4101";
+    /// overlay resize 错误（预留声明，softbuffer resize 当前在 render 内）。
+    pub const OVERLAY_RESIZE: &str = "PGR-4102";
+    /// Win32 透明/置顶/点击穿透设置错误（预留声明，0.2.1 接线）。
+    pub const WIN32_SETUP: &str = "PGR-4201";
+    /// Win32 目标窗口跟随错误（预留声明，0.2.1 接线）。
+    pub const WIN32_FOLLOW: &str = "PGR-4202";
+
+    // ===== 5xxx 方法缺陷（Tauri command 操作域，全部预留声明，0.2.1 接线） =====
+    /// 配置类操作（save_config / update_preferences / 各 profile 操作等）。
+    pub const CONFIG_OP: &str = "PGR-5101";
+    /// 图层类操作（add/remove/move/duplicate/update_layer / list_layers）。
+    pub const LAYER_OP: &str = "PGR-5102";
+    /// 覆盖层类操作（start_overlay / stop_overlay / focus_target_window）。
+    pub const OVERLAY_OP: &str = "PGR-5103";
+    /// 更新类操作（check_update / download_install_update / relaunch_app / restart_app）。
+    pub const UPDATE_OP: &str = "PGR-5104";
+    /// 遥测类操作（store_pending_report / list_pending_reports /
+    /// authorize_upload_all / test_report）。
+    pub const TELEMETRY_OP: &str = "PGR-5105";
+    /// 元信息 getter 类操作（get_app_version / list_window_titles / list_materials 等，
+    /// 纯 getter 失败意义低，豁免接线）。
+    pub const META_OP: &str = "PGR-5106";
 }
 
 /// 本地 pending 错误记录（每条错误一条记录，JSON 序列化落盘）。

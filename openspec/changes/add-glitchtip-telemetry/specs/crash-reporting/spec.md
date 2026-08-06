@@ -55,7 +55,7 @@
 
 ### Requirement: safe_try! 关键路径错误宏
 
-系统 SHALL 提供 `safe_try!` 宏，用于包装返回 Result/Option 的关键路径调用（文件 IO、渲染、窗口/覆盖层操作、插件桥接、外部调用）。失败时宏 MUST 自动携带函数名（`function_name!`）、文件与行号（`#[track_caller]` / `Location::caller()`）上报一条 `Error` 级事件，并原样返回 Err/None 供调用方降级处理。宏实现 MUST NOT 依赖 `catch_unwind`（release 的 abort 模式下失效），MUST 在 release 构建下正常工作。宏 MUST NOT 被用于包装所有方法，仅限关键路径。
+系统 SHALL 提供 `safe_try!` 宏，用于包装返回 Result/Option 的关键路径调用，覆盖以下故障域：后端通用 IO（配置文件、贴图）、遮盖层（overlay 渲染、Win32 窗口设置与跟随）、Tauri command 操作域（配置/图层/覆盖层/更新/遥测操作）。失败时宏 MUST 自动携带函数名（`function_name!`）、文件与行号（`#[track_caller]` / `Location::caller()`）上报一条 `Error` 级事件，并原样返回 Err/None 供调用方降级处理。宏实现 MUST NOT 依赖 `catch_unwind`（release 的 abort 模式下失效），MUST 在 release 构建下正常工作。宏 MUST NOT 被用于包装所有方法，仅限关键路径；纯 getter 类方法可豁免。
 
 #### Scenario: 关键路径失败自动上报位置信息
 

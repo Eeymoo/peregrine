@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import type { BuiltShape, Element } from "@/types/config";
-import { invoke } from "@tauri-apps/api/core";
+import type { BuiltShape, Element, Profile } from "@/types/config";
 import { useI18n } from "@/lib/i18n";
+import { buildShapes } from "@/lib/api";
 
 interface PreviewProps {
   /** 触发重绘的依赖键值，当图层列表或参数变化时由父组件传入新值来触发预览更新 */
   previewKey: unknown;
   /** 预览区域的宽高比，默认为16:9 */
   aspectRatio?: number;
+  /**
+   * 可选的前端内存态 Profile：传入后随 IPC 一起发给后端参与图元计算，
+   * 避免防抖保存（300ms）期间预览读到旧的共享快照而滞后一次修改；
+   * 不传时后端回退到共享快照（适用于先写后端再刷新的多图层编辑器）。
+   */
+  profile?: Profile | null;
 }
 
 /**
@@ -16,7 +22,7 @@ interface PreviewProps {
  *
  * 调用节流 16ms（60fps）避免拖拽滑块时打爆 IPC。
  */
-export function Preview({ previewKey, aspectRatio = 16 / 9 }: PreviewProps) {
+export function Preview({ previewKey, aspectRatio = 16 / 9, profile }: PreviewProps) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,10 +51,7 @@ export function Preview({ previewKey, aspectRatio = 16 / 9 }: PreviewProps) {
 
     const timer = setTimeout(async () => {
       try {
-        const result = await invoke<BuiltShape[]>("build_shapes_ipc", {
-          screenW: realW,
-          screenH: realH,
-        });
+        const result = await buildShapes(realW, realH, profile);
         if (!cancelled) {
           setShapes(result);
         }
@@ -66,7 +69,7 @@ export function Preview({ previewKey, aspectRatio = 16 / 9 }: PreviewProps) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [previewKey, aspectRatio]);
+  }, [previewKey, aspectRatio, profile]);
 
   // 在 Canvas 上绘制图元列表。
   useEffect(() => {

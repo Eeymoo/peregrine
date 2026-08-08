@@ -124,12 +124,22 @@ export async function setCrosshairColor(
 
 // ===== 四层架构：图层 / 物料 API =====
 
-/** 计算当前激活 Profile 的图元列表（供前端预览绘制）。 */
+/** 计算图元列表（供前端预览绘制）。
+ *
+ * `profile` 可选：传入前端内存态 Profile 时后端优先使用它计算，
+ * 避免单图层 UI 防抖保存（300ms）期间预览读到旧的共享快照而滞后一次修改；
+ * 不传时后端回退到共享快照（多图层编辑器先写后端再刷新，快照总是新的）。
+ */
 export async function buildShapes(
   screenW: number,
   screenH: number,
+  profile?: Profile | null,
 ): Promise<BuiltShape[]> {
-  return invoke<BuiltShape[]>("build_shapes_ipc", { screenW, screenH });
+  return invoke<BuiltShape[]>("build_shapes_ipc", {
+    screenW,
+    screenH,
+    profile: profile ?? null,
+  });
 }
 
 /** 列出全部已注册物料（内置 + 用户）。 */

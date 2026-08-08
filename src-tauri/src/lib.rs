@@ -1492,16 +1492,36 @@ struct BuiltShape {
 ///
 /// 前端 Preview 组件每次参数变化时调用此 IPC，得到 `(Element, color, opacity)` 列表，
 /// 直接在 Canvas 上绘制即可，无需在 TS 中重新实现几何计算。
+///
+/// `profile` 为可选的前端内存态 Profile：单图层 UI 的编辑走 300ms 防抖保存，
+/// 若只读后端共享快照，预览会落后一次修改（第二次变动才显示第一次的结果）。
+/// 前端传入当前编辑中的 Profile 时优先使用它，保证预览 WYSIWYG；
+/// 未传入时回退到后端共享快照（多图层编辑器先写后端再刷新，快照总是新的）。
 #[tauri::command]
 fn build_shapes_ipc(
     state: State<AppState>,
     screen_w: f32,
     screen_h: f32,
+    profile: Option<peregrine_config::Profile>,
 ) -> Result<Vec<BuiltShape>, String> {
-    let config = state.config.lock().map_err(|e| e.to_string())?;
-    let profile = match config.active_profile() {
-        Some(p) => p,
-        None => return Ok(vec![]),
+    // 前端传入的 Profile 是未持久化的内存态，校验失败时回退快照而不是报错，
+    // 避免拖动过程中的瞬时非法值（如超出范围的滑块）打断预览。
+    let provided = profile.filter(|p| p.validate().is_ok());
+    // 锁守卫与回退快照必须活得比 profile 引用久。
+    let provided_profile;
+    let config_guard;
+    let profile = match provided {
+        Some(p) => {
+            provided_profile = p;
+            &provided_profile
+        }
+        None => {
+            config_guard = state.config.lock().map_err(|e| e.to_string())?;
+            match config_guard.active_profile() {
+                Some(p) => p,
+                None => return Ok(vec![]),
+            }
+        }
     };
 
     let screen = peregrine::shapes::RectF {

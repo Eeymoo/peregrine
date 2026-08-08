@@ -6,6 +6,45 @@ Only stable releases are recorded here. For beta / prerelease versions, see **[C
 
 ---
 
+## [v0.2.1] — 2026-08-09
+
+Stable release. Introduces the four-layer customization architecture (Elements / Materials / Layers / Profiles) with a Rhai material runtime and static multi-layer rendering, multi-profile management, anonymous telemetry, and developer mode; also folds in dev-branch features (single instance, Markdown release notes, mirror download fix).
+
+### Added
+
+- **Four-layer architecture**: The single hardcoded `Crosshair` config is replaced by a fully composable system — Elements (atomic primitives), Materials (Rhai scripts), Layers (instances with transforms), and Profiles (multiple layers). All 12 legacy crosshair styles are migrated to built-in `.rhai` materials. @Eeymoo
+- **Layer editor**: Three-column layout with live preview, layer panel, and dynamic parameter controls driven by material `schema()`; multi-layer overlay rendering is WYSIWYG with the preview. @Eeymoo
+- **Multi-profile management**: Create / rename / duplicate / delete / switch profiles from the config window; the single/multi-layer mode is persisted across restarts. @Eeymoo
+- **Automatic config migration**: Legacy `crosshair` configs are migrated to the `layers` format on first load, with the original file backed up as `config.json.legacy.bak`. @Eeymoo
+- **Anonymous telemetry (GlitchTip)**: First-run consent dialog, settings opt-out toggle, crash reports stored locally and uploaded silently after consent, stable per-install `install_id`, and strict sanitization (no IP / username / machine name in events). Telemetry can be fully disabled at compile time via `PEREGRINE_DISABLE_TELEMETRY`. @Eeymoo
+- **Developer mode**: Tap the version number 5 times in Settings → About to unlock a "Dev" tab (open DevTools, send test report); release builds hide DevTools until unlocked. @Eeymoo
+- **Single instance mode**: Launching the app again focuses the existing window instead of starting a second instance. @Eeymoo
+- **Markdown release notes**: The update panel renders release notes with full Markdown formatting. @Eeymoo
+- **i18n & UI polish**: Full bilingual (en / zh-CN) settings and config UI audit; unified field widgets (slider / number / color / select / image path) across all 12 styles with two-way sync. @Eeymoo
+
+### Fixed
+
+- Fixed single-layer editing lagging one frame during continuous drags (useCallback closure trap). @Eeymoo
+- Fixed single-layer preview lagging one modification behind: the preview now renders from the in-memory profile instead of waiting for the debounced save. @Eeymoo
+- Fixed quick colors not applying immediately in single-layer mode, layer move up/down direction, disabled-state styling inconsistency, and a `layer not found` race when adding a layer right after deleting one. @Eeymoo
+- Fixed installer download links not using the mainland China mirror prefix when the mirror is enabled. @Eeymoo
+
+### Changed
+
+- **Dynamic material input is soft-disabled** (`MATERIAL_DYNAMIC_INPUT_ENABLED = false`): static multi-layer rendering is fully enabled, but time / mouse / keyboard driven materials render frozen and are hidden from the material picker until re-enabled. @Eeymoo
+- The `custom_image` material is temporarily hidden from the picker pending rendering fixes. @Eeymoo
+
+### Build
+
+- Telemetry DSN is injected by CI per channel (TEST project for prereleases, production project for stable releases); the build fails fast on malformed DSN. @Eeymoo
+
+### Download
+
+- Windows x86 / x86_64 / ARM64 NSIS installer (supports auto-update) available in Release Assets.
+- Windows x86 / x86_64 / ARM64 portable zip available in Release Assets.
+
+---
+
 ## [v0.1.15] — 2026-07-18
 
 Stable release. Added per-style crosshair defaults and one-click color reset; fixed window mode toggle and live drag preview issues; restructured documentation with full bilingual support.

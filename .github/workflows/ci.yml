@@ -34,7 +34,7 @@ jobs:
 
       # config / material / peregrine 库有单元测试，跨平台可运行。
       - name: Run library tests
-        run: cargo test -p peregrine_config -p peregrine_material -p peregrine --locked
+        run: cargo test -p peregrine_config -p peregrine_material -p peregrine
 
       # 新 Tauri 入口：安装 Node 依赖、构建前端、验证 Rust 后端可编译。
       # CI 不打包 NSIS（避免签名密钥缺失导致 Windows 构建失败），由 release.yml 负责产物签名发布。
@@ -73,7 +73,7 @@ jobs:
       # nextest profile ci 在 .config/nextest.toml 中定义，输出 junit.xml
       - name: Run all tests with JUnit report
         run: |
-          cargo nextest run --workspace --locked --profile ci
+          cargo nextest run --workspace --profile ci
         continue-on-error: true
 
       # 上传测试报告到 GitHub

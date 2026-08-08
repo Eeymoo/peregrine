@@ -290,18 +290,17 @@ pub fn run() {
         ConfigStorage::new(std::path::PathBuf::from("peregrine-config.json"))
     });
     tracing::info!(path = ?storage.path(), "config storage");
-    let config =
-        match crate::safe_try!(
-            tauri::async_runtime::block_on(storage.load_or_create_default()),
-            telemetry::report_code::CONFIG_IO
-        ) {
-            Ok(c) => c,
-            Err(_) => {
-                // 失败也启动（回退默认配置），让用户能进入设置排查；
-                // 错误事件已由 safe_try! 上报 PGR-2101。
-                peregrine_config::AppConfig::default_config()
-            }
-        };
+    let config = match crate::safe_try!(
+        tauri::async_runtime::block_on(storage.load_or_create_default()),
+        telemetry::report_code::CONFIG_IO
+    ) {
+        Ok(c) => c,
+        Err(_) => {
+            // 失败也启动（回退默认配置），让用户能进入设置排查；
+            // 错误事件已由 safe_try! 上报 PGR-2101。
+            peregrine_config::AppConfig::default_config()
+        }
+    };
     let notifier = ConfigNotifier::new(config);
     let snapshot = notifier.subscribe().borrow().clone();
     let shared_config = Arc::new(Mutex::new(snapshot.clone()));

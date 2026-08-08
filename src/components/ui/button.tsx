@@ -33,6 +33,7 @@ const buttonVariants = cva(
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
+  /** 是否作为子元素渲染，用于复用样式但使用不同的DOM结构 */
   asChild?: boolean;
 }
 

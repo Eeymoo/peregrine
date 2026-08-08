@@ -1,20 +1,21 @@
 //! 准心几何计算共享模块。
 //!
-//! 预览（React Canvas）与覆盖层（softbuffer）使用同一套几何公式，
-//! 确保用户所见即所得：预览中准心的大小、位置与最终 overlay 完全一致。
+//! 提供两套几何计算入口：
+//! - [`build_shapes`]：旧格式，按 `Crosshair.style` 分支生成图元（保留供回归对照）。
+//! - [`build_layers_shapes`]：新格式，遍历 `Profile.layers` 调用物料求值。
 //!
-//! 使用方式：
-//! 1. 调用 [`build_shapes`] 得到一组 [`Shape`]（矩形、圆、圆环等）；
-//! 2. 前端预览用 Canvas 2D 绘制；overlay 用 CPU 像素光栅化绘制。
-//! 3. 两者输入相同（`RectF` + `Crosshair`），输出形状完全一致。
+//! 预览（React Canvas）与覆盖层（softbuffer）使用同一套几何公式，
+//! 确保用户所见即所得。
 
 use peregrine_config::{
-    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, GridAlignment, OrbPosition, RingStyle,
+    Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, Element, GridAlignment, Layer,
+    OrbPosition, Profile, Rect, RingStyle, Transform2D,
 };
+use peregrine_material::{DynamicContext, MaterialRegistry};
 
 // ===== 对外类型 =====
 
-/// 逻辑坐标矩形区域。
+/// 逻辑坐标矩形区域（保留向后兼容；新代码应直接使用 `peregrine_config::Rect`）。
 #[derive(Debug, Clone, Copy)]
 pub struct RectF {
     pub min_x: f32,
@@ -38,39 +39,31 @@ impl RectF {
     }
 }
 
-/// 一条带颜色的几何图元，预览与覆盖层共用。
-#[derive(Debug, Clone, Copy)]
-pub enum Shape {
-    /// 填充矩形（逻辑坐标）。
-    Rect { x: f32, y: f32, w: f32, h: f32 },
-    /// 填充圆（逻辑坐标）。
-    Circle { cx: f32, cy: f32, radius: f32 },
-    /// 圆环描边。
-    CircleStroke {
-        cx: f32,
-        cy: f32,
-        radius: f32,
-        thickness: f32,
-    },
-    /// 虚线圆环。
-    DashedCircle {
-        cx: f32,
-        cy: f32,
-        radius: f32,
-        thickness: f32,
-        dash_len: f32,
-        gap_len: f32,
-    },
-    /// 填充三角形（3 个顶点，逻辑坐标）。
-    Triangle {
-        x1: f32,
-        y1: f32,
-        x2: f32,
-        y2: f32,
-        x3: f32,
-        y3: f32,
-    },
+impl From<RectF> for Rect {
+    fn from(r: RectF) -> Self {
+        Rect {
+            min_x: r.min_x,
+            min_y: r.min_y,
+            max_x: r.max_x,
+            max_y: r.max_y,
+        }
+    }
 }
+
+impl From<&RectF> for Rect {
+    fn from(r: &RectF) -> Self {
+        Rect {
+            min_x: r.min_x,
+            min_y: r.min_y,
+            max_x: r.max_x,
+            max_y: r.max_y,
+        }
+    }
+}
+
+/// 图元类型别名：保留 `Shape` 名字以兼容 `overlay_renderer.rs` 现有代码，
+/// 内部直接等同于 `peregrine_config::Element`。
+pub type Shape = Element;
 
 /// 根据准心配置与绘制区域，生成一组图元。
 ///
@@ -578,7 +571,227 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
     shapes
 }
 
-/// 在一条边上均匀分布绘制圆点（与 overlay_renderer / 前端 Preview 的逻辑一致）。
+/// 旧格式准心 → 带颜色 / 不透明度的图元列表（供 `build_shapes_ipc` 软禁用时复用）。
+///
+/// 几何沿用 [`build_shapes`]，颜色 / 不透明度直接取自 `Crosshair` 字段，
+/// 与 overlay 旧路径（`make_color(&crosshair.color, crosshair.opacity)`）语义一致，
+/// 保证预览（IPC）与覆盖层在 `MATERIAL_RUNTIME_ENABLED = false` 时 WYSIWYG。
+pub fn build_shapes_from_crosshair(
+    screen: &RectF,
+    crosshair: &Crosshair,
+) -> Vec<(Element, [f32; 4], f32)> {
+    let color = crosshair.color;
+    let opacity = crosshair.opacity;
+    build_shapes(screen, crosshair)
+        .into_iter()
+        .map(|element| (element, color, opacity))
+        .collect()
+}
+
+/// 根据 `Layer` 反向生成一个 `Crosshair`。
+///
+/// 当 `Profile.crosshair` 为 `None` 但存在单图层时，
+/// 旧版（Crosshair）渲染路径可调用此函数，把 layers[0] 还原为可编辑的 Crosshair，
+/// 确保用户视觉与迁移前一致。
+///
+/// 与前端 `layerToCrosshair` 保持语义一致：无法精确还原的字段使用默认值。
+/// 仅处理 `MaterialRef::Builtin` 物料；其它类型返回 `None`。
+pub fn layer_to_crosshair(layer: &Layer) -> Option<Crosshair> {
+    let id = layer.material.material_id();
+    let style = material_id_to_crosshair_style(id)?;
+    let mut crosshair = Crosshair::default_for_style(style);
+    crosshair.color = layer.style.color;
+    crosshair.opacity = layer.style.opacity;
+
+    let params = layer.params.as_object()?;
+    match style {
+        CrosshairStyle::EdgeRect => {
+            crosshair.size = get_f32(params, "size").unwrap_or(crosshair.size);
+            crosshair.secondary_size =
+                get_f32(params, "secondary_size").unwrap_or(crosshair.secondary_size);
+            crosshair.anchor = get_str(params, "anchor")
+                .and_then(str_to_anchor)
+                .unwrap_or(crosshair.anchor);
+            crosshair.margin = get_f32(params, "margin").unwrap_or(crosshair.margin);
+            crosshair.corner_radius =
+                get_f32(params, "corner_radius").unwrap_or(crosshair.corner_radius);
+        }
+        CrosshairStyle::CustomImage => {
+            crosshair.image_path = get_str(params, "path")
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            crosshair.image_scale = get_f32(params, "scale").unwrap_or(crosshair.image_scale);
+            crosshair.image_offset_x =
+                get_f32(params, "offset_x").unwrap_or(crosshair.image_offset_x);
+            crosshair.image_offset_y =
+                get_f32(params, "offset_y").unwrap_or(crosshair.image_offset_y);
+            crosshair.size = get_f32(params, "width").unwrap_or(crosshair.size);
+        }
+        CrosshairStyle::Cross => {
+            crosshair.size = get_f32(params, "size").unwrap_or(crosshair.size);
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+            crosshair.gap = get_f32(params, "gap").unwrap_or(crosshair.gap);
+        }
+        CrosshairStyle::LargeCross => {
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+        }
+        CrosshairStyle::CornerDots4 | CrosshairStyle::CornerDots6 | CrosshairStyle::CornerDots8 => {
+            let count = get_u32(params, "count").unwrap_or(4);
+            crosshair.style = match count {
+                6 => CrosshairStyle::CornerDots6,
+                8 => CrosshairStyle::CornerDots8,
+                _ => CrosshairStyle::CornerDots4,
+            };
+            crosshair.offset = get_f32(params, "offset").unwrap_or(crosshair.offset);
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+            crosshair.radius = get_f32(params, "radius").unwrap_or(crosshair.radius);
+        }
+        CrosshairStyle::Ring => {
+            crosshair.ring_radius_pct =
+                get_f32(params, "radius_pct").unwrap_or(crosshair.ring_radius_pct);
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+            crosshair.ring_style = get_str(params, "style")
+                .and_then(str_to_ring_style)
+                .unwrap_or(crosshair.ring_style);
+        }
+        CrosshairStyle::CustomOrb => {
+            crosshair.radius = get_f32(params, "radius").unwrap_or(crosshair.radius);
+            crosshair.offset = get_f32(params, "offset").unwrap_or(crosshair.offset);
+            crosshair.orb_positions = get_u32(params, "orb_positions")
+                .map(|v| OrbPosition(v as u8))
+                .unwrap_or(crosshair.orb_positions);
+            crosshair.custom_orb_top_count =
+                get_u32(params, "top_count").unwrap_or(crosshair.custom_orb_top_count);
+            crosshair.custom_orb_bottom_count =
+                get_u32(params, "bottom_count").unwrap_or(crosshair.custom_orb_bottom_count);
+            crosshair.custom_orb_left_count =
+                get_u32(params, "left_count").unwrap_or(crosshair.custom_orb_left_count);
+            crosshair.custom_orb_right_count =
+                get_u32(params, "right_count").unwrap_or(crosshair.custom_orb_right_count);
+        }
+        CrosshairStyle::RandomOrb => {
+            crosshair.random_orb_count =
+                get_u32(params, "count").unwrap_or(crosshair.random_orb_count);
+            crosshair.random_orb_offset =
+                get_f32(params, "offset").unwrap_or(crosshair.random_orb_offset);
+            crosshair.random_orb_jitter =
+                get_f32(params, "jitter").unwrap_or(crosshair.random_orb_jitter);
+            crosshair.random_radius_min =
+                get_f32(params, "radius_min").unwrap_or(crosshair.random_radius_min);
+            crosshair.random_radius_max =
+                get_f32(params, "radius_max").unwrap_or(crosshair.random_radius_max);
+        }
+        CrosshairStyle::BorderFrame => {
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+            crosshair.offset = get_f32(params, "offset").unwrap_or(crosshair.offset);
+            crosshair.border_frame_style = get_str(params, "style")
+                .and_then(str_to_border_frame_style)
+                .unwrap_or(crosshair.border_frame_style);
+            crosshair.border_inset = get_bool(params, "inset").unwrap_or(crosshair.border_inset);
+        }
+        CrosshairStyle::EdgeArrows => {
+            crosshair.size = get_f32(params, "size").unwrap_or(crosshair.size);
+            crosshair.arrow_width = get_f32(params, "arrow_width").unwrap_or(crosshair.arrow_width);
+            crosshair.arrow_distance =
+                get_f32(params, "distance").unwrap_or(crosshair.arrow_distance);
+            crosshair.arrow_tail_per_edge =
+                get_bool(params, "tail_per_edge").unwrap_or(crosshair.arrow_tail_per_edge);
+            crosshair.arrow_tail_top =
+                get_f32(params, "tail_top").unwrap_or(crosshair.arrow_tail_top);
+            crosshair.arrow_tail_bottom =
+                get_f32(params, "tail_bottom").unwrap_or(crosshair.arrow_tail_bottom);
+            crosshair.arrow_tail_left =
+                get_f32(params, "tail_left").unwrap_or(crosshair.arrow_tail_left);
+            crosshair.arrow_tail_right =
+                get_f32(params, "tail_right").unwrap_or(crosshair.arrow_tail_right);
+            crosshair.orb_positions = get_u32(params, "positions_mask")
+                .map(|v| OrbPosition(v as u8))
+                .unwrap_or(crosshair.orb_positions);
+        }
+        CrosshairStyle::Grid => {
+            crosshair.grid_size = get_f32(params, "grid_size").unwrap_or(crosshair.grid_size);
+            crosshair.thickness = get_f32(params, "thickness").unwrap_or(crosshair.thickness);
+            crosshair.grid_alignment = get_str(params, "alignment")
+                .and_then(str_to_grid_alignment)
+                .unwrap_or(crosshair.grid_alignment);
+        }
+    }
+
+    Some(crosshair)
+}
+
+fn material_id_to_crosshair_style(id: &str) -> Option<CrosshairStyle> {
+    match id {
+        "builtin.cross" => Some(CrosshairStyle::Cross),
+        "builtin.edge_rect" => Some(CrosshairStyle::EdgeRect),
+        "builtin.large_cross" => Some(CrosshairStyle::LargeCross),
+        "builtin.corner_dots" => Some(CrosshairStyle::CornerDots4),
+        "builtin.ring" => Some(CrosshairStyle::Ring),
+        "builtin.custom_orb" => Some(CrosshairStyle::CustomOrb),
+        "builtin.random_orb" => Some(CrosshairStyle::RandomOrb),
+        "builtin.border_frame" => Some(CrosshairStyle::BorderFrame),
+        "builtin.edge_arrows" => Some(CrosshairStyle::EdgeArrows),
+        "builtin.grid" => Some(CrosshairStyle::Grid),
+        "builtin.image" => Some(CrosshairStyle::CustomImage),
+        _ => None,
+    }
+}
+
+fn get_f32(params: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<f32> {
+    params.get(key).and_then(|v| v.as_f64()).map(|v| v as f32)
+}
+
+fn get_u32(params: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<u32> {
+    params.get(key).and_then(|v| v.as_f64()).map(|v| v as u32)
+}
+
+fn get_str<'a>(
+    params: &'a serde_json::Map<String, serde_json::Value>,
+    key: &'a str,
+) -> Option<&'a str> {
+    params.get(key).and_then(|v| v.as_str())
+}
+
+fn get_bool(params: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<bool> {
+    params.get(key).and_then(|v| v.as_bool())
+}
+
+fn str_to_anchor(s: &str) -> Option<Anchor> {
+    match s {
+        "top" => Some(Anchor::Top),
+        "bottom" => Some(Anchor::Bottom),
+        "left" => Some(Anchor::Left),
+        "right" => Some(Anchor::Right),
+        "center" => Some(Anchor::Center),
+        _ => None,
+    }
+}
+
+fn str_to_ring_style(s: &str) -> Option<RingStyle> {
+    match s {
+        "solid" => Some(RingStyle::Solid),
+        "dashed" => Some(RingStyle::Dashed),
+        "double" => Some(RingStyle::Double),
+        _ => None,
+    }
+}
+
+fn str_to_border_frame_style(s: &str) -> Option<BorderFrameStyle> {
+    match s {
+        "solid" => Some(BorderFrameStyle::Solid),
+        "gap" => Some(BorderFrameStyle::Gap),
+        _ => None,
+    }
+}
+
+fn str_to_grid_alignment(s: &str) -> Option<GridAlignment> {
+    match s {
+        "center" => Some(GridAlignment::Center),
+        "edge" => Some(GridAlignment::Edge),
+        _ => None,
+    }
+}
+
 fn edge_orb_shapes(
     shapes: &mut Vec<Shape>,
     x0: f32,
@@ -741,5 +954,752 @@ impl SimpleRng {
 
     pub fn next_f32(&mut self) -> f32 {
         (self.next_u64() & 0x00FF_FFFF) as f32 / 0x0100_0000 as f32
+    }
+}
+
+// ===== 新格式：基于图层 + 物料求值 =====
+
+/// 遍历 Profile 的所有图层，调用物料求值并应用变换 / 样式，返回扁平化的图元列表。
+///
+/// 单个图层求值失败时记录 warn 并跳过，不阻塞整体渲染。
+///
+/// 参数：
+/// - `screen`：屏幕区域（逻辑坐标）
+/// - `profile`：包含 layers 的 Profile
+/// - `registry`：物料注册表
+/// - `ctx`：动态输入上下文（时间 / 鼠标 / 键盘 / 随机数）
+pub fn build_layers_shapes(
+    screen: &RectF,
+    profile: &Profile,
+    registry: &MaterialRegistry,
+    ctx: &DynamicContext,
+) -> Vec<(Element, [f32; 4], f32)> {
+    let mut out = Vec::new();
+    let screen_rect: Rect = screen.into();
+
+    for (idx, layer) in profile.layers.iter().enumerate() {
+        if !layer.visible {
+            continue;
+        }
+
+        let elements = match evaluate_layer(layer, &screen_rect, registry, ctx) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(
+                    layer_idx = idx,
+                    layer_id = %layer.id,
+                    material = ?layer.material,
+                    error = %e,
+                    "layer evaluation failed, skipping"
+                );
+                continue;
+            }
+        };
+
+        // 计算该图层所有元素的整体包围盒中心，作为缩放/旋转的基准点。
+        let center = elements_center(&elements);
+
+        for element in elements {
+            let transformed_list = apply_transform(element, &layer.transform, center, &screen_rect);
+            for transformed in transformed_list {
+                out.push((transformed, layer.style.color, layer.style.opacity));
+            }
+        }
+    }
+
+    out
+}
+
+/// 求值单个图层（调用物料脚本）。
+fn evaluate_layer(
+    layer: &Layer,
+    screen: &Rect,
+    registry: &MaterialRegistry,
+    ctx: &DynamicContext,
+) -> Result<Vec<Element>, String> {
+    let material_id = layer.material.material_id();
+    let material = registry
+        .get(material_id)
+        .ok_or_else(|| format!("material '{}' not found in registry", material_id))?;
+
+    // 合并物料默认参数与图层参数。
+    let defaults = material.defaults().clone();
+    let merged = merge_json(&defaults, &layer.params);
+
+    material
+        .evaluate(&merged, screen, ctx)
+        .map_err(|e| e.to_string())
+}
+
+/// 计算一组元素的整体包围盒中心。
+fn elements_center(elements: &[Element]) -> (f32, f32) {
+    if elements.is_empty() {
+        return (0.0, 0.0);
+    }
+    let mut min_x = f32::MAX;
+    let mut min_y = f32::MAX;
+    let mut max_x = f32::MIN;
+    let mut max_y = f32::MIN;
+
+    let update =
+        |x: f32, y: f32, min_x: &mut f32, min_y: &mut f32, max_x: &mut f32, max_y: &mut f32| {
+            if x < *min_x {
+                *min_x = x;
+            }
+            if y < *min_y {
+                *min_y = y;
+            }
+            if x > *max_x {
+                *max_x = x;
+            }
+            if y > *max_y {
+                *max_y = y;
+            }
+        };
+
+    for e in elements {
+        match e {
+            Element::Rect { x, y, w, h } => {
+                update(*x, *y, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(
+                    *x + *w,
+                    *y + *h,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+            }
+            Element::Circle { cx, cy, radius } => {
+                update(
+                    *cx - *radius,
+                    *cy - *radius,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+                update(
+                    *cx + *radius,
+                    *cy + *radius,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+            }
+            Element::CircleStroke {
+                cx,
+                cy,
+                radius,
+                thickness,
+            } => {
+                let r = *radius + *thickness / 2.0;
+                update(
+                    *cx - r,
+                    *cy - r,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+                update(
+                    *cx + r,
+                    *cy + r,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+            }
+            Element::DashedCircle {
+                cx,
+                cy,
+                radius,
+                thickness,
+                ..
+            } => {
+                let r = *radius + *thickness / 2.0;
+                update(
+                    *cx - r,
+                    *cy - r,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+                update(
+                    *cx + r,
+                    *cy + r,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+            }
+            Element::Triangle {
+                x1,
+                y1,
+                x2,
+                y2,
+                x3,
+                y3,
+            } => {
+                update(*x1, *y1, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*x2, *y2, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*x3, *y3, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+            }
+            Element::Polygon { points } => {
+                for [x, y] in points {
+                    update(*x, *y, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                }
+            }
+            Element::Line { x1, y1, x2, y2, .. } => {
+                update(*x1, *y1, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(*x2, *y2, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+            }
+            Element::Text {
+                x, y, font_size, ..
+            } => {
+                // 文本宽度无法精确计算，用 font_size * 0.6 估算半宽。
+                let half = *font_size * 0.6;
+                update(
+                    *x - half,
+                    *y - *font_size,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+                update(
+                    *x + half,
+                    *y,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+            }
+            Element::Image { x, y, w, h, .. } => {
+                update(*x, *y, &mut min_x, &mut min_y, &mut max_x, &mut max_y);
+                update(
+                    *x + *w,
+                    *y + *h,
+                    &mut min_x,
+                    &mut min_y,
+                    &mut max_x,
+                    &mut max_y,
+                );
+            }
+        }
+    }
+
+    ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+}
+
+/// 把图元应用图层的几何变换（平移 / 缩放 / 旋转）。
+/// 返回变换后的图元列表（旋转时矩形可能拆分为三角形）。
+fn apply_transform(
+    element: Element,
+    transform: &Transform2D,
+    center: (f32, f32),
+    _screen: &Rect,
+) -> Vec<Element> {
+    if (transform.offset_x == 0.0 && transform.offset_y == 0.0)
+        && transform.scale == 1.0
+        && transform.rotation_deg == 0.0
+    {
+        return vec![element];
+    }
+
+    let (cx, cy) = center;
+    let cos = transform.rotation_deg.to_radians().cos();
+    let sin = transform.rotation_deg.to_radians().sin();
+
+    // 变换一个点的坐标：以图层内容中心为基准缩放/旋转，再平移。
+    let transform_point = |x: f32, y: f32| -> (f32, f32) {
+        let dx = (x - cx) * transform.scale;
+        let dy = (y - cy) * transform.scale;
+        let rx = dx * cos - dy * sin + cx + transform.offset_x;
+        let ry = dx * sin + dy * cos + cy + transform.offset_y;
+        (rx, ry)
+    };
+
+    match element {
+        Element::Rect { x, y, w, h } => {
+            // 变换矩形四个顶点。
+            let (x1, y1) = transform_point(x, y);
+            let (x2, y2) = transform_point(x + w, y);
+            let (x3, y3) = transform_point(x + w, y + h);
+            let (x4, y4) = transform_point(x, y + h);
+
+            if transform.rotation_deg != 0.0 {
+                // 有旋转时，把矩形拆成两个三角形，让 CPU 路径的 draw_triangle 能正确渲染旋转后的矩形。
+                return vec![
+                    Element::Triangle {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        x3,
+                        y3,
+                    },
+                    Element::Triangle {
+                        x1,
+                        y1,
+                        x2: x3,
+                        y2: y3,
+                        x3: x4,
+                        y3: y4,
+                    },
+                ];
+            }
+
+            // 无旋转时，用变换后的顶点计算新的轴对齐包围盒。
+            // 这样缩放会同时放大矩形尺寸和相邻矩形之间的间距（如准星的 gap）。
+            let min_x = x1.min(x2).min(x3).min(x4);
+            let max_x = x1.max(x2).max(x3).max(x4);
+            let min_y = y1.min(y2).min(y3).min(y4);
+            let max_y = y1.max(y2).max(y3).max(y4);
+
+            vec![Element::Rect {
+                x: min_x,
+                y: min_y,
+                w: max_x - min_x,
+                h: max_y - min_y,
+            }]
+        }
+        Element::Circle { cx, cy, radius } => {
+            let (tx, ty) = transform_point(cx, cy);
+            vec![Element::Circle {
+                cx: tx,
+                cy: ty,
+                radius: radius * transform.scale,
+            }]
+        }
+        Element::CircleStroke {
+            cx,
+            cy,
+            radius,
+            thickness,
+        } => {
+            let (tx, ty) = transform_point(cx, cy);
+            vec![Element::CircleStroke {
+                cx: tx,
+                cy: ty,
+                radius: radius * transform.scale,
+                thickness,
+            }]
+        }
+        Element::DashedCircle {
+            cx,
+            cy,
+            radius,
+            thickness,
+            dash_len,
+            gap_len,
+        } => {
+            let (tx, ty) = transform_point(cx, cy);
+            vec![Element::DashedCircle {
+                cx: tx,
+                cy: ty,
+                radius: radius * transform.scale,
+                thickness,
+                dash_len,
+                gap_len,
+            }]
+        }
+        Element::Triangle {
+            x1,
+            y1,
+            x2,
+            y2,
+            x3,
+            y3,
+        } => {
+            let (tx1, ty1) = transform_point(x1, y1);
+            let (tx2, ty2) = transform_point(x2, y2);
+            let (tx3, ty3) = transform_point(x3, y3);
+            vec![Element::Triangle {
+                x1: tx1,
+                y1: ty1,
+                x2: tx2,
+                y2: ty2,
+                x3: tx3,
+                y3: ty3,
+            }]
+        }
+        Element::Polygon { points } => vec![Element::Polygon {
+            points: points
+                .into_iter()
+                .map(|[x, y]| {
+                    let (tx, ty) = transform_point(x, y);
+                    [tx, ty]
+                })
+                .collect(),
+        }],
+        Element::Line {
+            x1,
+            y1,
+            x2,
+            y2,
+            thickness,
+        } => {
+            let (tx1, ty1) = transform_point(x1, y1);
+            let (tx2, ty2) = transform_point(x2, y2);
+            vec![Element::Line {
+                x1: tx1,
+                y1: ty1,
+                x2: tx2,
+                y2: ty2,
+                thickness,
+            }]
+        }
+        Element::Text {
+            x,
+            y,
+            content,
+            font_size,
+            font_weight,
+        } => {
+            let (tx, ty) = transform_point(x, y);
+            vec![Element::Text {
+                x: tx,
+                y: ty,
+                content,
+                font_size: font_size * transform.scale,
+                // 字重不随几何变换缩放，原样透传。
+                font_weight,
+            }]
+        }
+        Element::Image { path, x, y, w, h } => vec![Element::Image {
+            path,
+            x: x + transform.offset_x,
+            y: y + transform.offset_y,
+            w: w * transform.scale,
+            h: h * transform.scale,
+        }],
+    }
+}
+
+/// 合并两个 JSON 对象（overrides 优先，浅合并）。
+fn merge_json(defaults: &serde_json::Value, overrides: &serde_json::Value) -> serde_json::Value {
+    match (defaults, overrides) {
+        (serde_json::Value::Object(d), serde_json::Value::Object(o)) => {
+            let mut merged = d.clone();
+            for (k, v) in o {
+                merged.insert(k.clone(), v.clone());
+            }
+            serde_json::Value::Object(merged)
+        }
+        (_, o @ serde_json::Value::Object(_)) => o.clone(),
+        (d, _) => d.clone(),
+    }
+}
+
+#[cfg(test)]
+mod layer_tests {
+    use super::*;
+    use peregrine_config::LayerStyle;
+    use peregrine_material::MaterialRegistry;
+
+    fn load_registry() -> MaterialRegistry {
+        let r = MaterialRegistry::new();
+        r.load_builtin().expect("load builtin materials");
+        r
+    }
+
+    fn test_screen() -> RectF {
+        RectF {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        }
+    }
+
+    #[test]
+    fn build_layers_shapes_with_cross_material() {
+        let registry = load_registry();
+        let mut profile = Profile::default_profile();
+        profile.layers.clear();
+        profile.layers.push(Layer {
+            id: "test-cross".into(),
+            name: "中心十字".into(),
+            material: peregrine_config::MaterialRef::Builtin {
+                id: "builtin.cross".into(),
+            },
+            params: serde_json::json!({"size": 50.0, "thickness": 3.0, "gap": 6.0}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        });
+
+        let screen = test_screen();
+        let ctx = DynamicContext::static_context();
+        let shapes = build_layers_shapes(&screen, &profile, &registry, &ctx);
+        // cross 物料应返回 4 个矩形。
+        assert_eq!(shapes.len(), 4);
+        for (element, _, _) in &shapes {
+            assert!(matches!(element, Element::Rect { .. }));
+        }
+    }
+
+    #[test]
+    fn build_layers_skips_invisible_layer() {
+        let registry = load_registry();
+        let mut profile = Profile::default_profile();
+        profile.layers.clear();
+        profile.layers.push(Layer {
+            id: "hidden".into(),
+            name: "隐藏层".into(),
+            material: peregrine_config::MaterialRef::Builtin {
+                id: "builtin.cross".into(),
+            },
+            params: serde_json::json!({}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: false,
+            locked: false,
+        });
+
+        let screen = test_screen();
+        let ctx = DynamicContext::static_context();
+        let shapes = build_layers_shapes(&screen, &profile, &registry, &ctx);
+        assert_eq!(shapes.len(), 0);
+    }
+
+    #[test]
+    fn build_layers_multiple_layers_overlay() {
+        let registry = load_registry();
+        let mut profile = Profile::default_profile();
+        profile.layers.clear();
+        // 第一层：cross
+        profile.layers.push(Layer {
+            id: "l1".into(),
+            name: "十字".into(),
+            material: peregrine_config::MaterialRef::Builtin {
+                id: "builtin.cross".into(),
+            },
+            params: serde_json::json!({}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        });
+        // 第二层：corner_dots
+        profile.layers.push(Layer {
+            id: "l2".into(),
+            name: "定位球".into(),
+            material: peregrine_config::MaterialRef::Builtin {
+                id: "builtin.corner_dots".into(),
+            },
+            params: serde_json::json!({"count": 4}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        });
+
+        let screen = test_screen();
+        let ctx = DynamicContext::static_context();
+        let shapes = build_layers_shapes(&screen, &profile, &registry, &ctx);
+        // cross 4 + corner_dots 4 = 8 个元素。
+        assert_eq!(shapes.len(), 8);
+    }
+
+    #[test]
+    fn apply_transform_offset_only() {
+        let element = Element::Circle {
+            cx: 100.0,
+            cy: 100.0,
+            radius: 50.0,
+        };
+        let transform = Transform2D {
+            offset_x: 50.0,
+            offset_y: 25.0,
+            scale: 1.0,
+            rotation_deg: 0.0,
+        };
+        let screen = Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        };
+        let result = apply_transform(element, &transform, (100.0, 100.0), &screen);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            Element::Circle { cx, cy, radius } => {
+                assert_eq!(*cx, 150.0);
+                assert_eq!(*cy, 125.0);
+                assert_eq!(*radius, 50.0);
+            }
+            _ => panic!("expected Circle"),
+        }
+    }
+
+    #[test]
+    fn apply_transform_scale() {
+        let element = Element::Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 100.0,
+            h: 50.0,
+        };
+        let transform = Transform2D {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            scale: 2.0,
+            rotation_deg: 0.0,
+        };
+        let screen = Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        };
+        // 以 Rect 中心 (50, 25) 为基准缩放。
+        let result = apply_transform(element, &transform, (50.0, 25.0), &screen);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            Element::Rect { x, y, w, h } => {
+                assert_eq!(*x, -50.0);
+                assert_eq!(*y, -25.0);
+                assert_eq!(*w, 200.0);
+                assert_eq!(*h, 100.0);
+            }
+            _ => panic!("expected Rect"),
+        }
+    }
+
+    #[test]
+    fn apply_transform_rotation_rect_becomes_triangles() {
+        let element = Element::Rect {
+            x: 100.0,
+            y: 100.0,
+            w: 50.0,
+            h: 50.0,
+        };
+        let transform = Transform2D {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            scale: 1.0,
+            rotation_deg: 45.0,
+        };
+        let screen = Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        };
+        // 以 Rect 中心 (125, 125) 为基准旋转。
+        let result = apply_transform(element, &transform, (125.0, 125.0), &screen);
+        // 旋转时矩形拆分为两个三角形。
+        assert_eq!(result.len(), 2);
+        for e in &result {
+            assert!(matches!(e, Element::Triangle { .. }));
+        }
+    }
+
+    #[test]
+    fn build_layers_skips_missing_material() {
+        let registry = load_registry();
+        let mut profile = Profile::default_profile();
+        profile.layers.clear();
+        profile.layers.push(Layer {
+            id: "missing".into(),
+            name: "不存在的物料".into(),
+            material: peregrine_config::MaterialRef::Builtin {
+                id: "builtin.does_not_exist".into(),
+            },
+            params: serde_json::json!({}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        });
+
+        let screen = test_screen();
+        let ctx = DynamicContext::static_context();
+        let shapes = build_layers_shapes(&screen, &profile, &registry, &ctx);
+        // 物料不存在时应跳过，返回空列表（不 panic）。
+        assert_eq!(shapes.len(), 0);
+    }
+
+    /// `build_shapes_from_crosshair` 应给每个几何图元附带 crosshair 的颜色 / 不透明度，
+    /// 用于 `MATERIAL_RUNTIME_ENABLED = false` 时预览 IPC 与 overlay 行为一致。
+    #[test]
+    fn build_shapes_from_crosshair_carries_color_and_opacity() {
+        let crosshair = Crosshair {
+            style: CrosshairStyle::Cross,
+            size: 20.0,
+            thickness: 2.0,
+            gap: 4.0,
+            color: [0.1, 0.2, 0.3, 1.0],
+            opacity: 0.5,
+            ..Crosshair::default_crosshair()
+        };
+        let screen = test_screen();
+        let out = build_shapes_from_crosshair(&screen, &crosshair);
+        // Cross 至少生成 4 条臂。
+        assert!(out.len() >= 4);
+        for (_element, color, opacity) in &out {
+            assert_eq!(*color, [0.1, 0.2, 0.3, 1.0]);
+            assert_eq!(*opacity, 0.5);
+        }
+    }
+
+    /// 迁移后新格式的 layers[0] 应能反向还原为 Crosshair，
+    /// 保证旧版渲染路径在 crosshair = None 时仍能显示用户原配置。
+    #[test]
+    fn layer_to_crosshair_reconstructs_migrated_cross() {
+        use peregrine_config::{LayerStyle, MaterialRef};
+        let layer = Layer {
+            id: "migrated_cross".into(),
+            name: "准星".into(),
+            material: MaterialRef::Builtin {
+                id: "builtin.cross".into(),
+            },
+            params: serde_json::json!({
+                "size": 50.0,
+                "thickness": 3.0,
+                "gap": 6.0,
+            }),
+            style: LayerStyle {
+                color: [1.0, 0.0, 0.0, 1.0],
+                opacity: 0.8,
+                blend_mode: peregrine_config::BlendMode::Normal,
+            },
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        };
+        let crosshair = layer_to_crosshair(&layer).expect("cross layer should convert");
+        assert_eq!(crosshair.style, CrosshairStyle::Cross);
+        assert_eq!(crosshair.size, 50.0);
+        assert_eq!(crosshair.thickness, 3.0);
+        assert_eq!(crosshair.gap, 6.0);
+        assert_eq!(crosshair.color, [1.0, 0.0, 0.0, 1.0]);
+        assert_eq!(crosshair.opacity, 0.8);
+    }
+
+    #[test]
+    fn layer_to_crosshair_returns_none_for_unknown_material() {
+        use peregrine_config::{LayerStyle, MaterialRef};
+        let layer = Layer {
+            id: "unknown".into(),
+            name: "未知".into(),
+            material: MaterialRef::Builtin {
+                id: "builtin.does_not_exist".into(),
+            },
+            params: serde_json::json!({}),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        };
+        assert!(layer_to_crosshair(&layer).is_none());
     }
 }

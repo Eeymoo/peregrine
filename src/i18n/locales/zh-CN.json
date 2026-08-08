@@ -3,6 +3,76 @@
     "title": "Peregrine",
     "version": "版本"
   },
+  "layers": {
+    "title": "图层",
+    "editorTitle": "图层编辑器",
+    "backToLegacy": "切换单图层",
+    "switchToLayers": "切换多图层",
+    "selectPrompt": "选择一个图层以编辑",
+    "materialNotFound": "未找到该图层使用的物料",
+    "dynamicHint": "动态物料（跟随输入）",
+    "name": "图层名称",
+    "params": "参数",
+    "styleSection": "样式",
+    "transformSection": "变换",
+    "add": "添加图层",
+    "empty": "暂无图层，点击 + 添加",
+    "hide": "隐藏",
+    "show": "显示",
+    "lock": "锁定",
+    "unlock": "解锁",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "duplicate": "复制",
+    "delete": "删除",
+    "addTitle": "添加图层",
+    "dynamic": "动态",
+    "builtin": "内置",
+    "layerName": "图层名称",
+    "noParams": "无参数",
+    "color": "颜色",
+    "alpha": "透明度（Alpha）",
+    "opacity": "不透明度",
+    "offsetX": "水平偏移",
+    "offsetY": "垂直偏移",
+    "scale": "缩放",
+    "rotation": "旋转"
+  },
+  "common": {
+    "add": "添加",
+    "cancel": "取消",
+    "ok": "确定",
+    "close": "关闭",
+    "reload": "重新加载",
+    "copy": "复制",
+    "save": "保存",
+    "delete": "删除",
+    "reset": "重置",
+    "loading": "加载中…",
+    "error": "错误",
+    "unknown": "未知"
+  },
+  "error": {
+    "title": "Peregrine 遇到了错误",
+    "description": "应用没有崩溃，但页面渲染失败。可以尝试下面的按钮恢复，或把错误信息复制贴给开发者。",
+    "reload": "重新加载页面",
+    "recover": "尝试恢复（不刷新）",
+    "copy": "复制错误信息",
+    "copied": "错误已复制到剪贴板，请贴给开发者。",
+    "copyFallback": "无法访问剪贴板，请手动截图。\n\n",
+    "openDevTools": "打开 DevTools",
+    "devToolsDisabled": "此构建未启用 DevTools。",
+    "openDevToolsFailed": "打开 DevTools 失败",
+    "details": "错误详情（点击折叠）",
+    "viewStack": "查看堆栈",
+    "unknown": "(unknown error)",
+    "noStack": "(no stack)",
+    "componentStack": "Component Stack:",
+    "uploadReport": "匿名上传错误报告",
+    "uploading": "上传中…",
+    "uploaded": "✓ 已上传，感谢反馈",
+    "uploadFailed": "上传失败"
+  },
   "config": {
     "title": "配置",
     "loading": "加载中…",
@@ -13,7 +83,20 @@
     "refresh": "刷新",
     "none": "（未选择）",
     "startOverlay": "开始覆盖",
-    "stopOverlay": "停止覆盖"
+    "stopOverlay": "停止覆盖",
+    "invalidFormat": "配置格式异常",
+    "switchToLayersFallback": "切换到图层编辑器"
+  },
+  "profile": {
+    "title": "配置方案",
+    "selectPlaceholder": "选择配置方案",
+    "namePlaceholder": "新方案名称",
+    "new": "新建",
+    "rename": "重命名",
+    "copySuffix": "副本",
+    "incompatible": "当前配置包含多个图层，请在多图层模式下编辑",
+    "layersDisabled": "多图层功能已暂时停用，原有图层配置已保留；当前显示并可编辑旧版准星设置。",
+    "cannotDeleteLast": "至少保留一个配置方案"
   },
   "overlay": {
     "autoSwitchTitle": "是否自动隐藏配置窗口并切换到游戏？",
@@ -50,7 +133,9 @@
     "title": "快捷键",
     "hint": "点击输入框后按下组合键，再按 Esc 清除",
     "placeholder": "点击设置…",
-    "clear": "清除"
+    "clear": "清除",
+    "pressCombo": "按下组合键…",
+    "unhandled": "Promise 未捕获"
   },
   "hotkeyActions": {
     "toggle_overlay": "切换覆盖层",
@@ -101,6 +186,7 @@
     "mirrorSite": "加速站",
     "mirrorCustom": "自定义…",
     "mirrorCustomUrl": "镜像地址",
+    "mirrorRecommended": "（推荐）",
     "about": {
       "title": "关于 Peregrine",
       "description": "Peregrine 是一款通过屏幕视觉锚点帮助缓解 3D 眩晕的桌面工具。",
@@ -108,7 +194,27 @@
       "publisher": "发行者",
       "license": "许可",
       "repository": "仓库"
-    }
+    },
+    "telemetry": "匿名崩溃上报与使用情况",
+    "telemetryHint": "上报内容不含任何个人数据",
+    "telemetryRestartTitle": "重启应用",
+    "telemetryRestartDesc": "修改将在重启后生效，是否立即重启？",
+    "telemetryRestartNow": "立即重启",
+    "telemetryRestartLater": "稍后重启",
+    "telemetryPendingRestart": "⚠ 待重启生效",
+    "telemetryTestReport": "测试上报",
+    "telemetryTestReportHint": "发送一条测试错误事件",
+    "telemetryTestReportDone": "已发送 ✓",
+    "telemetryTestReportFailed": "测试上报失败",
+    "sectionDev": "开发",
+    "devUnlockHint": "点击 5 次解锁开发者模式",
+    "devRemaining": "次解锁开发者",
+    "devUnlocked": "✓ 已开启开发者模式（重新打开窗口后 DevTools 可用）",
+    "devTools": "DevTools",
+    "devToolsHint": "开启后可使用右键「检查」与 Ctrl+Shift+I，关闭可降低内存占用，重启窗口后生效",
+    "devToolsRestartTitle": "DevTools 设置已更改",
+    "devToolsRestartDesc": "DevTools 设置需要重启应用后才能生效。是否立即重启？",
+    "devOpenDevToolsFailed": "打开 DevTools 失败"
   },
   "styles": {
     "edge_rect": "边缘矩形",
@@ -194,7 +300,8 @@
     "gridAlignment": "对齐方式"
   },
   "preview": {
-    "placeholder": "请选择 PNG 文件"
+    "placeholder": "请选择 PNG 文件",
+    "rendering": "渲染中…"
   },
   "tray": {
     "config": "配置",
@@ -204,5 +311,11 @@
   },
   "license": {
     "mit": "MIT · 开源 · 自由使用"
+  },
+  "telemetry": {
+    "consentTitle": "匿名遥测",
+    "consentDesc": "是否允许匿名上报崩溃信息与使用情况？不收集任何个人数据。",
+    "consentAllow": "允许",
+    "consentDeny": "不允许"
   }
 }

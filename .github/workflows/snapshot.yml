@@ -1,13 +1,13 @@
 name: Snapshot
 
-# 在提交 PR 到 main/master 时触发，构建 Windows 快照制品（NSIS + 便携 zip）用于测试。
+# 在提交 PR 到 main/master/dev 时触发，构建 Windows 快照制品（NSIS + 便携 zip）用于测试。
 # 版本号取 PR head commit 短 hash（格式 0.0.0-dev.<short_sha>），不签名、不发布正式
 # GitHub Release。制品作为 workflow artifact 上传，可在 PR 检查页面下载。复用
 # release.yml 的构建逻辑，但去掉签名与发布步骤，便于在无签名密钥的 PR 上下文中产出
 # 可安装 / 可运行的测试包。也支持手动 workflow_dispatch 触发。
 on:
   pull_request:
-    branches: [main, master]
+    branches: [main, master, dev]
   workflow_dispatch:
 
 permissions:
@@ -65,8 +65,7 @@ jobs:
         run: npm ci
 
       # 同步版本号到 Cargo.toml / package.json / tauri.conf.json。
-      # 同时关闭 createUpdaterArtifacts 并清空 updater pubkey：PR 快照不签名也不
-      # 走自动更新，必须关闭该项，否则 Tauri 检测到 pubkey 后会强制要求私钥而失败。
+      # 关闭 createUpdaterArtifacts（避免签名要求），但保留 updater pubkey（插件 init 必需）。
       - name: Sync version & disable updater signing
         shell: bash
         env:
@@ -75,10 +74,17 @@ jobs:
           echo "Syncing version: $VERSION"
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
           node -e "const fs=require('fs');const p=require('./package.json');p.version='$VERSION';fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
-          node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';p.bundle.createUpdaterArtifacts=false;delete p.plugins.updater.pubkey;fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
+          node -e "const fs=require('fs');const p=require('./src-tauri/tauri.conf.json');p.version='$VERSION';p.bundle.createUpdaterArtifacts=false;fs.writeFileSync('./src-tauri/tauri.conf.json',JSON.stringify(p,null,2)+'\n')"
 
-      # PR 构建不签名（不设置 TAURI_SIGNING_PRIVATE_KEY），仅产出未签名 NSIS。
+      # PR/快照构建不签名（不设置 TAURI_SIGNING_PRIVATE_KEY），仅产出未签名 NSIS。
+      # 遥测：快照/测试包上报至 GlitchTip TEST 项目（secrets.GLITCHTIP_DSN_TEST）。
+      # 因是 release-profile 构建，代码读取的环境变量名为 GLITCHTIP_DSN /
+      # VITE_GLITCHTIP_DSN（cfg!(debug_assertions)=false），故把 TEST 值映射到
+      # 这两个名字；未配置时 SDK 不初始化、零网络请求（应用功能完全正常）。
       - name: Build Tauri (NSIS, unsigned)
+        env:
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN_TEST }}
+          VITE_GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN_TEST }}
         shell: bash
         run: npx tauri build --target ${{ matrix.target }} --bundles nsis
 

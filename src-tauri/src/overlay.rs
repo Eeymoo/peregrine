@@ -34,6 +34,10 @@ pub enum OverlayCommand {
     QueryActive,
     /// 标记需要重绘（follower 调整窗口位置后触发）。
     Invalidate,
+    /// 用户物料热重载完成：请求重绘一帧。
+    /// MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，渲染路径不消费物料，
+    /// 此命令仅保留以兼容发送方，语义退化为普通重绘请求。
+    RefreshMaterials,
 }
 
 /// 内部自定义事件：把外部命令转发进 winit 事件循环。
@@ -46,21 +50,24 @@ enum UserEvent {
 pub fn run_overlay_loop(
     #[cfg(windows)] config: Arc<Mutex<ConfigSnapshot>>,
     #[cfg(not(windows))] _config: Arc<Mutex<ConfigSnapshot>>,
+    material_registry: Arc<peregrine_material::MaterialRegistry>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
 ) {
     #[cfg(not(windows))]
     {
         // 非 Windows 平台仅消费命令，避免在主线程外创建 winit EventLoop。
+        let _ = material_registry;
         while let Ok(_cmd) = cmd_rx.recv() {}
         return;
     }
     #[cfg(windows)]
-    run_overlay_loop_windows(config, cmd_rx);
+    run_overlay_loop_windows(config, material_registry, cmd_rx);
 }
 
 #[cfg(windows)]
 fn run_overlay_loop_windows(
     config: Arc<Mutex<ConfigSnapshot>>,
+    material_registry: Arc<peregrine_material::MaterialRegistry>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
 ) {
     use winit::platform::windows::EventLoopBuilderExtWindows;
@@ -83,7 +90,7 @@ fn run_overlay_loop_windows(
 
     // 复制一份事件循环代理，用于 follower 线程在移动 overlay 后请求重绘。
     let redraw_proxy = event_loop.create_proxy();
-    let mut app = OverlayApp::new(config, redraw_proxy);
+    let mut app = OverlayApp::new(config, material_registry, redraw_proxy);
     event_loop
         .run_app(&mut app)
         .expect("run overlay event loop");
@@ -92,6 +99,7 @@ fn run_overlay_loop_windows(
 #[cfg(windows)]
 struct OverlayApp {
     config: Arc<Mutex<ConfigSnapshot>>,
+    material_registry: Arc<peregrine_material::MaterialRegistry>,
     window: Option<Arc<Window>>,
     renderer: Option<overlay_renderer::OverlayRenderer>,
     overlay_active: bool,
@@ -112,10 +120,12 @@ struct OverlayApp {
 impl OverlayApp {
     fn new(
         config: Arc<Mutex<ConfigSnapshot>>,
+        material_registry: Arc<peregrine_material::MaterialRegistry>,
         redraw_proxy: winit::event_loop::EventLoopProxy<UserEvent>,
     ) -> Self {
         Self {
             config,
+            material_registry,
             window: None,
             renderer: None,
             overlay_active: false,
@@ -126,6 +136,17 @@ impl OverlayApp {
             frame_interval: Duration::from_nanos(16_666_667),
             needs_redraw: false,
         }
+    }
+
+    /// 判断当前配置是否需要持续重绘。
+    /// MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，不再查询图层物料的
+    /// `is_dynamic`；仅保留旧格式 RandomOrb 样式的持续重绘判定。
+    fn compute_is_animated(&self) -> bool {
+        let cfg = self.config.lock().expect("config lock");
+        cfg.active_profile()
+            .and_then(|p| p.crosshair.as_ref())
+            .map(|c| c.style == peregrine_config::CrosshairStyle::RandomOrb)
+            .unwrap_or(false)
     }
 
     fn handle_command(&mut self, event_loop: &ActiveEventLoop, cmd: OverlayCommand) {
@@ -164,7 +185,12 @@ impl OverlayApp {
                 *self.config.lock().expect("config lock") = snap;
 
                 // 配置变化，静态准心需要重绘。
+                // 必须主动 request_redraw：事件驱动模型下没有事件就不会有下一帧，
+                // 否则配置变更要等任意后续事件才上屏（表现为"慢一拍"）。
                 self.needs_redraw = true;
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
 
                 if need_restart_follower {
                     let title = self.target_title.clone();
@@ -173,6 +199,10 @@ impl OverlayApp {
                 }
             }
             OverlayCommand::QueryActive => {}
+            OverlayCommand::RefreshMaterials => {
+                // 物料运行时已软关闭，渲染路径不消费物料；退化为普通重绘请求。
+                self.needs_redraw = true;
+            }
             OverlayCommand::Invalidate => {
                 // follower 调整了窗口位置，需要重绘一帧。
                 // 直接调用 request_redraw，避免依赖 about_to_wait 的隐式行为
@@ -304,7 +334,11 @@ impl OverlayApp {
             }
         }
 
-        let renderer = overlay_renderer::OverlayRenderer::new(window.clone(), self.config.clone());
+        let renderer = overlay_renderer::OverlayRenderer::new(
+            window.clone(),
+            self.config.clone(),
+            self.material_registry.clone(),
+        );
 
         self.window = Some(window.clone());
         self.renderer = Some(renderer);
@@ -451,7 +485,12 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
                     }
                 }
                 if let Some(renderer) = self.renderer.as_mut() {
-                    renderer.render_overlay();
+                    // render_overlay 仅在 surface.resize() 失败时返回 Err（OVERLAY_RENDER）；
+                    // safe_try! 上报后丢弃错误，不阻塞后续帧（下一帧仍会尝试渲染）。
+                    let _ = crate::safe_try!(
+                        renderer.render_overlay(),
+                        crate::telemetry::report_code::OVERLAY_RENDER
+                    );
                     self.last_render = Some(now);
                 }
                 // 静态准心渲染完毕后清除脏标记。
@@ -469,13 +508,9 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
             return;
         };
 
-        // 判断当前准心是否为动画样式（RandomOrb 需要持续重绘）。
-        let is_animated = {
-            let cfg = self.config.lock().expect("config lock");
-            cfg.active_profile()
-                .map(|p| p.crosshair.style == peregrine_config::CrosshairStyle::RandomOrb)
-                .unwrap_or(false)
-        };
+        // 判断当前配置是否需要持续重绘（旧格式 RandomOrb 动画样式）。
+        // 判定开销极小（一次锁 + 枚举比较），每轮 about_to_wait 直接计算。
+        let is_animated = self.compute_is_animated();
 
         if is_animated {
             // RandomOrb 保持 60FPS 持续重绘。

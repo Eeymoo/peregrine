@@ -1,0 +1,19 @@
+# Cargo nextest 配置文件
+# 用于生成 JUnit XML 测试报告，便于 CI 展示
+
+[profile.ci]
+# 失败后重试一次（应对不稳定的文件系统 watcher 测试）
+retries = 1
+# 单个测试超时时间
+slow-timeout = { period = "30s", terminate-after = 2 }
+# 输出格式
+failure-output = "final"
+success-output = "never"
+
+[profile.ci.junit]
+# JUnit XML 报告输出路径
+path = "junit.xml"
+report-name = "peregrine-tests"
+# 包含标准输出（失败时）
+store-success-output = false
+store-failure-output = true

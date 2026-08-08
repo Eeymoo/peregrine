@@ -3,6 +3,76 @@
     "title": "Peregrine",
     "version": "Version"
   },
+  "layers": {
+    "title": "Layers",
+    "editorTitle": "Layer Editor",
+    "backToLegacy": "Single Layer",
+    "switchToLayers": "Multi Layers",
+    "selectPrompt": "Select a layer to edit",
+    "materialNotFound": "Material used by this layer was not found",
+    "dynamicHint": "Dynamic material (follows input)",
+    "name": "Layer Name",
+    "params": "Parameters",
+    "styleSection": "Style",
+    "transformSection": "Transform",
+    "add": "Add Layer",
+    "empty": "No layers yet, click + to add",
+    "hide": "Hide",
+    "show": "Show",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "moveUp": "Move Up",
+    "moveDown": "Move Down",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "addTitle": "Add Layer",
+    "dynamic": "Dynamic",
+    "builtin": "Built-in",
+    "layerName": "Layer name",
+    "noParams": "No parameters",
+    "color": "Color",
+    "alpha": "Alpha",
+    "opacity": "Opacity",
+    "offsetX": "Offset X",
+    "offsetY": "Offset Y",
+    "scale": "Scale",
+    "rotation": "Rotation"
+  },
+  "common": {
+    "add": "Add",
+    "cancel": "Cancel",
+    "ok": "OK",
+    "close": "Close",
+    "reload": "Reload",
+    "copy": "Copy",
+    "save": "Save",
+    "delete": "Delete",
+    "reset": "Reset",
+    "loading": "Loading…",
+    "error": "Error",
+    "unknown": "Unknown"
+  },
+  "error": {
+    "title": "Peregrine encountered an error",
+    "description": "The app didn't crash, but the page failed to render. Try the buttons below to recover, or copy the error info to the developer.",
+    "reload": "Reload Page",
+    "recover": "Try to Recover (no reload)",
+    "copy": "Copy Error Info",
+    "copied": "Error copied to clipboard. Please paste it to the developer.",
+    "copyFallback": "Cannot access clipboard. Please take a screenshot.\n\n",
+    "openDevTools": "Open DevTools",
+    "devToolsDisabled": "DevTools is not enabled in this build.",
+    "openDevToolsFailed": "Failed to open DevTools",
+    "details": "Error Details (click to collapse)",
+    "viewStack": "View stack",
+    "unknown": "(unknown error)",
+    "noStack": "(no stack)",
+    "componentStack": "Component Stack:",
+    "uploadReport": "Upload anonymous error report",
+    "uploading": "Uploading…",
+    "uploaded": "✓ Uploaded, thank you",
+    "uploadFailed": "Upload failed"
+  },
   "config": {
     "title": "Config",
     "loading": "Loading…",
@@ -13,7 +83,20 @@
     "refresh": "Refresh",
     "none": "(none)",
     "startOverlay": "Start overlay",
-    "stopOverlay": "Stop overlay"
+    "stopOverlay": "Stop overlay",
+    "invalidFormat": "Invalid config format",
+    "switchToLayersFallback": "Switch to Layer Editor"
+  },
+  "profile": {
+    "title": "Profile",
+    "selectPlaceholder": "Select profile",
+    "namePlaceholder": "New profile name",
+    "new": "New",
+    "rename": "Rename",
+    "copySuffix": "Copy",
+    "incompatible": "Current profile has multiple layers, please edit in multi-layer mode",
+    "layersDisabled": "Multi-layer feature is temporarily disabled; your layer configuration is preserved. The legacy crosshair settings are shown and editable.",
+    "cannotDeleteLast": "At least one profile is required"
   },
   "overlay": {
     "autoSwitchTitle": "Hide config window and switch to game?",
@@ -50,7 +133,9 @@
     "title": "Hotkeys",
     "hint": "Click the input, then press a key combination. Press Esc to clear.",
     "placeholder": "Click to set…",
-    "clear": "Clear"
+    "clear": "Clear",
+    "pressCombo": "Press key combo…",
+    "unhandled": "Promise unhandled"
   },
   "hotkeyActions": {
     "toggle_overlay": "Toggle Overlay",
@@ -101,6 +186,7 @@
     "mirrorSite": "Mirror",
     "mirrorCustom": "Custom…",
     "mirrorCustomUrl": "Mirror URL",
+    "mirrorRecommended": " (Recommended)",
     "about": {
       "title": "About Peregrine",
       "description": "Peregrine is a desktop tool that helps reduce 3D motion sickness with on-screen visual anchors.",
@@ -108,7 +194,27 @@
       "publisher": "Publisher",
       "license": "License",
       "repository": "Repository"
-    }
+    },
+    "telemetry": "Anonymous crash reports & usage data",
+    "telemetryHint": "No personal data is collected.",
+    "telemetryRestartTitle": "Restart app",
+    "telemetryRestartDesc": "The change takes effect after restart. Restart now?",
+    "telemetryRestartNow": "Restart now",
+    "telemetryRestartLater": "Restart later",
+    "telemetryPendingRestart": "⚠ Takes effect after restart",
+    "telemetryTestReport": "Test report",
+    "telemetryTestReportHint": "Send a test error event",
+    "telemetryTestReportDone": "Sent ✓",
+    "telemetryTestReportFailed": "Test report failed",
+    "sectionDev": "Dev",
+    "devUnlockHint": "Tap 5 times to unlock developer mode",
+    "devRemaining": "tap(s) to unlock",
+    "devUnlocked": "✓ Developer mode enabled (DevTools available after reopening the window)",
+    "devTools": "DevTools",
+    "devToolsHint": "When enabled, right-click \"Inspect\" and Ctrl+Shift+I are available. Disabling saves memory. Takes effect after reopening the window.",
+    "devToolsRestartTitle": "DevTools setting changed",
+    "devToolsRestartDesc": "DevTools requires an app restart to take effect. Restart now?",
+    "devOpenDevToolsFailed": "Failed to open DevTools"
   },
   "styles": {
     "edge_rect": "Edge Rectangle",
@@ -194,7 +300,8 @@
     "gridAlignment": "Alignment"
   },
   "preview": {
-    "placeholder": "Please select a PNG file"
+    "placeholder": "Please select a PNG file",
+    "rendering": "Rendering…"
   },
   "tray": {
     "config": "Config",
@@ -204,5 +311,11 @@
   },
   "license": {
     "mit": "MIT · Open Source · Free to use"
+  },
+  "telemetry": {
+    "consentTitle": "Anonymous telemetry",
+    "consentDesc": "Allow anonymous crash reports and usage data? No personal data is collected.",
+    "consentAllow": "Allow",
+    "consentDeny": "Deny"
   }
 }

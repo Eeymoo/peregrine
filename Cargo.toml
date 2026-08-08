@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["crates/config", "crates/peregrine", "src-tauri"]
+members = ["crates/config", "crates/material", "crates/peregrine", "src-tauri"]
 
 [workspace.package]
-version = "0.1.15"
+version = "0.2.1"
 edition = "2024"
 license = "MIT"
 authors = ["Peregrine Contributors"]
@@ -11,7 +11,7 @@ rust-version = "1.85"
 
 [workspace.dependencies]
 # Tauri
-tauri = { version = "2", features = ["tray-icon", "image-ico", "image-png"] }
+tauri = { version = "2", features = ["tray-icon", "image-ico", "image-png", "devtools"] }
 tauri-build = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
@@ -33,6 +33,17 @@ png = "0.17"
 resvg = "0.44"
 usvg = "0.44"
 tiny-skia = "0.11"
+
+# material crate（Rhai 物料运行时）
+rhai = { version = "1.19", features = ["sync"] }
+ahash = "0.8"
+
+# 遥测（GlitchTip / sentry SDK 与辅助）
+# sentry 默认特性含 reqwest transport；uuid 用于 install_id（v4 + serde）；
+# function-name 提供函数名获取（遥测上报 tag）。
+sentry = "0.46"
+uuid = { version = "1", features = ["v4", "serde"] }
+function_name = "0.3"
 
 [profile.dev]
 # debug 构建保留 opt-level=1，平衡图形栈调试运行速度与编译速度。

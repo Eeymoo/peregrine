@@ -1,9 +1,30 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Preview } from "@/components/Preview";
+import { StyleFields } from "@/components/StyleFields";
+import { LayersEditor } from "@/components/LayersEditor";
+import { ProfileManager } from "@/components/ProfileManager";
+import { AutoSwitchDialog } from "@/components/config/AutoSwitchDialog";
+import { UpdateDialog } from "@/components/config/UpdateDialog";
+import { UpdateProgress } from "@/components/config/UpdateProgress";
+import { TargetWindowSelect } from "@/components/config/TargetWindowSelect";
+import { useConfigAppState } from "@/hooks/useConfigAppState";
+import { useConfigSave } from "@/hooks/useConfigSave";
+import { useOverlayActions } from "@/hooks/useOverlayActions";
+import { useUpdate } from "@/hooks/useUpdate";
+import { updatePreferences, getCurrentWebviewWindow } from "@/lib/api";
+import { MATERIAL_RUNTIME_ENABLED } from "@/lib/feature";
+import {
+  TELEMETRY_DSN_AVAILABLE,
+  initTelemetry,
+} from "@/lib/telemetry";
+import type { AppConfig, CrosshairStyle } from "@/types/config";
+
 import {
   Select,
   SelectContent,
@@ -11,25 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Preview } from "@/components/Preview";
-import { StyleFields } from "@/components/StyleFields";
-import { useI18n } from "@/lib/i18n";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import {
-  getConfig,
-  saveConfig,
-  listWindowTitles,
-  startOverlay,
-  stopOverlay,
-  focusTargetWindow,
-  updatePreferences,
-  getAppVersion,
-  getOverlayActive,
-  checkForUpdate,
-  downloadAndInstallUpdate,
-} from "@/lib/api";
-import { getDefaultCrosshairForStyle } from "@/lib/presets";
-import type { AppConfig, Crosshair, CrosshairStyle } from "@/types/config";
 
 const STYLES: CrosshairStyle[] = [
   "edge_rect",
@@ -49,239 +51,76 @@ const STYLES: CrosshairStyle[] = [
 
 export default function ConfigApp() {
   const { t } = useI18n();
-
-  useEffect(() => {
-    getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("config.title")}`).catch(() => {});
-  }, [t]);
-
-  const [config, setConfig] = useState<AppConfig | null>(null);
-  const [windows, setWindows] = useState<string[]>([]);
-  const [overlayActive, setOverlayActive] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const {
+    config,
+    setConfig,
+    windows,
+    profiles,
+    setProfiles,
+    overlayActive,
+    setOverlayActive,
+    loading,
+    version,
+    layersMode,
+    setLayersMode,
+    refreshWindows,
+    changeActiveProfile,
+  } = useConfigAppState();
   const [showAutoSwitchDialog, setShowAutoSwitchDialog] = useState(false);
-  const [rememberChoice, setRememberChoice] = useState(false);
-  const [version, setVersion] = useState("");
-  const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body?: string } | null>(null);
-  const [updating, setUpdating] = useState(false);
-  const [updateProgress, setUpdateProgress] = useState(0);
+  const {
+    profile,
+    crosshair,
+    hasLayers,
+    isLegacyCompatible,
+    updateCrosshair,
+    updateProfileTargetWindow,
+    colorCss,
+  } = useConfigSave(config, setConfig);
+  const { handleStartOverlay, handleStopOverlay, saveAutoSwitchPreference } =
+    useOverlayActions(config, setOverlayActive, () =>
+      setShowAutoSwitchDialog(true),
+    );
 
+  const { updateAvailable, updating, updateProgress, setUpdateAvailable, startUpdate } =
+    useUpdate(config);
+
+  // 首次启动遥测授权弹窗（唯一授权提示）：
+  // telemetry_enabled 字段缺失（null/undefined）时询问一次，默认允许；
+  // 结果写入配置后不再出现任何形式的授权提示。
+  // 无 DSN 构建（编译期禁用）直接跳过，不弹窗。
+  const telemetryConsentAsked = useRef(false);
   useEffect(() => {
-    getConfig()
-      .then(setConfig)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-    refreshWindows();
-    getAppVersion().then(setVersion).catch(() => {});
-    getOverlayActive().then(setOverlayActive).catch(() => {});
-
-    // 启动时自动检测更新（静默，发现新版本才弹窗）。延迟 3 秒避免抢焦点。
-    const autoCheck = async () => {
-      try {
-        await new Promise((r) => setTimeout(r, 3000));
-        const cfg = await getConfig();
-        const channel = cfg.settings?.update_channel ?? "stable";
-        const cnMirror = cfg.settings?.cn_mirror ?? false;
-        const mirrorUrl = cfg.settings?.mirror_url ?? "https://v4.gh-proxy.org";
-        const result = await checkForUpdate(channel, cnMirror, mirrorUrl);
-        if (result.available) {
-          setUpdateAvailable({ version: result.version || "", body: result.body });
-        }
-      } catch { /* 静默失败 */ }
-    };
-    autoCheck();
-  }, []);
-
-  /** 监听后端 settings 变更（来自托盘或设置窗口），同步 React state。 */
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    if (!config || telemetryConsentAsked.current) return;
+    if (!TELEMETRY_DSN_AVAILABLE) return;
+    const consent = config.settings.telemetry_enabled;
+    if (consent !== null && consent !== undefined) return;
+    telemetryConsentAsked.current = true;
     (async () => {
       try {
-        const { listen } = await import("@tauri-apps/api/event");
-        unlisten = await listen<{
-          auto_switch_on_overlay?: string;
-          locale?: string;
-          fullscreen_overlay?: boolean;
-          live_drag_preview?: boolean;
-          cn_mirror?: boolean;
-          mirror_url?: string;
-          update_channel?: string;
-          antialiasing?: boolean;
-          renderer_backend?: "cpu" | "svg";
-          quick_colors?: [number, number, number, number][];
-          hotkey_bindings?: [string, string][];
-        }>("peregrine:settings-changed", (event) => {
-          const { auto_switch_on_overlay, fullscreen_overlay, live_drag_preview, cn_mirror, mirror_url, update_channel, antialiasing, renderer_backend, quick_colors, hotkey_bindings } = event.payload;
-          setConfig((prev) => {
-            if (!prev) return prev;
-            const settings = { ...prev.settings };
-            if (auto_switch_on_overlay !== undefined) {
-              settings.auto_switch_on_overlay = auto_switch_on_overlay;
-            }
-            if (fullscreen_overlay !== undefined) {
-              settings.fullscreen_overlay = fullscreen_overlay;
-            }
-            if (live_drag_preview !== undefined) {
-              settings.live_drag_preview = live_drag_preview;
-            }
-            if (cn_mirror !== undefined) {
-              settings.cn_mirror = cn_mirror;
-            }
-            if (mirror_url !== undefined) {
-              settings.mirror_url = mirror_url;
-            }
-            if (update_channel !== undefined) {
-              settings.update_channel = update_channel;
-            }
-            if (antialiasing !== undefined) {
-              settings.antialiasing = antialiasing;
-            }
-            if (renderer_backend !== undefined) {
-              settings.renderer_backend = renderer_backend;
-            }
-            if (quick_colors !== undefined) {
-              settings.quick_colors = quick_colors;
-            }
-            if (hotkey_bindings !== undefined) {
-              settings.hotkey_bindings = hotkey_bindings as any;
-            }
-            return { ...prev, settings };
-          });
+        const { ask } = await import("@tauri-apps/plugin-dialog");
+        const allow = await ask(t("telemetry.consentDesc"), {
+          title: t("telemetry.consentTitle"),
+          okLabel: t("telemetry.consentAllow"),
+          cancelLabel: t("telemetry.consentDeny"),
+          kind: "info",
         });
-      } catch { /* 非 Tauri 环境忽略 */ }
+        await updatePreferences({ telemetry_enabled: allow });
+        // 前端 SDK 即时生效；Rust 侧 SDK 下次启动时初始化。
+        if (allow) initTelemetry(true);
+      } catch (e) {
+        console.error("[telemetry] consent dialog failed:", e);
+      }
     })();
-    return () => unlisten?.();
-  }, []);
-
-  const profile = config?.profiles[config.active_profile];
-  const crosshair = profile?.crosshair;
-
-  /** 防抖保存配置：拖滑块等连续操作时只在停止后 300ms 写入一次。 */
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debouncedSave = useCallback((cfg: AppConfig) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveConfig(cfg).catch(console.error);
-    }, 300);
-  }, []);
-
-  const updateCrosshair = useCallback((patch: Partial<Crosshair>, options?: { resetDefaults?: boolean }) => {
-    if (!config || !profile || !crosshair) return;
-    const newCrosshair = options?.resetDefaults && patch.style !== undefined
-      ? getDefaultCrosshairForStyle(patch.style)
-      : { ...crosshair, ...patch };
-    const newProfile = { ...profile, crosshair: newCrosshair };
-    const newConfig = {
-      ...config,
-      profiles: { ...config.profiles, [config.active_profile]: newProfile },
-    };
-    setConfig(newConfig);
-    debouncedSave(newConfig);
-  }, [config, profile, crosshair, debouncedSave]);
-
-  const refreshWindows = useCallback(() => {
-    listWindowTitles().then(setWindows).catch(console.error);
-  }, []);
+  }, [config, t]);
 
   /** 更新应用级偏好设置（仅更新指定字段，不覆盖整个配置）。 */
-  const updateSettings = useCallback((patch: Partial<AppConfig["settings"]>) => {
+  const updateSettings = (patch: Partial<AppConfig["settings"]>) => {
     if (!config) return;
-    const newConfig = {
-      ...config,
-      settings: { ...config.settings, ...patch },
-    };
-    setConfig(newConfig);
+    setConfig({ ...config, settings: { ...config.settings, ...patch } });
     updatePreferences(patch).catch(console.error);
-  }, [config]);
+  };
 
-  /** 销毁配置窗口并切换焦点到目标游戏窗口。
-   *  使用 destroy 而非 hide，让 WebView2 渲染进程被回收（~30-50MB），
-   *  下次从托盘打开时由 show_or_recreate_window 重建。 */
-  const hideAndSwitch = useCallback(async (targetWindow: string) => {
-    focusTargetWindow(targetWindow).catch(console.error);
-    await getCurrentWebviewWindow().destroy();
-  }, []);
-
-  const handleStartOverlay = useCallback(async () => {
-    // 全屏模式不需要目标窗口；窗口模式需要。
-    const isFullscreen = config?.settings.fullscreen_overlay ?? true;
-    if (!isFullscreen && !profile?.target_window) return;
-    try {
-      await startOverlay(profile?.target_window ?? "");
-      setOverlayActive(true);
-
-      const pref = config?.settings.auto_switch_on_overlay ?? "ask";
-      if (pref === "yes") {
-        if (profile?.target_window) {
-          await hideAndSwitch(profile.target_window);
-        }
-      } else if (pref === "no") {
-        // 不隐藏，不做操作。
-      } else {
-        // 未设置偏好（ask），弹出对话框。
-        setShowAutoSwitchDialog(true);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [profile?.target_window, config?.settings.fullscreen_overlay, config?.settings.auto_switch_on_overlay, hideAndSwitch]);
-
-  /** 对话框确认：隐藏配置窗口并切换焦点，同时按勾选状态保存偏好。 */
-  const handleDialogConfirm = useCallback(async () => {
-    if (rememberChoice) {
-      updateSettings({ auto_switch_on_overlay: "yes" });
-    }
-    setShowAutoSwitchDialog(false);
-    if (profile?.target_window) {
-      await hideAndSwitch(profile.target_window);
-    }
-  }, [rememberChoice, profile?.target_window, hideAndSwitch, updateSettings]);
-
-  /** 对话框取消（保持配置窗口）：不停止覆盖，保持配置窗口显示，按勾选状态保存偏好。 */
-  const handleDialogCancel = useCallback(async () => {
-    if (rememberChoice) {
-      updateSettings({ auto_switch_on_overlay: "no" });
-    }
-    setShowAutoSwitchDialog(false);
-  }, [rememberChoice, updateSettings]);
-
-  /** ESC 键关闭对话框：停止覆盖（等同点击停止覆盖按钮）。 */
-  const handleDialogEsc = useCallback(async () => {
-    setShowAutoSwitchDialog(false);
-    try {
-      await stopOverlay();
-      setOverlayActive(false);
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
-
-  /** ESC 键监听：仅在对话框显示时生效。 */
-  useEffect(() => {
-    if (!showAutoSwitchDialog) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        handleDialogEsc();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showAutoSwitchDialog, handleDialogEsc]);
-
-  const handleStopOverlay = useCallback(async () => {
-    try {
-      await stopOverlay();
-      setOverlayActive(false);
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
-
-  const colorCss = useMemo(() => {
-    const [r, g, b] = crosshair?.color || [1, 1, 1];
-    return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
-  }, [crosshair?.color]);
-
-  if (loading || !config || !crosshair) {
+  if (loading || !config) {
     return (
       <div className="h-screen flex items-center justify-center text-muted-foreground">
         {t("config.loading")}
@@ -289,23 +128,111 @@ export default function ConfigApp() {
     );
   }
 
+  // 异常情况（既没有 crosshair 又没有 layers）：显示错误并提供切换到图层编辑器。
+  if (!crosshair && !hasLayers) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center text-muted-foreground gap-4">
+        <span className="text-lg">{t("config.invalidFormat")}</span>
+        {/* 异常兜底入口：软关闭不门控模式切换（D4 2026-08-03 二次修订） */}
+        <button
+          className="text-xs px-3 py-1 border rounded hover:bg-accent"
+          onClick={() => setLayersMode(true)}
+        >
+          {t("config.switchToLayersFallback")}
+        </button>
+      </div>
+    );
+  }
+
+  // 图层编辑器模式：显示全新 UI。
+  // 模式切换不门控（D4 2026-08-03 二次修订）：软关闭只作用于渲染链路，
+  // UI 可自由切换单/多图层；软关闭期间图层编辑不影响 overlay 渲染与预览。
+  if (layersMode) {
+    return (
+      <div className="h-screen flex flex-col bg-background text-foreground">
+        <LayersEditor
+          config={config}
+          overlayActive={overlayActive}
+          windows={windows}
+          profiles={profiles}
+          onStartOverlay={handleStartOverlay}
+          onStopOverlay={handleStopOverlay}
+          onRefreshWindows={refreshWindows}
+          onUpdateSettings={updateSettings}
+          onConfigChange={setConfig}
+          onSwitchSingleLayer={() => setLayersMode(false)}
+          onActiveProfileChange={changeActiveProfile}
+          onProfilesChange={setProfiles}
+        />
+      </div>
+    );
+  }
+
+  // 到这里 crosshair 必为非 null（已从 layers[0] 反向生成）。
+  const ch = crosshair!;
+
+  // MATERIAL_RUNTIME_ENABLED 门控：物料运行时启用时使用真实兼容性判定——
+  // 不兼容 profile 禁用单图层编辑（防止改坏多图层配置），引导至多图层模式；
+  // 软关闭期间恒为 true（crosshair 为权威配置，允许按旧准星编辑驱动渲染）。
+  const effectiveCompatible = MATERIAL_RUNTIME_ENABLED ? isLegacyCompatible : true;
+
   return (
     <div className="h-screen flex bg-background text-foreground overflow-hidden">
       {/* 左侧预览 */}
-      <div className="flex-1 p-4 min-w-0">
-        <Preview crosshair={crosshair} />
+      <div className="flex-1 p-4 min-w-0 min-h-0 relative">
+        {/* 传入内存态 profile：单图层编辑防抖保存期间预览仍即时跟随（不修则滞后一次修改） */}
+        <Preview previewKey={profile?.layers} profile={profile} />
+
+        {/* 顶部工具栏：仅保留切换到多图层按钮 */}
+        {/* 模式切换入口：软关闭不门控（D4 2026-08-03 二次修订） */}
+        <div className="absolute top-4 left-4 right-4 flex items-center justify-end z-10">
+          <button
+            onClick={() => setLayersMode(true)}
+            className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90"
+            title={t("layers.switchToLayers")}
+          >
+            {t("layers.switchToLayers")}
+          </button>
+        </div>
       </div>
 
-      {/* 右侧设置面板：固定顶部与底部，中间样式配置自适应 */}
-      <div className="w-80 border-l bg-card p-4 flex flex-col gap-4 overflow-hidden">
-        {/* 顶部固定区：样式 + 公共配置 */}
+      {/* 右侧设置面板：顶部固定、中间滚动、底部固定 */}
+      <div className="w-80 border-l bg-card p-4 flex flex-col gap-4 overflow-hidden h-screen">
+        {/* 顶部固定区：Profile 管理 + 样式 + 公共配置 */}
         <div className="space-y-3 shrink-0">
+          {/* Profile 管理 */}
+          <ProfileManager
+            activeProfile={config.active_profile}
+            profiles={profiles}
+            onActiveProfileChange={changeActiveProfile}
+            onProfilesChange={setProfiles}
+          />
+
+          {/* 单图层不兼容提示：切换入口不门控（D4 2026-08-03 二次修订）；
+              软关闭期间附加「功能暂停」说明，提示图层编辑暂不影响渲染 */}
+          {!isLegacyCompatible && (
+            <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-700 dark:text-yellow-400 space-y-1">
+              <div>{t("profile.incompatible")}</div>
+              {!MATERIAL_RUNTIME_ENABLED && <div>{t("profile.layersDisabled")}</div>}
+              <button
+                type="button"
+                onClick={() => setLayersMode(true)}
+                className="text-xs underline hover:text-yellow-800 dark:hover:text-yellow-300"
+              >
+                {t("config.switchToLayersFallback")}
+              </button>
+            </div>
+          )}
+
           {/* 样式选择 */}
           <div className="space-y-2">
             <Label className="text-sm">{t("config.style")}</Label>
             <Select
-              value={crosshair.style}
-              onValueChange={(v) => updateCrosshair({ style: v as CrosshairStyle }, { resetDefaults: true })}
+              value={ch.style}
+              onValueChange={(v) =>
+                updateCrosshair({ style: v as CrosshairStyle }, { resetDefaults: true })
+              }
+              disabled={!effectiveCompatible}
             >
               <SelectTrigger className="h-8 text-sm">
                 <SelectValue />
@@ -321,14 +248,17 @@ export default function ConfigApp() {
           </div>
 
           {/* 公共配置 */}
-          <div className="space-y-3">
+          {/* 公共配置：禁用态与 StyleFields 一致（pointer-events-none + opacity-60 wrapper） */}
+          <div className={effectiveCompatible ? "space-y-3" : "space-y-3 pointer-events-none opacity-60"}>
             <div className="space-y-2">
               <div className="flex justify-between">
                 <Label className="text-sm">{t("config.opacity")}</Label>
-                <span className="text-sm text-muted-foreground">{crosshair.opacity.toFixed(2)}</span>
+                <span className="text-sm text-muted-foreground">
+                  {ch.opacity.toFixed(2)}
+                </span>
               </div>
               <Slider
-                value={[crosshair.opacity]}
+                value={[ch.opacity]}
                 min={0}
                 max={1}
                 step={0.01}
@@ -348,23 +278,31 @@ export default function ConfigApp() {
                   const b = parseInt(hex.slice(5, 7), 16) / 255;
                   updateCrosshair({ color: [r, g, b, 1] });
                 }}
-                className="h-8 w-14 rounded border bg-transparent cursor-pointer"
+                className="h-8 w-14 rounded border bg-transparent cursor-pointer disabled:cursor-not-allowed"
               />
               {/* 快捷颜色色块 */}
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 {(config.settings.quick_colors ?? []).map((qc, i) => {
-                  const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(qc[1] * 255)}, ${Math.round(qc[2] * 255)})`;
-                  const isActive = crosshair.color[0] === qc[0] && crosshair.color[1] === qc[1] && crosshair.color[2] === qc[2];
+                  const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(
+                    qc[1] * 255,
+                  )}, ${Math.round(qc[2] * 255)})`;
+                  const isActive =
+                    ch.color[0] === qc[0] &&
+                    ch.color[1] === qc[1] &&
+                    ch.color[2] === qc[2];
                   return (
                     <button
                       key={i}
                       type="button"
                       title={css}
+                      disabled={!effectiveCompatible}
                       onClick={() => updateCrosshair({ color: [...qc] })}
-                      className="w-5 h-5 rounded-full border-2 transition-colors"
+                      className="w-5 h-5 rounded-full border-2 transition-colors disabled:opacity-50"
                       style={{
                         backgroundColor: css,
-                        borderColor: isActive ? "hsl(var(--primary))" : "hsl(var(--border))",
+                        borderColor: isActive
+                          ? "hsl(var(--primary))"
+                          : "hsl(var(--border))",
                       }}
                     />
                   );
@@ -378,7 +316,11 @@ export default function ConfigApp() {
 
         {/* 中间样式配置：默认随窗口高度自适应，内容过多时才滚动 */}
         <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-          <StyleFields crosshair={crosshair} onChange={updateCrosshair} />
+          <StyleFields
+            crosshair={ch}
+            onChange={updateCrosshair}
+            disabled={!effectiveCompatible}
+          />
         </div>
 
         <Separator className="shrink-0" />
@@ -404,154 +346,80 @@ export default function ConfigApp() {
 
           {/* 目标窗口（仅窗口模式时显示） */}
           {!config.settings.fullscreen_overlay && (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-sm">{t("config.targetWindow")}</Label>
-                <Button variant="ghost" size="sm" onClick={refreshWindows} className="h-8 text-sm px-2">
-                  {t("config.refresh")}
-                </Button>
-              </div>
-              <Select
-                value={profile.target_window || "__none__"}
-                onValueChange={(v) => {
-                  const newConfig = {
-                    ...config,
-                    profiles: {
-                      ...config.profiles,
-                      [config.active_profile]: {
-                        ...profile,
-                        target_window: v === "__none__" ? "" : v,
-                      },
-                    },
-                  };
-                  setConfig(newConfig);
-                  debouncedSave(newConfig);
-                }}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder={t("config.none")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__" className="text-sm">{t("config.none")}</SelectItem>
-                  {windows.map((w) => (
-                    <SelectItem key={w} value={w} className="text-sm">
-                      {w.length > 30 ? w.slice(0, 30) + "…" : w}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <TargetWindowSelect
+              value={profile?.target_window ?? ""}
+              onChange={(v) => updateProfileTargetWindow(v === "__none__" ? "" : v)}
+            />
           )}
 
           {/* 开始/停止覆盖 */}
           <div>
             {overlayActive ? (
-              <Button variant="destructive" className="w-full h-8 text-sm" onClick={handleStopOverlay}>
+              <Button
+                variant="destructive"
+                className="w-full h-8 text-sm"
+                onClick={handleStopOverlay}
+              >
                 ■ {t("config.stopOverlay")}
               </Button>
             ) : (
-              <Button className="w-full h-8 text-sm" onClick={handleStartOverlay} disabled={!config.settings.fullscreen_overlay && !profile.target_window}>
+              <Button
+                className="w-full h-8 text-sm"
+                onClick={handleStartOverlay}
+                disabled={
+                  !config.settings.fullscreen_overlay && !profile?.target_window
+                }
+              >
                 ▶ {t("config.startOverlay")}
               </Button>
             )}
           </div>
+        </div>
 
-          {/* 底部信息 */}
-          <div className="text-xs text-muted-foreground text-right">
-            Peregrine v{version || "..."}
-          </div>
+        {/* 开发者面板已移除（合并到设置窗口的「开发」Tab） */}
+
+        {/* 底部信息：版本号（纯文本，配置窗口无解锁彩蛋） */}
+        <div className="text-xs text-muted-foreground text-right select-none shrink-0">
+          Peregrine v{version || "..."}
         </div>
       </div>
 
       {/* 自动切换确认对话框 */}
       {showAutoSwitchDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-card border rounded-lg shadow-lg p-6 max-w-sm w-full mx-4 space-y-4">
-            <h2 className="text-base font-semibold">{t("overlay.autoSwitchTitle")}</h2>
-            <p className="text-sm text-muted-foreground">{t("overlay.autoSwitchDesc")}</p>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="remember-choice"
-                checked={rememberChoice}
-                onCheckedChange={(v) => setRememberChoice(v === true)}
-              />
-              <Label htmlFor="remember-choice" className="text-sm cursor-pointer">
-                {t("overlay.rememberChoice")}
-              </Label>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={handleDialogCancel}>
-                {t("overlay.keepConfig")}
-              </Button>
-              <Button size="sm" onClick={handleDialogConfirm}>
-                {t("overlay.switchToGame")}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <AutoSwitchDialog
+          onConfirm={(remember) => {
+            setShowAutoSwitchDialog(false);
+            if (remember) {
+              saveAutoSwitchPreference("yes", profile?.target_window);
+            } else if (profile?.target_window) {
+              getCurrentWebviewWindow().destroy().catch(() => {});
+            }
+          }}
+          onCancel={(remember) => {
+            setShowAutoSwitchDialog(false);
+            if (remember) {
+              saveAutoSwitchPreference("no");
+            }
+          }}
+          onCloseByEsc={handleStopOverlay}
+        />
       )}
 
       {/* 发现新版本对话框 */}
       {updateAvailable && !updating && (
-        <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
-          <p className="text-sm font-medium">
-            {t("settings.updateAvailable")}：v{updateAvailable.version}
-          </p>
-          {updateAvailable.body && (
-            <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4">
-              {updateAvailable.body}
-            </p>
-          )}
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              onClick={async () => {
-                setUpdateAvailable(null);
-                setUpdating(true);
-                setUpdateProgress(0);
-                try {
-                  const channel = config?.settings?.update_channel ?? "stable";
-                  const cnMirror = config?.settings?.cn_mirror ?? false;
-                  const mirrorUrl = config?.settings?.mirror_url ?? "https://v4.gh-proxy.org";
-                  await downloadAndInstallUpdate(channel, cnMirror, mirrorUrl, (downloaded, total) => {
-                    if (total > 0) {
-                      setUpdateProgress(Math.min(100, Math.round((downloaded / total) * 100)));
-                    }
-                  });
-                } catch (e) {
-                  console.error("[Update] download failed:", e);
-                  setUpdating(false);
-                }
-              }}
-            >
-              {t("settings.updateNow")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setUpdateAvailable(null)}
-            >
-              {t("settings.updateLater")}
-            </Button>
-          </div>
-        </div>
+        <UpdateDialog
+          version={updateAvailable.version}
+          body={updateAvailable.body}
+          onUpdate={() => {
+            setUpdateAvailable(null);
+            startUpdate();
+          }}
+          onLater={() => setUpdateAvailable(null)}
+        />
       )}
 
       {/* 更新下载进度 */}
-      {updating && (
-        <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
-          <p className="text-xs text-blue-500">{t("settings.updating")}</p>
-          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-blue-500 rounded-full transition-all"
-              style={{ width: `${updateProgress || 30}%` }}
-            />
-          </div>
-          {updateProgress > 0 && (
-            <p className="text-xs text-muted-foreground text-right">{updateProgress}%</p>
-          )}
-        </div>
-      )}
+      {updating && <UpdateProgress progress={updateProgress} />}
     </div>
   );
 }

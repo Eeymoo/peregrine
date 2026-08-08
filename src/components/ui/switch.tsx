@@ -5,6 +5,16 @@ import * as SwitchPrimitives from "@radix-ui/react-switch"
 
 import { cn } from "@/lib/utils"
 
+/** 开关切换组件 - 基于Radix UI Switch构建的布尔值输入控件
+ * 
+ * @example
+ * ```tsx
+ * <Switch 
+ *   checked={enabled} 
+ *   onCheckedChange={setEnabled} 
+ * />
+ * ```
+ */
 const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>

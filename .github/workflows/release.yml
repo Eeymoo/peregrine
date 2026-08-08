@@ -72,6 +72,14 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # 遥测 DSN（GitHub Secret）：正式构建下 Rust 侧 option_env! 读取
+          # GLITCHTIP_DSN，前端 Vite 生产构建读取 VITE_GLITCHTIP_DSN。
+          # 按 tag 判定通道注入不同项目：
+          # - 带预发布后缀（-alpha/-beta，如 v0.2.0-alpha.0）→ TEST 项目
+          # - 纯版本号（稳定版，如 v0.1.7）→ 正式项目
+          # 未配置时 SDK 不初始化、零网络请求（应用功能完全正常）。
+          GLITCHTIP_DSN: ${{ contains(github.ref_name, '-') && secrets.GLITCHTIP_DSN_TEST || secrets.GLITCHTIP_DSN }}
+          VITE_GLITCHTIP_DSN: ${{ contains(github.ref_name, '-') && secrets.GLITCHTIP_DSN_TEST || secrets.GLITCHTIP_DSN }}
         shell: bash
         run: |
           if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then

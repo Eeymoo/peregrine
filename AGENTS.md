@@ -11,6 +11,7 @@ Peregrine is a desktop visual anchor (overlay) tool. **Its primary purpose is to
 - Async runtime: `tokio` (configuration read/write, file hot-reload, background follow task).
 - Target platform: **Windows** (x86 / x86_64 / ARM64). Overlay transparency / click-through / window-following capabilities are intentionally Windows-only and are not planned for other platforms.
 - Current status: **v0.1.0 stable released**. Windows transparent, always-on-top, click-through overlay; target window following; 12 crosshair styles; custom PNG decals; configuration hot-reload are all functional. "Process trigger" remains a configuration placeholder.
+- **Static layer rendering ENABLED; dynamic material input soft-disabled** (changes `disable-material-runtime`, `material-static-rendering`): static multi-layer rendering via layers + Rhai materials is active (`MATERIAL_RUNTIME_ENABLED = true`) — overlay and preview render `Profile.layers` through `build_layers_shapes`, and layer editing is WYSIWYG. Only the **dynamic** path is disabled (`MATERIAL_DYNAMIC_INPUT_ENABLED = false`, declared in both `crates/peregrine/src/lib.rs` and `src/lib/feature.ts`): no time/mouse/keyboard polling — materials evaluate with `DynamicContext::static_context()` (`version = 0`, so static-material eval caching is permanent and dynamic materials like `builtin.time` render frozen); dynamic redraw scheduling stays removed (event-driven only); the material picker hides `is_dynamic` materials. The settings UI allows free single-/multi-layer mode switching, and `layersMode` is persisted in `localStorage` ("however it was closed, that's how it reopens"). To re-enable dynamic materials, flip both `MATERIAL_DYNAMIC_INPUT_ENABLED` constants to `true`; to fully soft-disable the material runtime again, flip `MATERIAL_RUNTIME_ENABLED` to `false`. Gated sites are greppable via both constant names.
 
 All code comments and documentation use **Simplified Chinese**. Please continue writing new comments, documentation, and commit message bodies in Chinese for consistency.
 
@@ -28,7 +29,7 @@ peregrine/
 │   ├── public/           # static assets (logo.svg, etc.)
 │   ├── index.md          # documentation homepage
 │   └── package.json      # vitepress + mermaid + llms plugins
-├── .github/workflows/    # ci.yml (three-platform compile + lint), release.yml (tag-based release), pages.yml (docs deployment)
+├── .github/workflows/    # ci.yml (three-platform compile + lint), release.yml (tag-based release), snapshot.yml (unsigned test builds), pages.yml (docs deployment)
 ├── .agent/skills/        # AI agent skill definitions (release workflow specification)
 ├── src-tauri/            # peregrine-tauri: Tauri backend entry, tray, commands, overlay management
 │   ├── Cargo.toml
@@ -62,19 +63,33 @@ peregrine/
     ├── config/           # peregrine_config: pure logic crate (no UI / GPU / window code)
     │   └── src/
     │       ├── lib.rs        # module exports + unified error type ConfigError / Result
-    │       ├── schema.rs     # configuration data structures AppConfig / Profile / Crosshair, etc. + validation + unit tests
-    │       ├── storage.rs    # config file path management, atomic read/write, default config generation (includes inline dirs module)
+    │       ├── schema.rs     # configuration data structures AppConfig / Profile / Crosshair / Element / Layer / MaterialRef / Transform2D + validation + unit tests
+    │       ├── storage.rs    # config file path management, atomic read/write, default config generation, legacy migration (includes inline dirs module)
+    │       ├── migration.rs  # legacy Crosshair → Layer migration field mapping
+    │       ├── rng.rs        # SimpleRng (cross-crate shared with material runtime)
     │       ├── notifier.rs   # config change broadcast based on tokio::sync::watch
     │       └── watcher.rs    # config file hot-reload based on notify crate (with debouncing)
+    ├── material/         # peregrine_material: Rhai material runtime (CPU-safe embedded scripting)
+    │   ├── Cargo.toml
+    │   ├── builtin/          # 11 built-in .rhai material scripts (cross / ring / edge_arrows / grid / image / ...)
+    │   │   ├── cross.rhai
+    │   │   └── ...
+    │   └── src/
+    │       ├── lib.rs             # module exports + BUILTIN_MATERIALS const (include_str!)
+    │       ├── material.rs        # Material struct: load() / evaluate() / Rhai Engine + host function registration
+    │       ├── registry.rs        # MaterialRegistry: builtin + user material loading and lookup
+    │       ├── context.rs         # DynamicContext: time_ms / mouse_pos / key_down / rng_seed
+    │       └── error.rs           # MaterialError / MaterialResult
     └── peregrine/        # peregrine: shared library (reused by Tauri)
         ├── Cargo.toml        # provides lib only
         └── src/
             ├── lib.rs             # exports overlay_renderer / shapes / platform
-            ├── overlay_renderer.rs # softbuffer (CPU pixel rasterization) **overlay** renderer, transparent always-on-top click-through window
-            ├── shapes.rs           # shared crosshair geometry module; preview and overlay use the same formulas (WYSIWYG)
+            ├── overlay_renderer.rs # softbuffer (CPU pixel rasterization) **overlay** renderer, dual-path: legacy Crosshair fallback + new layers + material evaluation
+            ├── shapes.rs           # dual entry: build_shapes (legacy) + build_layers_shapes (new); Shape is type alias for Element
+            ├── svg_renderer.rs     # SVG backend (resvg + tiny-skia)
             └── platform/
-                ├── mod.rs          # platform module entry; compiled as a placeholder on non-Windows targets
-                └── windows.rs      # Win32 API: transparency / always-on-top / click-through, target window lookup and following
+                ├── mod.rs          # platform module entry + poll_dynamic_context(); compiled as a placeholder on non-Windows targets
+                └── windows.rs      # Win32 API: transparency / always-on-top / click-through, target window lookup/following, GetCursorPos/GetAsyncKeyState for dynamic input
 ```
 
 **Layering principle**: `peregrine_config` must not depend on any UI / GPU / window platform code (`winit` / `wgpu` / `egui`). Platform and rendering logic belong in the `peregrine` shared library and the `src-tauri` binary crate. Please preserve this boundary when making changes.
@@ -84,7 +99,8 @@ peregrine/
 Dependency versions are declared centrally in the root `Cargo.toml` under `[workspace.dependencies]`; each crate references them with `{ workspace = true }`. Prefer adding new dependencies at the workspace level.
 
 - `crates/config` (`peregrine_config`): `tokio` (features: sync/rt/rt-multi-thread/macros/time/fs), `serde` (derive), `serde_json`, `notify` 7.0, `thiserror` 2.0, `tracing`; dev dependency `tempfile`.
-- `crates/peregrine` (shared library): `peregrine_config` (path dep), `winit` 0.30, `softbuffer` 0.4 (overlay CPU rasterization), `png` 0.17 (custom PNG crosshair decoding), `tokio`, `tracing`, `thiserror` (platform layer `OverlayError`).
+- `crates/material` (`peregrine_material`): `peregrine_config` (path dep), `rhai` 1.25 (features: `sync`), `ahash` 0.8, `serde`, `serde_json`, `tracing`, `thiserror`.
+- `crates/peregrine` (shared library): `peregrine_config` (path dep), `peregrine_material` (path dep), `winit` 0.30, `softbuffer` 0.4 (overlay CPU rasterization), `png` 0.17 (custom PNG crosshair decoding), `serde` / `serde_json`, `tokio`, `tracing`, `thiserror` (platform layer `OverlayError`).
 - `src-tauri` (`peregrine-tauri`, main entry): `peregrine` / `peregrine_config` (path deps), `tauri` 2.x (`tray-icon` feature), `tauri-plugin-dialog`, `tauri-build`, frontend artifacts (`dist/`).
 - Frontend: `React` 18 + `Vite` 5 + `TypeScript` 5 + `Tailwind CSS` 3 + `shadcn/ui` + `@tauri-apps/api` / `@tauri-apps/cli` 2.x.
 - `[target.'cfg(windows)'.dependencies]`: `windows` 0.58 (Win32 UI / Foundation / Gdi features).
@@ -114,6 +130,9 @@ npx tauri build
 # Run all tests
 cargo test
 
+# Run tests with JUnit XML report (requires cargo-nextest)
+cargo nextest run --workspace --profile ci
+
 # Test only the config crate
 cargo test -p peregrine_config
 
@@ -122,7 +141,7 @@ cargo fmt
 cargo clippy
 ```
 
-- Currently, **all unit tests live in `crates/config`** (`schema.rs` / `storage.rs` / `notifier.rs` / `watcher.rs`). The `peregrine` shared library and `src-tauri` have no tests yet.
+- Currently, **all unit tests live in `crates/config`** (`schema.rs` / `storage.rs` / `notifier.rs` / `watcher.rs`), **`crates/material`** (`material.rs` / `context.rs`), and **`crates/peregrine`** (`shapes.rs`). The `src-tauri` binary crate has no tests yet.
 - Tests involving tokio use `#[tokio::test]`; tests in `watcher.rs` require a multi-thread runtime and are annotated `#[tokio::test(flavor = "multi_thread")]`.
 - `watcher` tests rely on real filesystem events and have a maximum 5-second timeout wait; they are integration-leaning and may occasionally be affected by the environment.
 
@@ -166,11 +185,41 @@ cargo clippy
 
 ## CI / CD and Release
 
-Three workflows (`.github/workflows/`):
+Four workflows (`.github/workflows/`):
 
-- **`ci.yml`**: triggered on push to main/master or on pull requests. The `build` job runs on Windows (x86_64-msvc), executing `cargo test -p peregrine_config --locked` + `npm ci && npm run build && cargo build --manifest-path src-tauri/Cargo.toml --bins --features tauri/custom-protocol --release`. The `lint` job runs on Linux: `cargo fmt --all -- --check` and `cargo clippy -p peregrine_config -- -D warnings`. CI does not package NSIS, avoiding Windows build failures due to missing signing keys.
+- **`ci.yml`**: triggered on push to main/master/dev or on pull requests. Runs 4 jobs in parallel:
+  - `build` (Windows): `cargo test` (3 crates) + `npm ci && npm run build` + `cargo build --release` (x86_64-msvc)
+  - `test-report` (Windows): uses `cargo-nextest` to run all workspace tests and generate **JUnit XML test reports** (published via `action-junit-report`, uploaded as artifacts, with summary in GitHub Step Summary)
+  - `frontend-report` (Linux): TypeScript check + frontend build + build size report
+  - `lint` (Linux): `cargo fmt --check` + `cargo clippy -- -D warnings` (3 crates)
+  - `quality-gate`: aggregates all job results, fails if any check fails
+  - CI does not package NSIS, avoiding Windows build failures due to missing signing keys.
 - **`release.yml`**: triggered on pushes of `v*` tags. Builds Tauri release artifacts on Windows for i686 / x86_64 / aarch64 targets, including **NSIS installer (signed with Tauri updater) + portable zip + `latest.json` updater manifest**, then creates a GitHub Release with `softprops/action-gh-release`. CI reads `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` from GitHub Secrets to sign the installer. Tags containing `-` (e.g., `v0.2.0-alpha.0`) are treated as prereleases; pure version tags (e.g., `v0.1.0`) are stable releases. The release body and updater `notes` are auto-generated by CI from commits between the current tag and the previous tag, grouped by conventional commit prefixes into "Added / Fixed / Changed / Build / Docs / Other"; if no commits are available, it falls back to the tag message or the most recent commit message.
+- **`snapshot.yml`**: builds **unsigned test packages** (NSIS + portable zip) for Windows x86 / x64 / ARM64. Triggered on PR to main/master/dev or via `workflow_dispatch` (manual). **Version number is auto-generated** as `0.0.0-dev.<short_sha>` from the PR head / current commit SHA — agents do **not** need to bump `package.json` / `tauri.conf.json` / `Cargo.toml` version fields before a snapshot; CI overwrites them in-flight. Products are uploaded as **workflow artifacts** (not GitHub Releases), so they must be downloaded from the run detail page. No signing keys required — safe for PR contexts. Telemetry reports to the GlitchTip TEST project (`GLITCHTIP_DSN_TEST` mapped to `GLITCHTIP_DSN`/`VITE_GLITCHTIP_DSN`).
 - **`pages.yml`**: deploys documentation on a **stable Release** publish or manual trigger. Uses Node 22 to run `npm ci` + `npm run docs:build` under `docs/`, uploads the artifact, and deploys to GitHub Pages. Prereleases do not automatically trigger documentation deployment.
+
+### Snapshot release workflow (test builds)
+
+Use a snapshot to produce test packages without bumping versions or cutting a formal tag.
+
+```bash
+# 1. Commit and push your changes to any feature/dev branch first.
+git push origin <branch>
+
+# 2. Trigger the snapshot workflow on that branch.
+gh workflow run snapshot.yml --ref <branch>
+
+# 3. Capture the run ID from the most recent run.
+gh run list --workflow=snapshot.yml --limit 1
+
+# 4. Watch until complete (3 archs build in parallel, ~7 min).
+gh run watch <run-id> --exit-status
+
+# 5. Download artifacts from the run detail page (no GitHub Release is created).
+#    Products: peregrine-0.0.0-dev.<sha>-windows-{x86,x64,arm64}-setup.exe + .zip
+```
+
+Key differences from `release.yml`: no version bump, no tag push, no signing, no GitHub Release, no auto-updater manifest. Only for testing.
 
 The release workflow specification is in `.agent/skills/release/SKILL.md`: follow SemVer (major/minor/patch + `-alpha.N`/`-beta.N` prerelease suffixes), **stable releases use odd version numbers** (0.1.1, 0.1.3, 0.1.5, 0.1.7, ...), **preview releases use even/prerelease version numbers** (0.1.8-alpha.0, ...). Release notes are grouped into "Added / Fixed / Changed / Build". Before pushing a tag, confirm the version number and tag message with the user. `CHANGELOG.md` records stable releases; `CHANGELOG_ALPHA.md` records preview releases.
 

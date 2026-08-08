@@ -8,8 +8,10 @@
 //! - 管理「配置窗口」（准心参数）与「设置窗口」（关于等）两个 Webview 窗口
 
 use peregrine_config::{
-    ConfigNotifier, ConfigSnapshot, ConfigStorage, HotkeyAction, RendererBackend,
+    ConfigNotifier, ConfigSnapshot, ConfigStorage, HotkeyAction, Layer, LayerStyle, MaterialRef,
+    RendererBackend, Transform2D,
 };
+use peregrine_material::{DynamicContext, MaterialInfo, MaterialRegistry};
 use std::sync::{Arc, Mutex, mpsc};
 use tauri::{
     Emitter, Manager, State, WebviewUrl,
@@ -23,6 +25,43 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 mod overlay;
+pub mod telemetry;
+
+/// safe_try!：关键路径错误上报宏（abort 兼容，不依赖 catch_unwind）。
+///
+/// 包装返回 Result 的调用：失败时自动携带函数名 / 文件 / 行号上报
+/// （SDK 未激活时改为落盘 pending 存储，零网络请求），并原样返回 Err
+/// 供调用方降级；成功时直接返回 Ok，不产生任何上报。
+///
+/// 仅限关键路径使用（文件 IO / 渲染 / 窗口桥接 / 外部调用），
+/// 禁止全量包裹普通方法；Code 必须在 `REPORT_CODES.md` 登记。
+#[macro_export]
+macro_rules! safe_try {
+    ($expr:expr, $code:expr) => {{
+        // 函数名：type_name 技巧取调用点所在函数（与 function_name!() 等效，
+        // 无需逐函数加 #[named] 注解）。
+        fn __pgr_fn_marker() {}
+        fn __pgr_type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
+        let __pgr_fn_name = __pgr_type_name_of(__pgr_fn_marker)
+            .strip_suffix("::__pgr_fn_marker")
+            .unwrap_or("unknown");
+        let __pgr_result = $expr;
+        if let Err(ref __pgr_err) = __pgr_result {
+            // Location::caller() 在宏展开处指向调用点（混合位点卫生），
+            // 等效于 #[track_caller] 语义：文件 / 行号均为 safe_try! 调用处。
+            let __pgr_loc = std::panic::Location::caller();
+            $crate::telemetry::report_safe_try_error(
+                $code,
+                __pgr_fn_name,
+                format!("{}:{}", __pgr_loc.file(), __pgr_loc.line()),
+                &format!("{}", __pgr_err),
+            );
+        }
+        __pgr_result
+    }};
+}
 
 /// 支持的后端 UI 语言。
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -124,6 +163,8 @@ pub struct AppState {
     pub config: Arc<Mutex<ConfigSnapshot>>,
     /// 向 overlay 管理线程发送命令。
     pub overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
+    /// 物料注册表（内置 + 用户物料）。内部 Arc<RwLock>，可热重载。
+    pub material_registry: MaterialRegistry,
     /// 当前 UI 语言，用于后端错误提示国际化。
     pub locale: Mutex<String>,
     /// 标记是否由托盘「退出」主动触发，避免阻止真正的退出流程。
@@ -152,6 +193,21 @@ fn read_gpu_setting(app: &impl tauri::Manager<tauri::Wry>) -> bool {
         .unwrap_or(false)
 }
 
+/// 从配置快照读取开发者模式标志，用于判定是否启用 DevTools。
+///
+/// 返回 `developer_mode || cfg!(debug_assertions)`：debug 构建恒为 true，
+/// release 构建依赖用户是否在设置窗口连点版本号解锁。
+fn read_developer_mode(app: &impl tauri::Manager<tauri::Wry>) -> bool {
+    let state = app.state::<AppState>();
+    let developer_mode = state
+        .config
+        .lock()
+        .ok()
+        .map(|guard| guard.as_ref().settings.developer_mode)
+        .unwrap_or(false);
+    developer_mode || cfg!(debug_assertions)
+}
+
 /// 创建配置窗口（config）。关闭时由 on_window_event 销毁 WebView2。
 fn create_config_window(
     app: &impl tauri::Manager<tauri::Wry>,
@@ -159,11 +215,15 @@ fn create_config_window(
     let win_icon =
         Image::from_bytes(include_bytes!("../icons/icon.png")).expect("failed to load window icon");
     let gpu_enabled = read_gpu_setting(app);
+    let devtools_enabled = read_developer_mode(app);
     let mut webview_builder =
         WebviewWindowBuilder::new(app, "config", WebviewUrl::App("index.html".into()));
     if !gpu_enabled {
         webview_builder = webview_builder.additional_browser_args("--disable-gpu");
     }
+    // DevTools 默认禁用；开发者模式解锁或 debug 构建下启用。
+    // 该选项只在创建时生效，解锁后需重开窗口才生效（窗口关闭即销毁、重开即重建）。
+    webview_builder = webview_builder.devtools(devtools_enabled);
     let window = webview_builder
         .title("Peregrine 配置")
         .inner_size(1080.0, 720.0)
@@ -184,11 +244,14 @@ fn create_settings_window(
     let win_icon =
         Image::from_bytes(include_bytes!("../icons/icon.png")).expect("failed to load window icon");
     let gpu_enabled = read_gpu_setting(app);
+    let devtools_enabled = read_developer_mode(app);
     let mut webview_builder =
         WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()));
     if !gpu_enabled {
         webview_builder = webview_builder.additional_browser_args("--disable-gpu");
     }
+    // 与配置窗口一致：DevTools 默认禁用，解锁或 debug 构建下启用。
+    webview_builder = webview_builder.devtools(devtools_enabled);
     let window = webview_builder
         .title("Peregrine 设置")
         .inner_size(480.0, 540.0)
@@ -219,21 +282,79 @@ where
 /// 启动 Tauri 应用。
 pub fn run() {
     init_logging();
+    tracing::info!("peregrine starting up");
 
-    let storage = ConfigStorage::with_default_path().expect("config storage path");
-    let config = tauri::async_runtime::block_on(storage.load_or_create_default())
-        .expect("load or create config");
+    // 配置加载失败时也允许启动（用默认配置），让用户能进入设置排查。
+    let storage = ConfigStorage::with_default_path().unwrap_or_else(|e| {
+        tracing::error!(error = %e, "failed to locate config storage");
+        ConfigStorage::new(std::path::PathBuf::from("peregrine-config.json"))
+    });
+    tracing::info!(path = ?storage.path(), "config storage");
+    let config = match crate::safe_try!(
+        tauri::async_runtime::block_on(storage.load_or_create_default()),
+        telemetry::report_code::CONFIG_IO
+    ) {
+        Ok(c) => c,
+        Err(_) => {
+            // 失败也启动（回退默认配置），让用户能进入设置排查；
+            // 错误事件已由 safe_try! 上报 PGR-2101。
+            peregrine_config::AppConfig::default_config()
+        }
+    };
     let notifier = ConfigNotifier::new(config);
     let snapshot = notifier.subscribe().borrow().clone();
     let shared_config = Arc::new(Mutex::new(snapshot.clone()));
 
+    // 遥测初始化（启动早期）：
+    // - install_id 解析 + panic hook 注册（无论开关都执行，保证崩溃必落盘 pending）；
+    // - SDK 仅在开关开启且编译期注入了 DSN 时初始化，否则零网络请求。
+    // `telemetry_enabled` 为 None（首次启动未授权）时按关闭处理，
+    // 由前端授权弹窗写入选择后下次启动生效。
+    let app_data_dir = storage
+        .path()
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let telemetry_active = telemetry::init(
+        app_data_dir,
+        snapshot.settings.telemetry_enabled.unwrap_or(false),
+    );
+    tracing::info!(active = telemetry_active, "telemetry initialized");
+
+    // 加载物料注册表（内置 + 用户）。registry 内部 Arc<RwLock<...>>，可 Clone。
+    // 内置物料加载失败时记录 warn 但不 panic（让应用能启动），仅相关物料不可用。
+    let material_registry = MaterialRegistry::new();
+    if let Err(e) = material_registry.load_builtin() {
+        tracing::error!(error = %e, "failed to load builtin materials");
+    }
+    let materials_dir = peregrine_config::ConfigStorage::default_path()
+        .ok()
+        .map(|p| {
+            p.parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join("materials")
+        });
+    if let Some(ref materials_dir) = materials_dir {
+        let _ = material_registry.load_user(materials_dir);
+    }
+
     // 启动 overlay 管理线程（独立的 winit 事件循环）。
     let (overlay_cmd_tx, overlay_cmd_rx) = mpsc::channel();
     let overlay_config = shared_config.clone();
+    let overlay_registry = Arc::new(material_registry.clone());
     std::thread::spawn(move || {
-        overlay::run_overlay_loop(overlay_config, overlay_cmd_rx);
+        overlay::run_overlay_loop(overlay_config, overlay_registry, overlay_cmd_rx);
     });
 
+    // 启动物料目录 watcher（热重载）。
+    // 监视 %APPDATA%/Peregrine/materials/ 目录变化，自动调用 registry.load_user()。
+    // 重载后通过 app.emit 广播 peregrine:materials-changed 事件。
+    // 失败时仅记录 warn，不影响应用启动。
+    // 注意：延迟到 tauri setup 钩子里 spawn，避免在 tokio runtime 启动前 spawn 导致任务丢失。
+    let materials_dir_for_setup = materials_dir.clone();
+    let registry_for_setup = material_registry.clone();
+    // 物料热重载后通知 overlay 线程刷新动态性判定缓存。
+    let materials_overlay_cmd_tx = overlay_cmd_tx.clone();
     // 启动 watcher 任务，把 notifier 变更同步到共享快照。
     let watcher_storage = storage.clone();
     let watcher_notifier = notifier.clone();
@@ -272,6 +393,7 @@ pub fn run() {
         notifier,
         config: shared_config,
         overlay_cmd_tx,
+        material_registry: material_registry.clone(),
         locale: Mutex::new(initial_locale.clone()),
         quitting: std::sync::atomic::AtomicBool::new(false),
         overlay_active: std::sync::atomic::AtomicBool::new(false),
@@ -279,6 +401,10 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // 单例模式：第二个实例启动时聚焦已有窗口，不重复运行。
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_or_recreate_window(app, "config", create_config_window);
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -316,6 +442,23 @@ pub fn run() {
             }
         })
         .setup(move |app| {
+            tracing::info!("tauri setup hook entered");
+
+            // 在 setup 钩子里启动 material watcher（此时 tokio runtime 已就绪）。
+            if let Some(ref materials_dir) = materials_dir_for_setup {
+                let watcher_registry = registry_for_setup.clone();
+                let materials_dir_clone = materials_dir.clone();
+                let watcher_overlay_cmd_tx = materials_overlay_cmd_tx.clone();
+                tauri::async_runtime::spawn(async move {
+                    spawn_material_watcher(
+                        watcher_registry,
+                        materials_dir_clone,
+                        watcher_overlay_cmd_tx,
+                    )
+                    .await;
+                });
+            }
+
             // 根据 locale 初始化托盘菜单文本。
             let locale = BackendLocale::from_str(&initial_locale);
             let config_label = tr(locale, "tray.config");
@@ -417,6 +560,8 @@ pub fn run() {
                                     renderer_backend: None,
                                     quick_colors: None,
                                     hotkey_bindings: None,
+                                    telemetry_enabled: None,
+                                    developer_mode: None,
                                 },
                             )
                             .await;
@@ -454,6 +599,12 @@ pub fn run() {
             let app_handle = app.app_handle();
             register_hotkeys(&app_handle, &snapshot.settings.hotkey_bindings);
 
+            // 遥测收尾（主循环进入前）：
+            // 开关开启时无感静默上传 pending 历史（无弹窗/同意请求），
+            // 随后上报 Info 级启动统计事件；开关关闭时两者均为 no-op。
+            telemetry::upload_pending_silently();
+            telemetry::report_startup();
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -468,12 +619,39 @@ pub fn run() {
             focus_target_window,
             get_app_version,
             relaunch_app,
+            restart_app,
+            store_pending_report,
+            list_pending_reports,
+            authorize_upload_all,
+            test_report,
             check_update,
             download_install_update,
             set_crosshair_color,
+            // 四层架构新 commands
+            build_shapes_ipc,
+            list_materials,
+            add_layer,
+            remove_layer,
+            move_layer,
+            duplicate_layer,
+            update_layer,
+            list_layers,
+            // Profile 管理 commands
+            list_profiles,
+            create_profile,
+            rename_profile,
+            delete_profile,
+            set_active_profile,
+            get_profile,
+            is_profile_legacy_compatible,
+            get_active_profile_name,
+            copy_profile,
         ])
         .build(tauri::generate_context!())
-        .expect("build tauri app")
+        .unwrap_or_else(|e| {
+            tracing::error!(error = ?e, "failed to build tauri app");
+            panic!("failed to build tauri app: {}", e);
+        })
         .run(|_app_handle, event| {
             match event {
                 tauri::RunEvent::ExitRequested { api, .. } => {
@@ -543,11 +721,12 @@ fn get_config(state: State<AppState>) -> Result<ConfigSnapshot, String> {
 #[tauri::command]
 async fn save_config(state: State<'_, AppState>, config: ConfigSnapshot) -> Result<(), String> {
     config.validate().map_err(|e| e.to_string())?;
-    state
-        .storage
-        .save(&config)
-        .await
-        .map_err(|e| e.to_string())?;
+    // safe_try! 上报 PGR-2101 后原样返回 Err，转 String 抛给前端。
+    crate::safe_try!(
+        state.storage.save(&config).await,
+        telemetry::report_code::CONFIG_IO
+    )
+    .map_err(|e| e.to_string())?;
     state
         .notifier
         .update((*config).clone())
@@ -629,6 +808,42 @@ fn relaunch_app(app: tauri::AppHandle) {
     app.restart();
 }
 
+/// 重启应用（遥测开关变更确认弹窗「立即重启」选项调用）。
+///
+/// 与 `relaunch_app` 语义一致，单独命名以便前端区分入口。
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
+// ===== 遥测 commands =====
+
+/// 前端错误落盘 pending 存储（遥测关闭时调用，零网络请求）。
+#[tauri::command]
+fn store_pending_report(code: String, message: String) -> Result<(), String> {
+    telemetry::store_pending_report(&code, &message)
+}
+
+/// 查询本地 pending 历史记录条数（报错页面提示用）。
+#[tauri::command]
+fn list_pending_reports() -> usize {
+    telemetry::list_pending_reports()
+}
+
+/// 报错页面「匿名上传错误报告」一次性授权：
+/// 上传当前错误 + 全部 pending 历史，完成后关闭 SDK 不继续上报。
+/// 返回上传条数。
+#[tauri::command]
+fn authorize_upload_all(code: String, message: String) -> Result<u32, String> {
+    telemetry::authorize_upload_all(&code, &message)
+}
+
+/// 开发者模式「测试上报」：发送一条 Error 级测试事件。
+#[tauri::command]
+fn test_report() -> Result<(), String> {
+    telemetry::test_report()
+}
+
 /// 更新应用级偏好设置（locale / auto_switch_on_overlay / fullscreen_overlay / live_drag_preview）。
 ///
 /// - 仅更新传入的字段，其余保持不变。
@@ -706,13 +921,26 @@ fn execute_hotkey_action(app: &tauri::AppHandle, action: HotkeyAction) {
         }
         HotkeyAction::CycleColorNext | HotkeyAction::CycleColorPrev => {
             // 读取 quick_colors 和当前颜色，计算下一个/上一个。
+            // 兼容新旧格式：优先读 layers[0].style.color，fallback 到 crosshair.color。
             let (new_color, quick_colors, current_color) = {
                 let cfg = state.config.lock().expect("config lock");
                 let cfg = cfg.as_ref();
                 let qc = cfg.settings.quick_colors;
                 let active = cfg.active_profile();
                 let current = active
-                    .map(|p| p.crosshair.color)
+                    .and_then(|p| {
+                        if !p.layers.is_empty() {
+                            // 新格式：取第一个可见图层的颜色。
+                            p.layers
+                                .iter()
+                                .find(|l| l.visible)
+                                .or_else(|| p.layers.first())
+                                .map(|l| l.style.color)
+                        } else {
+                            // 旧格式 fallback。
+                            p.crosshair.as_ref().map(|c| c.color)
+                        }
+                    })
                     .unwrap_or([1.0, 1.0, 1.0, 1.0]);
                 let idx = qc
                     .iter()
@@ -766,6 +994,13 @@ fn execute_hotkey_action(app: &tauri::AppHandle, action: HotkeyAction) {
 }
 
 /// set_crosshair_color 的内部逻辑，供 command 和快捷键共用。
+///
+/// 兼容新旧格式：
+/// - 新格式：更新 layers[0] 的 style.color（若 layers 非空）。
+///   同时双写 crosshair.color（若 crosshair 字段存在）：读路径（前端 UI /
+///   overlay 渲染 / 预览 IPC）均为 crosshair 优先，只写 layer 会让 crosshair
+///   保留陈旧颜色，切换 profile 重新拉取配置后表现为颜色丢失。
+/// - 旧格式：更新 crosshair.color（若 crosshair 存在）。
 async fn set_crosshair_color_inner(
     state: State<'_, AppState>,
     color: Vec<f32>,
@@ -778,19 +1013,41 @@ async fn set_crosshair_color_inner(
         guard.as_ref().clone()
     };
     if let Some(profile) = config.active_profile_mut() {
-        profile.crosshair.color = [color[0], color[1], color[2], color[3]];
+        let color_arr = [color[0], color[1], color[2], color[3]];
+        if !profile.layers.is_empty() {
+            // 新格式：更新第一个可见图层的颜色。
+            // 注意：先用迭代器找到目标 id，再用 get_mut 更新，避免 borrow 冲突。
+            let target_id = profile
+                .layers
+                .iter()
+                .find(|l| l.visible)
+                .or_else(|| profile.layers.first())
+                .map(|l| l.id.clone());
+            if let Some(id) = target_id {
+                if let Some(layer) = profile.layers.iter_mut().find(|l| l.id == id) {
+                    layer.style.color = color_arr;
+                }
+            }
+            // 双写：crosshair 字段存在时同步颜色，保持两字段一致（见函数文档）。
+            if let Some(ref mut crosshair) = profile.crosshair {
+                crosshair.color = color_arr;
+            }
+        } else if let Some(ref mut crosshair) = profile.crosshair {
+            // 旧格式 fallback。
+            crosshair.color = color_arr;
+        }
     }
     config.validate().map_err(|e| e.to_string())?;
-    state
-        .storage
-        .save(&config)
-        .await
-        .map_err(|e| e.to_string())?;
+    crate::safe_try!(
+        state.storage.save(&config).await,
+        telemetry::report_code::CONFIG_IO
+    )
+    .map_err(|e| e.to_string())?;
     state
         .notifier
         .update(config.clone())
         .map_err(|e| e.to_string())?;
-    let snapshot: ConfigSnapshot = Arc::new(config);
+    let snapshot: ConfigSnapshot = Arc::new(config.clone());
     *state.config.lock().map_err(|e| e.to_string())? = snapshot.clone();
     let _ = state
         .overlay_cmd_tx
@@ -813,6 +1070,8 @@ struct PreferencesPatch {
     renderer_backend: Option<RendererBackend>,
     quick_colors: Option<Vec<[f32; 4]>>,
     hotkey_bindings: Option<Vec<(HotkeyAction, String)>>,
+    telemetry_enabled: Option<bool>,
+    developer_mode: Option<bool>,
 }
 
 /// 更新偏好设置的共享逻辑，供 Tauri command 和托盘菜单事件复用。
@@ -880,13 +1139,19 @@ async fn update_preferences_inner(
     if let Some(hk) = &preferences.hotkey_bindings {
         config.settings.hotkey_bindings = hk.clone();
     }
+    if let Some(telemetry) = preferences.telemetry_enabled {
+        config.settings.telemetry_enabled = Some(telemetry);
+    }
+    if let Some(dev_mode) = preferences.developer_mode {
+        config.settings.developer_mode = dev_mode;
+    }
 
     config.validate().map_err(|e| e.to_string())?;
-    state
-        .storage
-        .save(&config)
-        .await
-        .map_err(|e| e.to_string())?;
+    crate::safe_try!(
+        state.storage.save(&config).await,
+        telemetry::report_code::CONFIG_IO
+    )
+    .map_err(|e| e.to_string())?;
     state
         .notifier
         .update(config.clone())
@@ -951,6 +1216,8 @@ async fn update_preferences_inner(
         "renderer_backend": snapshot.as_ref().settings.renderer_backend,
         "quick_colors": snapshot.as_ref().settings.quick_colors,
         "hotkey_bindings": snapshot.as_ref().settings.hotkey_bindings,
+        "telemetry_enabled": snapshot.as_ref().settings.telemetry_enabled,
+        "developer_mode": snapshot.as_ref().settings.developer_mode,
     });
     app.emit("peregrine:settings-changed", &settings_json)
         .map_err(|e| e.to_string())?;
@@ -1162,11 +1429,20 @@ async fn download_install_update(
         .build()
         .map_err(|e| format!("构建 updater 失败: {e}"))?;
 
-    let update = updater
+    let mut update = updater
         .check()
         .await
         .map_err(|e| format!("检查更新失败: {e}"))?
         .ok_or("没有可用更新")?;
+
+    // 如果启用了中国大陆镜像且下载链接指向 GitHub，则把安装包下载链接也套上镜像前缀。
+    if cn_mirror && update.download_url.host_str() == Some("github.com") {
+        let mirror_base = mirror_url.trim_end_matches('/');
+        let proxied = format!("{}/{}", mirror_base, update.download_url);
+        update.download_url = proxied
+            .parse()
+            .map_err(|e| format!("镜像下载链接无效: {e}"))?;
+    }
 
     let mut first_chunk = true;
     let on_event_progress = on_event.clone();
@@ -1199,4 +1475,698 @@ async fn download_install_update(
 #[tauri::command]
 async fn set_crosshair_color(state: State<'_, AppState>, color: Vec<f32>) -> Result<(), String> {
     set_crosshair_color_inner(state, color).await
+}
+
+// ===== 四层架构：图层 / 物料 commands =====
+
+/// 屏幕/图元/样式三元组，IPC 返回给前端绘制用。
+#[derive(serde::Serialize, Clone)]
+struct BuiltShape {
+    element: peregrine_config::Element,
+    color: [f32; 4],
+    opacity: f32,
+}
+
+/// 根据当前激活 Profile 的图层，计算图元列表返回给前端预览用。
+///
+/// 前端 Preview 组件每次参数变化时调用此 IPC，得到 `(Element, color, opacity)` 列表，
+/// 直接在 Canvas 上绘制即可，无需在 TS 中重新实现几何计算。
+///
+/// `profile` 为可选的前端内存态 Profile：单图层 UI 的编辑走 300ms 防抖保存，
+/// 若只读后端共享快照，预览会落后一次修改（第二次变动才显示第一次的结果）。
+/// 前端传入当前编辑中的 Profile 时优先使用它，保证预览 WYSIWYG；
+/// 未传入时回退到后端共享快照（多图层编辑器先写后端再刷新，快照总是新的）。
+#[tauri::command]
+fn build_shapes_ipc(
+    state: State<AppState>,
+    screen_w: f32,
+    screen_h: f32,
+    profile: Option<peregrine_config::Profile>,
+) -> Result<Vec<BuiltShape>, String> {
+    // 前端传入的 Profile 是未持久化的内存态，校验失败时回退快照而不是报错，
+    // 避免拖动过程中的瞬时非法值（如超出范围的滑块）打断预览。
+    let provided = profile.filter(|p| p.validate().is_ok());
+    // 锁守卫与回退快照必须活得比 profile 引用久。
+    let provided_profile;
+    let config_guard;
+    let profile = match provided {
+        Some(p) => {
+            provided_profile = p;
+            &provided_profile
+        }
+        None => {
+            config_guard = state.config.lock().map_err(|e| e.to_string())?;
+            match config_guard.active_profile() {
+                Some(p) => p,
+                None => return Ok(vec![]),
+            }
+        }
+    };
+
+    let screen = peregrine::shapes::RectF {
+        min_x: 0.0,
+        min_y: 0.0,
+        max_x: screen_w,
+        max_y: screen_h,
+    };
+
+    // MATERIAL_RUNTIME_ENABLED 门控：物料运行时启用时走 layers 求值（与 overlay 一致）；
+    // 软关闭时强制走旧版 Crosshair 路径（crosshair 缺失时回退默认准星）。
+    let shapes = if peregrine::MATERIAL_RUNTIME_ENABLED {
+        // MATERIAL_DYNAMIC_INPUT_ENABLED 门控：动态输入停用时用 static_context()
+        // （version=0，静态物料永久缓存，动态物料冻结渲染），与 overlay 保持一致。
+        let ctx = if peregrine::MATERIAL_DYNAMIC_INPUT_ENABLED {
+            DynamicContext::preview_snapshot(screen_w, screen_h)
+        } else {
+            DynamicContext::static_context()
+        };
+        peregrine::shapes::build_layers_shapes(&screen, profile, &state.material_registry, &ctx)
+    } else {
+        let crosshair = profile
+            .crosshair
+            .clone()
+            .or_else(|| {
+                // 迁移后新格式可能仅含 layers，从 layers[0] 反向生成 Crosshair，
+                // 保证预览 IPC 与 overlay 渲染一致。
+                profile
+                    .layers
+                    .first()
+                    .and_then(peregrine::shapes::layer_to_crosshair)
+            })
+            .unwrap_or_else(peregrine_config::Crosshair::default_crosshair);
+        peregrine::shapes::build_shapes_from_crosshair(&screen, &crosshair)
+    };
+
+    Ok(shapes
+        .into_iter()
+        .map(|(element, color, opacity)| BuiltShape {
+            element,
+            color,
+            opacity,
+        })
+        .collect())
+}
+
+/// 列出全部已注册物料（内置 + 用户），供前端物料选择器使用。
+#[tauri::command]
+fn list_materials(state: State<AppState>) -> Vec<MaterialInfo> {
+    state.material_registry.list()
+}
+
+/// 图层操作 patch（部分更新）。
+#[derive(serde::Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+struct LayerPatch {
+    name: Option<String>,
+    params: Option<serde_json::Value>,
+    style: Option<LayerStyle>,
+    transform: Option<Transform2D>,
+    visible: Option<bool>,
+    locked: Option<bool>,
+}
+
+/// 在当前激活 Profile 末尾添加图层（参数取物料 defaults）。
+#[tauri::command]
+async fn add_layer(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    material_id: String,
+    name: String,
+) -> Result<Layer, String> {
+    // 查找物料。
+    let material = state
+        .material_registry
+        .get(&material_id)
+        .ok_or_else(|| format!("material '{}' not found", material_id))?;
+
+    let material_ref = if material_id.starts_with("user.") {
+        MaterialRef::User {
+            name: material_id.clone(),
+        }
+    } else {
+        MaterialRef::Builtin {
+            id: material_id.clone(),
+        }
+    };
+
+    let layer = Layer {
+        id: format!("layer-{}", uuid_like_id()),
+        name,
+        material: material_ref,
+        params: material.defaults().clone(),
+        style: LayerStyle::default(),
+        transform: Transform2D::default(),
+        visible: true,
+        locked: false,
+    };
+
+    // 添加到 active profile。
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if let Some(profile) = config.active_profile_mut() {
+        profile.layers.push(layer.clone());
+    }
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+
+    let _ = state
+        .overlay_cmd_tx
+        .send(overlay::OverlayCommand::UpdateConfig(Arc::new(config)));
+    Ok(layer)
+}
+
+/// 删除指定 id 的图层。
+#[tauri::command]
+async fn remove_layer(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    layer_id: String,
+) -> Result<(), String> {
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if let Some(profile) = config.active_profile_mut() {
+        let before = profile.layers.len();
+        profile.layers.retain(|l| l.id != layer_id);
+        if profile.layers.len() == before {
+            return Err(format!("layer '{}' not found", layer_id));
+        }
+    }
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    let _ = state
+        .overlay_cmd_tx
+        .send(overlay::OverlayCommand::UpdateConfig(Arc::new(config)));
+    Ok(())
+}
+
+/// 调整图层顺序（new_index 是目标位置）。
+#[tauri::command]
+async fn move_layer(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    layer_id: String,
+    new_index: usize,
+) -> Result<(), String> {
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if let Some(profile) = config.active_profile_mut() {
+        let idx = profile
+            .layers
+            .iter()
+            .position(|l| l.id == layer_id)
+            .ok_or_else(|| format!("layer '{}' not found", layer_id))?;
+        if new_index >= profile.layers.len() {
+            return Err(format!(
+                "new_index {} out of range (len={})",
+                new_index,
+                profile.layers.len()
+            ));
+        }
+        let layer = profile.layers.remove(idx);
+        profile.layers.insert(new_index, layer);
+    }
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    let _ = state
+        .overlay_cmd_tx
+        .send(overlay::OverlayCommand::UpdateConfig(Arc::new(config)));
+    Ok(())
+}
+
+/// 复制图层（生成新 id）。
+#[tauri::command]
+async fn duplicate_layer(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    layer_id: String,
+) -> Result<Layer, String> {
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    let mut new_layer = None;
+    if let Some(profile) = config.active_profile_mut() {
+        let idx = profile
+            .layers
+            .iter()
+            .position(|l| l.id == layer_id)
+            .ok_or_else(|| format!("layer '{}' not found", layer_id))?;
+        let mut copy = profile.layers[idx].clone();
+        copy.id = format!("layer-{}", uuid_like_id());
+        copy.name = format!("{} 副本", copy.name);
+        profile.layers.insert(idx + 1, copy.clone());
+        new_layer = Some(copy);
+    }
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    let _ = state
+        .overlay_cmd_tx
+        .send(overlay::OverlayCommand::UpdateConfig(Arc::new(config)));
+    new_layer.ok_or_else(|| "active profile not found".to_string())
+}
+
+/// 批量更新图层字段。
+#[tauri::command]
+async fn update_layer(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    layer_id: String,
+    patch: LayerPatch,
+) -> Result<(), String> {
+    tracing::info!(
+        layer_id = %layer_id,
+        name = ?patch.name.is_some(),
+        params = ?patch.params.is_some(),
+        style = ?patch.style.is_some(),
+        transform = ?patch.transform.is_some(),
+        visible = ?patch.visible,
+        locked = ?patch.locked,
+        "update_layer"
+    );
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if let Some(profile) = config.active_profile_mut() {
+        let layer = profile
+            .layers
+            .iter_mut()
+            .find(|l| l.id == layer_id)
+            .ok_or_else(|| format!("layer '{}' not found", layer_id))?;
+        if let Some(name) = patch.name {
+            layer.name = name;
+        }
+        if let Some(params) = patch.params {
+            // 字段级合并：把 patch.params 合并到 layer.params。
+            if let (Some(dst), Some(src)) = (layer.params.as_object_mut(), params.as_object()) {
+                for (k, v) in src {
+                    dst.insert(k.clone(), v.clone());
+                }
+            } else {
+                layer.params = params;
+            }
+        }
+        if let Some(style) = patch.style {
+            layer.style = style;
+        }
+        if let Some(transform) = patch.transform {
+            layer.transform = transform;
+        }
+        if let Some(visible) = patch.visible {
+            layer.visible = visible;
+        }
+        if let Some(locked) = patch.locked {
+            layer.locked = locked;
+        }
+    }
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    let _ = state
+        .overlay_cmd_tx
+        .send(overlay::OverlayCommand::UpdateConfig(Arc::new(config)));
+    Ok(())
+}
+
+/// 列出当前激活 Profile 的全部图层。
+#[tauri::command]
+fn list_layers(state: State<AppState>) -> Result<Vec<Layer>, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(config
+        .active_profile()
+        .map(|p| p.layers.clone())
+        .unwrap_or_default())
+}
+
+/// 持久化配置并广播变更（图层操作共用）。
+///
+/// 同时 emit `peregrine:layers-changed` 事件通知前端刷新。
+async fn persist_and_broadcast(
+    state: &State<'_, AppState>,
+    config: &peregrine_config::AppConfig,
+) -> Result<(), String> {
+    config.validate().map_err(|e| e.to_string())?;
+    crate::safe_try!(
+        state.storage.save(config).await,
+        telemetry::report_code::CONFIG_IO
+    )
+    .map_err(|e| e.to_string())?;
+    state
+        .notifier
+        .update(config.clone())
+        .map_err(|e| e.to_string())?;
+    let snapshot: ConfigSnapshot = Arc::new(config.clone());
+    *state.config.lock().map_err(|e| e.to_string())? = snapshot.clone();
+    // 同步把新配置快照推送给 overlay 线程，使 active profile 切换等变更
+    // 不必等待 ConfigWatcher 轮询即可生效。
+    let _ = state
+        .overlay_cmd_tx
+        .send(overlay::OverlayCommand::UpdateConfig(snapshot));
+    Ok(())
+}
+
+/// 通知前端图层已变化。
+///
+/// 前端监听此事件后调用 `list_layers` 重新拉取图层列表。
+fn emit_layers_changed(app: &tauri::AppHandle) {
+    use tauri::Emitter;
+    if let Err(e) = app.emit("peregrine:layers-changed", ()) {
+        tracing::warn!(error = %e, "failed to emit layers-changed event");
+    }
+}
+
+// ===== Profile 管理 commands =====
+
+/// 列出所有 Profile 名称（按字母顺序）。
+#[tauri::command]
+fn list_profiles(state: State<AppState>) -> Vec<String> {
+    let config = state.config.lock().expect("config lock");
+    let mut names: Vec<String> = config.as_ref().profiles.keys().cloned().collect();
+    names.sort();
+    names
+}
+
+/// 获取当前激活的 Profile 名称。
+#[tauri::command]
+fn get_active_profile_name(state: State<AppState>) -> Result<String, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(config.as_ref().active_profile.clone())
+}
+
+/// 获取指定 Profile。
+#[tauri::command]
+fn get_profile(state: State<AppState>, name: String) -> Result<peregrine_config::Profile, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    config
+        .as_ref()
+        .profiles
+        .get(&name)
+        .cloned()
+        .ok_or_else(|| format!("profile '{}' not found", name))
+}
+
+/// 判断一个 Profile 是否可在单图层（旧版）UI 中编辑。
+///
+/// 在 config crate 的快速判定（material id / transform / blend_mode）基础上，
+/// 额外校验图层 `params` 是否等于物料 `defaults()`（design.md:46 要求）。
+/// 若物料未注册或 params 不匹配 defaults，则返回 false。
+#[tauri::command]
+fn is_profile_legacy_compatible(
+    state: State<AppState>,
+    profile: peregrine_config::Profile,
+) -> bool {
+    if !profile.is_legacy_compatible() {
+        return false;
+    }
+    // 校验 params 等于物料 defaults。
+    let Some(layer) = profile.layers.first() else {
+        return false;
+    };
+    let material_id = layer.material.material_id();
+    let Some(material) = state.material_registry.get(&material_id) else {
+        return false;
+    };
+    // 比较逐字段：layer.params 的每个 key 必须在 defaults 中存在且值相等。
+    let defaults = material.defaults();
+    match (layer.params.as_object(), defaults.as_object()) {
+        (Some(lp), Some(dp)) => {
+            if lp.len() != dp.len() {
+                return false;
+            }
+            lp.iter().all(|(k, v)| dp.get(k) == Some(v))
+        }
+        _ => false,
+    }
+}
+
+/// 创建新的 Profile。
+///
+/// 新 Profile 默认包含一个单图层兼容的图层（builtin.edge_rect），
+/// 方便用户直接在单图层 UI 中编辑。
+#[tauri::command]
+async fn create_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<peregrine_config::Profile, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("profile name must not be empty".to_string());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if config.profiles.contains_key(trimmed) {
+        return Err(format!("profile '{}' already exists", trimmed));
+    }
+    let profile = peregrine_config::Profile::default_profile();
+    config.profiles.insert(trimmed.to_string(), profile.clone());
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(profile)
+}
+
+/// 重命名 Profile。
+///
+/// 如果重命名的是当前 active profile，会同时更新 active_profile。
+#[tauri::command]
+async fn rename_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    old_name: String,
+    new_name: String,
+) -> Result<(), String> {
+    let old = old_name.trim();
+    let new = new_name.trim();
+    if old.is_empty() || new.is_empty() {
+        return Err("profile name must not be empty".to_string());
+    }
+    if old == new {
+        return Ok(());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if !config.profiles.contains_key(old) {
+        return Err(format!("profile '{}' not found", old));
+    }
+    if config.profiles.contains_key(new) {
+        return Err(format!("profile '{}' already exists", new));
+    }
+    let profile = config.profiles.remove(old).expect("profile exists");
+    config.profiles.insert(new.to_string(), profile);
+    if config.active_profile == old {
+        config.active_profile = new.to_string();
+    }
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(())
+}
+
+/// 删除 Profile。
+///
+/// 至少保留一个 Profile；若删除的是当前 active profile，则自动切换到另一个 Profile。
+#[tauri::command]
+async fn delete_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("profile name must not be empty".to_string());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if !config.profiles.contains_key(trimmed) {
+        return Err(format!("profile '{}' not found", trimmed));
+    }
+    if config.profiles.len() <= 1 {
+        return Err("cannot delete the last profile".to_string());
+    }
+    config.profiles.remove(trimmed);
+    if config.active_profile == trimmed {
+        // 切换到剩余 Profile 中按名称排序的第一个。
+        let mut names: Vec<String> = config.profiles.keys().cloned().collect();
+        names.sort();
+        config.active_profile = names.into_iter().next().unwrap_or_default();
+    }
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(())
+}
+
+/// 切换当前激活的 Profile。
+#[tauri::command]
+async fn set_active_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("profile name must not be empty".to_string());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    if !config.profiles.contains_key(trimmed) {
+        return Err(format!("profile '{}' not found", trimmed));
+    }
+    config.active_profile = trimmed.to_string();
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(())
+}
+
+/// 复制当前激活的 Profile。
+///
+/// 返回新 profile 名称（基于原名称自动生成，避免重复）。
+#[tauri::command]
+async fn copy_profile(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    base_name: String,
+) -> Result<String, String> {
+    let base = base_name.trim();
+    if base.is_empty() {
+        return Err("base profile name must not be empty".to_string());
+    }
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    let source = config
+        .profiles
+        .get(base)
+        .cloned()
+        .ok_or_else(|| format!("profile '{}' not found", base))?;
+    // 生成唯一副本名称（固定英文 Copy 后缀，避免配置文件中混入多语言字符）。
+    let copy_suffix = "Copy";
+    let mut candidate = format!("{} {}", base, copy_suffix);
+    let mut i = 2;
+    while config.profiles.contains_key(&candidate) {
+        candidate = format!("{} {} {}", base, copy_suffix, i);
+        i += 1;
+    }
+    config.profiles.insert(candidate.clone(), source);
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(candidate)
+}
+
+/// 生成简单的唯一 id（时间戳 + 计数器）。
+fn uuid_like_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+    format!(
+        "{}{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0),
+        n
+    )
+}
+
+/// 物料目录 watcher：监视 `%APPDATA%/Peregrine/materials/` 变化并热重载。
+///
+/// 重载策略：去抖 500ms 后调用 `registry.load_user(dir)`，
+/// registry 内部会先清空旧 user.* 物料再插入新物料。
+///
+/// 重载后通过 app.emit 广播 `peregrine:materials-changed` 事件（待 AppHandle 接入）。
+async fn spawn_material_watcher(
+    registry: MaterialRegistry,
+    materials_dir: std::path::PathBuf,
+    _overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
+) {
+    use notify::{Config as NotifyConfig, Event, RecommendedWatcher, RecursiveMode, Watcher};
+    use std::time::Duration;
+    use tokio::sync::mpsc;
+    use tokio::time::MissedTickBehavior;
+
+    // 确保目录存在（首次创建时不触发事件）。
+    if !materials_dir.exists() {
+        if let Err(e) = std::fs::create_dir_all(&materials_dir) {
+            tracing::warn!(dir = %materials_dir.display(), error = %e, "failed to create materials dir");
+            return;
+        }
+    }
+
+    let (tx, mut rx) = mpsc::channel::<notify::Result<Event>>(16);
+
+    // spawn_blocking 包装同步 watcher。
+    let dir_for_spawn = materials_dir.clone();
+    let _watcher = match tokio::task::spawn_blocking(move || {
+        RecommendedWatcher::new(
+            move |res| {
+                let _ = tx.blocking_send(res);
+            },
+            NotifyConfig::default(),
+        )
+        .and_then(|mut w| {
+            w.watch(&dir_for_spawn, RecursiveMode::NonRecursive)
+                .map(|_| w)
+        })
+    })
+    .await
+    {
+        Ok(Ok(w)) => w,
+        Ok(Err(e)) => {
+            tracing::warn!(error = %e, "material watcher init failed");
+            return;
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "material watcher spawn failed");
+            return;
+        }
+    };
+
+    tracing::info!(dir = %materials_dir.display(), "material watcher started");
+
+    // 去抖定时器。
+    let mut debounce = tokio::time::interval(Duration::from_millis(500));
+    debounce.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    debounce.reset();
+    let mut pending = false;
+
+    loop {
+        tokio::select! {
+            Some(_) = rx.recv() => {
+                pending = true;
+                debounce.reset();
+            }
+            _ = debounce.tick() => {
+                if pending {
+                    pending = false;
+                    tracing::info!("reloading user materials...");
+                    if let Err(e) = registry.load_user(&materials_dir) {
+                        tracing::warn!(error = %e, "material reload failed");
+                    } else {
+                        tracing::info!(
+                            count = registry.len(),
+                            "user materials reloaded"
+                        );
+                        // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，
+                        // overlay 不再消费物料动态性变化，无需通知 overlay 刷新。
+                        // 仍广播事件供前端将来接入（预留）。
+                        // TODO: 接入 app.emit("peregrine:materials-changed", &())
+                    }
+                }
+            }
+        }
+    }
+    // _watcher 在循环期间保持存活（其 Drop 实现会停止文件监视）；
+    // 循环退出即函数返回，watcher 随之释放。
 }

@@ -70,6 +70,23 @@ pub struct AppSettings {
     /// Vec<(action, key)> 保证序列化稳定，运行时可转 HashMap 查找。
     #[serde(default = "default_hotkey_bindings")]
     pub hotkey_bindings: Vec<(HotkeyAction, String)>,
+    /// 遥测（匿名崩溃上报 + 启动统计）授权开关。
+    ///
+    /// - `None`（字段缺失）：首次启动、尚未授权，前端弹出唯一授权对话框；
+    /// - `Some(true)`：允许上报，启动时初始化 SDK；
+    /// - `Some(false)`：拒绝上报，SDK 不初始化、零网络请求，错误仅落盘 pending。
+    ///
+    /// 序列化时 None 不写出，保证「字段缺失 = 未授权」语义。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telemetry_enabled: Option<bool>,
+    /// 开发者模式解锁标志（安卓式连点版本号解锁）。
+    ///
+    /// - `false`（默认）：DevTools 默认禁用，设置窗口不显示「开发」Tab；
+    /// - `true`：解锁后重开窗口启用 DevTools，并显示「开发」Tab。
+    ///
+    /// 解锁状态持久化到配置文件，重启后保持。
+    #[serde(default)]
+    pub developer_mode: bool,
 }
 
 fn default_auto_switch_on_overlay() -> String {
@@ -128,23 +145,101 @@ impl Default for AppSettings {
             renderer_backend: default_renderer_backend(),
             quick_colors: default_quick_colors(),
             hotkey_bindings: default_hotkey_bindings(),
+            telemetry_enabled: None,
+            developer_mode: false,
         }
     }
 }
 
 /// 单个 Profile 配置。
+///
+/// 同时支持新格式（多图层）与旧格式（单 Crosshair），实现无缝迁移：
+/// - 加载旧 config.json 时 `crosshair` 字段存在，`layers` 为空。
+/// - 加载新 config.json 时 `layers` 有内容，`crosshair` 为 `None`。
+/// - 运行时若两者同时存在以 `layers` 为准（异常情况，记录警告）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Profile {
-    /// 辅助贴图配置。
-    pub crosshair: Crosshair,
+    /// 旧格式：单一辅助贴图配置。
+    ///
+    /// 新格式配置文件中此字段为 `None`（serde 默认值）。
+    /// 迁移完成后此字段从配置中消失，仅保留 `layers`。
+    #[serde(default)]
+    pub crosshair: Option<Crosshair>,
+
+    /// 新格式：图层列表。
+    ///
+    /// 渲染时按列表顺序绘制（前底层，后顶层）。
+    /// 旧格式配置加载后此字段为空，由迁移逻辑填充。
+    #[serde(default)]
+    pub layers: Vec<Layer>,
+
     /// 触发规则：在什么情况下显示辅助贴图。
     pub trigger: TriggerRule,
+
     /// 进入设置界面的热键字符串（仅做存储，解析由调用方负责）。
     pub settings_hotkey: String,
+
     /// 要跟随的目标窗口标识（空字符串表示不跟随特定窗口）。
     /// 当前仅做配置占位，实际窗口跟随由 Platform 层实现。
     #[serde(default)]
     pub target_window: String,
+}
+
+impl Profile {
+    /// 生成默认 Profile（新格式：单个 builtin.edge_rect 图层）。
+    pub fn default_profile() -> Self {
+        Self {
+            crosshair: None,
+            layers: vec![Layer::new(
+                "default",
+                "贴边矩形",
+                MaterialRef::Builtin {
+                    id: "builtin.edge_rect".to_string(),
+                },
+            )],
+            trigger: TriggerRule::default_rule(),
+            settings_hotkey: "F10".to_string(),
+            target_window: String::new(),
+        }
+    }
+
+    /// 生成旧格式默认 Profile（仅供迁移测试对照）。
+    pub fn legacy_default_profile() -> Self {
+        Self {
+            crosshair: Some(Crosshair::default_crosshair()),
+            layers: vec![],
+            trigger: TriggerRule::default_rule(),
+            settings_hotkey: "F10".to_string(),
+            target_window: String::new(),
+        }
+    }
+
+    /// 校验 Profile 内字段范围。
+    ///
+    /// 当 `layers` 非空时校验图层；否则回退到旧 `crosshair` 校验。
+    pub fn validate(&self) -> crate::Result<()> {
+        if !self.layers.is_empty() {
+            for (i, layer) in self.layers.iter().enumerate() {
+                layer
+                    .validate()
+                    .map_err(|e| crate::ConfigError::Validation(format!("layer[{}]: {}", i, e)))?;
+            }
+            Ok(())
+        } else if let Some(crosshair) = &self.crosshair {
+            crosshair.validate()
+        } else {
+            Err(crate::ConfigError::Validation(
+                "profile has neither layers nor crosshair".to_string(),
+            ))
+        }
+    }
+
+    /// 判断该 Profile 是否可在单图层（旧版）UI 中编辑。
+    ///
+    /// 条件：只有 1 个图层，且该图层是单图层兼容的图层。
+    pub fn is_legacy_compatible(&self) -> bool {
+        self.layers.len() == 1 && self.layers[0].is_legacy_compatible()
+    }
 }
 
 /// 辅助贴图整体配置。
@@ -542,6 +637,19 @@ impl AppConfig {
         }
     }
 
+    /// 生成旧格式默认配置（保留 crosshair 字段，layers 为空）。
+    ///
+    /// 仅供迁移测试与 serde 兼容性测试使用。
+    pub fn legacy_default_config() -> Self {
+        let mut profiles = std::collections::HashMap::new();
+        profiles.insert("default".to_string(), Profile::legacy_default_profile());
+        Self {
+            active_profile: "default".to_string(),
+            profiles,
+            settings: AppSettings::default(),
+        }
+    }
+
     /// 校验整个配置是否合法。
     ///
     /// 检查项：
@@ -576,24 +684,6 @@ impl AppConfig {
     /// 获取当前激活的 Profile 的不可变引用。
     pub fn active_profile(&self) -> Option<&Profile> {
         self.profiles.get(&self.active_profile)
-    }
-}
-
-impl Profile {
-    /// 生成默认 Profile。
-    pub fn default_profile() -> Self {
-        Self {
-            crosshair: Crosshair::default_crosshair(),
-            trigger: TriggerRule::default_rule(),
-            settings_hotkey: "F10".to_string(),
-            target_window: String::new(),
-        }
-    }
-
-    /// 校验 Profile 内字段范围。
-    pub fn validate(&self) -> crate::Result<()> {
-        self.crosshair.validate()?;
-        Ok(())
     }
 }
 
@@ -864,6 +954,377 @@ impl Default for AppConfig {
     }
 }
 
+// ===== 四层可定制化架构：元素 / 物料 / 图层 =====
+//
+// 以下类型定义了"元素 → 物料 → 图层 → 配置"四层架构的数据模型。
+// 物料是 Rhai 脚本定义的"参数 → Element 列表"映射，通过 peregrine_material crate 求值。
+// 一个 Profile 可包含多个图层，每个图层引用一个物料实例并携带参数、变换、样式。
+
+/// 逻辑坐标矩形区域，作为物料求值的输入。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Rect {
+    /// 左上角 X 坐标（逻辑像素）。
+    pub min_x: f32,
+    /// 左上角 Y 坐标。
+    pub min_y: f32,
+    /// 右下角 X 坐标。
+    pub max_x: f32,
+    /// 右下角 Y 坐标。
+    pub max_y: f32,
+}
+
+impl Rect {
+    /// 矩形宽度。
+    pub fn width(&self) -> f32 {
+        self.max_x - self.min_x
+    }
+
+    /// 矩形高度。
+    pub fn height(&self) -> f32 {
+        self.max_y - self.min_y
+    }
+
+    /// 中心 X 坐标。
+    pub fn center_x(&self) -> f32 {
+        (self.min_x + self.max_x) / 2.0
+    }
+
+    /// 中心 Y 坐标。
+    pub fn center_y(&self) -> f32 {
+        (self.min_y + self.max_y) / 2.0
+    }
+}
+
+/// 基础图元（Element）：不可再分的渲染原语。
+///
+/// 物料脚本的输出由若干 Element 组成，渲染器（overlay_renderer）与前端 Canvas 预览
+/// 共同消费同一份 Element 列表，确保 WYSIWYG。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Element {
+    /// 填充矩形（逻辑坐标）。
+    Rect {
+        /// 左上角 X。
+        x: f32,
+        /// 左上角 Y。
+        y: f32,
+        /// 宽度。
+        w: f32,
+        /// 高度。
+        h: f32,
+    },
+    /// 填充圆。
+    Circle {
+        /// 圆心 X。
+        cx: f32,
+        /// 圆心 Y。
+        cy: f32,
+        /// 半径。
+        radius: f32,
+    },
+    /// 圆环描边。
+    CircleStroke {
+        cx: f32,
+        cy: f32,
+        radius: f32,
+        /// 描边厚度。
+        thickness: f32,
+    },
+    /// 虚线圆环。
+    DashedCircle {
+        cx: f32,
+        cy: f32,
+        radius: f32,
+        thickness: f32,
+        /// 单段虚线长度。
+        dash_len: f32,
+        /// 虚线间隔长度。
+        gap_len: f32,
+    },
+    /// 填充三角形（3 个顶点）。
+    Triangle {
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+        x3: f32,
+        y3: f32,
+    },
+    /// 填充多边形（顶点数组，按顺序连接）。
+    Polygon {
+        /// 顶点列表，每项 `[x, y]`。
+        points: Vec<[f32; 2]>,
+    },
+    /// 粗线段。
+    Line {
+        /// 起点 X。
+        x1: f32,
+        /// 起点 Y。
+        y1: f32,
+        /// 终点 X。
+        x2: f32,
+        /// 终点 Y。
+        y2: f32,
+        /// 线条厚度。
+        thickness: f32,
+    },
+    /// 文本。
+    Text {
+        /// 左下角基线 X 坐标。
+        x: f32,
+        /// 基线 Y 坐标。
+        y: f32,
+        /// 文本内容。
+        content: String,
+        /// 字号（逻辑像素）。
+        font_size: f32,
+        /// 字重（100–900 的百位整数倍，`None` 等价于 400 常规）。
+        /// 取值合法性由物料求值转换层校验（Element 为求值输出，不持久化到配置文件）。
+        #[serde(default)]
+        font_weight: Option<u16>,
+    },
+    /// 图片。
+    Image {
+        /// 图片文件绝对路径。
+        path: String,
+        /// 左上角 X。
+        x: f32,
+        /// 左上角 Y。
+        y: f32,
+        /// 显示宽度。
+        w: f32,
+        /// 显示高度。
+        h: f32,
+    },
+}
+
+/// 物料引用：图层所用的物料来源。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MaterialRef {
+    /// 内置物料：由二进制内嵌的 `.rhai` 提供，如 `builtin.cross`。
+    Builtin {
+        /// 物料 id（含 `builtin.` 前缀）。
+        id: String,
+    },
+    /// 用户物料：位于 `%APPDATA%/Peregrine/materials/<name>.rhai`。
+    User {
+        /// 物料名称（不含扩展名，含 `user.` 前缀）。
+        name: String,
+    },
+}
+
+impl MaterialRef {
+    /// 获取物料的完整查找 id。
+    ///
+    /// - `Builtin { id }` → 直接返回 `id`
+    /// - `User { name }` → 返回 `name`（已含 `user.` 前缀）
+    pub fn material_id(&self) -> &str {
+        match self {
+            MaterialRef::Builtin { id } => id,
+            MaterialRef::User { name } => name,
+        }
+    }
+
+    /// 是否为内置物料。
+    pub fn is_builtin(&self) -> bool {
+        matches!(self, MaterialRef::Builtin { .. })
+    }
+}
+
+/// 图层几何变换：在物料输出 Element 后应用的平移 / 缩放 / 旋转。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Transform2D {
+    /// X 方向位移（逻辑像素，默认 0）。
+    #[serde(default)]
+    pub offset_x: f32,
+    /// Y 方向位移。
+    #[serde(default)]
+    pub offset_y: f32,
+    /// 均匀缩放因子（默认 1.0）。
+    #[serde(default = "default_transform_scale")]
+    pub scale: f32,
+    /// 围绕屏幕中心的旋转角度（度，默认 0）。
+    #[serde(default)]
+    pub rotation_deg: f32,
+}
+
+fn default_transform_scale() -> f32 {
+    1.0
+}
+
+impl Default for Transform2D {
+    fn default() -> Self {
+        Self {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            scale: 1.0,
+            rotation_deg: 0.0,
+        }
+    }
+}
+
+/// 图层混合模式（首期仅支持 `Normal`，预留扩展点）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BlendMode {
+    /// 普通透明度混合（src over dst）。
+    #[default]
+    Normal,
+}
+
+/// 图层级样式：颜色 / 不透明度 / 混合模式。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LayerStyle {
+    /// RGBA 颜色（0.0..=1.0）。
+    #[serde(default = "default_layer_color")]
+    pub color: [f32; 4],
+    /// 图层整体不透明度（0.0..=1.0）。
+    #[serde(default = "default_layer_opacity")]
+    pub opacity: f32,
+    /// 混合模式。
+    #[serde(default)]
+    pub blend_mode: BlendMode,
+}
+
+fn default_layer_color() -> [f32; 4] {
+    [1.0, 1.0, 1.0, 1.0]
+}
+
+fn default_layer_opacity() -> f32 {
+    0.6
+}
+
+impl Default for LayerStyle {
+    fn default() -> Self {
+        Self {
+            color: default_layer_color(),
+            opacity: default_layer_opacity(),
+            blend_mode: BlendMode::default(),
+        }
+    }
+}
+
+/// 单个图层：一个物料实例 + 参数 + 变换 + 样式。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Layer {
+    /// 图层内唯一标识（UUID v4 或简单序号字符串）。
+    pub id: String,
+    /// 用户可读的图层名。
+    pub name: String,
+    /// 引用的物料。
+    pub material: MaterialRef,
+    /// 该图层实例的具体参数（JSON 对象，覆盖物料 `defaults()`）。
+    #[serde(default)]
+    pub params: serde_json::Value,
+    /// 图层级样式。
+    #[serde(default)]
+    pub style: LayerStyle,
+    /// 几何变换。
+    #[serde(default)]
+    pub transform: Transform2D,
+    /// 是否可见（false 时不参与渲染）。
+    #[serde(default = "default_layer_visible")]
+    pub visible: bool,
+    /// 是否锁定（锁定后 UI 不可误改）。
+    #[serde(default)]
+    pub locked: bool,
+}
+
+fn default_layer_visible() -> bool {
+    true
+}
+
+impl Layer {
+    /// 创建一个引用指定物料的新图层，参数取物料 defaults（由调用方填充）。
+    pub fn new(id: impl Into<String>, name: impl Into<String>, material: MaterialRef) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            material,
+            params: serde_json::Value::Object(serde_json::Map::new()),
+            style: LayerStyle::default(),
+            transform: Transform2D::default(),
+            visible: true,
+            locked: false,
+        }
+    }
+
+    /// 校验图层字段范围。
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.id.trim().is_empty() {
+            return Err(crate::ConfigError::Validation(
+                "layer id must not be empty".to_string(),
+            ));
+        }
+        if self.name.trim().is_empty() {
+            return Err(crate::ConfigError::Validation(
+                "layer name must not be empty".to_string(),
+            ));
+        }
+        if !(0.0..=1.0).contains(&self.style.opacity) {
+            return Err(crate::ConfigError::Validation(
+                "layer style opacity must be in [0.0, 1.0]".to_string(),
+            ));
+        }
+        for (i, c) in self.style.color.iter().enumerate() {
+            if !(0.0..=1.0).contains(c) {
+                return Err(crate::ConfigError::Validation(format!(
+                    "layer style color channel {} must be in [0.0, 1.0]",
+                    i
+                )));
+            }
+        }
+        if self.transform.scale <= 0.0 {
+            return Err(crate::ConfigError::Validation(
+                "layer transform scale must be positive".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// 判断该图层是否可在单图层（旧版）UI 中编辑（快速预检查）。
+    ///
+    /// 仅检查物料类型、几何变换与混合模式；
+    /// `params` 等于物料 `defaults` 的完整校验由上层（Tauri 命令
+    /// `is_profile_legacy_compatible`）通过 `MaterialRegistry.defaults()` 完成，
+    /// 因 `peregrine_config` crate 不依赖 `peregrine_material`。
+    ///
+    /// 条件：
+    /// - 使用内置基础物料（与旧版 Crosshair 样式一一对应）；
+    /// - 几何变换为默认值；
+    /// - 混合模式为 Normal（颜色与不透明度允许自定义）。
+    pub fn is_legacy_compatible(&self) -> bool {
+        if !self.material.is_builtin() {
+            return false;
+        }
+        let id = self.material.material_id();
+        const LEGACY_MATERIALS: &[&str] = &[
+            "builtin.cross",
+            "builtin.edge_rect",
+            "builtin.large_cross",
+            "builtin.corner_dots",
+            "builtin.ring",
+            "builtin.custom_orb",
+            "builtin.random_orb",
+            "builtin.border_frame",
+            "builtin.edge_arrows",
+            "builtin.grid",
+            "builtin.image",
+        ];
+        if !LEGACY_MATERIALS.contains(&id) {
+            return false;
+        }
+        if self.transform != Transform2D::default() {
+            return false;
+        }
+        if self.style.blend_mode != BlendMode::default() {
+            return false;
+        }
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -873,13 +1334,17 @@ mod tests {
         let cfg = AppConfig::default_config();
         assert!(cfg.validate().is_ok());
         assert_eq!(cfg.active_profile, "default");
-        let ch = &cfg.active_profile().unwrap().crosshair;
-        assert_eq!(ch.style, CrosshairStyle::EdgeRect);
-        assert_eq!(ch.size, 180.0);
-        assert_eq!(ch.secondary_size, 24.0);
-        assert_eq!(ch.thickness, 4.0);
-        assert_eq!(ch.margin, 16.0);
-        assert_eq!(ch.corner_radius, 12.0);
+        // 新格式默认配置：layers 包含 1 个 edge_rect 图层。
+        let profile = cfg.active_profile().unwrap();
+        assert_eq!(profile.layers.len(), 1);
+        assert!(profile.crosshair.is_none());
+        let layer = &profile.layers[0];
+        assert_eq!(
+            layer.material,
+            MaterialRef::Builtin {
+                id: "builtin.edge_rect".to_string()
+            }
+        );
     }
 
     #[test]
@@ -924,31 +1389,51 @@ mod tests {
 
     #[test]
     fn negative_size_fails() {
-        let mut cfg = AppConfig::default_config();
-        cfg.active_profile_mut().unwrap().crosshair.size = -1.0;
+        let mut cfg = AppConfig::legacy_default_config();
+        cfg.active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap()
+            .size = -1.0;
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn opacity_out_of_range_fails() {
-        let mut cfg = AppConfig::default_config();
-        cfg.active_profile_mut().unwrap().crosshair.opacity = 1.5;
+        let mut cfg = AppConfig::legacy_default_config();
+        cfg.active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap()
+            .opacity = 1.5;
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn ring_radius_pct_default_and_validation() {
-        let cfg = AppConfig::default_config();
-        let ch = &cfg.active_profile().unwrap().crosshair;
+        let cfg = AppConfig::legacy_default_config();
+        let ch = cfg.active_profile().unwrap().crosshair.as_ref().unwrap();
         assert_eq!(ch.ring_radius_pct, 0.05);
         assert!(ch.validate().is_ok());
 
-        let mut cfg = AppConfig::default_config();
-        cfg.active_profile_mut().unwrap().crosshair.ring_radius_pct = 0.02;
+        let mut cfg = AppConfig::legacy_default_config();
+        cfg.active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap()
+            .ring_radius_pct = 0.02;
         assert!(cfg.validate().is_err());
 
-        let mut cfg = AppConfig::default_config();
-        cfg.active_profile_mut().unwrap().crosshair.ring_radius_pct = 0.09;
+        let mut cfg = AppConfig::legacy_default_config();
+        cfg.active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap()
+            .ring_radius_pct = 0.09;
         assert!(cfg.validate().is_err());
     }
 
@@ -959,6 +1444,52 @@ mod tests {
         assert_eq!(ch.thickness, 2.0);
         assert_eq!(ch.ring_style, RingStyle::Solid);
         assert_eq!(ch.opacity, 0.8);
+    }
+
+    #[test]
+    fn layer_legacy_compatibility() {
+        let mut layer = Layer::new(
+            "l1",
+            "test",
+            MaterialRef::Builtin {
+                id: "builtin.cross".to_string(),
+            },
+        );
+        assert!(layer.is_legacy_compatible());
+
+        // 非内置物料不兼容。
+        layer.material = MaterialRef::User {
+            name: "user.custom".to_string(),
+        };
+        assert!(!layer.is_legacy_compatible());
+        layer.material = MaterialRef::Builtin {
+            id: "builtin.cross".to_string(),
+        };
+
+        // 变换非默认时不兼容。
+        layer.transform.offset_x = 10.0;
+        assert!(!layer.is_legacy_compatible());
+        layer.transform = Transform2D::default();
+
+        // 混合模式非默认不兼容。
+        layer.style.blend_mode = BlendMode::Normal;
+        assert!(layer.is_legacy_compatible());
+    }
+
+    #[test]
+    fn profile_legacy_compatibility() {
+        let mut profile = Profile::default_profile();
+        assert!(profile.is_legacy_compatible());
+
+        // 添加第二个图层后不兼容。
+        profile.layers.push(Layer::new(
+            "l2",
+            "second",
+            MaterialRef::Builtin {
+                id: "builtin.cross".to_string(),
+            },
+        ));
+        assert!(!profile.is_legacy_compatible());
     }
 
     #[test]
@@ -1010,25 +1541,48 @@ mod tests {
 
     #[test]
     fn random_orb_range_validation() {
-        let mut cfg = AppConfig::default_config();
-        let ch = &mut cfg.active_profile_mut().unwrap().crosshair;
+        let mut cfg = AppConfig::legacy_default_config();
+        let ch = cfg
+            .active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap();
         ch.style = CrosshairStyle::RandomOrb;
         ch.random_radius_min = 8.0;
         ch.random_radius_max = 4.0;
         assert!(cfg.validate().is_err());
 
-        let mut cfg = AppConfig::default_config();
-        let ch = &mut cfg.active_profile_mut().unwrap().crosshair;
+        let mut cfg = AppConfig::legacy_default_config();
+        let ch = cfg
+            .active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap();
+        ch.style = CrosshairStyle::RandomOrb;
         ch.random_radius_min = 0.0;
         assert!(cfg.validate().is_err());
 
-        let mut cfg = AppConfig::default_config();
-        let ch = &mut cfg.active_profile_mut().unwrap().crosshair;
+        let mut cfg = AppConfig::legacy_default_config();
+        let ch = cfg
+            .active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap();
+        ch.style = CrosshairStyle::RandomOrb;
         ch.random_orb_count = 0;
         assert!(cfg.validate().is_err());
 
-        let mut cfg = AppConfig::default_config();
-        let ch = &mut cfg.active_profile_mut().unwrap().crosshair;
+        let mut cfg = AppConfig::legacy_default_config();
+        let ch = cfg
+            .active_profile_mut()
+            .unwrap()
+            .crosshair
+            .as_mut()
+            .unwrap();
+        ch.style = CrosshairStyle::RandomOrb;
         ch.random_orb_jitter = -1.0;
         assert!(cfg.validate().is_err());
     }
@@ -1253,6 +1807,8 @@ mod tests {
             renderer_backend: RendererBackend::Cpu,
             quick_colors: default_quick_colors(),
             hotkey_bindings: default_hotkey_bindings(),
+            telemetry_enabled: Some(true),
+            developer_mode: false,
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -1443,6 +1999,8 @@ mod tests {
                 [1.0, 1.0, 0.0, 1.0],
             ],
             hotkey_bindings: default_hotkey_bindings(),
+            telemetry_enabled: Some(true),
+            developer_mode: false,
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -1493,6 +2051,8 @@ mod tests {
             renderer_backend: RendererBackend::Cpu,
             quick_colors: default_quick_colors(),
             hotkey_bindings: bindings.clone(),
+            telemetry_enabled: None,
+            developer_mode: false,
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -1517,5 +2077,259 @@ mod tests {
         assert_eq!(restored.hotkey_bindings.len(), 1);
         assert_eq!(restored.hotkey_bindings[0].0, HotkeyAction::ToggleOverlay);
         assert_eq!(restored.quick_colors.len(), 5);
+    }
+
+    #[test]
+    fn old_settings_without_telemetry_enabled_loads() {
+        // 旧配置无 telemetry_enabled 字段：反序列化为 None（首次启动未授权），
+        // 且 None 在序列化时不写出该字段（保持「字段缺失 = 未授权」语义）。
+        let json = r#"{
+            "auto_switch_on_overlay": "ask",
+            "locale": "auto",
+            "fullscreen_overlay": true,
+            "live_drag_preview": false,
+            "gpu_acceleration": false,
+            "update_channel": "stable",
+            "cn_mirror": false,
+            "mirror_url": "https://v4.gh-proxy.org",
+            "antialiasing": true
+        }"#;
+        let restored: AppSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(restored.telemetry_enabled, None);
+
+        // None 不写出；Some(true/false) 正常写出并往返。
+        let serialized = serde_json::to_string(&restored).unwrap();
+        assert!(!serialized.contains("telemetry_enabled"));
+
+        let mut with_consent = restored;
+        with_consent.telemetry_enabled = Some(false);
+        let serialized = serde_json::to_string(&with_consent).unwrap();
+        assert!(serialized.contains("\"telemetry_enabled\":false"));
+        let roundtrip: AppSettings = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(roundtrip.telemetry_enabled, Some(false));
+    }
+
+    // ===== 四层架构类型测试 =====
+    #[test]
+    fn element_rect_serialization() {
+        let e = Element::Rect {
+            x: 10.0,
+            y: 20.0,
+            w: 100.0,
+            h: 50.0,
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"type\":\"rect\""));
+        assert!(json.contains("\"x\":10.0"));
+        let restored: Element = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, e);
+    }
+
+    #[test]
+    fn element_circle_serialization() {
+        let e = Element::Circle {
+            cx: 5.0,
+            cy: 5.0,
+            radius: 2.0,
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"type\":\"circle\""));
+        let restored: Element = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, e);
+    }
+
+    #[test]
+    fn element_text_serialization() {
+        let e = Element::Text {
+            x: 0.0,
+            y: 16.0,
+            content: "Hello".to_string(),
+            font_size: 16.0,
+            font_weight: None,
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"type\":\"text\""));
+        assert!(json.contains("\"content\":\"Hello\""));
+    }
+
+    #[test]
+    fn element_text_font_weight_compat() {
+        // 旧 JSON 无 font_weight 字段 → None（向后兼容）。
+        let old = r#"{"type":"text","x":0.0,"y":16.0,"content":"Hello","font_size":16.0}"#;
+        let e: Element = serde_json::from_str(old).unwrap();
+        assert!(matches!(
+            e,
+            Element::Text {
+                font_weight: None,
+                ..
+            }
+        ));
+        // 带 font_weight 的 JSON 往返。
+        let bold = r#"{"type":"text","x":0.0,"y":16.0,"content":"Hello","font_size":16.0,"font_weight":700}"#;
+        let e: Element = serde_json::from_str(bold).unwrap();
+        assert!(matches!(
+            e,
+            Element::Text {
+                font_weight: Some(700),
+                ..
+            }
+        ));
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"font_weight\":700"));
+    }
+
+    #[test]
+    fn element_polygon_serialization() {
+        let e = Element::Polygon {
+            points: vec![[0.0, 0.0], [10.0, 0.0], [5.0, 10.0]],
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"type\":\"polygon\""));
+        let restored: Element = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, e);
+    }
+
+    #[test]
+    fn material_ref_builtin_serialization() {
+        let r = MaterialRef::Builtin {
+            id: "builtin.cross".to_string(),
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains("\"kind\":\"builtin\""));
+        assert!(json.contains("\"id\":\"builtin.cross\""));
+        let restored: MaterialRef = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, r);
+        assert_eq!(r.material_id(), "builtin.cross");
+        assert!(r.is_builtin());
+    }
+
+    #[test]
+    fn material_ref_user_serialization() {
+        let r = MaterialRef::User {
+            name: "user.my_cross".to_string(),
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains("\"kind\":\"user\""));
+        assert_eq!(r.material_id(), "user.my_cross");
+        assert!(!r.is_builtin());
+    }
+
+    #[test]
+    fn transform2d_defaults() {
+        let t = Transform2D::default();
+        assert_eq!(t.offset_x, 0.0);
+        assert_eq!(t.offset_y, 0.0);
+        assert_eq!(t.scale, 1.0);
+        assert_eq!(t.rotation_deg, 0.0);
+    }
+
+    #[test]
+    fn transform2d_partial_deserialize() {
+        // 只提供 offset_x，其他字段回退默认。
+        let json = r#"{"offset_x": 10.0}"#;
+        let t: Transform2D = serde_json::from_str(json).unwrap();
+        assert_eq!(t.offset_x, 10.0);
+        assert_eq!(t.offset_y, 0.0);
+        assert_eq!(t.scale, 1.0);
+        assert_eq!(t.rotation_deg, 0.0);
+    }
+
+    #[test]
+    fn layer_style_defaults() {
+        let s = LayerStyle::default();
+        assert_eq!(s.color, [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(s.opacity, 0.6);
+        assert_eq!(s.blend_mode, BlendMode::Normal);
+    }
+
+    #[test]
+    fn layer_new_basic() {
+        let l = Layer::new(
+            "layer-1",
+            "中心十字",
+            MaterialRef::Builtin {
+                id: "builtin.cross".to_string(),
+            },
+        );
+        assert_eq!(l.id, "layer-1");
+        assert_eq!(l.name, "中心十字");
+        assert!(l.visible);
+        assert!(!l.locked);
+    }
+
+    #[test]
+    fn layer_partial_deserialize() {
+        // 最小合法 Layer JSON：只提供必填字段。
+        let json = r#"{
+            "id": "l1",
+            "name": "test",
+            "material": {"kind": "builtin", "id": "builtin.cross"}
+        }"#;
+        let l: Layer = serde_json::from_str(json).unwrap();
+        assert_eq!(l.id, "l1");
+        assert!(l.visible); // 默认 true
+        assert!(!l.locked); // 默认 false
+        assert_eq!(l.transform.scale, 1.0); // 默认
+        assert_eq!(l.style.opacity, 0.6); // 默认
+    }
+
+    #[test]
+    fn rect_width_height_center() {
+        let r = Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        };
+        assert_eq!(r.width(), 1920.0);
+        assert_eq!(r.height(), 1080.0);
+        assert_eq!(r.center_x(), 960.0);
+        assert_eq!(r.center_y(), 540.0);
+    }
+
+    #[test]
+    fn developer_mode_defaults_to_false() {
+        // 默认配置 developer_mode 为 false。
+        let cfg = AppConfig::default_config();
+        assert!(!cfg.settings.developer_mode);
+        // AppSettings::default() 同样为 false。
+        assert!(!AppSettings::default().developer_mode);
+    }
+
+    #[test]
+    fn old_config_without_developer_mode_loads_as_false() {
+        // 构造一份没有 developer_mode 字段的旧 AppSettings JSON。
+        let old = r#"{
+            "auto_switch_on_overlay": "ask",
+            "locale": "auto",
+            "fullscreen_overlay": true,
+            "live_drag_preview": false,
+            "gpu_acceleration": false,
+            "update_channel": "stable",
+            "cn_mirror": false,
+            "mirror_url": "https://v4.gh-proxy.org",
+            "antialiasing": true,
+            "renderer_backend": "cpu",
+            "quick_colors": [[1.0,1.0,1.0,1.0],[0.0,1.0,0.0,1.0],[0.2,0.5,1.0,1.0],[1.0,0.0,0.0,1.0],[1.0,0.5,0.0,1.0]],
+            "hotkey_bindings": [["toggle_overlay","Ctrl+Alt+O"]]
+        }"#;
+        let parsed: AppSettings = serde_json::from_str(old).expect("老配置应成功反序列化");
+        assert!(
+            !parsed.developer_mode,
+            "老配置反序列化 developer_mode 必须为 false"
+        );
+    }
+
+    #[test]
+    fn developer_mode_serde_round_trip() {
+        // round-trip：true / false 均应保留。
+        let mut cfg = AppConfig::default_config();
+        cfg.settings.developer_mode = true;
+        let json = serde_json::to_string(&cfg).expect("serialize");
+        let back: AppConfig = serde_json::from_str(&json).expect("deserialize");
+        assert!(back.settings.developer_mode);
+
+        // 序列化时应当包含 developer_mode 字段（不是 skip_serializing）。
+        assert!(json.contains("\"developer_mode\""));
     }
 }

@@ -238,7 +238,33 @@ The project integrates `tauri-plugin-updater` (Rust plugin + frontend `@tauri-ap
 
 ## Documentation Site
 
-`docs/` is a **VitePress**-based documentation site (`lang: en-US`, `base: /`, deployed to the custom domain `https://peregrine.eeymoo.com/`), including a mermaid diagram plugin and `vitepress-plugin-llms` (generates `llms.txt` / `llms-full.txt`). Local preview: `cd docs && npm ci && npm run docs:dev`. Content is in `docs/guide/` (user guide, introduction, quick start, features, configuration, development/build). The Simplified Chinese version is located under `docs/zh-cn/`.
+`docs/` is a **VitePress**-based documentation site (`lang: en-US`, `base: /`, deployed to the custom domain `https://peregrine.eeymoo.com/`), including a mermaid diagram plugin and `vitepress-plugin-llms` (generates `llms-txt` / `llms-full.txt`). Local preview: `cd docs && npm ci && npm run docs:dev`. Content is in `docs/guide/` (user guide, introduction, quick start, features, configuration, development/build). The Simplified Chinese version is located under `docs/zh-cn/`.
+
+## Telemetry Module
+
+Peregrine ships an **anonymous, opt-in** GlitchTip (Sentry-protocol) telemetry layer. Code is already stable and Windows-validated; user-facing privacy in `docs/guide/privacy.md` (zh-cn mirror), developer-facing Code registry in `REPORT_CODES.md` at the repo root, dev guide in `docs/guide/development.md` (§ Telemetry Development).
+
+**Module layout**:
+
+- Rust backend: `src-tauri/src/telemetry.rs` — install_id lifecycle, pending storage, event anonymization, panic hook, `report_code` constants, startup / `safe_try!` error outlets. Dual-path implementation: normal impl behind `#[cfg(not(peregrine_disable_telemetry))]`, no-op stubs behind `#[cfg(peregrine_disable_telemetry)]`.
+- Frontend: `src/lib/telemetry.ts` — `REPORT_CODES` constants, `initTelemetry`, `captureFrontendError`, Tauri command wrappers (`storePendingReport` / `authorizeUploadAll` / `testReport` / `restartApp`). `TELEMETRY_DSN_AVAILABLE` exported for UI gating.
+- Build glue: `src-tauri/build.rs` — parses repo-root `.env.development`, propagates `GLITCHTIP_DSN_TEST` to the compile-time env, emits `peregrine_disable_telemetry` cfg when `PEREGRINE_DISABLE_TELEMETRY` is set.
+
+**DSN injection**: DSN is injected at **build time**, never read from disk at runtime. Rust side uses `option_env!("GLITCHTIP_DSN_TEST")` (dev) / `option_env!("GLITCHTIP_DSN")` (release); frontend uses Vite `import.meta.env.VITE_GLITCHTIP_DSN_TEST` / `VITE_GLITCHTIP_DSN`. Missing/empty DSN → SDK does not initialize, **zero network traffic** (default for fresh clones).
+
+**Privacy switch semantics**: `config.settings.telemetry_enabled` is `Option<bool>`:
+
+- `None` (field absent, fresh install) → treated as **not authorized**, SDK stays uninitialized. The first-launch consent dialog (`ConfigApp.tsx`) is the only thing that flips it to `Some(true)` / `Some(false)`.
+- `Some(false)` → SDK not initialized; `safe_try!` / panic hook fall back to local pending storage.
+- `Some(true)` → SDK initialized when DSN is also available; on next launch, pending records are uploaded silently.
+
+Changing the switch requires a restart (a "pending restart" badge is shown in the UI). The error-page "upload error report" button is a **one-time explicit authorization** that initializes the SDK just long enough to flush pending, then tears it down — it does **not** flip the persistent switch.
+
+**`safe_try!` convention** (macro defined in `src-tauri/src/lib.rs`): wraps `Result`-returning calls on **key paths only** (file IO, render entry, window bridge, external call); Ok passes through, Err captures function name + caller file:line + sanitized message and reports via `telemetry::report_safe_try_error`, then returns the original Err so the caller can degrade. **Do not** wrap every method. The Code passed in **must** already be registered in `REPORT_CODES.md` and the `report_code` module. Currently wired: `PGR-2101` (config IO) at 4 sites in `lib.rs`, `PGR-4101` (overlay render) at the render loop in `overlay.rs`.
+
+**Code governance**: before adding any new report point, pick a free Code in the right number range, add it to `report_code` (Rust) or `REPORT_CODES` (frontend) **and** to `REPORT_CODES.md` in the same PR, then write the call site. Codes are stable once shipped — never renumber or reuse. See `REPORT_CODES.md` for the full registry and the `docs/guide/development.md` Telemetry section for the dev workflow.
+
+**Compile-time disable**: set `PEREGRINE_DISABLE_TELEMETRY=1` (any value) before building. `build.rs` emits the cfg, the entire `telemetry` module compiles to no-op stubs preserving API signatures but with no IO / no networking / no panic hook. Use this for builds that must contain no reporting code whatsoever.
 
 ## Security and Notes
 

@@ -54,14 +54,27 @@ cargo clippy -p peregrine_config -- -D warnings
 
 ## Features
 
+Peregrine's visual style system is built on a **four-layer architecture**:
+
+1. **Elements** — primitive geometry (rectangles, circles, rings, triangles, polygons, lines, text, images) that the renderer knows how to draw.
+2. **Materials** — Rhai scripts that map `(params, screen rect) → element list`. Ship as built-ins (cross, edge rect, corner dots, ring, custom orb, random orb, border frame, edge arrows, grid, image) **and** as user-authored `.rhai` files you drop into your materials folder.
+3. **Layers** — material instances with their own params, transform, and style, stacked in array order to compose a complete anchor. Mix as many as you like.
+4. **Configuration** — profiles of layer sets + trigger / hotkey / target-window settings, with atomic writes and hot-reload.
+
+Combined with the built-in materials, you can write your own anchors in Rhai (see [Material Scripting](https://github.com/eeymoo/peregrine/blob/main/docs/guide/material-scripting.md)) without touching Rust.
+
+Highlights:
+
 - **Transparent overlay window on Windows**: an always-on-top, click-through overlay that floats above games or apps.
 - **Target window following**: select a target window from the dropdown and the overlay follows its position and size.
-- Multiple visual anchor styles: Edge Rect, Cross, Large Cross, corner dots (4/6/8), Center Ring, Custom Orb, Random Orb, Border Frame, and Edge Arrows.
+- **Multi-layer anchors**: stack crosshairs, frames, rings, dots, arrows, and images in any combination; reorder, hide, lock per layer.
+- **User-programmable materials**: write `.rhai` material scripts with auto-generated UI controls (number / slider / color / select / toggle / image_path / text). Dynamic-input APIs (`time_ms`, `mouse_pos`, `key_down`, `rand`) are available when dynamic materials are enabled.
 - **Custom PNG image**: load any PNG image as the overlay content.
-- Each style supports adjustable size, thickness, color, opacity, gap, edge position, and more.
-- Multiple profiles: save independent settings for different scenarios.
+- Each material exposes adjustable parameters (size, thickness, color, opacity, gap, edge position, and more) through its `schema()`.
+- Multiple profiles: save independent layer sets for different scenarios.
 - Real-time preview: see changes instantly as you adjust parameters in the settings panel.
 - Persistent configuration + hot-reload: changes made externally take effect automatically.
+- **Anonymous, opt-in telemetry** with full compile-time disable — see [Privacy & Telemetry](https://github.com/eeymoo/peregrine/blob/main/docs/guide/privacy.md).
 - **Tauri + React settings UI**: the settings panel is built on Webview, making it easy to extend and theme.
 - **GitHub Actions automated builds**: Windows x86 / x86_64 / ARM64 builds and releases.
 

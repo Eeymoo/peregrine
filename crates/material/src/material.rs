@@ -644,13 +644,14 @@ mod tests {
 
     #[test]
     fn evaluate_time_material() {
+        // time.rhai 已从内置物料迁移到 examples/（作为动态物料范例，默认配置不引用）。
         let m = Material::load(
-            "builtin.time".to_string(),
-            include_str!("../builtin/time.rhai"),
-            true,
+            "user.time".to_string(),
+            include_str!("../examples/time.rhai"),
+            false,
         )
         .expect("load time material");
-        assert_eq!(m.id(), "builtin.time");
+        assert_eq!(m.id(), "user.time");
         assert_eq!(m.metadata().display_name, "时间显示");
         assert!(m.metadata().is_dynamic);
 
@@ -690,9 +691,9 @@ mod tests {
     #[test]
     fn evaluate_time_material_custom_format() {
         let m = Material::load(
-            "builtin.time".to_string(),
-            include_str!("../builtin/time.rhai"),
-            true,
+            "user.time".to_string(),
+            include_str!("../examples/time.rhai"),
+            false,
         )
         .unwrap();
         let params = serde_json::json!({
@@ -721,9 +722,9 @@ mod tests {
     #[test]
     fn evaluate_time_material_free_format() {
         let m = Material::load(
-            "builtin.time".to_string(),
-            include_str!("../builtin/time.rhai"),
-            true,
+            "user.time".to_string(),
+            include_str!("../examples/time.rhai"),
+            false,
         )
         .unwrap();
         let params = serde_json::json!({
@@ -1181,5 +1182,93 @@ fn build(params, screen) {
             Element::Image { path, .. } => assert_eq!(path, "/tmp/test.png"),
             _ => panic!("expected Image element"),
         }
+    }
+
+    // ===== 示例物料加载 / 求值测试（examples/*.rhai） =====
+
+    /// 示例物料：simple_cross（静态）
+    #[test]
+    fn example_simple_cross_loads_and_evaluates() {
+        let source = include_str!("../examples/simple_cross.rhai");
+        let m = Material::load("user.simple_cross".to_string(), source, false)
+            .expect("load example simple_cross");
+        assert_eq!(m.metadata().display_name, "示例·简易十字");
+        assert!(!m.metadata().is_dynamic);
+
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let params = m.defaults().clone();
+        let elements = m
+            .evaluate(&params, &screen, &ctx)
+            .expect("evaluate simple_cross");
+        // 四段矩形。
+        assert_eq!(elements.len(), 4);
+        for e in &elements {
+            assert!(
+                matches!(e, Element::Rect { .. }),
+                "expected Rect, got {:?}",
+                e
+            );
+        }
+    }
+
+    /// 示例物料：clock（时间动态）
+    #[test]
+    fn example_clock_loads_and_evaluates() {
+        let source = include_str!("../examples/clock.rhai");
+        let m =
+            Material::load("user.clock".to_string(), source, false).expect("load example clock");
+        assert_eq!(m.metadata().display_name, "示例·时钟");
+        assert!(m.metadata().is_dynamic);
+
+        // 动态输入软关闭下使用静态上下文求值（与发布构建行为一致）。
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let params = m.defaults().clone();
+        let elements = m
+            .evaluate(&params, &screen, &ctx)
+            .expect("evaluate clock under static context");
+        assert_eq!(elements.len(), 1);
+        assert!(matches!(
+            &elements[0],
+            Element::Text { content, .. } if !content.is_empty()
+        ));
+    }
+
+    /// 示例物料：key_indicator（输入动态）
+    #[test]
+    fn example_key_indicator_loads_and_evaluates() {
+        let source = include_str!("../examples/key_indicator.rhai");
+        let m = Material::load("user.key_indicator".to_string(), source, false)
+            .expect("load example key_indicator");
+        assert_eq!(m.metadata().display_name, "示例·按键指示器");
+        assert!(m.metadata().is_dynamic);
+
+        // 静态上下文：key_down 恒为 false，仅输出中心点。
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let params = m.defaults().clone();
+        let elements = m
+            .evaluate(&params, &screen, &ctx)
+            .expect("evaluate key_indicator under static context");
+        assert_eq!(elements.len(), 1);
+        assert!(matches!(&elements[0], Element::Circle { .. }));
+
+        // 动态上下文：key_down("space") = true 时输出中心点 + 外圈。
+        let mut key_state = crate::context::KeyState::new();
+        key_state.press("space");
+        let ctx_dyn = DynamicContext {
+            time_ms: 0,
+            mouse_pos: (0.0, 0.0),
+            key_state,
+            rng_seed: 1,
+            version: 1,
+        };
+        let elements = m
+            .evaluate(&params, &screen, &ctx_dyn)
+            .expect("evaluate key_indicator with space pressed");
+        assert_eq!(elements.len(), 2);
+        assert!(matches!(&elements[0], Element::Circle { .. }));
+        assert!(matches!(&elements[1], Element::CircleStroke { .. }));
     }
 }

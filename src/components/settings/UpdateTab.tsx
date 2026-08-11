@@ -58,7 +58,7 @@ export function UpdateTab({
       settings: { ...config.settings, [key]: value },
     };
     setConfig(newConfig);
-    updatePreferences({ [key]: value } as Partial<AppConfig["settings"]>).catch(console.error);
+    updatePreferences({ [key]: value } as Partial<AppConfig["settings"]>).catch(() => {});
   };
 
   const handleCheckUpdate = async () => {

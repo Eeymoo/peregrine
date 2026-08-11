@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useI18n } from "@/lib/i18n";
 import { pickImagePath } from "@/lib/api";
-import type { Crosshair, Anchor, RingStyle, BorderFrameStyle, GridAlignment } from "@/types/config";
+import type { Crosshair, CrosshairStyle, Anchor, RingStyle, BorderFrameStyle, GridAlignment } from "@/types/config";
 import { SliderField } from "@/components/fields/SliderField";
 import { SelectField } from "@/components/fields/SelectField";
 
@@ -64,16 +64,15 @@ function EdgeRectFields({ crosshair, onChange }: StyleFieldsProps) {
   const { t } = useI18n();
   return (
     <div className="space-y-2">
-      <SliderField label={t("fields.width")} value={crosshair.size} min={10} max={400} onChange={(v) => onChange({ size: v })} />
-      <SliderField label={t("fields.height")} value={crosshair.secondary_size} min={10} max={300} onChange={(v) => onChange({ secondary_size: v })} />
-      <SliderField label={t("fields.cornerRadius")} value={crosshair.corner_radius} min={0} max={60} onChange={(v) => onChange({ corner_radius: v })} />
+      <SliderField label={t("fields.width")} value={crosshair.size} min={10} max={1920} onChange={(v) => onChange({ size: v })} />
+      <SliderField label={t("fields.height")} value={crosshair.secondary_size} min={4} max={1920} onChange={(v) => onChange({ secondary_size: v })} />
       <SelectField
         label={t("fields.anchor")}
         value={crosshair.anchor}
         options={ANCHORS.map((a) => ({ value: a, label: t(`anchors.${a}`) }))}
         onChange={(v) => onChange({ anchor: v as Anchor })}
       />
-      <SliderField label={t("fields.margin")} value={crosshair.margin} min={0} max={200} onChange={(v) => onChange({ margin: v })} />
+      <SliderField label={t("fields.margin")} value={crosshair.margin} min={0} max={1920} onChange={(v) => onChange({ margin: v })} />
     </div>
   );
 }
@@ -83,9 +82,9 @@ function CrossFields({ crosshair, onChange }: StyleFieldsProps) {
   const { t } = useI18n();
   return (
     <div className="space-y-2">
-      <SliderField label={t("fields.armLength")} value={crosshair.size} min={5} max={200} onChange={(v) => onChange({ size: v })} />
-      <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={1} max={20} onChange={(v) => onChange({ thickness: v })} />
-      <SliderField label={t("fields.centerGap")} value={crosshair.gap} min={0} max={50} onChange={(v) => onChange({ gap: v })} />
+      <SliderField label={t("fields.armLength")} value={crosshair.size} min={1} max={1920} onChange={(v) => onChange({ size: v })} />
+      <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={0.5} max={50} step={0.5} onChange={(v) => onChange({ thickness: v })} />
+      <SliderField label={t("fields.centerGap")} value={crosshair.gap} min={0} max={200} onChange={(v) => onChange({ gap: v })} />
     </div>
   );
 }
@@ -95,7 +94,7 @@ function LargeCrossFields({ crosshair, onChange }: StyleFieldsProps) {
   const { t } = useI18n();
   return (
     <div className="space-y-2">
-      <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={1} max={30} onChange={(v) => onChange({ thickness: v })} />
+      <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={0.5} max={50} step={0.5} onChange={(v) => onChange({ thickness: v })} />
     </div>
   );
 }
@@ -103,17 +102,23 @@ function LargeCrossFields({ crosshair, onChange }: StyleFieldsProps) {
 /** 定位球（4/6/8）。 */
 function CornerDotsFields({ crosshair, onChange }: StyleFieldsProps) {
   const { t } = useI18n();
+  // 点数切换：style 枚举里编码了 4/6/8，提供独立 select 让用户在字段面板内直接切换，
+  // 不必回到顶部 style 下拉。切回时需要同步 crosshair.style。
+  const countOptions = [
+    { value: "corner_dots4", label: t("cornerDotsCount.4") },
+    { value: "corner_dots6", label: t("cornerDotsCount.6") },
+    { value: "corner_dots8", label: t("cornerDotsCount.8") },
+  ];
   return (
     <div className="space-y-2">
-      <SliderField label={t("fields.offset")} value={crosshair.offset} min={0} max={200} onChange={(v) => onChange({ offset: v })} />
-      <SliderField
-        label={crosshair.radius > 0 ? t("fields.radius") : t("fields.radiusAuto")}
-        value={crosshair.radius}
-        min={0}
-        max={80}
-        onChange={(v) => onChange({ radius: v })}
+      <SelectField
+        label={t("fields.dotCount")}
+        value={crosshair.style}
+        options={countOptions}
+        onChange={(v) => onChange({ style: v as CrosshairStyle })}
       />
-      <SliderField label={t("fields.lineWidthAuto")} value={crosshair.thickness} min={1} max={20} onChange={(v) => onChange({ thickness: v })} />
+      <SliderField label={t("fields.offset")} value={crosshair.offset} min={0} max={1920} onChange={(v) => onChange({ offset: v })} />
+      <SliderField label={t("fields.radius")} value={crosshair.radius} min={1} max={500} step={0.5} onChange={(v) => onChange({ radius: v })} />
     </div>
   );
 }
@@ -124,7 +129,7 @@ function RingFields({ crosshair, onChange }: StyleFieldsProps) {
   return (
     <div className="space-y-2">
       <SliderField label={t("fields.ringRadiusPct")} value={crosshair.ring_radius_pct} min={0.03} max={0.08} step={0.001} onChange={(v) => onChange({ ring_radius_pct: v })} />
-      <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={1} max={3} onChange={(v) => onChange({ thickness: v })} />
+      <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={0.5} max={50} step={0.5} onChange={(v) => onChange({ thickness: v })} />
       <SelectField
         label={t("fields.ringStyle")}
         value={crosshair.ring_style}
@@ -141,8 +146,8 @@ function CustomOrbFields({ crosshair, onChange }: StyleFieldsProps) {
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-3">
-        <SliderField label={t("fields.radius")} value={crosshair.radius} min={4} max={12} onChange={(v) => onChange({ radius: v })} />
-        <SliderField label={t("fields.offset")} value={crosshair.offset} min={10} max={200} onChange={(v) => onChange({ offset: v })} />
+        <SliderField label={t("fields.radius")} value={crosshair.radius} min={1} max={500} step={0.5} onChange={(v) => onChange({ radius: v })} />
+        <SliderField label={t("fields.offset")} value={crosshair.offset} min={0} max={1920} onChange={(v) => onChange({ offset: v })} />
         <SliderField label={t("fields.countTop")} value={crosshair.custom_orb_top_count} min={1} max={10} step={1} onChange={(v) => onChange({ custom_orb_top_count: v })} />
         <SliderField label={t("fields.countBottom")} value={crosshair.custom_orb_bottom_count} min={1} max={10} step={1} onChange={(v) => onChange({ custom_orb_bottom_count: v })} />
         <SliderField label={t("fields.countLeft")} value={crosshair.custom_orb_left_count} min={1} max={10} step={1} onChange={(v) => onChange({ custom_orb_left_count: v })} />
@@ -158,11 +163,11 @@ function RandomOrbFields({ crosshair, onChange }: StyleFieldsProps) {
   const { t } = useI18n();
   return (
     <div className="space-y-2">
-      <SliderField label={t("fields.perEdgeCount")} value={crosshair.random_orb_count} min={1} max={10} step={1} onChange={(v) => onChange({ random_orb_count: v })} />
-      <SliderField label={t("fields.offset")} value={crosshair.random_orb_offset} min={0} max={300} onChange={(v) => onChange({ random_orb_offset: v })} />
-      <SliderField label={t("fields.positionJitter")} value={crosshair.random_orb_jitter} min={0} max={200} onChange={(v) => onChange({ random_orb_jitter: v })} />
-      <SliderField label={t("fields.radiusMin")} value={crosshair.random_radius_min} min={4} max={12} onChange={(v) => onChange({ random_radius_min: v })} />
-      <SliderField label={t("fields.radiusMax")} value={crosshair.random_radius_max} min={4} max={12} onChange={(v) => onChange({ random_radius_max: v })} />
+      <SliderField label={t("fields.perEdgeCount")} value={crosshair.random_orb_count} min={1} max={20} step={1} onChange={(v) => onChange({ random_orb_count: v })} />
+      <SliderField label={t("fields.offset")} value={crosshair.random_orb_offset} min={0} max={1920} onChange={(v) => onChange({ random_orb_offset: v })} />
+      <SliderField label={t("fields.positionJitter")} value={crosshair.random_orb_jitter} min={0} max={1920} onChange={(v) => onChange({ random_orb_jitter: v })} />
+      <SliderField label={t("fields.radiusMin")} value={crosshair.random_radius_min} min={1} max={500} step={0.5} onChange={(v) => onChange({ random_radius_min: v })} />
+      <SliderField label={t("fields.radiusMax")} value={crosshair.random_radius_max} min={1} max={500} step={0.5} onChange={(v) => onChange({ random_radius_max: v })} />
     </div>
   );
 }
@@ -172,8 +177,8 @@ function BorderFrameFields({ crosshair, onChange }: StyleFieldsProps) {
   const { t } = useI18n();
   return (
     <div className="space-y-2">
-      <SliderField label={t("fields.barHeight")} value={crosshair.thickness} min={1} max={20} onChange={(v) => onChange({ thickness: v })} />
-      <SliderField label={t("fields.offset")} value={crosshair.offset} min={0} max={100} onChange={(v) => onChange({ offset: v })} />
+      <SliderField label={t("fields.barHeight")} value={crosshair.thickness} min={1} max={50} onChange={(v) => onChange({ thickness: v })} />
+      <SliderField label={t("fields.offset")} value={crosshair.offset} min={0} max={1920} onChange={(v) => onChange({ offset: v })} />
       <SelectField
         label={t("fields.borderStyle")}
         value={crosshair.border_frame_style}
@@ -189,21 +194,21 @@ function EdgeArrowsFields({ crosshair, onChange }: StyleFieldsProps) {
   const { t } = useI18n();
   return (
     <div className="space-y-2">
-      <SliderField label={t("fields.arrowSize")} value={crosshair.size} min={4} max={60} step={1} onChange={(v) => onChange({ size: v })} />
-      <SliderField label={t("fields.arrowWidth")} value={crosshair.arrow_width} min={0} max={72} step={1} onChange={(v) => onChange({ arrow_width: v })} />
+      <SliderField label={t("fields.arrowSize")} value={crosshair.size} min={4} max={400} step={1} onChange={(v) => onChange({ size: v })} />
+      <SliderField label={t("fields.arrowWidth")} value={crosshair.arrow_width} min={0} max={200} step={1} onChange={(v) => onChange({ arrow_width: v })} />
       <div className="flex items-center gap-3">
         <Checkbox id="tail_per_edge" checked={crosshair.arrow_tail_per_edge} onCheckedChange={(v) => onChange({ arrow_tail_per_edge: !!v })} />
         <Label htmlFor="tail_per_edge" className="text-sm">{t("fields.tailPerEdge")}</Label>
       </div>
       {crosshair.arrow_tail_per_edge ? (
         <div className="grid grid-cols-2 gap-3">
-          <SliderField label={t("fields.tailTop")} value={crosshair.arrow_tail_top} min={0} max={500} step={1} onChange={(v) => onChange({ arrow_tail_top: v })} />
-          <SliderField label={t("fields.tailBottom")} value={crosshair.arrow_tail_bottom} min={0} max={500} step={1} onChange={(v) => onChange({ arrow_tail_bottom: v })} />
-          <SliderField label={t("fields.tailLeft")} value={crosshair.arrow_tail_left} min={0} max={500} step={1} onChange={(v) => onChange({ arrow_tail_left: v })} />
-          <SliderField label={t("fields.tailRight")} value={crosshair.arrow_tail_right} min={0} max={500} step={1} onChange={(v) => onChange({ arrow_tail_right: v })} />
+          <SliderField label={t("fields.tailTop")} value={crosshair.arrow_tail_top} min={0} max={1920} step={1} onChange={(v) => onChange({ arrow_tail_top: v })} />
+          <SliderField label={t("fields.tailBottom")} value={crosshair.arrow_tail_bottom} min={0} max={1920} step={1} onChange={(v) => onChange({ arrow_tail_bottom: v })} />
+          <SliderField label={t("fields.tailLeft")} value={crosshair.arrow_tail_left} min={0} max={1920} step={1} onChange={(v) => onChange({ arrow_tail_left: v })} />
+          <SliderField label={t("fields.tailRight")} value={crosshair.arrow_tail_right} min={0} max={1920} step={1} onChange={(v) => onChange({ arrow_tail_right: v })} />
         </div>
       ) : (
-        <SliderField label={t("fields.tailLength")} value={crosshair.arrow_distance} min={0} max={500} step={1} onChange={(v) => onChange({ arrow_distance: v })} />
+        <SliderField label={t("fields.tailLength")} value={crosshair.arrow_distance} min={0} max={1920} step={1} onChange={(v) => onChange({ arrow_distance: v })} />
       )}
       <OrbPositionCheck crosshair={crosshair} onChange={onChange} />
     </div>
@@ -215,8 +220,8 @@ function GridFields({ crosshair, onChange }: StyleFieldsProps) {
   const { t } = useI18n();
   return (
     <div className="space-y-2">
-      <SliderField label={t("fields.gridSize")} value={crosshair.grid_size ?? 80} min={10} max={500} step={5} onChange={(v) => onChange({ grid_size: v })} />
-      <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={1} max={20} onChange={(v) => onChange({ thickness: v })} />
+      <SliderField label={t("fields.gridSize")} value={crosshair.grid_size ?? 80} min={10} max={1920} step={1} onChange={(v) => onChange({ grid_size: v })} />
+      <SliderField label={t("fields.lineWidth")} value={crosshair.thickness} min={0.5} max={50} step={0.5} onChange={(v) => onChange({ thickness: v })} />
       <SelectField
         label={t("fields.gridAlignment")}
         value={crosshair.grid_alignment ?? "center"}
@@ -250,9 +255,9 @@ function CustomImageFields({ crosshair, onChange }: StyleFieldsProps) {
           <Button variant="secondary" onClick={handlePick} className="h-8 text-sm px-2">{t("fields.browse")}</Button>
         </div>
       </div>
-      <SliderField label={t("fields.imageScale")} value={crosshair.image_scale} min={0.1} max={5} step={0.1} onChange={(v) => onChange({ image_scale: v })} />
-      <SliderField label={t("fields.imageOffsetX")} value={crosshair.image_offset_x} min={-500} max={500} onChange={(v) => onChange({ image_offset_x: v })} />
-      <SliderField label={t("fields.imageOffsetY")} value={crosshair.image_offset_y} min={-500} max={500} onChange={(v) => onChange({ image_offset_y: v })} />
+      <SliderField label={t("fields.imageScale")} value={crosshair.image_scale} min={0.1} max={50} step={0.1} onChange={(v) => onChange({ image_scale: v })} />
+      <SliderField label={t("fields.imageOffsetX")} value={crosshair.image_offset_x} min={-1920} max={1920} onChange={(v) => onChange({ image_offset_x: v })} />
+      <SliderField label={t("fields.imageOffsetY")} value={crosshair.image_offset_y} min={-1920} max={1920} onChange={(v) => onChange({ image_offset_y: v })} />
     </div>
   );
 }

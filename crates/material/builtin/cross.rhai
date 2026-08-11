@@ -11,9 +11,9 @@ fn defaults() {
 
 fn schema() {
     [
-        #{key: "size", label: "臂长", widget: "slider", min: 1.0, max: 200.0, step: 1.0},
-        #{key: "thickness", label: "粗细", widget: "slider", min: 0.5, max: 20.0, step: 0.5},
-        #{key: "gap", label: "中心间隙", widget: "slider", min: 0.0, max: 40.0, step: 1.0},
+        #{key: "size", label: "臂长", widget: "slider", min: 1.0, max: 1920.0, step: 1.0},
+        #{key: "thickness", label: "粗细", widget: "slider", min: 0.5, max: 50.0, step: 0.5},
+        #{key: "gap", label: "中心间隙", widget: "slider", min: 0.0, max: 200.0, step: 1.0},
     ]
 }
 

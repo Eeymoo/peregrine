@@ -11,7 +11,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Layer, MaterialInfo, AppConfig } from "@/types/config";
-import { listLayers, listMaterials, saveConfig } from "@/lib/api";
+import {
+  listLayers,
+  listMaterials,
+  updateProfileField,
+  getConfig,
+} from "@/lib/api";
 import { listen } from "@tauri-apps/api/event";
 import { Preview } from "@/components/Preview";
 import { LayerPanel, MaterialParamControls } from "@/components/LayerPanel";
@@ -116,11 +121,21 @@ export function LayersEditor({
     refresh();
   }, [refresh, refreshKey]);
 
+  // 任务 5.2：监听 peregrine:layers-changed 事件时除 refresh 外，
+  // 同时 getConfig() → onConfigChange 同步整个 config，作为 patch API 的兜底
+  // （防止前端内存态 config 在图层操作后过期）。
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen("peregrine:layers-changed", () => {
       logAction("layers-changed event");
       refresh();
+      // 拉取后端最新整个 config 同步给 ConfigApp 的 setConfig，
+      // 确保前端 config.profiles.X.layers 与后端一致。
+      getConfig()
+        .then((cfg) => onConfigChange(cfg))
+        .catch(() => {
+          // getConfig 失败不影响图层列表刷新；invoke 包装会 toast 提示。
+        });
       setRefreshKey((n) => n + 1);
     }).then((un) => {
       unlisten = un;
@@ -128,7 +143,7 @@ export function LayersEditor({
     return () => {
       if (unlisten) unlisten();
     };
-  }, [refresh]);
+  }, [refresh, onConfigChange]);
 
   const triggerPreviewRefresh = () => setRefreshKey((n) => n + 1);
 
@@ -147,6 +162,9 @@ export function LayersEditor({
 
   const updateTargetWindow = (targetWindow: string) => {
     if (!profile) return;
+    // 任务 5.1：改走 updateProfileField patch API，不再调 saveConfig 全量覆盖后端。
+    // 这样后端 profile.layers 不会被前端内存态的旧 layers 覆盖（根治配置丢失）。
+    // 前端本地 config 也同步更新，保持 UI 一致。
     const newConfig: AppConfig = {
       ...config,
       profiles: {
@@ -158,7 +176,12 @@ export function LayersEditor({
       },
     };
     onConfigChange(newConfig);
-    saveConfig(newConfig).catch(console.error);
+    updateProfileField(config.active_profile, {
+      kind: "target_window",
+      value: targetWindow,
+    }).catch(() => {
+      // invoke 包装负责 toast；本地 config 已乐观更新，后端失败时下次 layers-changed 事件会回滚。
+    });
   };
 
   return (
@@ -374,9 +397,9 @@ async function updateLayerName(layerId: string, name: string, onChanged: () => v
   try {
     await updateLayer(layerId, { name });
     onChanged();
-  } catch (err) {
-    // 图层可能已被删除（在途请求晚到），仅记录不抛出未捕获 Promise。
-    console.error("updateLayerName failed:", err);
+  } catch {
+    // 图层可能已被删除（在途请求晚到）；invoke 包装已 toast 提示，
+    // 这里不再重复 console.error。
   }
 }
 

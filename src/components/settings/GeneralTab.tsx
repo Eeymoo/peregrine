@@ -49,7 +49,7 @@ export function GeneralTab({ config, locale, setConfig, setLocale }: GeneralTabP
                 settings: { ...config.settings, cn_mirror: false },
               };
               setConfig(newConfig);
-              updatePreferences({ cn_mirror: false }).catch(console.error);
+              updatePreferences({ cn_mirror: false }).catch(() => {});
             }
           }}
         >

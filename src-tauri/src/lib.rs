@@ -646,6 +646,7 @@ pub fn run() {
             is_profile_legacy_compatible,
             get_active_profile_name,
             copy_profile,
+            update_profile_field,
         ])
         .build(tauri::generate_context!())
         .unwrap_or_else(|e| {
@@ -2063,6 +2064,52 @@ async fn copy_profile(
     persist_and_broadcast(&state, &config).await?;
     emit_layers_changed(&app);
     Ok(candidate)
+}
+
+/// Profile 字段级 patch 更新载荷。
+///
+/// 强类型 enum（按 design.md D1 决策），避免传 `serde_json::Value` 后端反序列化麻烦。
+/// `#[serde(tag = "kind", rename_all = "snake_case")]` 与前端
+/// `{ kind: "target_window", value }` 形态对齐。
+#[derive(Debug, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum ProfileFieldUpdate {
+    /// 修改 profile.target_window（空字符串表示清除跟随）。
+    TargetWindow { value: String },
+    /// 修改 profile.settings_hotkey。
+    SettingsHotkey { value: String },
+}
+
+/// 字段级 patch 更新 Profile 顶层字段（不触及 layers/crosshair）。
+///
+/// 用于多图层编辑链路替代全量 saveConfig，根治配置丢失。
+/// 仅修改指定的 target_window / settings_hotkey 字段，layers 保持后端权威。
+#[tauri::command]
+async fn update_profile_field(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    profile_name: String,
+    update: ProfileFieldUpdate,
+) -> Result<(), String> {
+    let mut config = {
+        let guard = state.config.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().clone()
+    };
+    let profile = config
+        .profiles
+        .get_mut(&profile_name)
+        .ok_or_else(|| format!("profile '{}' not found", profile_name))?;
+    match update {
+        ProfileFieldUpdate::TargetWindow { value } => {
+            profile.target_window = value;
+        }
+        ProfileFieldUpdate::SettingsHotkey { value } => {
+            profile.settings_hotkey = value;
+        }
+    }
+    persist_and_broadcast(&state, &config).await?;
+    emit_layers_changed(&app);
+    Ok(())
 }
 
 /// 生成简单的唯一 id（时间戳 + 计数器）。

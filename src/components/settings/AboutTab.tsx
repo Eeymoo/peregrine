@@ -35,7 +35,7 @@ export function AboutTab({ version, developerMode, onDeveloperModeChange }: Abou
       setClickCount(0);
       setJustUnlocked(true);
       setTimeout(() => setJustUnlocked(false), 3000);
-      updatePreferences({ developer_mode: true }).catch(console.error);
+      updatePreferences({ developer_mode: true }).catch(() => {});
       onDeveloperModeChange(true);
     }
     return () => clearTimeout(timer);

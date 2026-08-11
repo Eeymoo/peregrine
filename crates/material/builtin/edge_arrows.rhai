@@ -19,15 +19,15 @@ fn defaults() {
 
 fn schema() {
     [
-        #{key: "size", label: "箭头大小", widget: "slider", min: 4.0, max: 80.0, step: 1.0},
-        #{key: "distance", label: "距边缘距离", widget: "slider", min: 0.0, max: 400.0, step: 1.0},
-        #{key: "width", label: "尾巴宽度（0=默认）", widget: "slider", min: 0.0, max: 40.0, step: 1.0},
+        #{key: "size", label: "箭头大小", widget: "slider", min: 4.0, max: 400.0, step: 1.0},
+        #{key: "distance", label: "距边缘距离", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
+        #{key: "width", label: "尾巴宽度（0=默认）", widget: "slider", min: 0.0, max: 200.0, step: 1.0},
         #{key: "tail_per_edge", label: "每边单独尾巴长度", widget: "toggle", "default": false},
-        #{key: "tail_top", label: "上尾巴长度", widget: "slider", min: 0.0, max: 400.0, step: 1.0},
-        #{key: "tail_bottom", label: "下尾巴长度", widget: "slider", min: 0.0, max: 400.0, step: 1.0},
-        #{key: "tail_left", label: "左尾巴长度", widget: "slider", min: 0.0, max: 400.0, step: 1.0},
-        #{key: "tail_right", label: "右尾巴长度", widget: "slider", min: 0.0, max: 400.0, step: 1.0},
-        #{key: "positions_mask", label: "位置掩码（0=全部）", widget: "number", min: 0, max: 15, step: 1},
+        #{key: "tail_top", label: "上尾巴长度", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
+        #{key: "tail_bottom", label: "下尾巴长度", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
+        #{key: "tail_left", label: "左尾巴长度", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
+        #{key: "tail_right", label: "右尾巴长度", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
+        #{key: "positions_mask", label: "启用边缘", widget: "number", min: 0, max: 15, step: 1, bitmask: true},
     ]
 }
 
@@ -76,6 +76,7 @@ fn build(params, screen) {
     let cy = (screen.min_y + screen.max_y) / 2.0;
 
     let mask = params.positions_mask;
+    // bitmask 位语义：1=top, 2=bottom, 4=left, 8=right。0 表示全部启用（向后兼容）。
     let show_top = mask == 0 || (mask & 1) != 0;
     let show_bottom = mask == 0 || (mask & 2) != 0;
     let show_left = mask == 0 || (mask & 4) != 0;

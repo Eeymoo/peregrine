@@ -13,8 +13,8 @@ fn defaults() {
 
 fn schema() {
     [
-        #{key: "thickness", label: "粗细", widget: "slider", min: 1.0, max: 30.0, step: 1.0},
-        #{key: "offset", label: "距边缘距离", widget: "slider", min: 0.0, max: 200.0, step: 1.0},
+        #{key: "thickness", label: "粗细", widget: "slider", min: 1.0, max: 50.0, step: 1.0},
+        #{key: "offset", label: "距边缘距离", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
         #{
             key: "frame_style",
             label: "样式",
@@ -36,10 +36,15 @@ fn is_dynamic() {
 fn build(params, screen) {
     let thickness = params.thickness;
     let offset = params.offset;
-    let top_y = screen.min_y + offset;
-    let bottom_y = screen.max_y - offset;
-    let left_x = screen.min_x + offset;
-    let right_x = screen.max_x - offset;
+    // 任务 9.1：根据 inset 控制 offset 符号。
+    // - inset=true（默认行为）：边框向内偏移 offset 像素（原行为）；
+    // - inset=false（贴边）：边框直接位于屏幕边缘（offset=0），
+    //   原先 inset 字段被忽略，现已实现消费。
+    let effective_offset = if params.inset { offset } else { 0.0 };
+    let top_y = screen.min_y + effective_offset;
+    let bottom_y = screen.max_y - effective_offset;
+    let left_x = screen.min_x + effective_offset;
+    let right_x = screen.max_x - effective_offset;
 
     if params.frame_style == "gap" {
         gap_frame(screen, top_y, bottom_y, left_x, right_x, thickness)

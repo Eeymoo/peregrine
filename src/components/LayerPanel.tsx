@@ -10,6 +10,8 @@ import {
   updateLayer,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Trash2, Copy, ChevronUp, ChevronDown, Plus, Eye, EyeOff, Lock, Unlock } from "lucide-react";
 import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
@@ -58,7 +60,9 @@ export function LayerPanel({
             .filter((m) => m.id !== "builtin.custom_image"),
         ),
       )
-      .catch(console.error);
+      .catch(() => {
+        // listMaterials 失败由 invoke 包装 toast 提示；这里不阻塞 UI。
+      });
   }, []);
 
   const handleAdd = async (materialId: string, name: string) => {
@@ -390,6 +394,18 @@ function renderWidget(
         />
       );
     case "number":
+      // 位掩码字段（custom_orb.orb_positions / edge_arrows.positions_mask）：
+      // 渲染为 4 个 checkbox，提升多图层模式下的可操作性。
+      if (entry.bitmask) {
+        return (
+          <BitmaskField
+            label={entry.label}
+            value={typeof value === "number" ? value : 0}
+            disabled={disabled}
+            onChange={(v) => onChange(v)}
+          />
+        );
+      }
       return (
         <NumberField
           label={entry.label}
@@ -434,13 +450,23 @@ function renderWidget(
         value: String(opt.value),
         label: opt.label,
       }));
+      // 任务 9.7：物料 schema 标记 coming_soon 的 select 控件禁用，
+      // 并在 label 后追加「（开发中）」提示（random_orb.mode 等）。
+      const comingSoon = entry.coming_soon === true;
+      // 原始 schema option value 可能是数字（corner_dots.count）或字符串（mode）。
+      // SelectField 只接受 string，但回传给 onChange 时需按原始类型还原，
+      // 否则 Rhai 侧 `params.count >= 6` 会因类型不匹配而失败（"6" vs 6）。
+      const originalOptions = entry.options ?? [];
       return (
         <SelectField
-          label={entry.label}
+          label={comingSoon ? `${entry.label}（开发中）` : entry.label}
           value={String(value ?? "")}
           options={options}
-          disabled={disabled}
-          onChange={(v) => onChange(v)}
+          disabled={disabled || comingSoon}
+          onChange={(v) => {
+            const matched = originalOptions.find((opt) => String(opt.value) === v);
+            onChange(matched ? matched.value : v);
+          }}
         />
       );
     }
@@ -460,4 +486,52 @@ function renderWidget(
         </div>
       );
   }
+}
+
+/** 位掩码字段：把 4 位整数（1=top, 2=bottom, 4=left, 8=right）渲染为 4 个 checkbox。
+ *
+ * 用于 custom_orb.orb_positions、edge_arrows.positions_mask 等位掩码字段，
+ * 替代裸数字输入，避免用户手算位运算。
+ */
+function BitmaskField({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  disabled?: boolean;
+  onChange: (v: number) => void;
+}) {
+  const { t } = useI18n();
+  const items: { flag: number; key: string; label: string }[] = [
+    { flag: 0b0001, key: "top", label: t("fields.top") },
+    { flag: 0b0010, key: "bottom", label: t("fields.bottom") },
+    { flag: 0b0100, key: "left", label: t("fields.left") },
+    { flag: 0b1000, key: "right", label: t("fields.right") },
+  ];
+  const set = (flag: number, checked: boolean) => {
+    onChange(checked ? value | flag : value & ~flag);
+  };
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm">{label}</Label>
+      <div className="flex flex-wrap gap-4">
+        {items.map(({ flag, key, label: itemLabel }) => (
+          <div key={key} className="flex items-center gap-1">
+            <Checkbox
+              id={`bitmask-${key}`}
+              checked={(value & flag) !== 0}
+              disabled={disabled}
+              onCheckedChange={(v) => set(flag, !!v)}
+            />
+            <Label htmlFor={`bitmask-${key}`} className="text-sm">
+              {itemLabel}
+            </Label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

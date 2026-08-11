@@ -13,7 +13,7 @@ fn defaults() {
 
 fn schema() {
     [
-        #{key: "thickness", label: "粗细", widget: "slider", min: 0.5, max: 20.0, step: 0.5},
+        #{key: "thickness", label: "粗细", widget: "slider", min: 0.5, max: 50.0, step: 0.5},
         #{key: "ring_radius_pct", label: "半径占比", widget: "slider", min: 0.03, max: 0.08, step: 0.005},
         #{
             key: "ring_style",

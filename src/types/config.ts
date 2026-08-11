@@ -94,6 +94,18 @@ export interface MaterialSchemaEntry {
   step?: number;
   options?: { value: string | number; label: string }[];
   default?: unknown;
+  /** 任务 9.7：select 控件标记为「开发中」，前端禁用并显示提示。
+   *
+   * 用于 random_orb.mode 等暂未实现的字段。
+   */
+  coming_soon?: boolean;
+  /** 位掩码控件标记：widget 为 number 时，前端识别此标记后渲染为 4 个 checkbox
+   * （上/下/左/右），位 1=top, 2=bottom, 4=left, 8=right。
+   *
+   * 用于 custom_orb.orb_positions、edge_arrows.positions_mask 等位掩码字段，
+   * 替代裸数字输入，提升多图层模式下的可操作性。
+   */
+  bitmask?: boolean;
 }
 
 /** 物料信息（IPC `list_materials` 返回）。 */

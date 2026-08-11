@@ -11,7 +11,7 @@ export function useUpdateConfig(config: AppConfig | null, setConfig: (cfg: AppCo
         settings: { ...config.settings, [key]: value },
       };
       setConfig(newConfig);
-      updatePreferences({ [key]: value } as Partial<AppConfig["settings"]>).catch(console.error);
+      updatePreferences({ [key]: value } as Partial<AppConfig["settings"]>).catch(() => {});
     },
     [config, setConfig]
   );

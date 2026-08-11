@@ -1,6 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { invoke } from "@tauri-apps/api/core";
+import { pickImagePath } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
 /** 图片路径字段组件 Props。 */
@@ -47,8 +47,12 @@ export function ImagePathField({
           variant="outline"
           disabled={disabled}
           onClick={async () => {
-            const path = await invoke<string | null>("pick_image_path");
-            if (path) onChange(path);
+            try {
+              const path = await pickImagePath();
+              if (path) onChange(path);
+            } catch {
+              // 用户取消或调用失败，invoke 包装负责 toast。
+            }
           }}
         >
           {t("fields.browse")}

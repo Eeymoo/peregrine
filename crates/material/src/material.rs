@@ -474,6 +474,9 @@ fn dynamic_to_element(material_id: &str, d: Dynamic) -> MaterialResult<Element> 
             y: get_f32("y")?,
             w: get_f32("w")?,
             h: get_f32("h")?,
+            // 任务 9.3：支持 edge_rect 等物料的 corner_radius 字段。
+            // 物料脚本不输出该字段时回退 None（直角，向后兼容）。
+            corner_radius: get_f32("corner_radius").ok(),
         }),
         "circle" => Ok(Element::Circle {
             cx: get_f32("cx")?,
@@ -1161,8 +1164,55 @@ fn build(params, screen) {
             )
             .unwrap();
 
-        // edge 模式比 center 模式多 2 行 + 2 列（含边缘）。
-        assert!(edge.len() > center.len());
+        // 两种模式都应生成网格线（>0），数量级相近。
+        assert!(!center.is_empty(), "center 模式应生成网格线");
+        assert!(!edge.is_empty(), "edge 模式应生成网格线");
+        // center 模式从屏幕中心对称扩展，含超出边缘一圈的线，
+        // 元素数量应与 edge 同量级（差异不超过 2 行/列）。
+        let diff = center.len() as i64 - edge.len() as i64;
+        assert!(
+            diff.abs() <= 4,
+            "center/edge 元素数差异过大：center={} edge={}",
+            center.len(),
+            edge.len()
+        );
+    }
+
+    #[test]
+    fn grid_center_symmetric_and_fills_screen() {
+        // 任务 8.3：center 模式应让网格铺满屏幕（允许超出边缘一圈），
+        // 而非在屏幕内部留白。校验：所有 rect 元素的 x/y 范围覆盖屏幕宽高。
+        let m = load_builtin("grid");
+        let screen = test_rect(); // 通常 0..800 / 0..600 之类
+        let ctx = DynamicContext::static_context();
+
+        let elements = m
+            .evaluate(
+                &serde_json::json!({"grid_size": 200.0, "alignment": "center"}),
+                &screen,
+                &ctx,
+            )
+            .unwrap();
+
+        // 校验竖线高度铺满屏幕（h ≥ screen.height），横线宽度铺满屏幕（w ≥ screen.width）。
+        let screen_w = screen.max_x - screen.min_x;
+        let screen_h = screen.max_y - screen.min_y;
+        let mut has_vertical = false; // 竖线：w 小、h 大
+        let mut has_horizontal = false; // 横线：h 小、w 大
+        for e in &elements {
+            match e {
+                Element::Rect { w, h, .. } => {
+                    if *h >= screen_h && *w < screen_w {
+                        has_vertical = true;
+                    } else if *w >= screen_w && *h < screen_h {
+                        has_horizontal = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(has_vertical, "center 模式应有铺满屏幕高度的竖线");
+        assert!(has_horizontal, "center 模式应有铺满屏幕宽度的横线");
     }
 
     #[test]

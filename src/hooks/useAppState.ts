@@ -8,7 +8,7 @@ export function useConfig() {
   useEffect(() => {
     getConfig()
       .then(setConfig)
-      .catch(console.error);
+      .catch(() => {});
   }, []);
 
   return { config, setConfig };

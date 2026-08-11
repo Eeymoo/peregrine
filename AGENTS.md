@@ -257,7 +257,7 @@ The project integrates `tauri-plugin-updater` (Rust plugin + frontend `@tauri-ap
 
 ## Documentation Site
 
-`docs/` is a **VitePress**-based documentation site (`lang: en-US`, `base: /`, deployed to the custom domain `https://peregrine.eeymoo.com/`), including a mermaid diagram plugin and `vitepress-plugin-llms` (generates `llms-txt` / `llms-full.txt`). Local preview: `cd docs && npm ci && npm run docs:dev`. Content is in `docs/guide/` (user guide, introduction, quick start, features, configuration, development/build). The Simplified Chinese version is located under `docs/zh-cn/`.
+`docs/` is a **VitePress**-based documentation site (`lang: en-US`, `base: /`, deployed to the custom domain `https://peregrine.aukcraft.org/`), including a mermaid diagram plugin and `vitepress-plugin-llms` (generates `llms-txt` / `llms-full.txt`). Local preview: `cd docs && npm ci && npm run docs:dev`. Content is in `docs/guide/` (user guide, introduction, quick start, features, configuration, development/build). The Simplified Chinese version is located under `docs/zh-cn/`.
 
 ## Telemetry Module
 

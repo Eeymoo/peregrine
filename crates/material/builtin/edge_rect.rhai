@@ -8,14 +8,13 @@ fn defaults() {
         secondary_size: 24.0,
         anchor: "top",
         margin: 16.0,
-        corner_radius: 12.0,
     }
 }
 
 fn schema() {
     [
-        #{key: "size", label: "宽度", widget: "slider", min: 10.0, max: 600.0, step: 1.0},
-        #{key: "secondary_size", label: "高度", widget: "slider", min: 4.0, max: 200.0, step: 1.0},
+        #{key: "size", label: "宽度", widget: "slider", min: 10.0, max: 1920.0, step: 1.0},
+        #{key: "secondary_size", label: "高度", widget: "slider", min: 4.0, max: 1920.0, step: 1.0},
         #{
             key: "anchor",
             label: "位置",
@@ -29,8 +28,7 @@ fn schema() {
             ],
             "default": "top",
         },
-        #{key: "margin", label: "边距", widget: "slider", min: 0.0, max: 200.0, step: 1.0},
-        #{key: "corner_radius", label: "圆角半径", widget: "slider", min: 0.0, max: 60.0, step: 1.0},
+        #{key: "margin", label: "边距", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
     ]
 }
 

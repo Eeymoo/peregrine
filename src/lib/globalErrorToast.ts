@@ -44,7 +44,7 @@ interface ToastEntry {
 const toasts: ToastEntry[] = [];
 let nextId = 1;
 
-function showToast(message: string, stack?: string): void {
+export function showToast(message: string, stack?: string): void {
   const id = nextId++;
   toasts.push({ id, message, stack });
   renderToasts();

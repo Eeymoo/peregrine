@@ -3716,7 +3716,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "peregrine"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "peregrine_config",
  "peregrine_material",
@@ -3736,7 +3736,7 @@ dependencies = [
 
 [[package]]
 name = "peregrine-tauri"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "function_name",
  "notify",
@@ -3766,7 +3766,7 @@ dependencies = [
 
 [[package]]
 name = "peregrine_config"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "notify",
  "serde",
@@ -3779,7 +3779,7 @@ dependencies = [
 
 [[package]]
 name = "peregrine_material"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "ahash",
  "chrono",

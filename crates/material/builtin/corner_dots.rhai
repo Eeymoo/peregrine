@@ -6,8 +6,7 @@ fn defaults() {
     #{
         count: 4,
         offset: 40.0,
-        thickness: 3.0,
-        radius: 0.0,
+        radius: 8.0,
     }
 }
 
@@ -24,9 +23,8 @@ fn schema() {
             ],
             "default": 4,
         },
-        #{key: "offset", label: "距边缘距离", widget: "slider", min: 0.0, max: 400.0, step: 1.0},
-        #{key: "thickness", label: "粗细（决定默认半径）", widget: "slider", min: 0.5, max: 20.0, step: 0.5},
-        #{key: "radius", label: "半径（0 = 自动）", widget: "slider", min: 0.0, max: 60.0, step: 1.0},
+        #{key: "offset", label: "距边缘距离", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
+        #{key: "radius", label: "半径", widget: "slider", min: 1.0, max: 500.0, step: 0.5},
     ]
 }
 
@@ -35,10 +33,9 @@ fn is_dynamic() {
 }
 
 fn build(params, screen) {
-    let configured_offset = if params.offset > 0.0 { params.offset } else { 100.0 };
-    let offset = min3(configured_offset, (screen.max_x - screen.min_x) / 4.0, (screen.max_y - screen.min_y) / 4.0);
+    let offset = if params.offset > 0.0 { params.offset } else { 100.0 };
 
-    let radius = if params.radius > 0.0 { params.radius } else { params.thickness * 3.0 };
+    let radius = if params.radius > 0.0 { params.radius } else { 8.0 };
 
     let cx = (screen.min_x + screen.max_x) / 2.0;
     let cy = (screen.min_y + screen.max_y) / 2.0;
@@ -102,12 +99,4 @@ fn build(params, screen) {
     }
 
     elements
-}
-
-fn min3(a, b, c) {
-    if a < b {
-        if a < c { a } else { c }
-    } else {
-        if b < c { b } else { c }
-    }
 }

@@ -21,7 +21,7 @@ export function TargetWindowSelect({ value, onChange }: TargetWindowSelectProps)
   const [windows, setWindows] = useState<string[]>([]);
 
   const refreshWindows = () => {
-    listWindowTitles().then(setWindows).catch(console.error);
+    listWindowTitles().then(setWindows).catch(() => {});
   };
 
   useEffect(() => {

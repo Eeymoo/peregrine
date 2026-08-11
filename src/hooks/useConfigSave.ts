@@ -21,7 +21,9 @@ export function useConfigSave(
   const debouncedSave = useCallback((cfg: AppConfig) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveConfig(cfg).catch(console.error);
+      // saveConfig 失败时 invoke 包装负责 toast 提示；
+      // 防抖期间多次修改，后端失败可由下次 saveConfig 或 layers-changed 事件回滚。
+      saveConfig(cfg).catch(() => {});
     }, 300);
   }, []);
 

@@ -48,7 +48,7 @@ export default function SettingsApp() {
       settings: { ...config.settings, auto_switch_on_overlay: value },
     };
     setConfig(newConfig);
-    updatePreferences({ auto_switch_on_overlay: value }).catch(console.error);
+    updatePreferences({ auto_switch_on_overlay: value }).catch(() => {});
   };
 
   // AboutTab 解锁成功后立即更新本地 config state（updatePreferences 已写盘 +
@@ -120,7 +120,7 @@ export default function SettingsApp() {
                     settings: { ...config.settings, hotkey_bindings: newBindings },
                   };
                   setConfig(newConfig);
-                  updatePreferences({ hotkey_bindings: newBindings }).catch(console.error);
+                  updatePreferences({ hotkey_bindings: newBindings }).catch(() => {});
                 }}
               />
             </CardContent>

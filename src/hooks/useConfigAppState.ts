@@ -56,7 +56,9 @@ export function useConfigAppState() {
           setLayersMode(true);
         }
       })
-      .catch(console.error)
+      .catch(() => {
+        // getConfig 失败由 invoke 包装 toast 提示；loading 状态仍要解除。
+      })
       .finally(() => setLoading(false));
     refreshWindows();
     refreshProfiles();
@@ -68,11 +70,12 @@ export function useConfigAppState() {
   useInitMirror();
 
   const refreshWindows = () => {
-    listWindowTitles().then(setWindows).catch(console.error);
+    // 列表加载失败可忽略（invoke 包装会 toast）。
+    listWindowTitles().then(setWindows).catch(() => {});
   };
 
   const refreshProfiles = () => {
-    listProfiles().then(setProfiles).catch(console.error);
+    listProfiles().then(setProfiles).catch(() => {});
   };
 
   /** 切换 active profile：调后端后重新拉取完整配置与 profile 列表。 */

@@ -67,4 +67,4 @@ Peregrine is released under the [MIT](https://opensource.org/licenses/MIT) licen
 
 ### Contributing
 
-Issues and Pull Requests are welcome. Please see [`CONTRIBUTING.md`](https://github.com/eeymoo/peregrine/blob/main/CONTRIBUTING.md) in the repository for contribution guidelines, and the [`Development & Build`](./development.md) page for how to build and test locally.
+Issues and Pull Requests are welcome. Please see the [contributing guide](./contributing.md) for contribution guidelines, and the [`Development & Build`](./development.md) page for how to build and test locally.

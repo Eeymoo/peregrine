@@ -84,25 +84,29 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                 x: cx - arm,
                 y: cy - thickness / 2.0,
                 w: arm - half_gap,
-                h: thickness,                corner_radius: None,
+                h: thickness,
+                corner_radius: None,
             });
             shapes.push(Shape::Rect {
                 x: cx + half_gap,
                 y: cy - thickness / 2.0,
                 w: arm - half_gap,
-                h: thickness,                corner_radius: None,
+                h: thickness,
+                corner_radius: None,
             });
             shapes.push(Shape::Rect {
                 x: cx - thickness / 2.0,
                 y: cy - arm,
                 w: thickness,
-                h: arm - half_gap,                corner_radius: None,
+                h: arm - half_gap,
+                corner_radius: None,
             });
             shapes.push(Shape::Rect {
                 x: cx - thickness / 2.0,
                 y: cy + half_gap,
                 w: thickness,
-                h: arm - half_gap,                corner_radius: None,
+                h: arm - half_gap,
+                corner_radius: None,
             });
         }
         CrosshairStyle::LargeCross => {
@@ -111,13 +115,15 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                 x: screen.min_x,
                 y: cy - thickness / 2.0,
                 w: screen.width(),
-                h: thickness,                corner_radius: None,
+                h: thickness,
+                corner_radius: None,
             });
             shapes.push(Shape::Rect {
                 x: cx - thickness / 2.0,
                 y: screen.min_y,
                 w: thickness,
-                h: screen.height(),                corner_radius: None,
+                h: screen.height(),
+                corner_radius: None,
             });
         }
         CrosshairStyle::EdgeRect => {
@@ -409,7 +415,8 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                         x: cx - tail_half,
                         y: screen.min_y,
                         w: tail_half * 2.0,
-                        h: tail_top,                corner_radius: None,
+                        h: tail_top,
+                        corner_radius: None,
                     });
                 }
                 shapes.push(Shape::Triangle {
@@ -429,7 +436,8 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                         x: cx - tail_half,
                         y: tri_base_y,
                         w: tail_half * 2.0,
-                        h: tail_bottom,                corner_radius: None,
+                        h: tail_bottom,
+                        corner_radius: None,
                     });
                 }
                 shapes.push(Shape::Triangle {
@@ -449,7 +457,8 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                         x: screen.min_x,
                         y: cy - tail_half,
                         w: tail_left,
-                        h: tail_half * 2.0,                corner_radius: None,
+                        h: tail_half * 2.0,
+                        corner_radius: None,
                     });
                 }
                 shapes.push(Shape::Triangle {
@@ -469,7 +478,8 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                         x: tri_base_x,
                         y: cy - tail_half,
                         w: tail_right,
-                        h: tail_half * 2.0,                corner_radius: None,
+                        h: tail_half * 2.0,
+                        corner_radius: None,
                     });
                 }
                 shapes.push(Shape::Triangle {
@@ -528,7 +538,8 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                             x: x - half_t,
                             y: screen.min_y + offset_y,
                             w: thickness,
-                            h: total_h,                corner_radius: None,
+                            h: total_h,
+                            corner_radius: None,
                         });
                     }
                     // 横线
@@ -538,7 +549,8 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                             x: screen.min_x + offset_x,
                             y: y - half_t,
                             w: total_w,
-                            h: thickness,                corner_radius: None,
+                            h: thickness,
+                            corner_radius: None,
                         });
                     }
                 }
@@ -551,7 +563,8 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                             x: x - half_t,
                             y: screen.min_y,
                             w: thickness,
-                            h: screen.height(),                corner_radius: None,
+                            h: screen.height(),
+                            corner_radius: None,
                         });
                     }
                     // 横线（含上下边缘）
@@ -561,7 +574,8 @@ pub fn build_shapes(screen: &RectF, crosshair: &Crosshair) -> Vec<Shape> {
                             x: screen.min_x,
                             y: y - half_t,
                             w: screen.width(),
-                            h: thickness,                corner_radius: None,
+                            h: thickness,
+                            corner_radius: None,
                         });
                     }
                 }
@@ -843,25 +857,29 @@ fn solid_frame_shapes(
         x: rect.min_x,
         y: top_y - half_t,
         w: rect.width(),
-        h: thickness,                corner_radius: None,
+        h: thickness,
+        corner_radius: None,
     });
     shapes.push(Shape::Rect {
         x: rect.min_x,
         y: bottom_y - half_t,
         w: rect.width(),
-        h: thickness,                corner_radius: None,
+        h: thickness,
+        corner_radius: None,
     });
     shapes.push(Shape::Rect {
         x: left_x - half_t,
         y: rect.min_y,
         w: thickness,
-        h: rect.height(),                corner_radius: None,
+        h: rect.height(),
+        corner_radius: None,
     });
     shapes.push(Shape::Rect {
         x: right_x - half_t,
         y: rect.min_y,
         w: thickness,
-        h: rect.height(),                corner_radius: None,
+        h: rect.height(),
+        corner_radius: None,
     });
 }
 
@@ -886,52 +904,60 @@ fn gap_frame_shapes(
         x: rect.min_x,
         y: top_y - half_t,
         w: cx - half_gap_w - rect.min_x,
-        h: thickness,                corner_radius: None,
+        h: thickness,
+        corner_radius: None,
     });
     shapes.push(Shape::Rect {
         x: cx + half_gap_w,
         y: top_y - half_t,
         w: rect.max_x - (cx + half_gap_w),
-        h: thickness,                corner_radius: None,
+        h: thickness,
+        corner_radius: None,
     });
     // 下边。
     shapes.push(Shape::Rect {
         x: rect.min_x,
         y: bottom_y - half_t,
         w: cx - half_gap_w - rect.min_x,
-        h: thickness,                corner_radius: None,
+        h: thickness,
+        corner_radius: None,
     });
     shapes.push(Shape::Rect {
         x: cx + half_gap_w,
         y: bottom_y - half_t,
         w: rect.max_x - (cx + half_gap_w),
-        h: thickness,                corner_radius: None,
+        h: thickness,
+        corner_radius: None,
     });
     // 左边。
     shapes.push(Shape::Rect {
         x: left_x - half_t,
         y: rect.min_y,
         w: thickness,
-        h: cy - half_gap_h - rect.min_y,                corner_radius: None,
+        h: cy - half_gap_h - rect.min_y,
+        corner_radius: None,
     });
     shapes.push(Shape::Rect {
         x: left_x - half_t,
         y: cy + half_gap_h,
         w: thickness,
-        h: rect.max_y - (cy + half_gap_h),                corner_radius: None,
+        h: rect.max_y - (cy + half_gap_h),
+        corner_radius: None,
     });
     // 右边。
     shapes.push(Shape::Rect {
         x: right_x - half_t,
         y: rect.min_y,
         w: thickness,
-        h: cy - half_gap_h - rect.min_y,                corner_radius: None,
+        h: cy - half_gap_h - rect.min_y,
+        corner_radius: None,
     });
     shapes.push(Shape::Rect {
         x: right_x - half_t,
         y: cy + half_gap_h,
         w: thickness,
-        h: rect.max_y - (cy + half_gap_h),                corner_radius: None,
+        h: rect.max_y - (cy + half_gap_h),
+        corner_radius: None,
     });
 }
 

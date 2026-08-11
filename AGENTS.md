@@ -10,7 +10,7 @@ Peregrine is a desktop visual anchor (overlay) tool. **Its primary purpose is to
 - Graphics stack: **Tauri** (settings window Webview) + **React + Tailwind + shadcn/ui** (settings panel). The overlay still uses `winit` + `softbuffer`; the original `wgpu` + `egui` implementation has been removed.
 - Async runtime: `tokio` (configuration read/write, file hot-reload, background follow task).
 - Target platform: **Windows** (x86 / x86_64 / ARM64). Overlay transparency / click-through / window-following capabilities are intentionally Windows-only and are not planned for other platforms.
-- Current status: **v0.1.0 stable released**. Windows transparent, always-on-top, click-through overlay; target window following; 12 crosshair styles; custom PNG decals; configuration hot-reload are all functional. "Process trigger" remains a configuration placeholder.
+- Current status: **v0.2.1 stable released**. Windows transparent, always-on-top, click-through overlay; target window following; 12 crosshair styles; custom PNG decals; multi-profile config; configuration hot-reload; in-app auto-updater (NSIS); GlitchTip telemetry; bilingual UI (zh-CN / en) are all functional. "Process trigger" remains a configuration placeholder.
 - **Static layer rendering ENABLED; dynamic material input soft-disabled** (changes `disable-material-runtime`, `material-static-rendering`): static multi-layer rendering via layers + Rhai materials is active (`MATERIAL_RUNTIME_ENABLED = true`) — overlay and preview render `Profile.layers` through `build_layers_shapes`, and layer editing is WYSIWYG. Only the **dynamic** path is disabled (`MATERIAL_DYNAMIC_INPUT_ENABLED = false`, declared in both `crates/peregrine/src/lib.rs` and `src/lib/feature.ts`): no time/mouse/keyboard polling — materials evaluate with `DynamicContext::static_context()` (`version = 0`, so static-material eval caching is permanent and dynamic materials like `builtin.time` render frozen); dynamic redraw scheduling stays removed (event-driven only); the material picker hides `is_dynamic` materials. The settings UI allows free single-/multi-layer mode switching, and `layersMode` is persisted in `localStorage` ("however it was closed, that's how it reopens"). To re-enable dynamic materials, flip both `MATERIAL_DYNAMIC_INPUT_ENABLED` constants to `true`; to fully soft-disable the material runtime again, flip `MATERIAL_RUNTIME_ENABLED` to `false`. Gated sites are greppable via both constant names.
 
 All code comments and documentation use **Simplified Chinese**. Please continue writing new comments, documentation, and commit message bodies in Chinese for consistency.
@@ -40,25 +40,34 @@ peregrine/
 │   └── src/
 │       ├── lib.rs             # Tauri startup entry: config init, tray, commands, watcher
 │       ├── main.rs            # binary entrypoint, calls lib::run
-│       └── overlay.rs         # runs winit event loop on a dedicated thread to manage overlay
+│       ├── overlay.rs         # runs winit event loop on a dedicated thread to manage overlay
+│       └── telemetry.rs       # GlitchTip/Sentry telemetry, safe_try! outlets, panic hook
 ├── package.json          # frontend npm dependencies (React / Vite / Tailwind / shadcn / Tauri JS API)
 ├── vite.config.ts
 ├── tailwind.config.ts
 ├── components.json
 ├── tsconfig.json
 ├── index.html
+├── openspec/             # OpenSpec spec-driven development: changes/ (active + archive/), specs/ (capability specs), config.yaml
 └── src/                  # frontend source
     ├── main.tsx
-    ├── App.tsx              # settings panel main component
+    ├── SettingsApp.tsx      # main settings window (tabs: general/overlay/hotkeys/update/about)
+    ├── ConfigApp.tsx        # first-launch / error config window + telemetry consent dialog
     ├── index.css
+    ├── i18n/                # locale JSON: locales/{zh-CN,en}.json + options.json
     ├── lib/
     │   ├── api.ts           # Tauri invoke wrapper
-    │   └── shapes.ts        # frontend preview geometry calculations
+    │   ├── i18n.tsx         # in-house i18n (React context + Tauri event, NOT i18next)
+    │   ├── shapes.ts        # frontend preview geometry calculations
+    │   ├── feature.ts       # MATERIAL_DYNAMIC_INPUT_ENABLED frontend flag
+    │   ├── telemetry.ts     # REPORT_CODES + frontend Sentry wrappers
+    │   └── ...
+    ├── hooks/               # React state hooks (useAppState / useConfigSave / useSettingsSync / ...)
     ├── types/config.ts      # TypeScript configuration types
-    ├── components/
-    │   └── Preview.tsx      # Canvas real-time preview
-    │   └── ui/              # shadcn/ui base components
-    └── ...
+    └── components/
+        ├── Preview.tsx      # Canvas real-time preview
+        ├── LayersEditor.tsx # layer editor (multi-layer mode)
+        └── ui/              # shadcn/ui base components
 └── crates/
     ├── config/           # peregrine_config: pure logic crate (no UI / GPU / window code)
     │   └── src/
@@ -100,7 +109,7 @@ Dependency versions are declared centrally in the root `Cargo.toml` under `[work
 
 - `crates/config` (`peregrine_config`): `tokio` (features: sync/rt/rt-multi-thread/macros/time/fs), `serde` (derive), `serde_json`, `notify` 7.0, `thiserror` 2.0, `tracing`; dev dependency `tempfile`.
 - `crates/material` (`peregrine_material`): `peregrine_config` (path dep), `rhai` 1.25 (features: `sync`), `ahash` 0.8, `serde`, `serde_json`, `tracing`, `thiserror`.
-- `crates/peregrine` (shared library): `peregrine_config` (path dep), `peregrine_material` (path dep), `winit` 0.30, `softbuffer` 0.4 (overlay CPU rasterization), `png` 0.17 (custom PNG crosshair decoding), `serde` / `serde_json`, `tokio`, `tracing`, `thiserror` (platform layer `OverlayError`).
+- `crates/peregrine` (shared library): `peregrine_config` (path dep), `peregrine_material` (path dep), `winit` 0.30, `softbuffer` 0.4 (overlay CPU rasterization), `png` 0.17 (custom PNG crosshair decoding), `resvg` + `tiny-skia` (SVG backend), `serde` / `serde_json`, `tokio`, `tracing`, `thiserror` (platform layer `OverlayError`).
 - `src-tauri` (`peregrine-tauri`, main entry): `peregrine` / `peregrine_config` (path deps), `tauri` 2.x (`tray-icon` feature), `tauri-plugin-dialog`, `tauri-build`, frontend artifacts (`dist/`).
 - Frontend: `React` 18 + `Vite` 5 + `TypeScript` 5 + `Tailwind CSS` 3 + `shadcn/ui` + `@tauri-apps/api` / `@tauri-apps/cli` 2.x.
 - `[target.'cfg(windows)'.dependencies]`: `windows` 0.58 (Win32 UI / Foundation / Gdi features).
@@ -144,6 +153,7 @@ cargo clippy
 - Currently, **all unit tests live in `crates/config`** (`schema.rs` / `storage.rs` / `notifier.rs` / `watcher.rs`), **`crates/material`** (`material.rs` / `context.rs`), and **`crates/peregrine`** (`shapes.rs`). The `src-tauri` binary crate has no tests yet.
 - Tests involving tokio use `#[tokio::test]`; tests in `watcher.rs` require a multi-thread runtime and are annotated `#[tokio::test(flavor = "multi_thread")]`.
 - `watcher` tests rely on real filesystem events and have a maximum 5-second timeout wait; they are integration-leaning and may occasionally be affected by the environment.
+- **Frontend has no `lint`/`typecheck` npm scripts.** `npm run build` runs `tsc && vite build` (the `tsc` step is the typecheck). There is no ESLint/Prettier/i18next config — i18n is an in-house React-context implementation at `src/lib/i18n.tsx` (locale JSON lives in `src/i18n/locales/`). The `i18n-audit` skill checks hard-coded strings and bilingual key alignment.
 
 ## Runtime Architecture (Tauri Version)
 
@@ -173,7 +183,7 @@ cargo clippy
 - Logging: use `tracing` (`info!`/`warn!`/`error!`/`debug!`); do not add `println!`/`eprintln!`.
 - Serialization compatibility: when adding fields to structures such as `Crosshair`, always add `#[serde(default)]` or `#[serde(default = "...")]` so old configuration files can still be deserialized (existing fields already use this pattern extensively; the `old_config_without_image_fields_loads` test specifically verifies this).
 - Enum serialization uniformly uses `#[serde(rename_all = "snake_case")]`.
-- When adding a new configurable item, you usually need to update five places in sync: `schema.rs` (field + default + validation), `shapes.rs` (geometry shape definitions, `build_shapes`), `src/App.tsx` (React settings panel controls), `src/lib/shapes.ts` (frontend preview geometry calculations), and `overlay_renderer.rs` (if a new primitive type is introduced, add rasterization). Both the preview (React Canvas) and the overlay (softbuffer) are based on the same geometry logic to ensure WYSIWYG.
+- When adding a new configurable item, you usually need to update five places in sync: `schema.rs` (field + default + validation), `shapes.rs` (geometry shape definitions, `build_shapes`), `src/SettingsApp.tsx` + the relevant component under `src/components/settings/` (React settings panel controls), `src/lib/shapes.ts` (frontend preview geometry calculations), and `overlay_renderer.rs` (if a new primitive type is introduced, add rasterization). Both the preview (React Canvas) and the overlay (softbuffer) are based on the same geometry logic to ensure WYSIWYG.
 - Concurrency: the configuration snapshot shared across tokio and winit threads uses **the standard library `std::sync::Mutex`** (comments explicitly state: avoids calling tokio `blocking_lock` inside the runtime thread, which would panic). Follow this convention; do not replace it with `tokio::sync::Mutex` casually.
 - The configuration snapshot type is `ConfigSnapshot = Arc<AppConfig>`, shared via `Arc` to avoid deep copies.
 
@@ -185,7 +195,7 @@ cargo clippy
 
 ## CI / CD and Release
 
-Four workflows (`.github/workflows/`):
+Five workflows (`.github/workflows/`):
 
 - **`ci.yml`**: triggered on push to main/master/dev or on pull requests. Runs 4 jobs in parallel:
   - `build` (Windows): `cargo test` (3 crates) + `npm ci && npm run build` + `cargo build --release` (x86_64-msvc)
@@ -197,6 +207,7 @@ Four workflows (`.github/workflows/`):
 - **`release.yml`**: triggered on pushes of `v*` tags. Builds Tauri release artifacts on Windows for i686 / x86_64 / aarch64 targets, including **NSIS installer (signed with Tauri updater) + portable zip + `latest.json` updater manifest**, then creates a GitHub Release with `softprops/action-gh-release`. CI reads `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` from GitHub Secrets to sign the installer. Tags containing `-` (e.g., `v0.2.0-alpha.0`) are treated as prereleases; pure version tags (e.g., `v0.1.0`) are stable releases. The release body and updater `notes` are auto-generated by CI from commits between the current tag and the previous tag, grouped by conventional commit prefixes into "Added / Fixed / Changed / Build / Docs / Other"; if no commits are available, it falls back to the tag message or the most recent commit message.
 - **`snapshot.yml`**: builds **unsigned test packages** (NSIS + portable zip) for Windows x86 / x64 / ARM64. Triggered on PR to main/master/dev or via `workflow_dispatch` (manual). **Version number is auto-generated** as `0.0.0-dev.<short_sha>` from the PR head / current commit SHA — agents do **not** need to bump `package.json` / `tauri.conf.json` / `Cargo.toml` version fields before a snapshot; CI overwrites them in-flight. Products are uploaded as **workflow artifacts** (not GitHub Releases), so they must be downloaded from the run detail page. No signing keys required — safe for PR contexts. Telemetry reports to the GlitchTip TEST project (`GLITCHTIP_DSN_TEST` mapped to `GLITCHTIP_DSN`/`VITE_GLITCHTIP_DSN`).
 - **`pages.yml`**: deploys documentation on a **stable Release** publish or manual trigger. Uses Node 22 to run `npm ci` + `npm run docs:build` under `docs/`, uploads the artifact, and deploys to GitHub Pages. Prereleases do not automatically trigger documentation deployment.
+- **`opencode.yml`**: triggers opencode cloud-agent runs on issue/PR comments (and auto-labels opened issues/PRs). Runs on `ubuntu-latest`; gated on `issue_comment` / `pull_request_review_comment` events for the opencode job. Not used for local agent sessions.
 
 ### Snapshot release workflow (test builds)
 
@@ -227,6 +238,14 @@ The release workflow specification is in `.agents/skills/release/SKILL.md`: foll
 
 - **main**: stable branch, contains only stable-release code. Merged after a stable release.
 - **dev**: development branch, contains features under test (such as auto-updater). After testing passes, merge into main to publish a stable release.
+
+### OpenSpec Workflow (spec-driven development)
+
+This repo uses **OpenSpec** (`openspec/` directory + `.agents/workflows/opsx-*.md` + `.agents/skills/openspec-*`). Planning artifacts live under `openspec/changes/<name>/` (proposal / design / tasks / spec deltas); archived changes move to `openspec/changes/archive/`; canonical capability specs live in `openspec/specs/`. All artifacts are written in **Simplified Chinese** (enforced by `openspec/config.yaml`). Active changes are shipped `openspec` CLI commands (`openspec status --change "<name>" --json`, `openspec instructions apply --change "<name>" --json`, etc.).
+
+**`/opsx-apply` branching rule (MANDATORY)**: every `/opsx-apply` invocation **must create a new dedicated branch before touching any code** — never implement an OpenSpec change directly on `main`. Before creating the branch, check the current branch with `git branch --show-current`:
+- If on `main` (or `master`): create a new branch named after the change (e.g. `feature/<change-name>` or `fix/<change-name>`) off the current HEAD, then implement.
+- If **not** on `main` (already on a feature/dev branch): **do not assume** — ask the user with the `question` tool whether to base the new branch off the **current branch** or off **`main`**, then branch accordingly. Never just start committing to the user's current branch.
 
 ### Auto-Updater
 

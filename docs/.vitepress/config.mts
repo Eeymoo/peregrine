@@ -61,6 +61,7 @@ export default withMermaid(defineConfig({
               { text: 'Recommended Settings', link: '/guide/recommendations' },
               { text: 'Privacy & Telemetry', link: '/guide/privacy' },
               { text: 'Development', link: '/guide/development' },
+              { text: 'Report Codes', link: '/guide/report-codes' },
               { text: 'Changelog', link: '/guide/changelog' },
               { text: 'Glossary', link: '/guide/glossary' }
             ]
@@ -107,6 +108,7 @@ export default withMermaid(defineConfig({
               { text: '推荐配置', link: '/zh-cn/guide/recommendations' },
               { text: '隐私与遥测', link: '/zh-cn/guide/privacy' },
               { text: '开发构建', link: '/zh-cn/guide/development' },
+              { text: '上报 Code 登记表', link: '/zh-cn/guide/report-codes' },
               { text: '更新日志', link: '/zh-cn/guide/changelog' },
               { text: '术语表', link: '/zh-cn/guide/glossary' }
             ]

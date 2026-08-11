@@ -229,4 +229,4 @@ More example materials (static, time-dynamic, input-dynamic) live under [`crates
 
 - [Layers](./layers) — how materials are stacked, transformed, and styled at the layer level.
 - [Configuration](./config) — the `Profile.layers` JSON shape.
-- [`REPORT_CODES.md`](https://github.com/eeymoo/peregrine/blob/main/REPORT_CODES.md) — telemetry code registry (materials don't emit telemetry themselves, but related code paths do).
+- [`REPORT_CODES.md`](./report-codes) — telemetry code registry (materials don't emit telemetry themselves, but related code paths do).

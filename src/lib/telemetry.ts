@@ -12,7 +12,7 @@ import { invoke } from "@tauri-apps/api/core";
  *   路径用户名替换为 `{user}`。
  */
 
-/** 前端上报 Code 常量（与仓库根 REPORT_CODES.md 同步登记，禁止散落硬编码）。 */
+/** 前端上报 Code 常量（与 docs 文档站 report-codes 页面同步登记，禁止散落硬编码）。 */
 export const REPORT_CODES = {
   /** React ErrorBoundary 捕获的组件渲染错误。 */
   REACT_BOUNDARY: "PGR-3001",

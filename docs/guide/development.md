@@ -64,7 +64,7 @@ Release builds are optimized for size and performance:
 
 ## Telemetry Development
 
-Peregrine integrates anonymous GlitchTip (Sentry-protocol) telemetry: crash reports, startup stats, and key-path error reporting. The user-facing privacy explanation is in [Privacy & Telemetry](./privacy.md); the developer-facing registry of every report code is in [`REPORT_CODES.md`](https://github.com/eeymoo/peregrine/blob/main/REPORT_CODES.md) at the repo root.
+Peregrine integrates anonymous GlitchTip (Sentry-protocol) telemetry: crash reports, startup stats, and key-path error reporting. The user-facing privacy explanation is in [Privacy & Telemetry](./privacy.md); the developer-facing registry of every report code is in [`REPORT_CODES.md`](./report-codes) at the repo root.
 
 ### Module layout
 

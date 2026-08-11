@@ -2,8 +2,8 @@
 
 Peregrine 的匿名遥测（GlitchTip / Sentry 协议）通过 **Code** 常量标识每一类上报点。本表集中登记所有已定义 Code，与下列常量定义逐条对齐：
 
-- Rust 侧：[`src-tauri/src/telemetry.rs::report_code`](src-tauri/src/telemetry.rs)（`pub mod report_code`）
-- 前端侧：[`src/lib/telemetry.ts::REPORT_CODES`](src/lib/telemetry.ts)
+- Rust 侧：[`src-tauri/src/telemetry.rs::report_code`](https://github.com/eeymoo/peregrine/blob/main/src-tauri/src/telemetry.rs)（`pub mod report_code`）
+- 前端侧：[`src/lib/telemetry.ts::REPORT_CODES`](https://github.com/eeymoo/peregrine/blob/main/src/lib/telemetry.ts)
 
 > **治理约定**：新增上报点必须 **先在本表与对应常量模块登记 Code**，而后方可编写 `safe_try!` / `capture_message` / `captureFrontendError` 调用。未登记的硬编码 Code 不得在 PR 中合入。Code 号段一经分配不再变更。
 

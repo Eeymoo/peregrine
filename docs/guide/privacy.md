@@ -20,7 +20,7 @@ Each event carries a fixed set of tags:
 - `install_id` — a random UUID v4 generated on first launch and stored in `<app_data_dir>/install_id`. It is **uncorrelated** with any real identity and can be regenerated at any time by deleting that file.
 - `version` — the application version string (e.g. `0.2.0`).
 - `os` / `arch` — `std::env::consts::OS` / `ARCH` (e.g. `windows` / `x86_64`).
-- `code` — a stable identifier from the [REPORT_CODES registry](https://github.com/eeymoo/peregrine/blob/main/REPORT_CODES.md) indicating the event class.
+- `code` — a stable identifier from the [REPORT_CODES registry](./report-codes) indicating the event class.
 - `event_type` — `startup` / `crash` / `error`.
 - `priority` — `p1` (crash) / `p2` (error) / `p3` (startup).
 
@@ -96,4 +96,4 @@ When set, `src-tauri/build.rs` emits the `peregrine_disable_telemetry` cfg, and 
 | Can I turn it off? | Yes — Settings → Telemetry, any time (restart required). |
 | Can I build without it? | Yes — `PEREGRINE_DISABLE_TELEMETRY=1` strips all reporting code at compile time. |
 
-For the developer-facing registry of every report code, see [`REPORT_CODES.md`](https://github.com/eeymoo/peregrine/blob/main/REPORT_CODES.md) in the repository root.
+For the developer-facing registry of every report code, see [`REPORT_CODES.md`](./report-codes) in the repository root.

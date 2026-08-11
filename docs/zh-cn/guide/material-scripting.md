@@ -229,4 +229,4 @@ fn build(params, screen) {
 
 - [图层管理](./layers) —— 物料如何在图层级别堆叠、变换、应用样式
 - [配置说明](./config) —— `Profile.layers` 的 JSON 结构
-- [`REPORT_CODES.md`](https://github.com/eeymoo/peregrine/blob/main/REPORT_CODES.md) —— 遥测 Code 登记表（物料本身不发遥测，但相关代码路径会发）
+- [`REPORT_CODES.md`](./report-codes) —— 遥测 Code 登记表（物料本身不发遥测，但相关代码路径会发）

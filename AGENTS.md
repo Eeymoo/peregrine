@@ -242,7 +242,7 @@ The project integrates `tauri-plugin-updater` (Rust plugin + frontend `@tauri-ap
 
 ## Telemetry Module
 
-Peregrine ships an **anonymous, opt-in** GlitchTip (Sentry-protocol) telemetry layer. Code is already stable and Windows-validated; user-facing privacy in `docs/guide/privacy.md` (zh-cn mirror), developer-facing Code registry in `REPORT_CODES.md` at the repo root, dev guide in `docs/guide/development.md` (§ Telemetry Development).
+Peregrine ships an **anonymous, opt-in** GlitchTip (Sentry-protocol) telemetry layer. Code is already stable and Windows-validated; user-facing privacy in `docs/guide/privacy.md` (zh-cn mirror), developer-facing Code registry in `docs/guide/report-codes.md` (docs site page, zh-cn mirror), dev guide in `docs/guide/development.md` (§ Telemetry Development).
 
 **Module layout**:
 
@@ -260,9 +260,9 @@ Peregrine ships an **anonymous, opt-in** GlitchTip (Sentry-protocol) telemetry l
 
 Changing the switch requires a restart (a "pending restart" badge is shown in the UI). The error-page "upload error report" button is a **one-time explicit authorization** that initializes the SDK just long enough to flush pending, then tears it down — it does **not** flip the persistent switch.
 
-**`safe_try!` convention** (macro defined in `src-tauri/src/lib.rs`): wraps `Result`-returning calls on **key paths only** (file IO, render entry, window bridge, external call); Ok passes through, Err captures function name + caller file:line + sanitized message and reports via `telemetry::report_safe_try_error`, then returns the original Err so the caller can degrade. **Do not** wrap every method. The Code passed in **must** already be registered in `REPORT_CODES.md` and the `report_code` module. Currently wired: `PGR-2101` (config IO) at 4 sites in `lib.rs`, `PGR-4101` (overlay render) at the render loop in `overlay.rs`.
+**`safe_try!` convention** (macro defined in `src-tauri/src/lib.rs`): wraps `Result`-returning calls on **key paths only** (file IO, render entry, window bridge, external call); Ok passes through, Err captures function name + caller file:line + sanitized message and reports via `telemetry::report_safe_try_error`, then returns the original Err so the caller can degrade. **Do not** wrap every method. The Code passed in **must** already be registered in `docs/guide/report-codes.md` (docs site) and the `report_code` module. Currently wired: `PGR-2101` (config IO) at 4 sites in `lib.rs`, `PGR-4101` (overlay render) at the render loop in `overlay.rs`.
 
-**Code governance**: before adding any new report point, pick a free Code in the right number range, add it to `report_code` (Rust) or `REPORT_CODES` (frontend) **and** to `REPORT_CODES.md` in the same PR, then write the call site. Codes are stable once shipped — never renumber or reuse. See `REPORT_CODES.md` for the full registry and the `docs/guide/development.md` Telemetry section for the dev workflow.
+**Code governance**: before adding any new report point, pick a free Code in the right number range, add it to `report_code` (Rust) or `REPORT_CODES` (frontend) **and** to `docs/guide/report-codes.md` in the same PR, then write the call site. Codes are stable once shipped — never renumber or reuse. See the docs site `report-codes` page for the full registry and the `docs/guide/development.md` Telemetry section for the dev workflow.
 
 **Compile-time disable**: set `PEREGRINE_DISABLE_TELEMETRY=1` (any value) before building. `build.rs` emits the cfg, the entire `telemetry` module compiles to no-op stubs preserving API signatures but with no IO / no networking / no panic hook. Use this for builds that must contain no reporting code whatsoever.
 

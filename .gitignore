@@ -24,7 +24,6 @@ Icon
 *~
 
 # AI agent 工具文件
-.agents/
 .claude/
 .opencode/
 skills-lock.json

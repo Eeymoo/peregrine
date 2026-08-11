@@ -20,7 +20,7 @@ Peregrine 内置 **匿名、可选** 的遥测功能，用于诊断崩溃、确�
 - `install_id` —— 首次启动生成的随机 UUID v4，存放在 `<应用数据目录>/install_id`，**不与任何真实身份关联**，删除该文件即可重置。
 - `version` —— 应用版本号（如 `0.2.0`）。
 - `os` / `arch` —— `std::env::consts::OS` / `ARCH`（如 `windows` / `x86_64`）。
-- `code` —— 来自 [上报 Code 登记表](https://github.com/eeymoo/peregrine/blob/main/REPORT_CODES.md) 的稳定标识符，表示事件类别。
+- `code` —— 来自 [上报 Code 登记表](./report-codes) 的稳定标识符，表示事件类别。
 - `event_type` —— `startup` / `crash` / `error`。
 - `priority` —— `p1`（崩溃）/ `p2`（错误）/ `p3`（启动）。
 
@@ -96,4 +96,4 @@ PEREGRINE_DISABLE_TELEMETRY=1 npx tauri build
 | 可以关闭吗？ | 可以，设置 → 匿名崩溃上报，随时修改（需重启）。 |
 | 可以无遥测构建吗？ | 可以，`PEREGRINE_DISABLE_TELEMETRY=1` 在编译期剔除全部上报代码。 |
 
-面向开发者的 Code 登记表见仓库根目录的 [`REPORT_CODES.md`](https://github.com/eeymoo/peregrine/blob/main/REPORT_CODES.md)。
+面向开发者的 Code 登记表见仓库根目录的 [`REPORT_CODES.md`](./report-codes)。

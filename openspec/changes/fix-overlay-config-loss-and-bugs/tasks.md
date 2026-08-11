@@ -67,9 +67,9 @@
 
 ## 8. grid.rhai 算法修复（#29）
 
-- [ ] 8.1 `crates/material/builtin/grid.rhai` cols/rows 计算改用 `floor`（`int(w / cell)`）
-- [ ] 8.2 edge 模式 cell_w 直接用 `cell`（用户设定值），不再用 `w / cols` 重算
-- [ ] 8.3 center 模式 total_w = cell * cols（保证不超屏）
+- [x] 8.1 `crates/material/builtin/grid.rhai` cols/rows 计算改用 `floor`（`int(w / cell)`）
+- [x] 8.2 edge 模式 cell_w 直接用 `cell`（用户设定值），不再用 `w / cols` 重算
+- [x] 8.3 center 模式 total_w = cell * cols（保证不超屏）
 - [ ] 8.4 手测：grid_size=200 / 1920 屏 → 9 列（非 10）
 - [ ] 8.5 手测：grid_size=120 / 1920 屏 → 16 列（填满）
 
@@ -87,17 +87,17 @@
 
 ## 10. 物料 schema slider max 扩充（#33）
 
-- [ ] 10.1 按 proposal 分级表修改 `crates/material/builtin/cross.rhai` schema max（size=1920, gap=200, thickness=50）
-- [ ] 10.2 修改 `large_cross.rhai`（thickness=50）
-- [ ] 10.3 修改 `corner_dots.rhai`（offset=1920, thickness=50, radius=500）
-- [ ] 10.4 修改 `ring.rhai`（thickness=50，ring_radius_pct 不变）
-- [ ] 10.5 修改 `custom_orb.rhai`（radius=500, offset=1920）
-- [ ] 10.6 修改 `random_orb.rhai`（offset=1920, jitter=1920, radius_min/max=500，center_deviation 不变）
-- [ ] 10.7 修改 `border_frame.rhai`（thickness=50, offset=1920）
-- [ ] 10.8 修改 `edge_rect.rhai`（size/secondary_size/margin=1920, corner_radius=500）
-- [ ] 10.9 修改 `edge_arrows.rhai`（size=400, distance=1920, width=200, tail_*=1920）
-- [ ] 10.10 修改 `grid.rhai`（grid_size=1920, thickness=50）
-- [ ] 10.11 修改 `image.rhai`（scale=50, offset_x/y=±1920，width/height 不变）
+- [x] 10.1 按 proposal 分级表修改 `crates/material/builtin/cross.rhai` schema max（size=1920, gap=200, thickness=50）
+- [x] 10.2 修改 `large_cross.rhai`（thickness=50）
+- [x] 10.3 修改 `corner_dots.rhai`（offset=1920, thickness=50, radius=500）
+- [x] 10.4 修改 `ring.rhai`（thickness=50，ring_radius_pct 不变）
+- [x] 10.5 修改 `custom_orb.rhai`（radius=500, offset=1920）
+- [x] 10.6 修改 `random_orb.rhai`（offset=1920, jitter=1920, radius_min/max=500，center_deviation 不变）
+- [x] 10.7 修改 `border_frame.rhai`（thickness=50, offset=1920）
+- [x] 10.8 修改 `edge_rect.rhai`（size/secondary_size/margin=1920, corner_radius=500）
+- [x] 10.9 修改 `edge_arrows.rhai`（size=400, distance=1920, width=200, tail_*=1920）
+- [x] 10.10 修改 `grid.rhai`（grid_size=1920, thickness=50）
+- [x] 10.11 修改 `image.rhai`（scale=50, offset_x/y=±1920，width/height 不变）
 - [ ] 10.12 手测：cross 物料 size 可拖到 1920
 
 ## 11. README 嵌入视频（#35）

@@ -297,7 +297,13 @@
     "right": "右",
     "gridCells": "格子数",
     "gridSize": "格子宽度",
-    "gridAlignment": "对齐方式"
+    "gridAlignment": "对齐方式",
+    "dotCount": "点数"
+  },
+  "cornerDotsCount": {
+    "4": "4 点（四角）",
+    "6": "6 点（四角+上下中）",
+    "8": "8 点（四角+四边中）"
   },
   "preview": {
     "placeholder": "请选择 PNG 文件",

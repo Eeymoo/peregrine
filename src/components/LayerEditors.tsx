@@ -52,7 +52,11 @@ export function LayerStyleEditor({
         min={0}
         max={1}
         step={0.01}
-        unit="%"
+        format={(v) => Math.round(v * 100) + "%"}
+        parse={(text) => {
+          const n = parseFloat(text);
+          return Number.isFinite(n) ? n / 100 : 0;
+        }}
         disabled={layer.locked}
         onChange={(opacity) => update({ opacity })}
       />

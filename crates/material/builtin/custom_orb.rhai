@@ -19,7 +19,7 @@ fn schema() {
     [
         #{key: "radius", label: "半径", widget: "slider", min: 1.0, max: 500.0, step: 0.5},
         #{key: "offset", label: "距边缘距离", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
-        #{key: "orb_positions", label: "边缘位掩码", widget: "number", min: 0, max: 15, step: 1},
+        #{key: "orb_positions", label: "启用边缘", widget: "number", min: 0, max: 15, step: 1, bitmask: true},
         #{key: "top_count", label: "上边球数", widget: "slider", min: 0, max: 20, step: 1},
         #{key: "bottom_count", label: "下边球数", widget: "slider", min: 0, max: 20, step: 1},
         #{key: "left_count", label: "左边球数", widget: "slider", min: 0, max: 20, step: 1},

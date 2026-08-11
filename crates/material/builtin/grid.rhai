@@ -40,7 +40,8 @@ fn build(params, screen) {
     let h = screen.max_y - screen.min_y;
 
     // 任务 8.1：cols/rows 改用 floor（能完整放下的格子数），而非 ceil。
-    // ceil 会多算一格导致最后一格超出屏幕。
+    // ceil 会多算一格导致最后一格超出屏幕。仅 edge 模式使用；
+    // center 模式改为从屏幕中心向两侧对称扩展（half_cols/half_rows），允许超出边缘。
     let cols = to_int(w / cell);
     let rows = to_int(h / cell);
     let cols = if cols < 1 { 1 } else { cols };
@@ -80,36 +81,65 @@ fn build(params, screen) {
             i += 1;
         }
     } else {
-        // 任务 8.3：center 模式 total_w = cell * cols 保证不超屏。
-        let total_w = cell * cols;
-        let total_h = cell * rows;
-        let offset_x = (w - total_w) / 2.0;
-        let offset_y = (h - total_h) / 2.0;
+        // 任务 8.3：center 模式 —— 网格以屏幕中心对称展开，线条允许延伸到屏幕外，
+        // 由屏幕作为视窗裁切显示。这样无论 grid_size 能否整除屏幕宽高，
+        // 视觉上都铺满屏幕（不会在边缘留下一圈空白）。
+        //
+        // 旧实现用 floor + total_w = cell * cols，当 cell 不整除 w 时两侧留白，
+        // 视觉上"只在中间"。改为从中心向两侧扩展、允许超出边缘一圈。
+        let cx = (screen.min_x + screen.max_x) / 2.0;
+        let cy = (screen.min_y + screen.max_y) / 2.0;
 
-        // 竖线（不含边缘）
-        let i = 1;
-        while i < cols {
-            let x = screen.min_x + offset_x + cell * i;
+        // 半边能放下的格子数 +1 圈（保证超出外层、铺满边缘）。
+        let half_cols = to_int((w / 2.0) / cell) + 1;
+        let half_rows = to_int((h / 2.0) / cell) + 1;
+
+        // 竖线：从中心向两侧扩展，每条线高度铺满屏幕。
+        let i = 0;
+        while i <= half_cols {
+            // 右侧
+            let x_r = cx + cell * i;
             elements.push(#{
                 type: "rect",
-                x: x - half_t,
-                y: screen.min_y + offset_y,
+                x: x_r - half_t,
+                y: screen.min_y,
                 w: thickness,
-                h: total_h,
+                h: h,
             });
+            // 左侧（跳过 i==0 避免中心线重复）
+            if i > 0 {
+                let x_l = cx - cell * i;
+                elements.push(#{
+                    type: "rect",
+                    x: x_l - half_t,
+                    y: screen.min_y,
+                    w: thickness,
+                    h: h,
+                });
+            }
             i += 1;
         }
-        // 横线（不含边缘）
-        let i = 1;
-        while i < rows {
-            let y = screen.min_y + offset_y + cell * i;
+        // 横线：同理
+        let i = 0;
+        while i <= half_rows {
+            let y_b = cy + cell * i;
             elements.push(#{
                 type: "rect",
-                x: screen.min_x + offset_x,
-                y: y - half_t,
-                w: total_w,
+                x: screen.min_x,
+                y: y_b - half_t,
+                w: w,
                 h: thickness,
             });
+            if i > 0 {
+                let y_t = cy - cell * i;
+                elements.push(#{
+                    type: "rect",
+                    x: screen.min_x,
+                    y: y_t - half_t,
+                    w: w,
+                    h: thickness,
+                });
+            }
             i += 1;
         }
     }

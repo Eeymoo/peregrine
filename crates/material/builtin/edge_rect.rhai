@@ -8,7 +8,6 @@ fn defaults() {
         secondary_size: 24.0,
         anchor: "top",
         margin: 16.0,
-        corner_radius: 12.0,
     }
 }
 
@@ -30,7 +29,6 @@ fn schema() {
             "default": "top",
         },
         #{key: "margin", label: "边距", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
-        #{key: "corner_radius", label: "圆角半径", widget: "slider", min: 0.0, max: 500.0, step: 1.0},
     ]
 }
 
@@ -65,9 +63,7 @@ fn build(params, screen) {
         py = screen.min_y + h / 2.0 + margin;
     }
 
-    // 任务 9.3：build 输出 Rect shape 携带 corner_radius 字段，
-    // 让 SVG/CPU 渲染器支持圆角矩形。
     [
-        #{type: "rect", x: px - w / 2.0, y: py - h / 2.0, w: w, h: h, corner_radius: params.corner_radius},
+        #{type: "rect", x: px - w / 2.0, y: py - h / 2.0, w: w, h: h},
     ]
 }

@@ -297,7 +297,13 @@
     "right": "R",
     "gridCells": "Grid Cells",
     "gridSize": "Cell Width",
-    "gridAlignment": "Alignment"
+    "gridAlignment": "Alignment",
+    "dotCount": "Dot Count"
+  },
+  "cornerDotsCount": {
+    "4": "4 dots (corners)",
+    "6": "6 dots (corners + T/B mid)",
+    "8": "8 dots (corners + edge mids)"
   },
   "preview": {
     "placeholder": "Please select a PNG file",

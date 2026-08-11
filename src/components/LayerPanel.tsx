@@ -10,6 +10,8 @@ import {
   updateLayer,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Trash2, Copy, ChevronUp, ChevronDown, Plus, Eye, EyeOff, Lock, Unlock } from "lucide-react";
 import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
@@ -392,6 +394,18 @@ function renderWidget(
         />
       );
     case "number":
+      // 位掩码字段（custom_orb.orb_positions / edge_arrows.positions_mask）：
+      // 渲染为 4 个 checkbox，提升多图层模式下的可操作性。
+      if (entry.bitmask) {
+        return (
+          <BitmaskField
+            label={entry.label}
+            value={typeof value === "number" ? value : 0}
+            disabled={disabled}
+            onChange={(v) => onChange(v)}
+          />
+        );
+      }
       return (
         <NumberField
           label={entry.label}
@@ -465,4 +479,52 @@ function renderWidget(
         </div>
       );
   }
+}
+
+/** 位掩码字段：把 4 位整数（1=top, 2=bottom, 4=left, 8=right）渲染为 4 个 checkbox。
+ *
+ * 用于 custom_orb.orb_positions、edge_arrows.positions_mask 等位掩码字段，
+ * 替代裸数字输入，避免用户手算位运算。
+ */
+function BitmaskField({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  disabled?: boolean;
+  onChange: (v: number) => void;
+}) {
+  const { t } = useI18n();
+  const items: { flag: number; key: string; label: string }[] = [
+    { flag: 0b0001, key: "top", label: t("fields.top") },
+    { flag: 0b0010, key: "bottom", label: t("fields.bottom") },
+    { flag: 0b0100, key: "left", label: t("fields.left") },
+    { flag: 0b1000, key: "right", label: t("fields.right") },
+  ];
+  const set = (flag: number, checked: boolean) => {
+    onChange(checked ? value | flag : value & ~flag);
+  };
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm">{label}</Label>
+      <div className="flex flex-wrap gap-4">
+        {items.map(({ flag, key, label: itemLabel }) => (
+          <div key={key} className="flex items-center gap-1">
+            <Checkbox
+              id={`bitmask-${key}`}
+              checked={(value & flag) !== 0}
+              disabled={disabled}
+              onCheckedChange={(v) => set(flag, !!v)}
+            />
+            <Label htmlFor={`bitmask-${key}`} className="text-sm">
+              {itemLabel}
+            </Label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

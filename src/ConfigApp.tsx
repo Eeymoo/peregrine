@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
+import { SliderField } from "@/components/fields/SliderField";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
@@ -247,21 +247,19 @@ export default function ConfigApp() {
               {/* 公共配置 */}
               {/* 公共配置：禁用态与 StyleFields 一致（pointer-events-none + opacity-60 wrapper） */}
               <div className={effectiveCompatible ? "space-y-3" : "space-y-3 pointer-events-none opacity-60"}>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <Label className="text-sm">{t("config.opacity")}</Label>
-                    <span className="text-sm text-muted-foreground">
-                      {Math.round(ch.opacity * 100)}%
-                    </span>
-                  </div>
-                  <Slider
-                    value={[ch.opacity]}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onValueChange={([v]) => updateCrosshair({ opacity: v })}
-                  />
-                </div>
+                <SliderField
+                  label={t("config.opacity")}
+                  value={ch.opacity}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  format={(v) => Math.round(v * 100) + "%"}
+                  parse={(text) => {
+                    const n = parseFloat(text);
+                    return Number.isFinite(n) ? n / 100 : 0;
+                  }}
+                  onChange={(v) => updateCrosshair({ opacity: v })}
+                />
 
                 <div className="flex items-center gap-3">
                   <Label className="shrink-0 text-sm">{t("config.color")}</Label>

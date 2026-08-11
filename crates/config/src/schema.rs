@@ -929,9 +929,9 @@ impl Crosshair {
                 "image_path must not be empty when style is CustomImage".to_string(),
             ));
         }
-        if self.grid_size < 10.0 || self.grid_size > 500.0 {
+        if self.grid_size < 10.0 || self.grid_size > 1920.0 {
             return Err(crate::ConfigError::Validation(
-                "grid_size must be in [10, 500]".to_string(),
+                "grid_size must be in [10, 1920]".to_string(),
             ));
         }
         Ok(())
@@ -1889,8 +1889,12 @@ mod tests {
         // grid_size 超出范围 → 校验失败。
         ch.grid_size = 5.0;
         assert!(ch.validate().is_err());
-        ch.grid_size = 600.0;
+        ch.grid_size = 2000.0;
         assert!(ch.validate().is_err());
+
+        // 500 < grid_size ≤ 1920 现在允许（原 max=500 已扩到 1920，对齐 .rhai schema）。
+        ch.grid_size = 1000.0;
+        assert!(ch.validate().is_ok());
 
         // 正常值。
         ch.grid_size = 100.0;

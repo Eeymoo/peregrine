@@ -118,14 +118,7 @@ function CornerDotsFields({ crosshair, onChange }: StyleFieldsProps) {
         onChange={(v) => onChange({ style: v as CrosshairStyle })}
       />
       <SliderField label={t("fields.offset")} value={crosshair.offset} min={0} max={1920} onChange={(v) => onChange({ offset: v })} />
-      <SliderField
-        label={crosshair.radius > 0 ? t("fields.radius") : t("fields.radiusAuto")}
-        value={crosshair.radius}
-        min={0}
-        max={500}
-        onChange={(v) => onChange({ radius: v })}
-      />
-      <SliderField label={t("fields.lineWidthAuto")} value={crosshair.thickness} min={0.5} max={50} step={0.5} onChange={(v) => onChange({ thickness: v })} />
+      <SliderField label={t("fields.radius")} value={crosshair.radius} min={1} max={500} step={0.5} onChange={(v) => onChange({ radius: v })} />
     </div>
   );
 }

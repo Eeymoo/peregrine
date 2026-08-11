@@ -453,13 +453,20 @@ function renderWidget(
       // 任务 9.7：物料 schema 标记 coming_soon 的 select 控件禁用，
       // 并在 label 后追加「（开发中）」提示（random_orb.mode 等）。
       const comingSoon = entry.coming_soon === true;
+      // 原始 schema option value 可能是数字（corner_dots.count）或字符串（mode）。
+      // SelectField 只接受 string，但回传给 onChange 时需按原始类型还原，
+      // 否则 Rhai 侧 `params.count >= 6` 会因类型不匹配而失败（"6" vs 6）。
+      const originalOptions = entry.options ?? [];
       return (
         <SelectField
           label={comingSoon ? `${entry.label}（开发中）` : entry.label}
           value={String(value ?? "")}
           options={options}
           disabled={disabled || comingSoon}
-          onChange={(v) => onChange(v)}
+          onChange={(v) => {
+            const matched = originalOptions.find((opt) => String(opt.value) === v);
+            onChange(matched ? matched.value : v);
+          }}
         />
       );
     }

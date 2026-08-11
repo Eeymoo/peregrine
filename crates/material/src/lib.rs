@@ -34,6 +34,9 @@ pub const USER_PREFIX: &str = "user.";
 /// 内置物料源码通过 `include_str!` 嵌入二进制。
 ///
 /// key = 物料 id（不含 `builtin.` 前缀），value = Rhai 源码。
+///
+/// 注：动态时钟物料（原 `time.rhai`）已移至 `examples/time.rhai` 作为动态物料范例，
+/// 不再作为内置物料分发；默认配置与迁移逻辑均不引用 `builtin.time`。
 pub const BUILTIN_MATERIALS: &[(&str, &str)] = &[
     ("cross", include_str!("../builtin/cross.rhai")),
     ("large_cross", include_str!("../builtin/large_cross.rhai")),
@@ -46,5 +49,4 @@ pub const BUILTIN_MATERIALS: &[(&str, &str)] = &[
     ("edge_arrows", include_str!("../builtin/edge_arrows.rhai")),
     ("grid", include_str!("../builtin/grid.rhai")),
     ("image", include_str!("../builtin/image.rhai")),
-    ("time", include_str!("../builtin/time.rhai")),
 ];

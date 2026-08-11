@@ -55,8 +55,11 @@ export default withMermaid(defineConfig({
               { text: 'Getting Started', link: '/guide/getting-started' },
               { text: 'Features', link: '/guide/features' },
               { text: 'Configuration', link: '/guide/config' },
+              { text: 'Material Scripting', link: '/guide/material-scripting' },
+              { text: 'Layers', link: '/guide/layers' },
               { text: 'Motion Sickness Relief', link: '/guide/motion-sickness' },
               { text: 'Recommended Settings', link: '/guide/recommendations' },
+              { text: 'Privacy & Telemetry', link: '/guide/privacy' },
               { text: 'Development', link: '/guide/development' },
               { text: 'Changelog', link: '/guide/changelog' },
               { text: 'Glossary', link: '/guide/glossary' }
@@ -98,8 +101,11 @@ export default withMermaid(defineConfig({
               { text: '快速开始', link: '/zh-cn/guide/getting-started' },
               { text: '功能特性', link: '/zh-cn/guide/features' },
               { text: '配置说明', link: '/zh-cn/guide/config' },
+              { text: '物料脚本创作', link: '/zh-cn/guide/material-scripting' },
+              { text: '图层管理', link: '/zh-cn/guide/layers' },
               { text: '缓解晕 3D', link: '/zh-cn/guide/motion-sickness' },
               { text: '推荐配置', link: '/zh-cn/guide/recommendations' },
+              { text: '隐私与遥测', link: '/zh-cn/guide/privacy' },
               { text: '开发构建', link: '/zh-cn/guide/development' },
               { text: '更新日志', link: '/zh-cn/guide/changelog' },
               { text: '术语表', link: '/zh-cn/guide/glossary' }

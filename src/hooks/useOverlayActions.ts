@@ -16,7 +16,8 @@ export function useOverlayActions(
   const profile = config?.profiles[config.active_profile];
 
   const hideAndSwitch = useCallback(async (targetWindow: string) => {
-    focusTargetWindow(targetWindow).catch(console.error);
+    // focusTargetWindow 失败不阻塞隐藏窗口流程；invoke 包装会 toast 提示。
+    focusTargetWindow(targetWindow).catch(() => {});
     await getCurrentWebviewWindow().destroy();
   }, []);
 
@@ -37,8 +38,8 @@ export function useOverlayActions(
       } else {
         onAskAutoSwitch();
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // invoke 包装负责 toast；这里不再 console.error。
     }
   }, [
     config?.settings.fullscreen_overlay,
@@ -53,16 +54,17 @@ export function useOverlayActions(
     try {
       await stopOverlay();
       setOverlayActive(false);
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // invoke 包装负责 toast。
     }
   }, [setOverlayActive]);
 
   const saveAutoSwitchPreference = useCallback(
     (value: "yes" | "no", targetWindow?: string) => {
-      updatePreferences({ auto_switch_on_overlay: value }).catch(console.error);
+      // updatePreferences 失败由 invoke 包装 toast；这里不阻塞 hideAndSwitch。
+      updatePreferences({ auto_switch_on_overlay: value }).catch(() => {});
       if (targetWindow) {
-        hideAndSwitch(targetWindow).catch(console.error);
+        hideAndSwitch(targetWindow).catch(() => {});
       }
     },
     [hideAndSwitch]

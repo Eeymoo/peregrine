@@ -1012,6 +1012,12 @@ pub enum Element {
         w: f32,
         /// 高度。
         h: f32,
+        /// 可选圆角半径（None 或缺省时渲染为直角矩形，向后兼容）。
+        ///
+        /// 任务 9.2：支持 edge_rect 等物料的圆角渲染，
+        /// SVG 后端输出 `<rect rx="...">`，CPU 后端降级为直角并 warn 日志。
+        #[serde(default)]
+        corner_radius: Option<f32>,
     },
     /// 填充圆。
     Circle {
@@ -2117,12 +2123,44 @@ mod tests {
             y: 20.0,
             w: 100.0,
             h: 50.0,
+            corner_radius: None,
         };
         let json = serde_json::to_string(&e).unwrap();
         assert!(json.contains("\"type\":\"rect\""));
         assert!(json.contains("\"x\":10.0"));
         let restored: Element = serde_json::from_str(&json).unwrap();
         assert_eq!(restored, e);
+    }
+
+    /// 任务 9.8：corner_radius 字段反序列化向后兼容测试。
+    ///
+    /// 旧物料脚本不输出 corner_radius 字段时，Element::Rect 反序列化为 None（直角）。
+    #[test]
+    fn element_rect_corner_radius_backward_compat() {
+        // 旧格式（无 corner_radius 字段）应反序列化为 None。
+        let json_old = r#"{"type":"rect","x":0.0,"y":0.0,"w":100.0,"h":50.0}"#;
+        let e_old: Element = serde_json::from_str(json_old).expect("old format must parse");
+        match e_old {
+            Element::Rect {
+                corner_radius, ..
+            } => {
+                assert_eq!(corner_radius, None, "missing corner_radius should be None");
+            }
+            _ => panic!("expected Rect"),
+        }
+
+        // 新格式（带 corner_radius）应反序列化为 Some。
+        let json_new =
+            r#"{"type":"rect","x":0.0,"y":0.0,"w":100.0,"h":50.0,"corner_radius":15.0}"#;
+        let e_new: Element = serde_json::from_str(json_new).expect("new format must parse");
+        match e_new {
+            Element::Rect {
+                corner_radius, ..
+            } => {
+                assert_eq!(corner_radius, Some(15.0));
+            }
+            _ => panic!("expected Rect"),
+        }
     }
 
     #[test]

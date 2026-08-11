@@ -21,7 +21,9 @@ export function useSettingsAppState() {
         setConfig(cfg);
         setAutoSwitchState(cfg.settings?.auto_switch_on_overlay ?? "ask");
       })
-      .catch(console.error);
+      .catch(() => {
+        // getConfig 失败由 invoke 包装 toast 提示。
+      });
     getAppVersion().then(setVersion).catch(() => {});
 
     // 简体中文用户首次启动自动启用中国大陆加速镜像（仅初始化一次，不覆盖用户选择）。

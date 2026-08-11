@@ -94,6 +94,11 @@ export interface MaterialSchemaEntry {
   step?: number;
   options?: { value: string | number; label: string }[];
   default?: unknown;
+  /** 任务 9.7：select 控件标记为「开发中」，前端禁用并显示提示。
+   *
+   * 用于 random_orb.mode 等暂未实现的字段。
+   */
+  coming_soon?: boolean;
 }
 
 /** 物料信息（IPC `list_materials` 返回）。 */

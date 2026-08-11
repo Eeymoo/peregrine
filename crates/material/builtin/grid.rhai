@@ -12,8 +12,8 @@ fn defaults() {
 
 fn schema() {
     [
-        #{key: "grid_size", label: "单格宽度", widget: "slider", min: 10.0, max: 500.0, step: 1.0},
-        #{key: "thickness", label: "线条粗细", widget: "slider", min: 0.5, max: 10.0, step: 0.5},
+        #{key: "grid_size", label: "单格宽度", widget: "slider", min: 10.0, max: 1920.0, step: 1.0},
+        #{key: "thickness", label: "线条粗细", widget: "slider", min: 0.5, max: 50.0, step: 0.5},
         #{
             key: "alignment",
             label: "对齐方式",
@@ -39,16 +39,20 @@ fn build(params, screen) {
     let w = screen.max_x - screen.min_x;
     let h = screen.max_y - screen.min_y;
 
-    let cols = to_int(w / cell + 0.999);
-    let rows = to_int(h / cell + 0.999);
+    // 任务 8.1：cols/rows 改用 floor（能完整放下的格子数），而非 ceil。
+    // ceil 会多算一格导致最后一格超出屏幕。
+    let cols = to_int(w / cell);
+    let rows = to_int(h / cell);
     let cols = if cols < 1 { 1 } else { cols };
     let rows = if rows < 1 { 1 } else { rows };
 
     let elements = [];
 
     if params.alignment == "edge" {
-        let cell_w = w / cols;
-        let cell_h = h / rows;
+        // 任务 8.2：edge 模式 cell_w 直接用 `cell`（用户设定值），不再用 w/cols 重算。
+        // 这样 grid_size 真实决定单格宽度。
+        let cell_w = cell;
+        let cell_h = cell;
         // 竖线（含左右边缘）
         let i = 0;
         while i <= cols {
@@ -76,7 +80,7 @@ fn build(params, screen) {
             i += 1;
         }
     } else {
-        // 居中：正方形格子居中
+        // 任务 8.3：center 模式 total_w = cell * cols 保证不超屏。
         let total_w = cell * cols;
         let total_h = cell * rows;
         let offset_x = (w - total_w) / 2.0;

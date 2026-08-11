@@ -498,7 +498,23 @@ fn rasterize_shape(
 ) {
     use crate::shapes::Shape;
     match shape {
-        Shape::Rect { x, y, w, h } => {
+        Shape::Rect {
+            x,
+            y,
+            w,
+            h,
+            corner_radius,
+        } => {
+            // 任务 9.5：CPU 光栅化圆角矩形实现复杂（需四角圆弧填充），
+            // 当前降级为直角矩形。若 corner_radius > 0 则记录 warn 日志提示。
+            if let Some(r) = corner_radius {
+                if *r > 0.0 {
+                    tracing::debug!(
+                        r,
+                        "CPU renderer does not support rounded rect; degrading to sharp corners"
+                    );
+                }
+            }
             draw_rect(buffer, pixel_w, pixel_h, scale, *x, *y, *w, *h, color);
         }
         Shape::Circle { cx, cy, radius } => {

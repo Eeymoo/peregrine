@@ -1,5 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke, type InvokeArgs } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { showToast } from "@/lib/globalErrorToast";
 import type {
   AppConfig,
   BuiltShape,
@@ -10,6 +11,49 @@ import type {
 } from "@/types/config";
 
 export { getCurrentWebviewWindow };
+
+// ===== IPC 结构化错误协议 =====
+
+/** 后端 IpcError 对象（与 `src-tauri/src/lib.rs::IpcError` 对应）。 */
+export interface IpcError {
+  /** 稳定错误码（VALIDATION / NOT_FOUND / INTERNAL）。 */
+  code: string;
+  /** 人类可读的错误描述（中文）。 */
+  message: string;
+}
+
+/**
+ * 统一 IPC 调用包装：捕获后端 reject（IpcError 对象或遗留字符串），
+ * 包装为标准 `Error`（携带 `code` 属性），通过 `showToast` 显示后重新抛出。
+ *
+ * 调用方只需 try/catch 处理 UI 回滚，不必重复 toast 样板代码。
+ */
+export async function invoke<T>(cmd: string, args?: InvokeArgs): Promise<T> {
+  try {
+    return await tauriInvoke<T>(cmd, args);
+  } catch (e) {
+    // Tauri IPC reject 出来的可能是 IpcError 对象（新协议）或字符串（遗留）。
+    const isObj = typeof e === "object" && e !== null;
+    const code = isObj && typeof (e as { code?: unknown }).code === "string"
+      ? (e as IpcError).code
+      : "UNKNOWN";
+    const msg = typeof e === "string"
+      ? e
+      : isObj && typeof (e as { message?: unknown }).message === "string"
+        ? (e as IpcError).message
+        : String(e);
+    const err = new Error(msg) as Error & { code: string };
+    err.code = code;
+    // 统一 toast 显示，用户看到「为什么没保存」。
+    showToast(msg);
+    throw err;
+  }
+}
+
+/** 更新 profile 顶层字段（强类型枚举，与后端 `ProfileFieldUpdate` 对应）。 */
+export type ProfileFieldUpdate =
+  | { kind: "target_window"; value: string }
+  | { kind: "settings_hotkey"; value: string };
 
 export async function getConfig(): Promise<AppConfig> {
   return invoke<AppConfig>("get_config");
@@ -218,3 +262,13 @@ export async function copyProfile(baseName: string): Promise<string> {
   return invoke<string>("copy_profile", { baseName });
 }
 
+/** 字段级 patch 更新 Profile 顶层字段（不触及 layers/crosshair）。
+ *
+ * 用于多图层编辑链路替代全量 saveConfig，根治配置丢失。
+ */
+export async function updateProfileField(
+  profileName: string,
+  update: ProfileFieldUpdate,
+): Promise<void> {
+  return invoke("update_profile_field", { profileName, update });
+}

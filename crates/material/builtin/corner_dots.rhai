@@ -24,9 +24,9 @@ fn schema() {
             ],
             "default": 4,
         },
-        #{key: "offset", label: "距边缘距离", widget: "slider", min: 0.0, max: 400.0, step: 1.0},
-        #{key: "thickness", label: "粗细（决定默认半径）", widget: "slider", min: 0.5, max: 20.0, step: 0.5},
-        #{key: "radius", label: "半径（0 = 自动）", widget: "slider", min: 0.0, max: 60.0, step: 1.0},
+        #{key: "offset", label: "距边缘距离", widget: "slider", min: 0.0, max: 1920.0, step: 1.0},
+        #{key: "thickness", label: "粗细（决定默认半径）", widget: "slider", min: 0.5, max: 50.0, step: 0.5},
+        #{key: "radius", label: "半径（0 = 自动）", widget: "slider", min: 0.0, max: 500.0, step: 1.0},
     ]
 }
 

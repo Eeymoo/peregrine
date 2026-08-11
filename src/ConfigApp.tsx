@@ -117,7 +117,8 @@ export default function ConfigApp() {
   const updateSettings = (patch: Partial<AppConfig["settings"]>) => {
     if (!config) return;
     setConfig({ ...config, settings: { ...config.settings, ...patch } });
-    updatePreferences(patch).catch(console.error);
+    // updatePreferences 失败由 invoke 包装 toast 提示；这里不阻塞 UI。
+    updatePreferences(patch).catch(() => {});
   };
 
   if (loading || !config) {
@@ -144,30 +145,6 @@ export default function ConfigApp() {
     );
   }
 
-  // 图层编辑器模式：显示全新 UI。
-  // 模式切换不门控（D4 2026-08-03 二次修订）：软关闭只作用于渲染链路，
-  // UI 可自由切换单/多图层；软关闭期间图层编辑不影响 overlay 渲染与预览。
-  if (layersMode) {
-    return (
-      <div className="h-screen flex flex-col bg-background text-foreground">
-        <LayersEditor
-          config={config}
-          overlayActive={overlayActive}
-          windows={windows}
-          profiles={profiles}
-          onStartOverlay={handleStartOverlay}
-          onStopOverlay={handleStopOverlay}
-          onRefreshWindows={refreshWindows}
-          onUpdateSettings={updateSettings}
-          onConfigChange={setConfig}
-          onSwitchSingleLayer={() => setLayersMode(false)}
-          onActiveProfileChange={changeActiveProfile}
-          onProfilesChange={setProfiles}
-        />
-      </div>
-    );
-  }
-
   // 到这里 crosshair 必为非 null（已从 layers[0] 反向生成）。
   const ch = crosshair!;
 
@@ -177,212 +154,237 @@ export default function ConfigApp() {
   const effectiveCompatible = MATERIAL_RUNTIME_ENABLED ? isLegacyCompatible : true;
 
   return (
-    <div className="h-screen flex bg-background text-foreground overflow-hidden">
-      {/* 左侧预览 */}
-      <div className="flex-1 p-4 min-w-0 min-h-0 relative">
-        {/* 传入内存态 profile：单图层编辑防抖保存期间预览仍即时跟随（不修则滞后一次修改） */}
-        <Preview previewKey={profile?.layers} profile={profile} />
-
-        {/* 顶部工具栏：仅保留切换到多图层按钮 */}
-        {/* 模式切换入口：软关闭不门控（D4 2026-08-03 二次修订） */}
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-end z-10">
-          <button
-            onClick={() => setLayersMode(true)}
-            className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90"
-            title={t("layers.switchToLayers")}
-          >
-            {t("layers.switchToLayers")}
-          </button>
-        </div>
-      </div>
-
-      {/* 右侧设置面板：顶部固定、中间滚动、底部固定 */}
-      <div className="w-80 border-l bg-card p-4 flex flex-col gap-4 overflow-hidden h-screen">
-        {/* 顶部固定区：Profile 管理 + 样式 + 公共配置 */}
-        <div className="space-y-3 shrink-0">
-          {/* Profile 管理 */}
-          <ProfileManager
-            activeProfile={config.active_profile}
+    <>
+      {/* 编辑器主体：layersMode 切换单图层 / 多图层 UI（两种模式并列，不再 early return）。 */}
+      {layersMode ? (
+        <div className="h-screen flex flex-col bg-background text-foreground">
+          <LayersEditor
+            config={config}
+            overlayActive={overlayActive}
+            windows={windows}
             profiles={profiles}
+            onStartOverlay={handleStartOverlay}
+            onStopOverlay={handleStopOverlay}
+            onRefreshWindows={refreshWindows}
+            onUpdateSettings={updateSettings}
+            onConfigChange={setConfig}
+            onSwitchSingleLayer={() => setLayersMode(false)}
             onActiveProfileChange={changeActiveProfile}
             onProfilesChange={setProfiles}
           />
+        </div>
+      ) : (
+        <div className="h-screen flex bg-background text-foreground overflow-hidden">
+          {/* 左侧预览 */}
+          <div className="flex-1 p-4 min-w-0 min-h-0 relative">
+            {/* 传入内存态 profile：单图层编辑防抖保存期间预览仍即时跟随（不修则滞后一次修改） */}
+            <Preview previewKey={profile?.layers} profile={profile} />
 
-          {/* 单图层不兼容提示：切换入口不门控（D4 2026-08-03 二次修订）；
-              软关闭期间附加「功能暂停」说明，提示图层编辑暂不影响渲染 */}
-          {!isLegacyCompatible && (
-            <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-700 dark:text-yellow-400 space-y-1">
-              <div>{t("profile.incompatible")}</div>
-              {!MATERIAL_RUNTIME_ENABLED && <div>{t("profile.layersDisabled")}</div>}
+            {/* 顶部工具栏：仅保留切换到多图层按钮 */}
+            {/* 模式切换入口：软关闭不门控（D4 2026-08-03 二次修订） */}
+            <div className="absolute top-4 left-4 right-4 flex items-center justify-end z-10">
               <button
-                type="button"
                 onClick={() => setLayersMode(true)}
-                className="text-xs underline hover:text-yellow-800 dark:hover:text-yellow-300"
+                className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90"
+                title={t("layers.switchToLayers")}
               >
-                {t("config.switchToLayersFallback")}
+                {t("layers.switchToLayers")}
               </button>
             </div>
-          )}
-
-          {/* 样式选择 */}
-          <div className="space-y-2">
-            <Label className="text-sm">{t("config.style")}</Label>
-            <Select
-              value={ch.style}
-              onValueChange={(v) =>
-                updateCrosshair({ style: v as CrosshairStyle }, { resetDefaults: true })
-              }
-              disabled={!effectiveCompatible}
-            >
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STYLES.map((s) => (
-                  <SelectItem key={s} value={s} className="text-sm">
-                    {t(`styles.${s}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
-          {/* 公共配置 */}
-          {/* 公共配置：禁用态与 StyleFields 一致（pointer-events-none + opacity-60 wrapper） */}
-          <div className={effectiveCompatible ? "space-y-3" : "space-y-3 pointer-events-none opacity-60"}>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-sm">{t("config.opacity")}</Label>
-                <span className="text-sm text-muted-foreground">
-                  {ch.opacity.toFixed(2)}
-                </span>
+          {/* 右侧设置面板：顶部固定、中间滚动、底部固定 */}
+          <div className="w-80 border-l bg-card p-4 flex flex-col gap-4 overflow-hidden h-screen">
+            {/* 顶部固定区：Profile 管理 + 样式 + 公共配置 */}
+            <div className="space-y-3 shrink-0">
+              {/* Profile 管理 */}
+              <ProfileManager
+                activeProfile={config.active_profile}
+                profiles={profiles}
+                onActiveProfileChange={changeActiveProfile}
+                onProfilesChange={setProfiles}
+              />
+
+              {/* 单图层不兼容提示：切换入口不门控（D4 2026-08-03 二次修订）；
+                  软关闭期间附加「功能暂停」说明，提示图层编辑暂不影响渲染 */}
+              {!isLegacyCompatible && (
+                <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-700 dark:text-yellow-400 space-y-1">
+                  <div>{t("profile.incompatible")}</div>
+                  {!MATERIAL_RUNTIME_ENABLED && <div>{t("profile.layersDisabled")}</div>}
+                  <button
+                    type="button"
+                    onClick={() => setLayersMode(true)}
+                    className="text-xs underline hover:text-yellow-800 dark:hover:text-yellow-300"
+                  >
+                    {t("config.switchToLayersFallback")}
+                  </button>
+                </div>
+              )}
+
+              {/* 样式选择 */}
+              <div className="space-y-2">
+                <Label className="text-sm">{t("config.style")}</Label>
+                <Select
+                  value={ch.style}
+                  onValueChange={(v) =>
+                    updateCrosshair({ style: v as CrosshairStyle }, { resetDefaults: true })
+                  }
+                  disabled={!effectiveCompatible}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STYLES.map((s) => (
+                      <SelectItem key={s} value={s} className="text-sm">
+                        {t(`styles.${s}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Slider
-                value={[ch.opacity]}
-                min={0}
-                max={1}
-                step={0.01}
-                onValueChange={([v]) => updateCrosshair({ opacity: v })}
+
+              {/* 公共配置 */}
+              {/* 公共配置：禁用态与 StyleFields 一致（pointer-events-none + opacity-60 wrapper） */}
+              <div className={effectiveCompatible ? "space-y-3" : "space-y-3 pointer-events-none opacity-60"}>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label className="text-sm">{t("config.opacity")}</Label>
+                    <span className="text-sm text-muted-foreground">
+                      {Math.round(ch.opacity * 100)}%
+                    </span>
+                  </div>
+                  <Slider
+                    value={[ch.opacity]}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onValueChange={([v]) => updateCrosshair({ opacity: v })}
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Label className="shrink-0 text-sm">{t("config.color")}</Label>
+                  <input
+                    type="color"
+                    value={colorCss}
+                    onChange={(e) => {
+                      const hex = e.target.value;
+                      const r = parseInt(hex.slice(1, 3), 16) / 255;
+                      const g = parseInt(hex.slice(3, 5), 16) / 255;
+                      const b = parseInt(hex.slice(5, 7), 16) / 255;
+                      updateCrosshair({ color: [r, g, b, 1] });
+                    }}
+                    className="h-8 w-14 rounded border bg-transparent cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  {/* 快捷颜色色块 */}
+                  <div className="flex gap-1 flex-wrap">
+                    {(config.settings.quick_colors ?? []).map((qc, i) => {
+                      const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(
+                        qc[1] * 255,
+                      )}, ${Math.round(qc[2] * 255)})`;
+                      const isActive =
+                        ch.color[0] === qc[0] &&
+                        ch.color[1] === qc[1] &&
+                        ch.color[2] === qc[2];
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          title={css}
+                          disabled={!effectiveCompatible}
+                          onClick={() => updateCrosshair({ color: [...qc] })}
+                          className="w-5 h-5 rounded-full border-2 transition-colors disabled:opacity-50"
+                          style={{
+                            backgroundColor: css,
+                            borderColor: isActive
+                              ? "hsl(var(--primary))"
+                              : "hsl(var(--border))",
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Separator className="shrink-0" />
+
+            {/* 中间样式配置：默认随窗口高度自适应，内容过多时才滚动 */}
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              <StyleFields
+                crosshair={ch}
+                onChange={updateCrosshair}
+                disabled={!effectiveCompatible}
               />
             </div>
 
-            <div className="flex items-center gap-3">
-              <Label className="shrink-0 text-sm">{t("config.color")}</Label>
-              <input
-                type="color"
-                value={colorCss}
-                onChange={(e) => {
-                  const hex = e.target.value;
-                  const r = parseInt(hex.slice(1, 3), 16) / 255;
-                  const g = parseInt(hex.slice(3, 5), 16) / 255;
-                  const b = parseInt(hex.slice(5, 7), 16) / 255;
-                  updateCrosshair({ color: [r, g, b, 1] });
-                }}
-                className="h-8 w-14 rounded border bg-transparent cursor-pointer disabled:cursor-not-allowed"
-              />
-              {/* 快捷颜色色块 */}
-              <div className="flex gap-1 flex-wrap">
-                {(config.settings.quick_colors ?? []).map((qc, i) => {
-                  const css = `rgb(${Math.round(qc[0] * 255)}, ${Math.round(
-                    qc[1] * 255,
-                  )}, ${Math.round(qc[2] * 255)})`;
-                  const isActive =
-                    ch.color[0] === qc[0] &&
-                    ch.color[1] === qc[1] &&
-                    ch.color[2] === qc[2];
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      title={css}
-                      disabled={!effectiveCompatible}
-                      onClick={() => updateCrosshair({ color: [...qc] })}
-                      className="w-5 h-5 rounded-full border-2 transition-colors disabled:opacity-50"
-                      style={{
-                        backgroundColor: css,
-                        borderColor: isActive
-                          ? "hsl(var(--primary))"
-                          : "hsl(var(--border))",
-                      }}
-                    />
-                  );
-                })}
+            <Separator className="shrink-0" />
+
+            {/* 底部固定区：覆盖模式 + 目标窗口 + 开始/停止覆盖 */}
+            <div className="space-y-3 shrink-0">
+              {/* 窗口模式勾选（默认全屏，勾选切换为窗口模式）。覆盖层激活时禁止切换，避免状态不一致。 */}
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="window-mode"
+                  checked={!config.settings.fullscreen_overlay}
+                  disabled={overlayActive}
+                  title={overlayActive ? t("overlay.windowModeBlockedHint") : undefined}
+                  onCheckedChange={(v) => updateSettings({ fullscreen_overlay: !v })}
+                />
+                <Label
+                  htmlFor="window-mode"
+                  className={`text-sm ${overlayActive ? "text-muted-foreground cursor-not-allowed" : "cursor-pointer"}`}
+                >
+                  {t("overlaySettings.windowMode")}
+                </Label>
               </div>
+
+              {/* 目标窗口（仅窗口模式时显示） */}
+              {!config.settings.fullscreen_overlay && (
+                <TargetWindowSelect
+                  value={profile?.target_window ?? ""}
+                  onChange={(v) => updateProfileTargetWindow(v === "__none__" ? "" : v)}
+                />
+              )}
+
+              {/* 开始/停止覆盖 */}
+              <div>
+                {overlayActive ? (
+                  <Button
+                    variant="destructive"
+                    className="w-full h-8 text-sm"
+                    onClick={handleStopOverlay}
+                  >
+                    ■ {t("config.stopOverlay")}
+                  </Button>
+                ) : (
+                  <Button
+                    className="w-full h-8 text-sm"
+                    onClick={handleStartOverlay}
+                    disabled={
+                      !config.settings.fullscreen_overlay && !profile?.target_window
+                    }
+                  >
+                    ▶ {t("config.startOverlay")}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* 开发者面板已移除（合并到设置窗口的「开发」Tab） */}
+
+            {/* 底部信息：版本号（纯文本，配置窗口无解锁彩蛋） */}
+            <div className="text-xs text-muted-foreground text-right select-none shrink-0">
+              Peregrine v{version || "..."}
             </div>
           </div>
         </div>
+      )}
 
-        <Separator className="shrink-0" />
-
-        {/* 中间样式配置：默认随窗口高度自适应，内容过多时才滚动 */}
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-          <StyleFields
-            crosshair={ch}
-            onChange={updateCrosshair}
-            disabled={!effectiveCompatible}
-          />
-        </div>
-
-        <Separator className="shrink-0" />
-
-        {/* 底部固定区：覆盖模式 + 目标窗口 + 开始/停止覆盖 */}
-        <div className="space-y-3 shrink-0">
-          {/* 窗口模式勾选（默认全屏，勾选切换为窗口模式）。覆盖层激活时禁止切换，避免状态不一致。 */}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="window-mode"
-              checked={!config.settings.fullscreen_overlay}
-              disabled={overlayActive}
-              title={overlayActive ? t("overlay.windowModeBlockedHint") : undefined}
-              onCheckedChange={(v) => updateSettings({ fullscreen_overlay: !v })}
-            />
-            <Label
-              htmlFor="window-mode"
-              className={`text-sm ${overlayActive ? "text-muted-foreground cursor-not-allowed" : "cursor-pointer"}`}
-            >
-              {t("overlaySettings.windowMode")}
-            </Label>
-          </div>
-
-          {/* 目标窗口（仅窗口模式时显示） */}
-          {!config.settings.fullscreen_overlay && (
-            <TargetWindowSelect
-              value={profile?.target_window ?? ""}
-              onChange={(v) => updateProfileTargetWindow(v === "__none__" ? "" : v)}
-            />
-          )}
-
-          {/* 开始/停止覆盖 */}
-          <div>
-            {overlayActive ? (
-              <Button
-                variant="destructive"
-                className="w-full h-8 text-sm"
-                onClick={handleStopOverlay}
-              >
-                ■ {t("config.stopOverlay")}
-              </Button>
-            ) : (
-              <Button
-                className="w-full h-8 text-sm"
-                onClick={handleStartOverlay}
-                disabled={
-                  !config.settings.fullscreen_overlay && !profile?.target_window
-                }
-              >
-                ▶ {t("config.startOverlay")}
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* 开发者面板已移除（合并到设置窗口的「开发」Tab） */}
-
-        {/* 底部信息：版本号（纯文本，配置窗口无解锁彩蛋） */}
-        <div className="text-xs text-muted-foreground text-right select-none shrink-0">
-          Peregrine v{version || "..."}
-        </div>
-      </div>
+      {/* ===== 全局对话框层（任务 6.1-6.5） =====
+          与编辑模式（单图层/多图层）解耦，两种模式下都正常挂载渲染。 */}
 
       {/* 自动切换确认对话框 */}
       {showAutoSwitchDialog && (
@@ -420,6 +422,6 @@ export default function ConfigApp() {
 
       {/* 更新下载进度 */}
       {updating && <UpdateProgress progress={updateProgress} />}
-    </div>
+    </>
   );
 }

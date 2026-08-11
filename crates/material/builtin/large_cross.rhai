@@ -10,7 +10,7 @@ fn defaults() {
 
 fn schema() {
     [
-        #{key: "thickness", label: "粗细", widget: "slider", min: 0.5, max: 20.0, step: 0.5},
+        #{key: "thickness", label: "粗细", widget: "slider", min: 0.5, max: 50.0, step: 0.5},
     ]
 }
 

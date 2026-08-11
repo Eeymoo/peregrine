@@ -58,7 +58,9 @@ export function LayerPanel({
             .filter((m) => m.id !== "builtin.custom_image"),
         ),
       )
-      .catch(console.error);
+      .catch(() => {
+        // listMaterials 失败由 invoke 包装 toast 提示；这里不阻塞 UI。
+      });
   }, []);
 
   const handleAdd = async (materialId: string, name: string) => {
@@ -434,12 +436,15 @@ function renderWidget(
         value: String(opt.value),
         label: opt.label,
       }));
+      // 任务 9.7：物料 schema 标记 coming_soon 的 select 控件禁用，
+      // 并在 label 后追加「（开发中）」提示（random_orb.mode 等）。
+      const comingSoon = entry.coming_soon === true;
       return (
         <SelectField
-          label={entry.label}
+          label={comingSoon ? `${entry.label}（开发中）` : entry.label}
           value={String(value ?? "")}
           options={options}
-          disabled={disabled}
+          disabled={disabled || comingSoon}
           onChange={(v) => onChange(v)}
         />
       );

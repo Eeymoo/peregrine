@@ -17,9 +17,9 @@ fn defaults() {
 fn schema() {
     [
         #{key: "path", label: "图片路径", widget: "image_path"},
-        #{key: "scale", label: "缩放", widget: "slider", min: 0.1, max: 10.0, step: 0.1},
-        #{key: "offset_x", label: "水平偏移", widget: "slider", min: -500.0, max: 500.0, step: 1.0},
-        #{key: "offset_y", label: "垂直偏移", widget: "slider", min: -500.0, max: 500.0, step: 1.0},
+        #{key: "scale", label: "缩放", widget: "slider", min: 0.1, max: 50.0, step: 0.1},
+        #{key: "offset_x", label: "水平偏移", widget: "slider", min: -1920.0, max: 1920.0, step: 1.0},
+        #{key: "offset_y", label: "垂直偏移", widget: "slider", min: -1920.0, max: 1920.0, step: 1.0},
         #{key: "width", label: "原始宽度（显示用）", widget: "number", min: 1.0, max: 2000.0, step: 1.0},
         #{key: "height", label: "原始高度（显示用）", widget: "number", min: 1.0, max: 2000.0, step: 1.0},
     ]

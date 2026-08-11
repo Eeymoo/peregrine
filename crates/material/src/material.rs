@@ -474,6 +474,9 @@ fn dynamic_to_element(material_id: &str, d: Dynamic) -> MaterialResult<Element> 
             y: get_f32("y")?,
             w: get_f32("w")?,
             h: get_f32("h")?,
+            // 任务 9.3：支持 edge_rect 等物料的 corner_radius 字段。
+            // 物料脚本不输出该字段时回退 None（直角，向后兼容）。
+            corner_radius: get_f32("corner_radius").ok(),
         }),
         "circle" => Ok(Element::Circle {
             cx: get_f32("cx")?,

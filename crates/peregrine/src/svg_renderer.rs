@@ -138,13 +138,25 @@ fn build_elements_svg(
         let stroke = &fill;
 
         match shape {
-            Shape::Rect { x, y, w, h } => {
+            Shape::Rect {
+                x,
+                y,
+                w,
+                h,
+                corner_radius,
+            } => {
+                // 任务 9.4：SVG `<rect>` 支持 rx 属性渲染圆角。
+                let rx_attr = match corner_radius {
+                    Some(r) if *r > 0.0 => format!(r#" rx="{}""#, *r * scale),
+                    _ => String::new(),
+                };
                 svg.push_str(&format!(
-                    r#"<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill}" opacity="{op}"/>"#,
+                    r#"<rect x="{x}" y="{y}" width="{w}" height="{h}"{rx} fill="{fill}" opacity="{op}"/>"#,
                     x = *x * scale,
                     y = *y * scale,
                     w = *w * scale,
                     h = *h * scale,
+                    rx = rx_attr,
                     fill = fill,
                     op = alpha,
                 ));
@@ -310,13 +322,25 @@ fn build_svg(rect: &RectF, crosshair: &Crosshair, scale: f32) -> String {
 
     for shape in &shapes {
         match shape {
-            Shape::Rect { x, y, w, h } => {
+            Shape::Rect {
+                x,
+                y,
+                w,
+                h,
+                corner_radius,
+            } => {
+                // 任务 9.4：SVG `<rect>` 支持 rx 属性渲染圆角。
+                let rx_attr = match corner_radius {
+                    Some(r) if *r > 0.0 => format!(r#" rx="{}""#, *r * scale),
+                    _ => String::new(),
+                };
                 svg.push_str(&format!(
-                    r#"<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill}" opacity="{op}"/>"#,
+                    r#"<rect x="{x}" y="{y}" width="{w}" height="{h}"{rx} fill="{fill}" opacity="{op}"/>"#,
                     x = *x * scale,
                     y = *y * scale,
                     w = *w * scale,
                     h = *h * scale,
+                    rx = rx_attr,
                     fill = fill,
                     op = alpha,
                 ));

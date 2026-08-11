@@ -8,8 +8,8 @@ Peregrine 是一款专注于缓解 3D 眩晕（Motion Sickness）的桌面工具
 
 > **当前状态：正式版已发布。** Windows 透明置顶穿透覆盖层、目标窗口跟随、多种视觉锚点样式、自定义 PNG 贴图、配置热重载等功能已可用。
 >
-> 面向使用者的操作说明请看 **[使用帮助](https://peregrine.eeymoo.com/zh-cn/guide/help.html)**。
-> 贡献指南请看 **[贡献指南](https://peregrine.eeymoo.com/zh-cn/guide/contributing.html)**。
+> 面向使用者的操作说明请看 **[使用帮助](https://peregrine.aukcraft.org/zh-cn/guide/help.html)**。
+> 贡献指南请看 **[贡献指南](https://peregrine.aukcraft.org/zh-cn/guide/contributing.html)**。
 
 ## 快速开始
 

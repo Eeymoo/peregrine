@@ -67,4 +67,4 @@ Peregrine 使用 [MIT](https://opensource.org/licenses/MIT) 许可发布，完�
 
 ### 参与贡献
 
-欢迎提交 Issue 与 Pull Request。请参阅仓库中的 [`CONTRIBUTING.zh-cn.md`](https://github.com/eeymoo/peregrine/blob/main/CONTRIBUTING.zh-cn.md) 了解贡献规范，以及 [`开发构建`](./development.md) 页面了解如何本地构建与测试。
+欢迎提交 Issue 与 Pull Request。请参阅[贡献指南](./contributing.md)了解贡献规范，以及 [`开发构建`](./development.md) 页面了解如何本地构建与测试。

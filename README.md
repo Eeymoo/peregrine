@@ -8,8 +8,8 @@ Peregrine is a desktop utility focused on relieving 3D motion sickness. It provi
 
 > **Current status: stable release.** The transparent, always-on-top, click-through overlay on Windows, target window following, multiple visual anchor styles, custom PNG image support, and configuration hot-reload are all available.
 >
-> For end-user instructions, see **[Help (HELP.md)](HELP.md)**.
-> For contribution guidelines, see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+> For end-user instructions, see **[Help](https://peregrine.eeymoo.com/guide/help.html)**.
+> For contribution guidelines, see **[Contributing](https://peregrine.eeymoo.com/guide/contributing.html)**.
 
 ## Quick Start
 

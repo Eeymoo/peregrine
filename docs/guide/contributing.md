@@ -65,7 +65,7 @@ docs: add contributing guide and startup instructions
 ci(release): only build and release Windows x86/x86_64/ARM64
 ```
 
-As the project is moving toward internationalization, commit message bodies should be written in **English**. `type` and `scope` remain in English.
+Commit message bodies should be written in **Simplified Chinese** (consistent with the repository convention in `AGENTS.md`); `type` and `scope` remain in English. Issue and Pull Request descriptions, however, may be written in English — this language convention applies only to code comments, documentation, and commit messages.
 
 ---
 
@@ -90,7 +90,7 @@ As the project is moving toward internationalization, commit message bodies shou
 ## Code Style
 
 - Follow standard Rust style (`cargo fmt` default configuration).
-- As the project is internationalized, please write **English** documentation comments (`///`) for public items, and use `//!` at the top of modules to describe responsibilities.
+- As per the repository convention (`AGENTS.md`), please write **Simplified Chinese** documentation comments (`///`) for public items, and use `//!` at the top of modules to describe responsibilities.
 - Error handling: use `ConfigError` defined by `thiserror` at the library level; do not `panic`/`unwrap` in libraries.
 - Logging uses `tracing`; do not add new `println!`/`eprintln!`.
 - When adding new fields, be sure to add `#[serde(default)]` to maintain backward compatibility.

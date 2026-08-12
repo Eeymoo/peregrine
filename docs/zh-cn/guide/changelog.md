@@ -4,6 +4,20 @@
 
 ---
 
+## 未发布 / Unreleased
+
+### 新增
+
+- **6 语 UI 支持**：在简体中文与英文之外新增日本語（ja-JP）、Deutsch（de-DE）、Français（fr-FR）、Русский（ru-RU）。非中文翻译由 AI 初版生成，欢迎母语者通过新的翻译改进 issue 模板提交修正建议。后端 i18n 从「硬编码枚举 + match 表」重构为数据驱动模型：通过 `include_str!` 编译期内嵌与前端共用的 locale JSON，新增语言只改 JSON 即可、无需改动 Rust 代码。`FALLBACK_LOCALE` 由 `zh-CN` 切换为 `en`。 @Eeymoo
+- **Issue 模板体系**：新增 Bug 反馈模板（默认推荐）、翻译改进模板（喂给自动翻译 workflow）、提问模板（兜底，因禁用了空白 issue），以及 `config.yml` 控制 issue 选择器入口。
+- **翻译自动化**：新增 `auto-translate` GitHub Actions job——issue 被打 `translation` 标签时自动开 PR 编辑对应 locale JSON；新增 `i18n-check` CI job——对触碰 locale 文件的 PR 强制 JSON 可解析 + 单语 key 集合不变 + 6 语 key 集合对齐三重校验。
+
+### 变更
+
+- 语言下拉框中 `option.follow_system`（"跟随系统"）现在跟随当前语言显示（此前在所有语言下都显示中文）。语言自名（日本語 / Deutsch / …）有意保持固定的 endonym。
+
+---
+
 ## [v0.2.1] — 2026-08-09
 
 正式版本。引入四层自定义架构（元素 / 物料 / 图层 / 配置）与 Rhai 物料运行时，支持静态多图层渲染；新增多配置管理、匿名遥测与开发者模式；并合并 dev 分支功能（单例模式、Markdown 更新日志、镜像下载修复）。

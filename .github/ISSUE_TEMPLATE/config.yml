@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 文档 / Documentation
+    url: https://peregrine.aukcraft.org/
+    about: 使用前请先查阅用户指南与配置说明。
+  - name: 💬 讨论区 / GitHub Discussions
+    url: https://github.com/Eeymoo/peregrine/discussions
+    about: 想法、点子、非 bug 类的开放讨论可发到 Discussions。

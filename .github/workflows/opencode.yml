@@ -59,7 +59,7 @@ jobs:
           prompt: |
             根据以下 Issue/PR 的标题和内容，自动添加合适的标签。
 
-            可用标签：bug、enhancement、documentation、duplicate、good first issue、help wanted、invalid、question、wontfix
+            可用标签：bug、enhancement、documentation、duplicate、good first issue、help wanted、invalid、question、translation、wontfix
 
             规则：
             - bug：报告错误、崩溃、功能不工作
@@ -70,6 +70,65 @@ jobs:
             - help wanted：寻求帮助
             - invalid：无效的 Issue/PR
             - question：询问用法或一般问题
+            - translation：使用 translation-improvement.yml 模板提交的翻译改进建议
             - wontfix：决定不修复
 
             请根据内容判断最合适的标签并添加，不要评论。
+
+  auto-translate:
+    # 翻译修正闭环：issue 被打上 `translation` 标签后，opencode 自动解析表单字段
+    # （语言 / i18n key / 当前译文 / 建议译文），编辑对应 locale JSON 并开 PR
+    # 引用原 issue。维护者负责最终 review。
+    if: |
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'translation'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Run opencode
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: opencode/big-pickle
+          use_github_token: true
+          prompt: |
+            这是一个翻译改进 issue（带 `translation` 标签）。请完成以下步骤：
+
+            1. 解析 issue body 的 GitHub form 字段，提取：
+               - 语言（language）：zh-CN / en / ja-JP / de-DE / fr-FR / ru-RU
+               - i18n key（点号路径，如 `tray.settings`）
+               - 当前译文（current text）
+               - 建议译文（suggested text）
+
+            2. 编辑 `src/i18n/locales/<language>.json`：
+               - 沿用现有的嵌套结构（按点号路径定位）。
+               - 仅替换该 key 的 value 为建议译文；**不要改动任何其它 key 或 value**。
+               - 保留 JSON 格式（2 空格缩进，末尾换行）。
+
+            3. 创建分支并提交：
+               - 分支名：`feature/i18n-${issue_number}-${key_sanitized}`（key 中的 `.` 用 `-` 替换，issue 编号从 issue 引用中获取）。
+               - commit message：`i18n(${language}): update ${key} for #${issue_number}`。
+
+            4. 推送分支并开 PR：
+               - PR 标题：`i18n(${language}): update ${key}`
+               - PR body MUST：
+                 - 含一行 `Closes #${issue_number}` 引用原 issue。
+                 - 声明"本 PR 由 opencode 自动生成，等待维护者 review"。
+                 - 列出修改的文件与 key。
+
+            约束：
+            - 不要加 / 删任何 key，只允许改 value。
+            - 不要触碰其它 locale JSON（6 语对齐由 CI 校验门兜底）。
+            - 如果 issue 表单字段缺失或解析失败，在 PR body 中说明并标注需要人工介入。

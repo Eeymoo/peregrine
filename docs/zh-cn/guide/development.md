@@ -62,6 +62,17 @@ cargo clippy -p peregrine_config -- -D warnings
 - `strip = true`
 - `panic = "abort"`
 
+## 国际化（i18n）
+
+Peregrine 支持 6 门 UI 语言（zh-CN / en / ja-JP / de-DE / fr-FR / ru-RU）。前后端各自实现了一份 `detectLocale` / `map_locale_prefix`，但**前缀映射表必须前后端一字不差对齐**：
+
+- 前端：`src/lib/i18n.tsx` → `mapLocalePrefix()`（读取 `navigator.language`）。
+- 后端：`src-tauri/src/lib.rs` → `map_locale_prefix()`（Windows 上读取 `GetUserDefaultLocaleName`，非 Windows 读取 `LANG`/`LC_ALL`/`LC_MESSAGES`）。
+
+两处使用同一份前缀→locale id 映射：`zh`→`zh-CN`、`en`→`en`、`ja`→`ja-JP`、`de`→`de-DE`、`fr`→`fr-FR`、`ru`→`ru-RU`，其它前缀→`FALLBACK_LOCALE = "en"`。后端有单元测试（`tests::map_locale_prefix_covers_all_supported_branches`）镜像每个分支——新增语言时，**同时更新两处映射并扩展测试**。
+
+locale JSON 放在 `src/i18n/locales/`；前端（`localeMap` 导入）与后端（`include_str!` 内嵌）共用同一份数据源。需要审查覆盖度 / key 对齐时，运行 `i18n-audit` skill；`scripts/check-i18n.mjs` CI 校验门会强制翻译类 PR 不加 / 删 key。
+
 ## 遥测开发
 
 Peregrine 集成了匿名 GlitchTip（Sentry 协议）遥测：崩溃上报、启动统计、关键路径错误上报。用户向隐私说明见 [隐私与遥测](./privacy.md)；面向开发者的全部上报 Code 登记表见仓库根目录的 [`REPORT_CODES.md`](./report-codes)。

@@ -58,7 +58,7 @@ The following settings are stored in the standalone **Settings** window (not pro
 - **Real-time display while dragging**: When enabled, the overlay follows window movement in real time while dragging. When disabled (default), it resumes after a delay when dragging stops, reducing CPU usage.
 - **GPU hardware acceleration**: When enabled, WebView2 GPU rendering is used (disabled by default). When disabled, pure CPU rendering is used to reduce GPU process memory usage.
 - **Auto-switch to game when starting overlay**: Ask every time / Yes / No.
-- **Language**: Simplified Chinese / English / Follow system.
+- **Language**: Simplified Chinese / English / Japanese / German / French / Russian / Follow system. Non-Chinese translations are initially AI-generated and may be imperfect; native speakers can suggest improvements via the [translation-improvement issue template](https://github.com/Eeymoo/peregrine/issues/new?template=translation-improvement.yml).
 
 ## Process Trigger (Placeholder)
 

@@ -58,7 +58,7 @@ Peregrine 支持两种覆盖模式，可在配置页面或托盘菜单中切换�
 - **拖拽时实时显示**：开启后窗口拖拽时覆盖层实时跟随，关闭时（默认）拖拽停止后延迟恢复，降低 CPU 占用。
 - **GPU 硬件加速**：开启后启用 WebView2 GPU 渲染（默认关闭），关闭时使用纯 CPU 渲染以减少 GPU 进程内存占用。
 - **开始覆盖时自动切换到游戏**：每次询问 / 是 / 否。
-- **语言**：简体中文 / English / 跟随系统。
+- **语言**：简体中文 / English / 日本語 / Deutsch / Français / Русский / 跟随系统。非中文翻译由 AI 初版生成，欢迎母语者通过[翻译改进 issue 模板](https://github.com/Eeymoo/peregrine/issues/new?template=translation-improvement.yml)提交修正建议。
 
 ## 进程触发（占位）
 

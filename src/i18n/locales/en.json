@@ -323,5 +323,13 @@
     "consentDesc": "Allow anonymous crash reports and usage data? No personal data is collected.",
     "consentAllow": "Allow",
     "consentDeny": "Deny"
+  },
+  "option": {
+    "follow_system": "Follow system"
+  },
+  "backend": {
+    "target_window_required": "No target window selected",
+    "overlay_active_cannot_change_mode": "Overlay is active. Stop the overlay before changing the mode.",
+    "png_filter": "PNG images"
   }
 }

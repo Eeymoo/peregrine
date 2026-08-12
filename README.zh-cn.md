@@ -10,6 +10,8 @@ Peregrine 是一款专注于缓解 3D 眩晕（Motion Sickness）的桌面工具
 >
 > 面向使用者的操作说明请看 **[使用帮助](https://peregrine.aukcraft.org/zh-cn/guide/help.html)**。
 > 贡献指南请看 **[贡献指南](https://peregrine.aukcraft.org/zh-cn/guide/contributing.html)**。
+>
+> **翻译说明：** 界面支持 6 门语言（简体中文、English、日本語、Deutsch、Français、Русский）。非中文翻译由 AI 初版生成，可能不够地道。欢迎母语者通过[翻译改进 issue 模板](https://github.com/Eeymoo/peregrine/issues/new?template=translation-improvement.yml)提交修正建议。
 
 ## 快速开始
 

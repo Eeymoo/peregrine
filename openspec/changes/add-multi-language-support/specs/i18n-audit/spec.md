@@ -1,10 +1,4 @@
-# i18n-audit Specification
-
-## Purpose
-
-定义前端国际化审查能力：仓库提供可重复执行的 i18n 审查 skill（`.agents/skills/i18n-audit/`），覆盖硬编码 UI 文案、缺失 key、6 语对齐、目标 locale 文件齐全、冗余 key 五个维度；并约束所有 `t()` 引用 key 必须在 6 语 locale 中存在、用户可见文案一律走 `t()`。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 提供可重复执行的 i18n 审查 skill
 

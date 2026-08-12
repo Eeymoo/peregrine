@@ -12,7 +12,8 @@ use peregrine_config::{
     RendererBackend, Transform2D,
 };
 use peregrine_material::{DynamicContext, MaterialInfo, MaterialRegistry};
-use std::sync::{Arc, Mutex, mpsc};
+use std::collections::HashMap;
+use std::sync::{Arc, LazyLock, Mutex, mpsc};
 use tauri::{
     Emitter, Manager, State, WebviewUrl,
     image::Image,
@@ -63,94 +64,171 @@ macro_rules! safe_try {
     }};
 }
 
-/// 支持的后端 UI 语言。
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum BackendLocale {
-    ZhCN,
-    En,
-}
+/// 缺失 key 时的回退语言（面向国际用户的最低共同语言）。
+///
+/// 历史：此前为 `"zh-CN"`；本 change 切换为 `"en"` 作为产品定位声明。
+/// 仅影响缺失 key 时的回退路径，正常情况下所有 key 齐全，对终端用户无感。
+const FALLBACK_LOCALE: &str = "en";
 
-impl BackendLocale {
-    fn detect() -> Self {
-        // Windows 上 LANG 环境变量通常不存在，使用 Win32 API 获取系统 UI 语言。
-        #[cfg(windows)]
-        {
-            use windows::Win32::Globalization::GetUserDefaultLocaleName;
-            let mut buf = [0u16; 85]; // LOCALE_NAME_MAX_LENGTH
-            let ok = unsafe { GetUserDefaultLocaleName(&mut buf) };
-            if ok > 0 {
-                let locale = String::from_utf16_lossy(&buf[..ok as usize])
-                    .trim_end_matches('\0')
-                    .to_lowercase();
-                if locale.starts_with("zh") {
-                    return BackendLocale::ZhCN;
-                }
-            }
-            return BackendLocale::En;
-        }
-        // 非 Windows 平台使用环境变量检测。
-        #[cfg(not(windows))]
-        {
-            let locale = std::env::var("LANG")
-                .or_else(|_| std::env::var("LC_ALL"))
-                .unwrap_or_default()
-                .to_lowercase();
-            if locale.starts_with("zh") {
-                BackendLocale::ZhCN
+/// 支持的 locale id 集合（与 `src/i18n/locales/` 下的 JSON 文件一一对应）。
+///
+/// 新增语言时：把新 locale id 加入此数组 + 在 `TRANSLATIONS` 中 `include_str!`
+/// 对应 JSON 即可，无需改动 `translate` / `current_locale` / `detect_locale` 逻辑。
+const SUPPORTED_LOCALES: &[&str] = &["zh-CN", "en", "ja-JP", "de-DE", "fr-FR", "ru-RU"];
+
+/// 编译期内嵌的 6 份 locale JSON（与前端 `src/lib/i18n.tsx` 共用同一份数据源）。
+///
+/// 路径以本文件 `src-tauri/src/lib.rs` 为锚点向上两层回到仓库根，再进入
+/// `src/i18n/locales/`（`include_str!` 相对当前源文件解析）。
+/// 新增语言时在此追加一行 `include_str!` 即可。
+const TRANSLATIONS: &[(&str, &str)] = &[
+    ("zh-CN", include_str!("../../src/i18n/locales/zh-CN.json")),
+    ("en", include_str!("../../src/i18n/locales/en.json")),
+    ("ja-JP", include_str!("../../src/i18n/locales/ja-JP.json")),
+    ("de-DE", include_str!("../../src/i18n/locales/de-DE.json")),
+    ("fr-FR", include_str!("../../src/i18n/locales/fr-FR.json")),
+    ("ru-RU", include_str!("../../src/i18n/locales/ru-RU.json")),
+];
+
+/// 将嵌套 JSON 对象扁平化为点号路径 → 字符串的字典（与前端 `flatten()` 对齐）。
+fn flatten_json(obj: &serde_json::Value, prefix: &str, out: &mut HashMap<String, String>) {
+    if let serde_json::Value::Object(map) = obj {
+        for (k, v) in map {
+            let path = if prefix.is_empty() {
+                k.clone()
             } else {
-                BackendLocale::En
+                format!("{}.{}", prefix, k)
+            };
+            match v {
+                serde_json::Value::String(s) => {
+                    out.insert(path, s.clone());
+                }
+                _ => flatten_json(v, &path, out),
             }
         }
     }
+}
 
-    fn from_str(s: &str) -> Self {
-        if s.to_lowercase().starts_with("zh") {
-            BackendLocale::ZhCN
-        } else {
-            BackendLocale::En
+/// 翻译表：首次访问时由 `LazyLock` 反序列化 `TRANSLATIONS`，
+/// 形态为 `HashMap<locale_id, HashMap<key, value>>`（扁平化后的字典）。
+static TRANSLATION_TABLE: LazyLock<HashMap<&'static str, HashMap<String, String>>> =
+    LazyLock::new(|| {
+        let mut table: HashMap<&'static str, HashMap<String, String>> = HashMap::new();
+        for (locale, json_str) in TRANSLATIONS {
+            let parsed: serde_json::Value =
+                serde_json::from_str(json_str).expect("embedded locale JSON must parse");
+            let mut flat = HashMap::new();
+            flatten_json(&parsed, "", &mut flat);
+            table.insert(locale, flat);
         }
+        table
+    });
+
+/// 根据 locale id + key 查询翻译。
+///
+/// 查表顺序：当前 locale 命中 → `FALLBACK_LOCALE` 命中 → 返回原始 key 字符串。
+/// 该顺序与前端 `src/lib/i18n.tsx` 的 `localeMap[resolved][key] ?? localeMap[FALLBACK_LOCALE][key] ?? key`
+/// 行为完全一致，保证前后端缺 key 回退对称。
+fn translate(locale: &str, key: &str) -> String {
+    if let Some(table) = TRANSLATION_TABLE.get(locale) {
+        if let Some(v) = table.get(key) {
+            return v.clone();
+        }
+    }
+    if locale != FALLBACK_LOCALE {
+        if let Some(table) = TRANSLATION_TABLE.get(FALLBACK_LOCALE) {
+            if let Some(v) = table.get(key) {
+                return v.clone();
+            }
+        }
+    }
+    key.to_string()
+}
+
+/// 把任意系统 locale 字符串映射到受支持的 locale id。
+///
+/// 映射表（前后端必须一字不差对齐，前端镜像在 `src/lib/i18n.tsx::detectLocale()`）：
+///
+/// | 前缀（小写） | locale id |
+/// |---|---|
+/// | `zh` | `zh-CN` |
+/// | `en` | `en` |
+/// | `ja` | `ja-JP` |
+/// | `de` | `de-DE` |
+/// | `fr` | `fr-FR` |
+/// | `ru` | `ru-RU` |
+/// | 其它 | `en`（fallback） |
+///
+/// 采用前缀而非精确匹配：用户系统是 `de-AT` 也映射到 `de-DE`，避免为 6 语维护
+/// N×M 地区变体（Peregrine 是工具，不是地区敏感型应用）。
+fn map_locale_prefix(locale: &str) -> &'static str {
+    let lower = locale.to_lowercase();
+    if lower.starts_with("zh") {
+        "zh-CN"
+    } else if lower.starts_with("en") {
+        "en"
+    } else if lower.starts_with("ja") {
+        "ja-JP"
+    } else if lower.starts_with("de") {
+        "de-DE"
+    } else if lower.starts_with("fr") {
+        "fr-FR"
+    } else if lower.starts_with("ru") {
+        "ru-RU"
+    } else {
+        FALLBACK_LOCALE
     }
 }
 
+/// 检测系统 locale 并映射到受支持的 locale id。
+///
+/// - Windows：调用 Win32 `GetUserDefaultLocaleName`（`LANG` 环境变量通常不存在）。
+/// - 非 Windows：读取 `LANG` / `LC_ALL` / `LC_MESSAGES` 环境变量。
+///
+/// 映射不到 6 语前缀表时回退到 `FALLBACK_LOCALE = "en"`。
 fn detect_locale() -> &'static str {
-    match BackendLocale::detect() {
-        BackendLocale::ZhCN => "zh-CN",
-        BackendLocale::En => "en",
+    #[cfg(windows)]
+    {
+        use windows::Win32::Globalization::GetUserDefaultLocaleName;
+        let mut buf = [0u16; 85]; // LOCALE_NAME_MAX_LENGTH
+        let ok = unsafe { GetUserDefaultLocaleName(&mut buf) };
+        if ok > 0 {
+            let locale = String::from_utf16_lossy(&buf[..ok as usize])
+                .trim_end_matches('\0')
+                .to_lowercase();
+            return map_locale_prefix(&locale);
+        }
+        return FALLBACK_LOCALE;
+    }
+    #[cfg(not(windows))]
+    {
+        let locale = std::env::var("LANG")
+            .or_else(|_| std::env::var("LC_ALL"))
+            .or_else(|_| std::env::var("LC_MESSAGES"))
+            .unwrap_or_default();
+        map_locale_prefix(&locale)
     }
 }
 
-fn tr(locale: BackendLocale, key: &str) -> String {
-    match (locale, key) {
-        (BackendLocale::ZhCN, "target_window_required") => "未选择目标窗口".to_string(),
-        (BackendLocale::En, "target_window_required") => "No target window selected".to_string(),
-        (BackendLocale::ZhCN, "overlay_active_cannot_change_mode") => {
-            "覆盖层运行中，请先停止覆盖层后再切换模式".to_string()
-        }
-        (BackendLocale::En, "overlay_active_cannot_change_mode") => {
-            "Overlay is active. Stop the overlay before changing the mode.".to_string()
-        }
-        (BackendLocale::ZhCN, "png_filter") => "PNG 图片".to_string(),
-        (BackendLocale::En, "png_filter") => "PNG images".to_string(),
-        (BackendLocale::ZhCN, "tray.config") => "配置".to_string(),
-        (BackendLocale::En, "tray.config") => "Config".to_string(),
-        (BackendLocale::ZhCN, "tray.settings") => "设置".to_string(),
-        (BackendLocale::En, "tray.settings") => "Settings".to_string(),
-        (BackendLocale::ZhCN, "tray.quit") => "退出".to_string(),
-        (BackendLocale::En, "tray.quit") => "Quit".to_string(),
-        (BackendLocale::ZhCN, "tray.window_mode") => "窗口模式".to_string(),
-        (BackendLocale::En, "tray.window_mode") => "Window Mode".to_string(),
-        _ => key.to_string(),
-    }
-}
-
-fn current_locale(state: &AppState) -> BackendLocale {
-    let locale = state.locale.lock().map(|s| s.clone()).unwrap_or_default();
-    let resolved = if locale == "zh-CN" || locale == "en" {
-        locale.as_str()
+/// 解析用户配置的 locale 字符串为实际显示语言的 locale id。
+///
+/// - `"auto"` 或空串或未识别值：调用 `detect_locale()` 跟随系统。
+/// - 显式受支持 locale（`zh-CN` / `en` / `ja-JP` / `de-DE` / `fr-FR` / `ru-RU`）：直接使用。
+/// - 显式但不在受支持列表中（如 `"ko-KR"`）：回退到 `detect_locale()`。
+///
+/// 返回 `&'static str` 以便直接作为 `translate()` 的 locale 参数。
+fn current_locale(state: &AppState) -> &'static str {
+    let stored = state.locale.lock().map(|s| s.clone()).unwrap_or_default();
+    if SUPPORTED_LOCALES.contains(&stored.as_str()) {
+        // 受支持 locale 的 &'static str 实例（与 SUPPORTED_LOCALES 中常量同一份）。
+        SUPPORTED_LOCALES
+            .iter()
+            .copied()
+            .find(|l| *l == stored.as_str())
+            .unwrap_or(FALLBACK_LOCALE)
     } else {
         detect_locale()
-    };
-    BackendLocale::from_str(resolved)
+    }
 }
 
 /// 全局应用状态，跨 commands 共享。
@@ -378,10 +456,12 @@ pub fn run() {
         let _ = tx.send(());
     });
 
-    // 初始 locale：配置为 "auto" 或空时通过环境变量检测系统语言，否则直接使用保存值。
+    // 初始 locale：配置为 "auto" / 空串 / 未识别值时通过 detect_locale() 跟随系统，
+    // 显式受支持 locale（zh-CN / en / ja-JP / de-DE / fr-FR / ru-RU）时直接使用。
+    // 这里以字符串形式存入 AppState.locale（Mutex<String>），current_locale() 会再次解析。
     let initial_locale = {
         let saved = snapshot.settings.locale.as_str();
-        if saved == "zh-CN" || saved == "en" {
+        if SUPPORTED_LOCALES.contains(&saved) {
             saved.to_string()
         } else {
             detect_locale().to_string()
@@ -460,11 +540,10 @@ pub fn run() {
             }
 
             // 根据 locale 初始化托盘菜单文本。
-            let locale = BackendLocale::from_str(&initial_locale);
-            let config_label = tr(locale, "tray.config");
-            let settings_label = tr(locale, "tray.settings");
-            let quit_label = tr(locale, "tray.quit");
-            let window_mode_label = tr(locale, "tray.window_mode");
+            let config_label = translate(&initial_locale, "tray.config");
+            let settings_label = translate(&initial_locale, "tray.settings");
+            let quit_label = translate(&initial_locale, "tray.quit");
+            let window_mode_label = translate(&initial_locale, "tray.windowMode");
 
             let config_i = MenuItem::with_id(app, "config", &config_label, true, None::<&str>)?;
             let settings_i =
@@ -528,7 +607,7 @@ pub fn run() {
                             let locale = current_locale(&state);
                             tracing::warn!(
                                 "拒绝切换窗口模式：{}",
-                                tr(locale, "overlay_active_cannot_change_mode")
+                                translate(locale, "backend.overlay_active_cannot_change_mode")
                             );
                             // Tauri v2 的 CheckMenuItem 在 on_menu_event 触发前已自动
                             // 切换勾选状态，guard 早返回时需将其回退到切换前，否则托盘
@@ -764,7 +843,10 @@ fn start_overlay(state: State<AppState>, target_window: String) -> Result<(), St
         cfg.settings.fullscreen_overlay
     };
     if !is_fullscreen && target_window.is_empty() {
-        return Err(tr(current_locale(&state), "target_window_required").to_string());
+        return Err(translate(
+            current_locale(&state),
+            "backend.target_window_required",
+        ));
     }
     state
         .overlay_cmd_tx
@@ -866,7 +948,10 @@ async fn update_preferences(
             .load(std::sync::atomic::Ordering::SeqCst)
         {
             let locale = current_locale(&state);
-            return Err(tr(locale, "overlay_active_cannot_change_mode"));
+            return Err(translate(
+                locale,
+                "backend.overlay_active_cannot_change_mode",
+            ));
         }
     }
 
@@ -1165,30 +1250,26 @@ async fn update_preferences_inner(
 
     // locale 变化时更新托盘菜单并广播事件。
     if locale_changed {
-        let saved = state.locale.lock().map(|s| s.clone()).unwrap_or_default();
-        // "auto" 时根据系统语言解析为实际显示语言。
-        let resolved = if saved == "zh-CN" || saved == "en" {
-            saved.as_str()
-        } else {
-            detect_locale()
-        };
-        let bl = BackendLocale::from_str(resolved);
+        // current_locale 已统一处理 "auto" / 未识别值 → detect_locale()，
+        // 以及显式受支持 locale → 直接 resolve 两条路径，无需在此重复分支。
+        let resolved = current_locale(&state);
         tray_state
             .config_item
-            .set_text(&tr(bl, "tray.config"))
+            .set_text(translate(resolved, "tray.config").as_str())
             .map_err(|e| e.to_string())?;
         tray_state
             .settings_item
-            .set_text(&tr(bl, "tray.settings"))
+            .set_text(translate(resolved, "tray.settings").as_str())
             .map_err(|e| e.to_string())?;
         tray_state
             .quit_item
-            .set_text(&tr(bl, "tray.quit"))
+            .set_text(translate(resolved, "tray.quit").as_str())
             .map_err(|e| e.to_string())?;
         tray_state
             .window_mode_item
-            .set_text(&tr(bl, "tray.window_mode"))
+            .set_text(translate(resolved, "tray.windowMode").as_str())
             .map_err(|e| e.to_string())?;
+        let saved = state.locale.lock().map(|s| s.clone()).unwrap_or_default();
         app.emit("peregrine:locale-changed", &saved)
             .map_err(|e| e.to_string())?;
     }
@@ -1237,7 +1318,7 @@ async fn pick_image_path(
     let path = app
         .dialog()
         .file()
-        .add_filter(tr(locale, "png_filter"), &["png"])
+        .add_filter(translate(locale, "backend.png_filter"), &["png"])
         .blocking_pick_file();
     Ok(path.map(|p| p.to_string()))
 }
@@ -2216,4 +2297,106 @@ async fn spawn_material_watcher(
     }
     // _watcher 在循环期间保持存活（其 Drop 实现会停止文件监视）；
     // 循环退出即函数返回，watcher 随之释放。
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `map_locale_prefix` 覆盖 6 个受支持前缀映射分支 + 1 个 fallback 分支。
+    ///
+    /// 这些测试同时作为前端 `src/lib/i18n.tsx::detectLocale()` 映射表的镜像校验——
+    /// 前后端映射必须一字不差对齐（见 design.md 决策 3）。
+    #[test]
+    fn map_locale_prefix_covers_all_supported_branches() {
+        // 6 个受支持前缀（大小写不敏感）。
+        assert_eq!(map_locale_prefix("zh-CN"), "zh-CN");
+        assert_eq!(map_locale_prefix("ZH-tw"), "zh-CN");
+        assert_eq!(map_locale_prefix("en-US"), "en");
+        assert_eq!(map_locale_prefix("EN"), "en");
+        assert_eq!(map_locale_prefix("ja-JP"), "ja-JP");
+        assert_eq!(map_locale_prefix("JA"), "ja-JP");
+        assert_eq!(map_locale_prefix("de-DE"), "de-DE");
+        assert_eq!(map_locale_prefix("de-AT"), "de-DE");
+        assert_eq!(map_locale_prefix("fr-FR"), "fr-FR");
+        assert_eq!(map_locale_prefix("fr-CA"), "fr-FR");
+        assert_eq!(map_locale_prefix("ru-RU"), "ru-RU");
+        // fallback 分支：未支持的语言映射到 FALLBACK_LOCALE = "en"。
+        assert_eq!(map_locale_prefix("ko-KR"), "en");
+        assert_eq!(map_locale_prefix("ar-SA"), "en");
+        assert_eq!(map_locale_prefix(""), "en");
+    }
+
+    /// `translate` 覆盖三个回退分支：当前 locale 命中、英文回退、原始 key 回退。
+    #[test]
+    fn translate_fallback_chain() {
+        // 当前 locale 命中：zh-CN 的 tray.settings 存在，返回中文。
+        assert_eq!(translate("zh-CN", "tray.settings"), "设置");
+        // 当前 locale 命中：ja-JP 的 tray.settings 存在，返回日文。
+        assert_eq!(translate("ja-JP", "tray.settings"), "環境設定");
+        // 英文回退：传一个不存在的 locale id，应直接走英文回退。
+        assert_eq!(translate("nonexistent-locale", "tray.settings"), "Settings");
+        // 原始 key 回退：所有 locale 都没此 key 时返回 key 本身。
+        assert_eq!(
+            translate("zh-CN", "absolutely.unknown.key.xyz"),
+            "absolutely.unknown.key.xyz"
+        );
+        assert_eq!(
+            translate("en", "absolutely.unknown.key.xyz"),
+            "absolutely.unknown.key.xyz"
+        );
+    }
+
+    /// 后端用到的所有 `tray.*` key MUST 在 locale JSON 中存在（防 key 名拼写不一致回归）。
+    ///
+    /// 历史上曾出现过后端用 `tray.window_mode`（下划线）而 JSON 里只有 `tray.windowMode`
+    /// （驼峰）的 bug——旧 `tr()` match 表硬编码双方恰好对齐，重构为数据驱动后不一致
+    /// 暴露为"显示原始 key 字符串"。此测试枚举后端所有 tray.* 调用点对应的 key。
+    #[test]
+    fn translate_tray_keys_exist_in_all_locales() {
+        let tray_keys = [
+            "tray.config",
+            "tray.settings",
+            "tray.quit",
+            "tray.windowMode",
+        ];
+        for locale in SUPPORTED_LOCALES {
+            for key in tray_keys {
+                let val = translate(locale, key);
+                assert_ne!(
+                    val, key,
+                    "locale `{}` 的 key `{}` 未命中翻译（返回了原始 key），检查 JSON 命名是否与后端调用一致",
+                    locale, key
+                );
+            }
+        }
+    }
+
+    /// 同上，枚举后端所有 `backend.*` key MUST 在所有 locale 中存在。
+    #[test]
+    fn translate_backend_keys_exist_in_all_locales() {
+        let backend_keys = [
+            "backend.target_window_required",
+            "backend.overlay_active_cannot_change_mode",
+            "backend.png_filter",
+        ];
+        for locale in SUPPORTED_LOCALES {
+            for key in backend_keys {
+                let val = translate(locale, key);
+                assert_ne!(val, key, "locale `{}` 的 key `{}` 未命中翻译", locale, key);
+            }
+        }
+    }
+
+    /// `TRANSLATION_TABLE` 必须在首次访问时成功反序列化所有 6 份内嵌 JSON。
+    #[test]
+    fn translation_table_loads_all_six_locales() {
+        for locale in SUPPORTED_LOCALES {
+            assert!(
+                TRANSLATION_TABLE.contains_key(*locale),
+                "locale `{}` missing from TRANSLATION_TABLE",
+                locale
+            );
+        }
+    }
 }

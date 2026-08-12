@@ -10,6 +10,8 @@ Peregrine is a desktop utility focused on relieving 3D motion sickness. It provi
 >
 > For end-user instructions, see **[Help](https://peregrine.aukcraft.org/guide/help.html)**.
 > For contribution guidelines, see **[Contributing](https://peregrine.aukcraft.org/guide/contributing.html)**.
+>
+> **Translations:** The UI supports 6 languages (Simplified Chinese, English, Japanese, German, French, Russian). Non-Chinese translations are initially AI-generated and may not be fully idiomatic. Native speakers are welcome to suggest improvements via the [translation-improvement issue template](https://github.com/Eeymoo/peregrine/issues/new?template=translation-improvement.yml).
 
 ## Quick Start
 

@@ -62,6 +62,17 @@ Release builds are optimized for size and performance:
 - `strip = true`
 - `panic = "abort"`
 
+## Internationalization (i18n)
+
+Peregrine supports 6 UI languages (zh-CN / en / ja-JP / de-DE / fr-FR / ru-RU). The frontend and backend each maintain their own `detectLocale` / `map_locale_prefix` implementation, but **the prefix mapping table MUST stay byte-for-byte aligned** between the two:
+
+- Frontend: `src/lib/i18n.tsx` → `mapLocalePrefix()` (consumes `navigator.language`).
+- Backend: `src-tauri/src/lib.rs` → `map_locale_prefix()` (consumes Win32 `GetUserDefaultLocaleName` on Windows, `LANG`/`LC_ALL`/`LC_MESSAGES` elsewhere).
+
+Both use the same prefix→locale-id mapping: `zh`→`zh-CN`, `en`→`en`, `ja`→`ja-JP`, `de`→`de-DE`, `fr`→`fr-FR`, `ru`→`ru-RU`, others→`FALLBACK_LOCALE = "en"`. The backend has unit tests (`tests::map_locale_prefix_covers_all_supported_branches`) mirroring every branch — when you add a new language, update both maps together and extend the test.
+
+Locale JSONs live in `src/i18n/locales/`; both frontend (`localeMap` import) and backend (`include_str!` embed) share the same data source. To audit coverage / key alignment, run the `i18n-audit` skill. The `scripts/check-i18n.mjs` CI gate enforces that translation-only PRs do not add/drop keys.
+
 ## Telemetry Development
 
 Peregrine integrates anonymous GlitchTip (Sentry-protocol) telemetry: crash reports, startup stats, and key-path error reporting. The user-facing privacy explanation is in [Privacy & Telemetry](./privacy.md); the developer-facing registry of every report code is in [`REPORT_CODES.md`](./report-codes) at the repo root.

@@ -1,0 +1,9 @@
+schema: spec-driven
+created: 2026-08-06
+status: active
+issue: 41
+branch: feature/add-multi-language-support
+note: |
+  0.2.0 正式版本已发布（2026-08），暂缓条件解除。
+  design / specs / tasks 已于 2026-08-12 补齐，change 现已可进入实施阶段。
+  历史 proposal 决策（6 语方案 + issue 模板体系 + opencode 翻译修正闭环 + CI 校验门）保留。

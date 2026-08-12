@@ -323,5 +323,13 @@
     "consentDesc": "是否允许匿名上报崩溃信息与使用情况？不收集任何个人数据。",
     "consentAllow": "允许",
     "consentDeny": "不允许"
+  },
+  "option": {
+    "follow_system": "跟随系统"
+  },
+  "backend": {
+    "target_window_required": "未选择目标窗口",
+    "overlay_active_cannot_change_mode": "覆盖层运行中，请先停止覆盖层后再切换模式",
+    "png_filter": "PNG 图片"
   }
 }

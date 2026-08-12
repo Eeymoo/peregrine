@@ -14,7 +14,14 @@ export function installGlobalErrorHandler(): void {
   if (typeof window === "undefined") return;
 
   const t = (key: string) => {
-    const locale = (localStorage.getItem("peregrine:locale") as "auto" | "zh-CN" | "en") ?? "auto";
+    const locale = (localStorage.getItem("peregrine:locale") ?? "auto") as
+      | "auto"
+      | "zh-CN"
+      | "en"
+      | "ja-JP"
+      | "de-DE"
+      | "fr-FR"
+      | "ru-RU";
     return translate(locale, key);
   };
 
@@ -61,7 +68,14 @@ export function showToast(message: string, stack?: string): void {
 
 /** 读取当前语言并翻译指定 key（与 installGlobalErrorHandler 内的闭包逻辑一致，供模块级渲染使用）。 */
 function tt(key: string): string {
-  const locale = (localStorage.getItem("peregrine:locale") as "auto" | "zh-CN" | "en") ?? "auto";
+  const locale = (localStorage.getItem("peregrine:locale") ?? "auto") as
+    | "auto"
+    | "zh-CN"
+    | "en"
+    | "ja-JP"
+    | "de-DE"
+    | "fr-FR"
+    | "ru-RU";
   return translate(locale, key);
 }
 

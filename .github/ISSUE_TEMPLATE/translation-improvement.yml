@@ -1,0 +1,62 @@
+name: 🌐 翻译改进 / Translation Improvement
+description: 提交对 6 门语言（zh-CN / en / ja-JP / de-DE / fr-FR / ru-RU）任一译文的改进建议
+title: "[Translation] "
+labels: ["translation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Peregrine 的非中文翻译由 AI 初版生成，欢迎母语者通过此模板提交改进建议。
+        Non-Chinese translations are initially AI-generated; native speakers are welcome to suggest improvements via this template.
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: 语言 / Language
+      description: 你想改进的是哪门语言的译文？
+      options:
+        - 简体中文 (zh-CN)
+        - English (en)
+        - 日本語 (ja-JP)
+        - Deutsch (de-DE)
+        - Français (fr-FR)
+        - Русский (ru-RU)
+    validations:
+      required: true
+
+  - type: input
+    id: i18n_key
+    attributes:
+      label: i18n key
+      description: |
+        涉及的 i18n key（点号路径）。可在 `src/i18n/locales/<locale>.json` 中查找，
+        或在设置面板上用浏览器 DevTools 选中元素后查看。
+      placeholder: 例如 tray.settings、settings.language
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: 当前译文 / Current text
+      description: 该 key 当前在该语言下的译文（如有）。
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested
+    attributes:
+      label: 建议译文 / Suggested text
+      description: 你认为更地道的译法。
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 上下文截图 / Context
+      description: |
+        截图、出现位置、为何这样改更合适等说明。
+        Screenshots, where it appears, and why your suggestion is better.
+    validations:
+      required: false

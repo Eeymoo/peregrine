@@ -4,6 +4,20 @@ This page records every Peregrine release. Stable releases are listed first; pre
 
 ---
 
+## Unreleased
+
+### Added
+
+- **6-language UI support**: Added Japanese (ja-JP), German (de-DE), French (fr-FR), and Russian (ru-RU) alongside Simplified Chinese and English. Non-Chinese translations are AI-generated and may be imperfect; native speakers can suggest improvements via the new translation-improvement issue template. The backend i18n was refactored from a hardcoded enum + match table to a data-driven model that embeds the same locale JSON as the frontend via `include_str!` — adding a new language is now a JSON-only change. `FALLBACK_LOCALE` switched from `zh-CN` to `en`. @Eeymoo
+- **Issue templates**: Added a Bug Report template (default), a Translation Improvement template (feeds the auto-translate workflow), a Question template (catch-all since blank issues are disabled), and a config.yml gating the issue picker.
+- **Translation automation**: A new `auto-translate` GitHub Actions job opens a PR editing the relevant locale JSON when an issue is labeled `translation`; an `i18n-check` CI job enforces JSON validity, single-locale key-set invariance, and 6-locale key-set alignment on PRs touching locale files.
+
+### Changed
+
+- The `option.follow_system` label in the language dropdown now follows the active locale (previously always shown in Chinese). Language self-names (日本語 / Deutsch / …) are intentionally kept as fixed endonyms.
+
+---
+
 ## [v0.2.1] — 2026-08-09
 
 Stable release. Introduces the four-layer customization architecture (Elements / Materials / Layers / Profiles) with a Rhai material runtime and static multi-layer rendering, multi-profile management, anonymous telemetry, and developer mode; also folds in dev-branch features (single instance, Markdown release notes, mirror download fix).

@@ -59,7 +59,7 @@ export function GeneralTab({ config, locale, setConfig, setLocale }: GeneralTabP
           <SelectContent>
             {LANGUAGE_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
+                {opt.labelKey ? t(opt.labelKey) : opt.label}
               </SelectItem>
             ))}
           </SelectContent>

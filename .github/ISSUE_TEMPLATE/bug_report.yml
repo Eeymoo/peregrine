@@ -1,0 +1,97 @@
+name: 🐛 Bug 反馈 / Bug Report
+description: 报告 Peregrine 的错误、崩溃或功能异常
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量详细地描述问题，便于维护者定位和修复。
+        Thanks for reporting! Please describe the issue in detail so it can be reproduced.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述 / Description
+      description: 简明扼要地描述遇到的问题。
+      placeholder: 例如：开始覆盖层后游戏帧率显著下降。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      description: 一步步说明如何触发这个问题。
+      placeholder: |
+        1. 打开 Peregrine
+        2. 选择目标窗口 '...'
+        3. 点击 '开始覆盖'
+        4. 出现 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为 / Expected behavior
+      description: 你认为应该发生什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为 / Actual behavior
+      description: 实际上发生了什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图 / Screenshots
+      description: 如有截图或录屏，请粘贴或附加。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: arch
+    attributes:
+      label: 系统架构 / Architecture
+      options:
+        - x86 (32-bit)
+        - x64 (64-bit)
+        - ARM64
+        - 不确定 / Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: windows_version
+    attributes:
+      label: Windows 版本 / Windows version
+      description: 例如 Windows 11 23H2、Windows 10 22H2 等。
+      placeholder: Windows 11 23H2
+    validations:
+      required: true
+
+  - type: input
+    id: peregrine_version
+    attributes:
+      label: Peregrine 版本 / Peregrine version
+      description: 在「设置 → 关于」中查看。Check "Settings → About".
+      placeholder: v0.2.1
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 额外上下文 / Additional context
+      description: 日志、配置文件、相关 issue 链接等任何有助于排查的信息。
+      placeholder: |
+        - 日志路径：%APPDATA%/Peregrine/peregrine.log
+        - 配置文件：...
+    validations:
+      required: false

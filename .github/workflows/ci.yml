@@ -196,11 +196,37 @@ jobs:
           echo "- 代码格式 (rustfmt): ✓" >> $GITHUB_STEP_SUMMARY
           echo "- Clippy lint: ✓" >> $GITHUB_STEP_SUMMARY
 
+  # 翻译 PR 的 i18n 校验门：对修改 src/i18n/locales/*.json 的 PR 触发
+  # (a) JSON 可解析、(b) 单语 key 集合不变、(c) 6 语 key 集合对齐 三重校验。
+  # 详见 scripts/check-i18n.mjs。失败阻塞 merge（与人工 review 并行，纯增益）。
+  i18n-check:
+    name: i18n Check
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # check-i18n.mjs 需要 git show <base>:... 取 base 版本
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }} --depth=1
+
+      - name: Run i18n check
+        run: node scripts/check-i18n.mjs origin/${{ github.base_ref }}
+
   # 综合质量门禁（所有测试通过后执行）
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs: [build, test-report, frontend-report, lint]
+    needs: [build, test-report, frontend-report, lint, i18n-check]
     if: always()
     steps:
       - name: Check all jobs status
@@ -213,11 +239,13 @@ jobs:
           echo "| 测试报告 | ${{ needs.test-report.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 前端报告 | ${{ needs.frontend-report.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Lint 检查 | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| i18n 校验 | ${{ needs.i18n-check.result }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Fail if any required job failed
         if: |
           needs.build.result == 'failure' ||
           needs.test-report.result == 'failure' ||
           needs.frontend-report.result == 'failure' ||
-          needs.lint.result == 'failure'
+          needs.lint.result == 'failure' ||
+          needs.i18n-check.result == 'failure'
         run: exit 1

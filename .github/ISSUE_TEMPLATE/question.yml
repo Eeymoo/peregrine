@@ -1,0 +1,34 @@
+name: 💬 提问 / Question
+description: 用法咨询、功能讨论或其它非 bug / 非翻译改进类反馈
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        通用提问入口（替代空白 issue）。如果你遇到了 bug，请改用「🐛 Bug 反馈」模板；
+        如果想改进某门语言的译文，请改用「🌐 翻译改进」模板。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述 / Description
+      description: 你想问什么、讨论什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已尝试的操作 / What you have tried
+      description: 你已经尝试过的排查或操作步骤。
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 相关上下文 / Related context
+      description: 截图、配置、日志、相关链接等。
+    validations:
+      required: false

@@ -19,7 +19,35 @@ Archive a completed change in the experimental workflow.
 
    **IMPORTANT**: Do NOT guess or auto-select a change. Always let the user choose.
 
-2. **Check artifact completion status**
+2. **GATE: verify the linked pull request is MERGED (hard block, not skippable)**
+
+   This is a mandatory precondition: a change may NOT be archived until its PR has been merged. Do not skip this step even if the user asks.
+
+   a. Read the change's `.openspec.yaml` and look for the `pr:` key recorded by `/opsx:apply`.
+
+   b. **If `pr:` is present**, check the PR's merge state via the `gh` CLI:
+      ```bash
+      gh pr view <number> --json state,mergedAt
+      ```
+      - If `"mergedAt"` is non-null (a timestamp) → gate PASSED, proceed to the next step.
+      - If `"mergedAt": null` (state `OPEN`, `CLOSED`, or any non-merged state) → **gate FAILED. STOP.** Do not archive. Report the blocker clearly:
+        ```
+        ## Archive Blocked
+
+        **Change:** <change-name>
+        **PR:** #<number> is NOT merged (state: <OPEN|CLOSED>).
+
+        The linked PR must be merged before this change can be archived.
+        Options:
+        1. Merge the PR on GitHub, then re-run `/opsx:archive`.
+        2. Cancel archiving.
+        ```
+        Wait for the user. Do NOT move the change directory.
+
+   c. **If `pr:` is ABSENT** (the change predates the PR workflow, or `/opsx:apply` could not open a PR):
+      - This is allowed only for legacy changes. Use the **AskUserQuestion tool** to confirm the user genuinely wants to archive without a PR on record. If they decline, stop. If they confirm, proceed (a warning will appear in the final summary).
+
+3. **Check artifact completion status**
 
    Run `openspec status --change "<name>" --json` to check artifact completion.
 
@@ -33,7 +61,7 @@ Archive a completed change in the experimental workflow.
    - Prompt user for confirmation to continue
    - Proceed if user confirms
 
-3. **Check task completion status**
+4. **Check task completion status**
 
    Read the tasks file (typically `tasks.md`) to check for incomplete tasks.
 
@@ -46,7 +74,7 @@ Archive a completed change in the experimental workflow.
 
    **If no tasks file exists:** Proceed without task-related warning.
 
-4. **Assess delta spec sync state**
+5. **Assess delta spec sync state**
 
    Use `artifactPaths.specs.existingOutputPaths` from status JSON to check for delta specs. If none exist, proceed without sync prompt.
 
@@ -61,7 +89,7 @@ Archive a completed change in the experimental workflow.
 
    If user chooses sync, use Task tool (subagent_type: "general-purpose", prompt: "Use Skill tool to invoke openspec-sync-specs for change '<name>'. Delta spec analysis: <include the analyzed delta spec summary>"). Proceed to archive regardless of choice.
 
-5. **Perform the archive**
+6. **Perform the archive**
 
    Create an `archive` directory under `planningHome.changesDir` if it doesn't exist:
    ```bash
@@ -78,14 +106,30 @@ Archive a completed change in the experimental workflow.
    mv "<changeRoot>" "<planningHome.changesDir>/archive/YYYY-MM-DD-<name>"
    ```
 
-6. **Display summary**
+7. **Post-archive: switch back to the default branch and pull latest (FINAL step)**
+
+   After the change directory has been moved, bring the local working copy back to the default branch so the next change starts from a clean base. Determine the default branch (`main` or `master`) and fast-forward it:
+
+   ```bash
+   git checkout main 2>/dev/null || git checkout master
+   git pull --ff-only
+   ```
+
+   - Prefer `main`; only fall back to `master` if `main` does not exist locally/remote.
+   - Use `--ff-only` to avoid accidental merge commits. If it fails (local divergence), report it and ask the user rather than forcing.
+   - If the previously-checked-out feature branch is no longer needed, you MAY offer to delete it (`git branch -d feature/<name>`), but only after confirming with the user.
+   - If `git pull` is not possible (offline / no upstream), report a warning in the summary but still complete the checkout to `main`.
+
+8. **Display summary**
 
    Show archive completion summary including:
    - Change name
    - Schema that was used
    - Archive location
-   - Spec sync status (synced / sync skipped / no delta specs)
-   - Note about any warnings (incomplete artifacts/tasks)
+   - Whether specs were synced (if applicable)
+   - PR merge status (`#<number> merged ✓`)
+   - Current branch (should now be `main`/`master`) and pull status
+   - Note about any warnings (incomplete artifacts/tasks / archived without PR on record)
 
 **Output On Success**
 
@@ -96,6 +140,8 @@ Archive a completed change in the experimental workflow.
 **Schema:** <schema-name>
 **Archived to:** the archive path derived from `planningHome.changesDir`/YYYY-MM-DD-<name>/
 **Specs:** ✓ Synced to main specs
+**PR:** #<number> merged ✓
+**Branch:** switched to main, pulled latest ✓
 
 All artifacts complete. All tasks complete.
 ```
@@ -109,6 +155,8 @@ All artifacts complete. All tasks complete.
 **Schema:** <schema-name>
 **Archived to:** the archive path derived from `planningHome.changesDir`/YYYY-MM-DD-<name>/
 **Specs:** No delta specs
+**PR:** #<number> merged ✓
+**Branch:** switched to main, pulled latest ✓
 
 All artifacts complete. All tasks complete.
 ```
@@ -122,6 +170,8 @@ All artifacts complete. All tasks complete.
 **Schema:** <schema-name>
 **Archived to:** the archive path derived from `planningHome.changesDir`/YYYY-MM-DD-<name>/
 **Specs:** Sync skipped (user chose to skip)
+**PR:** archived without PR on record (legacy change)
+**Branch:** switched to main, pulled latest ✓
 
 **Warnings:**
 - Archived with 2 incomplete artifacts
@@ -147,7 +197,22 @@ Target archive directory already exists.
 3. Wait until a different date to archive
 ```
 
+**Output On PR Gate Failure**
+
+```
+## Archive Blocked
+
+**Change:** <change-name>
+**PR:** #<number> is NOT merged (state: <OPEN|CLOSED>).
+
+The linked PR must be merged before this change can be archived.
+**Options:**
+1. Merge the PR on GitHub, then re-run `/opsx:archive`.
+2. Cancel archiving.
+```
+
 **Guardrails**
+- **The PR-merge gate is HARD and NON-SKIPPABLE**: never archive a change whose linked PR is not merged. This is the single most important rule in this workflow.
 - Always prompt for change selection if not provided
 - Use artifact graph (openspec status --json) for completion checking
 - Don't block archive on warnings - just inform and confirm
@@ -155,3 +220,4 @@ Target archive directory already exists.
 - Show clear summary of what happened
 - If sync is requested, use the Skill tool to invoke `openspec-sync-specs` (agent-driven)
 - If delta specs exist, always run the sync assessment and show the combined summary before prompting
+- After archiving, always leave the user on the default branch (`main`/`master`) with the latest changes pulled

@@ -25,3 +25,17 @@ rules:
   spec:
     - 规格文档需用简体中文撰写
     - 代码示例和文件路径保留原文
+
+# Per-operation guidance (optional)
+# apply / archive 执行时的附加指引，由 /opsx:apply、/opsx:archive 流程消费
+operations:
+  apply:
+    guidance:
+      - 第一步必须创建专属工作分支（feature/<change-name>），禁止在 main/master 上直接提交实现代码
+      - 在 main/master 上直接创建分支即可；若当前已在非 main/master 分支，须先与用户确认基于当前分支还是基于 main
+      - 所有 tasks.md 任务完成后，最后一步必须通过 gh 创建 PR，并把 PR 编号写回 change 的 .openspec.yaml（pr: <number>）
+      - PR 标题使用 conventional commits（feat/fix/refactor/docs/build），body 引用对应 issue（Closes #<n>）
+  archive:
+    guidance:
+      - 归档前置硬门禁：change 对应的 PR 必须已 merged，未合并禁止归档（不可跳过）
+      - 归档完成后自动切回默认分支（main 优先，回退 master）并 git pull --ff-only 拉取最新

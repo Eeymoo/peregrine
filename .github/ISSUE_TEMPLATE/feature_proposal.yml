@@ -1,0 +1,51 @@
+name: ✨ 功能提案 / Feature Proposal
+description: 提议一个新功能或较大的改动（OpenSpec 变更）
+title: "[Feature] "
+labels: ["feature", "openspec"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢提议！本模板用于发起一个 OpenSpec 变更（change）。
+        提交后，维护者会用 `/opsx:propose` 生成提案 / 设计 / 任务三件套，并把本 issue 编号写入对应 change 的 `.openspec.yaml`。
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 动机 / Why
+      description: 为什么要做这个改动？解决什么问题？
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目标 / Goals
+      description: 这个变更要达成什么？尽量用可验证的条目列出。
+    validations:
+      required: true
+
+  - type: textarea
+    id: nongoal
+    attributes:
+      label: 非目标 / Non-goals
+      description: 明确不做的事情，避免范围蔓延。
+    validations:
+      required: false
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: 影响范围 / Impact
+      description: 受影响的代码、API、依赖、文档等。
+    validations:
+      required: false
+
+  - type: input
+    id: change_name
+    attributes:
+      label: 建议 change 名 / Suggested change name
+      description: kebab-case，例如 `add-user-auth`。如不确定可留空。
+      placeholder: add-xxx
+    validations:
+      required: false

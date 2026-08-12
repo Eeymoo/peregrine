@@ -1,21 +1,23 @@
 ---
 name: openspec-propose
-description: Propose a new change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation.
-allowed-tools: Bash(openspec:*)
+description: Propose a new change with all artifacts generated in one step and open a tracking GitHub issue. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation.
+allowed-tools: Bash(openspec:*),Bash(gh:*)
 license: MIT
-compatibility: Requires openspec CLI.
+compatibility: Requires openspec CLI and the gh CLI for tracking-issue creation.
 metadata:
   author: openspec
-  version: "1.0"
+  version: "1.1"
   generatedBy: "1.6.0"
 ---
 
-Propose a new change - create the change and generate all artifacts in one step.
+Propose a new change - create the change, generate all artifacts, and open a tracking GitHub issue in one step.
 
 I'll create a change with artifacts:
 - proposal.md (what & why)
 - design.md (how)
 - tasks.md (implementation steps)
+
+I'll also open a GitHub tracking issue and record its number in the change's `.openspec.yaml`.
 
 When ready to implement, run /opsx-apply
 
@@ -83,7 +85,59 @@ When ready to implement, run /opsx-apply
       - Use **AskUserQuestion tool** to clarify
       - Then continue with creation
 
-5. **Show final status**
+5. **Create the tracking GitHub issue**
+
+   This step binds the change to a GitHub issue so `/opsx-archive` can gate on the linked PR and the team has a durable record. Do this AFTER the artifacts are generated so the issue body can summarize them.
+
+   a. Read the just-generated `proposal.md` from `changeRoot` to extract motivation / goals / non-goals / impact.
+
+   b. Compose the issue body referencing the change path. Minimal structure:
+      ```markdown
+      ## 动机 / Why
+      <from proposal.md>
+
+      ## 目标 / Goals
+      <from proposal.md>
+
+      ## 非目标 / Non-goals
+      <from proposal.md>
+
+      ## 影响范围 / Impact
+      <from proposal.md>
+
+      ---
+      OpenSpec change: `openspec/changes/<name>/`
+      用 `/opsx-apply <name>` 开始实施。
+      ```
+
+   c. Create the issue with the `gh` CLI. Required flags:
+      ```bash
+      gh issue create \
+        --title "[Feature] <name>: <one-line summary from proposal>" \
+        --label "feature,openspec" \
+        --body "<body>"
+      ```
+      - If the `feature` or `openspec` label does not exist, create it first with `gh label create <name> --force` (ignore "already exists" errors).
+      - Capture the returned URL and parse the issue number from it (the trailing integer, or use `--json number -q .number` instead of the URL form for reliable parsing).
+
+   d. **Write the issue number (and intended branch name) into `.openspec.yaml`** so `/opsx-apply` and `/opsx-archive` can read them. Merge the two new keys into the existing file without disturbing `schema` / `created` / `status` / `note`:
+      ```yaml
+      schema: spec-driven
+      created: <existing>
+      status: active
+      issue: <number>
+      branch: feature/<name>
+      ```
+      Use the **Edit tool** to insert the `issue:` and `branch:` lines (preserve any existing `note:` block).
+
+   e. **Add a tracking reference to the top of `proposal.md`**: prepend a blockquote line such as `> **跟踪 issue：#<number>**（https://github.com/<owner>/<repo>/issues/<number>）` immediately after the existing status blockquote (or at the very top if none). Use the **Edit tool**, do not rewrite the file.
+
+   **Guardrails for this step:**
+   - If `gh` is not authenticated, run `gh auth status`; if it still fails, SKIP the issue creation with a clear warning and continue (do not block the whole propose on it). Leave `.openspec.yaml` without an `issue:` key in that case.
+   - Never create an issue twice: if `.openspec.yaml` already has an `issue:` key, skip creation and report the existing one.
+   - Keep the issue body bilingual-friendly but prefer Simplified Chinese per project convention.
+
+6. **Show final status**
    ```bash
    openspec status --change "<name>"
    ```
@@ -93,6 +147,7 @@ When ready to implement, run /opsx-apply
 After completing all artifacts, summarize:
 - Change name and location
 - List of artifacts created with brief descriptions
+- Tracking issue: `#<number>` with URL (or "issue creation skipped - gh unavailable")
 - What's ready: "All artifacts created! Ready for implementation."
 - Prompt: "Run `/opsx-apply` or ask me to implement to start working on the tasks."
 
@@ -112,3 +167,4 @@ After completing all artifacts, summarize:
 - If context is critically unclear, ask the user - but prefer making reasonable decisions to keep momentum
 - If a change with that name already exists, ask if user wants to continue it or create a new one
 - Verify each artifact file exists after writing before proceeding to next
+- Always create exactly ONE tracking issue per change, and always record its number in `.openspec.yaml`

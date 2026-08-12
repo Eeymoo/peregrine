@@ -543,7 +543,7 @@ pub fn run() {
             let config_label = translate(&initial_locale, "tray.config");
             let settings_label = translate(&initial_locale, "tray.settings");
             let quit_label = translate(&initial_locale, "tray.quit");
-            let window_mode_label = translate(&initial_locale, "tray.window_mode");
+            let window_mode_label = translate(&initial_locale, "tray.windowMode");
 
             let config_i = MenuItem::with_id(app, "config", &config_label, true, None::<&str>)?;
             let settings_i =
@@ -1267,7 +1267,7 @@ async fn update_preferences_inner(
             .map_err(|e| e.to_string())?;
         tray_state
             .window_mode_item
-            .set_text(translate(resolved, "tray.window_mode").as_str())
+            .set_text(translate(resolved, "tray.windowMode").as_str())
             .map_err(|e| e.to_string())?;
         let saved = state.locale.lock().map(|s| s.clone()).unwrap_or_default();
         app.emit("peregrine:locale-changed", &saved)
@@ -2334,9 +2334,7 @@ mod tests {
         assert_eq!(translate("zh-CN", "tray.settings"), "设置");
         // 当前 locale 命中：ja-JP 的 tray.settings 存在，返回日文。
         assert_eq!(translate("ja-JP", "tray.settings"), "環境設定");
-        // 英文回退：zh-CN 缺少某 key 时回退到 en（这里用一个虚构 key 验证回退路径
-        // 不可行——所有 6 语 key 集合一致——改为用 FALLBACK_LOCALE 自身的命中验证）。
-        // 验证方式：传一个不存在的 locale id，应直接走英文回退。
+        // 英文回退：传一个不存在的 locale id，应直接走英文回退。
         assert_eq!(translate("nonexistent-locale", "tray.settings"), "Settings");
         // 原始 key 回退：所有 locale 都没此 key 时返回 key 本身。
         assert_eq!(
@@ -2347,6 +2345,47 @@ mod tests {
             translate("en", "absolutely.unknown.key.xyz"),
             "absolutely.unknown.key.xyz"
         );
+    }
+
+    /// 后端用到的所有 `tray.*` key MUST 在 locale JSON 中存在（防 key 名拼写不一致回归）。
+    ///
+    /// 历史上曾出现过后端用 `tray.window_mode`（下划线）而 JSON 里只有 `tray.windowMode`
+    /// （驼峰）的 bug——旧 `tr()` match 表硬编码双方恰好对齐，重构为数据驱动后不一致
+    /// 暴露为"显示原始 key 字符串"。此测试枚举后端所有 tray.* 调用点对应的 key。
+    #[test]
+    fn translate_tray_keys_exist_in_all_locales() {
+        let tray_keys = [
+            "tray.config",
+            "tray.settings",
+            "tray.quit",
+            "tray.windowMode",
+        ];
+        for locale in SUPPORTED_LOCALES {
+            for key in tray_keys {
+                let val = translate(locale, key);
+                assert_ne!(
+                    val, key,
+                    "locale `{}` 的 key `{}` 未命中翻译（返回了原始 key），检查 JSON 命名是否与后端调用一致",
+                    locale, key
+                );
+            }
+        }
+    }
+
+    /// 同上，枚举后端所有 `backend.*` key MUST 在所有 locale 中存在。
+    #[test]
+    fn translate_backend_keys_exist_in_all_locales() {
+        let backend_keys = [
+            "backend.target_window_required",
+            "backend.overlay_active_cannot_change_mode",
+            "backend.png_filter",
+        ];
+        for locale in SUPPORTED_LOCALES {
+            for key in backend_keys {
+                let val = translate(locale, key);
+                assert_ne!(val, key, "locale `{}` 的 key `{}` 未命中翻译", locale, key);
+            }
+        }
     }
 
     /// `TRANSLATION_TABLE` 必须在首次访问时成功反序列化所有 6 份内嵌 JSON。

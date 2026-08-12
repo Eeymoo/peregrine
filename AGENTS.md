@@ -243,9 +243,35 @@ The release workflow specification is in `.agents/skills/release/SKILL.md`: foll
 
 This repo uses **OpenSpec** (`openspec/` directory + `.agents/workflows/opsx-*.md` + `.agents/skills/openspec-*`). Planning artifacts live under `openspec/changes/<name>/` (proposal / design / tasks / spec deltas); archived changes move to `openspec/changes/archive/`; canonical capability specs live in `openspec/specs/`. All artifacts are written in **Simplified Chinese** (enforced by `openspec/config.yaml`). Active changes are shipped `openspec` CLI commands (`openspec status --change "<name>" --json`, `openspec instructions apply --change "<name>" --json`, etc.).
 
-**`/opsx-apply` branching rule (MANDATORY)**: every `/opsx-apply` invocation **must create a new dedicated branch before touching any code** — never implement an OpenSpec change directly on `main`. Before creating the branch, check the current branch with `git branch --show-current`:
-- If on `main` (or `master`): create a new branch named after the change (e.g. `feature/<change-name>` or `fix/<change-name>`) off the current HEAD, then implement.
-- If **not** on `main` (already on a feature/dev branch): **do not assume** — ask the user with the `question` tool whether to base the new branch off the **current branch** or off **`main`**, then branch accordingly. Never just start committing to the user's current branch.
+**End-to-end OpenSpec lifecycle (propose → apply → archive) with GitHub integration.** Each change is tracked end-to-end by a GitHub issue + PR pair, recorded in the change's `.openspec.yaml`. The three slash workflows (`/opsx:propose` / `/opsx:apply` / `/opsx:archive`) enforce the rules below; each is mirrored in three locations — `.opencode/commands/opsx-*.md` (opencode slash command, `/opsx-*` syntax), `.agents/workflows/opsx-*.md` (`/opsx:*` syntax), and `.agents/skills/openspec-*/SKILL.md` (skill auto-trigger). Keep all three mirrors in sync when editing.
+
+- **`.openspec.yaml` metadata keys** (written/maintained by the workflows):
+  - `schema`, `created`, `status`, `note` — original OpenSpec fields.
+  - `issue: <number>` — written by `/opsx:propose` (the tracking GitHub issue).
+  - `branch: feature/<change-name>` — written by `/opsx:propose` (the intended working branch).
+  - `pr: <number>` — written by `/opsx:apply` (the PR created after implementation).
+
+- **`/opsx:propose` (a.k.a. `/opsx:new`) — creates the change + tracking issue**:
+  1. Generates proposal / design / tasks / spec deltas as usual.
+  2. Creates **one** GitHub tracking issue via `gh issue create --label feature,openspec`, body summarizing motivation/goals/non-goals/impact + the change path.
+  3. Writes `issue:` and `branch:` into `.openspec.yaml`, and prepends a `> 跟踪 issue：#<n>` reference to `proposal.md`.
+  4. If `gh` is unavailable, skips issue creation with a warning (does not block).
+  - Issue template available at `.github/ISSUE_TEMPLATE/feature_proposal.yml` for manual entry.
+
+- **`/opsx:apply` — branch FIRST, implement, open PR LAST**:
+  1. **FIRST step (MANDATORY): create a dedicated working branch before any code change** — never implement on `main`/`master`. Check the current branch with `git branch --show-current`:
+     - If on `main`/`master`: branch directly (`git checkout -b feature/<change-name>`) using the `branch:` recorded in `.openspec.yaml` (or `feature/<name>` if absent).
+     - If **not** on `main`/`master`: **do not assume** — ask the user (via the `question` tool) whether to base the new branch off the **current branch** or off **`main`** (then `git checkout main && git pull --ff-only` before branching). Never just start committing to the user's current branch.
+  2. Implement tasks until `tasks.md` is all `[x]`.
+  3. **LAST step (FINAL, only when all tasks done): open the PR** — `gh pr create --base <default-branch> --head feature/<name> --title "feat(<name>): ..."` with body referencing the tracking issue (`Closes #<issue>`). The PR body auto-inherits `.github/PULL_REQUEST_TEMPLATE.md`. Write `pr: <number>` into `.openspec.yaml`, commit + push that metadata update on the same branch. Run local checks (`cargo fmt --check`, `cargo clippy`, `cargo test`, `npm run build`) before opening; do not open a PR on red. Open the PR exactly once per change.
+
+- **`/opsx:archive` — PR-merge gate (HARD, NON-SKIPPABLE) + post-archive branch switch**:
+  1. **PR-merge gate**: read `pr:` from `.openspec.yaml`; `gh pr view <n> --json state,merged`. If `merged: false` → **BLOCK, do not archive** (report `## Archive Blocked` and stop; the user must merge the PR first and re-run). Only changes without a `pr:` key (legacy / `gh` was unavailable during apply) may bypass after explicit user confirmation, with a warning in the summary.
+  2. Run the usual artifact/task completion checks + delta-spec sync.
+  3. Move the change to `archive/YYYY-MM-DD-<name>/`.
+  4. **FINAL step**: `git checkout main` (fall back to `master`) and `git pull --ff-only`, so the next change starts from a clean default branch. Optionally offer to delete the merged feature branch after confirming with the user.
+
+**Templates**: `.github/ISSUE_TEMPLATE/feature_proposal.yml` (OpenSpec proposal issue), `.github/PULL_REQUEST_TEMPLATE.md` (PR body with change-link / self-check sections). `.github/ISSUE_TEMPLATE/config.yml` keeps `blank_issues_enabled: false`.
 
 ### Auto-Updater
 

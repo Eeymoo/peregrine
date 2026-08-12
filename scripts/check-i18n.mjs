@@ -83,8 +83,10 @@ for (const l of LOCALES) {
   ok(`${file}：${keys.size} keys`);
 }
 
+let sixLocaleAligned = false; // (c) 结果：6 语 key 集合是否对齐
 const baseSet = currentKeys.get("zh-CN");
 if (baseSet) {
+  sixLocaleAligned = true;
   for (const l of LOCALES) {
     if (l === "zh-CN") continue;
     const s = currentKeys.get(l);
@@ -92,12 +94,18 @@ if (baseSet) {
     const extra = [...s].filter((k) => !baseSet.has(k));
     if (missing.length || extra.length) {
       fail(`${l}.json 与 zh-CN.json key 集合不一致：missing=[${missing.join(",")}] extra=[${extra.join(",")}]`);
+      sixLocaleAligned = false;
     }
   }
 }
 
 // (b) 单语 key 集合不变（对照 BASE_BRANCH）。
+// 设计意图：挡住"翻译修正 PR（auto-translate 生成）误改 key"。
+// 逃生阀：feature PR 合法地 6 语同步加 / 删 key 时不应被误伤——
+// 只要 (c) 6 语 key 集合仍对齐，且各 locale 的 key 变更（added / removed）彼此一致，
+// 即视为"有意同步变更"，(b) 只输出 info 不 fail。
 console.log(`\n=== (b) 单语 key 集合不变（对照 ${BASE_BRANCH}）===`);
+const perLocaleChanges = new Map(); // locale -> { added: Set, removed: Set }
 for (const l of LOCALES) {
   const file = `${LOCALE_DIR}/${l}.json`;
   const baseParsed = loadBaseLocale(file);
@@ -107,13 +115,49 @@ for (const l of LOCALES) {
   }
   const baseKeys = new Set(flatten(baseParsed).keys());
   const curKeys = currentKeys.get(l);
-  const added = [...curKeys].filter((k) => !baseKeys.has(k));
-  const removed = [...baseKeys].filter((k) => !curKeys.has(k));
-  if (added.length || removed.length) {
-    fail(`${file} key 集合变更：added=[${added.join(",")}] removed=[${removed.join(",")}]（翻译 PR 只允许改 value，不允许加 / 删 key）`);
-  } else {
+  const added = new Set([...curKeys].filter((k) => !baseKeys.has(k)));
+  const removed = new Set([...baseKeys].filter((k) => !curKeys.has(k)));
+  perLocaleChanges.set(l, { added, removed });
+  if (added.size === 0 && removed.size === 0) {
     ok(`${file} key 集合不变（${curKeys.size} keys）`);
+  } else {
+    console.log(
+      `  ℹ ${file} key 集合变更：added=[${[...added].join(",")}] removed=[${[...removed].join(",")}]`,
+    );
   }
+}
+
+// (b) 最终判定：若任一 locale 单方面变更（即非 6 语同步），且 (c) 未对齐，才 fail；
+// 反之（所有可对照 locale 的 added / removed 集合一致 + (c) 对齐）视为 feature PR 合法同步，放过。
+if (perLocaleChanges.size > 0) {
+  // 取所有可对照 locale 的变更快照，验证它们彼此一致。
+  const refLocale = [...perLocaleChanges.keys()][0];
+  const ref = perLocaleChanges.get(refLocale);
+  const refAdded = [...ref.added].sort().join(",");
+  const refRemoved = [...ref.removed].sort().join(",");
+  let allConsistent = true;
+  for (const [l, ch] of perLocaleChanges) {
+    const a = [...ch.added].sort().join(",");
+    const r = [...ch.removed].sort().join(",");
+    if (a !== refAdded || r !== refRemoved) {
+      fail(`${l}.json 的 key 变更与 ${refLocale}.json 不一致：added=[${a}] removed=[${r}]（参照 ${refLocale}: added=[${refAdded}] removed=[${refRemoved}]）`);
+      allConsistent = false;
+    }
+  }
+  if (allConsistent) {
+    if (refAdded || refRemoved) {
+      // 6 语同步变更：若 (c) 对齐则放过，否则 fail（说明同步不完整）。
+      if (sixLocaleAligned) {
+        console.log(
+          `\n✓ 6 语同步 key 变更（added=${refAdded || "(none)"} removed=${refRemoved || "(none)"}），(c) 6 语对齐仍通过——视为 feature PR 合法同步，(b) 放过`,
+        );
+      } else {
+        fail(`6 语 key 变更彼此一致但 (c) 6 语对齐失败——同步不完整，请检查所有 locale JSON`);
+      }
+    }
+    // 否则所有 locale 都无变更，(b) 自然通过。
+  }
+  // allConsistent=false 时各不一致条目已逐条 fail。
 }
 
 console.log("");

@@ -4,17 +4,45 @@ This page records every Peregrine release. Stable releases are listed first; pre
 
 ---
 
-## Unreleased
+## [v0.2.4] — 2026-08-13
+
+Stable release. The UI goes international: Peregrine now ships in six languages with a data-driven i18n backend and a community translation pipeline (issue templates + an auto-PR workflow + a CI key-alignment gate). The OpenSpec spec-driven workflow is also now end-to-end integrated with GitHub (tracking issues / PRs / branching strategy).
 
 ### Added
 
 - **6-language UI support**: Added Japanese (ja-JP), German (de-DE), French (fr-FR), and Russian (ru-RU) alongside Simplified Chinese and English. Non-Chinese translations are AI-generated and may be imperfect; native speakers can suggest improvements via the new translation-improvement issue template. The backend i18n was refactored from a hardcoded enum + match table to a data-driven model that embeds the same locale JSON as the frontend via `include_str!` — adding a new language is now a JSON-only change. `FALLBACK_LOCALE` switched from `zh-CN` to `en`. @Eeymoo
 - **Issue templates**: Added a Bug Report template (default), a Translation Improvement template (feeds the auto-translate workflow), a Question template (catch-all since blank issues are disabled), and a config.yml gating the issue picker.
 - **Translation automation**: A new `auto-translate` GitHub Actions job opens a PR editing the relevant locale JSON when an issue is labeled `translation`; an `i18n-check` CI job enforces JSON validity, single-locale key-set invariance, and 6-locale key-set alignment on PRs touching locale files.
+- **OpenSpec ↔ GitHub integration**: The `/opsx:propose` / `/opsx:apply` / `/opsx:archive` workflow now creates a tracking issue, a dedicated feature branch, and a linked PR for each change; `.openspec.yaml` records the `issue` / `branch` / `pr` keys; archiving is gated on PR merge.
 
 ### Changed
 
 - The `option.follow_system` label in the language dropdown now follows the active locale (previously always shown in Chinese). Language self-names (日本語 / Deutsch / …) are intentionally kept as fixed endonyms.
+
+---
+
+## [v0.2.2] — 2026-08-09
+
+Multi-layer editing pipeline hardening release. Addresses nine issues surfaced by the v0.2.1 demo and real-world testing, taking the multi-layer path from "demoable" to "daily-usable".
+
+### Added
+
+- **`update_profile_field` backend command**: field-level patch updates to top-level profile fields (`target_window` / `settings_hotkey`) without touching `layers`, eliminating full-overwrite data loss. @Eeymoo
+- **`BitmaskField` component**: edge bitmask for `custom_orb` / `edge_arrows` changed from raw numbers (0–15) to four checkboxes (up/down/left/right). @Eeymoo
+- **`CornerDotsFields` count selector**: switch between 4/6/8 dots inline in the field panel in single-layer mode. @Eeymoo
+- **i18n keys**: `fields.dotCount` + `cornerDotsCount.{4,6,8}` (zh-CN / en). @Eeymoo
+
+### Fixed
+
+- **Config loss root cause (#34 🔴 critical)**: removed full `saveConfig` overwrites on the multi-layer path; all profile field changes now go through the patch API. @Eeymoo
+- **IPC error protocol (#27)**: error return type `Result<T, String>` → `Result<T, IpcError>` with structured `{code, message}`. @Eeymoo
+- **Unified error feedback (#31)**: all layer operations now have try/catch + toast; no more silent error swallowing. @Eeymoo
+- **Global dialog layering (#28)**: `AutoSwitchDialog` / `UpdateDialog` / `UpdateProgress` moved to the outermost layer of `ConfigApp`. @Eeymoo
+- **Grid algorithm (#29)**: `grid.rhai` center mode now expands symmetrically from screen center and fills the screen (fixes "only in the middle"). @Eeymoo
+- **Dead parameters (#30)**: `border_frame.inset` / `random_orb.center_deviation` implemented; `random_orb.mode` marked `coming_soon`. @Eeymoo
+- **Opacity display (#32)**: single/multi-layer opacity unified to a 100% format and is keyboard-editable. @Eeymoo
+- **Slider max limits (#33)**: all material schemas unified per the grading table (distance=1920, radius=500, thickness=50, gap=200). @Eeymoo
+- **Locator-orb 6/8 rendering bug**: `select` `onChange` string-vs-number type mismatch always rendered 4 dots. @Eeymoo
 
 ---
 

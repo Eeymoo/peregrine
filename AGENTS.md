@@ -232,7 +232,7 @@ gh run watch <run-id> --exit-status
 
 Key differences from `release.yml`: no version bump, no tag push, no signing, no GitHub Release, no auto-updater manifest. Only for testing.
 
-The release workflow specification is in `.agents/skills/release/SKILL.md`: follow SemVer (major/minor/patch + `-alpha.N`/`-beta.N` prerelease suffixes), **stable releases use odd version numbers** (0.1.1, 0.1.3, 0.1.5, 0.1.7, ...), **preview releases use even/prerelease version numbers** (0.1.8-alpha.0, ...). Release notes are grouped into "Added / Fixed / Changed / Build". Before pushing a tag, confirm the version number and tag message with the user. The docs site changelog page (`docs/guide/changelog.md`) records stable releases and preview releases.
+The release workflow specification is in `.agents/skills/release/SKILL.md`: follow SemVer (major/minor/patch + `-alpha.N`/`-beta.N` prerelease suffixes), **stable releases use even version numbers** (0.2.2, 0.2.4, 0.2.6, ...), **preview releases use odd/prerelease version numbers** (0.2.3, 0.2.7-alpha.0, ...). Release notes are grouped into "Added / Fixed / Changed / Build". Before pushing a tag, confirm the version number and tag message with the user. The docs site changelog page (`docs/guide/changelog.md`) records stable releases and preview releases.
 
 ### Branch Strategy
 

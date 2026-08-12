@@ -65,7 +65,7 @@ docs: add contributing guide and startup instructions
 ci(release): only build and release Windows x86/x86_64/ARM64
 ```
 
-随着项目国际化，提交信息主体建议使用**英文**描述内容，但 type/scope 保持英文。
+提交信息主体（message body）请使用**简体中文**撰写，与仓库约定（`AGENTS.md`）保持一致；type/scope 保持英文。但 Issue 与 Pull Request 的描述可使用英文——本约定仅适用于代码注释、文档与 commit 信息。
 
 ---
 
@@ -90,7 +90,7 @@ ci(release): only build and release Windows x86/x86_64/ARM64
 ## 代码风格
 
 - 遵循标准 Rust 风格（`cargo fmt` 默认配置）。
-- 随着项目国际化，公开项的文档注释建议改用**英文**（`///`），模块顶部用 `//!` 说明职责。
+- 按仓库约定（`AGENTS.md`），公开项的文档注释（`///`）请使用**简体中文**撰写，模块顶部用 `//!` 说明职责。
 - 错误处理：库层统一用 `thiserror` 定义的 `ConfigError`，不要在库中 `panic`/`unwrap`。
 - 日志使用 `tracing`，不要新增 `println!`/`eprintln!`。
 - 新增字段时务必加 `#[serde(default)]` 保持向后兼容。

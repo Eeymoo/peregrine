@@ -36,7 +36,8 @@
     "offsetX": "Смещение X",
     "offsetY": "Смещение Y",
     "scale": "Масштаб",
-    "rotation": "Поворот"
+    "rotation": "Поворот",
+    "lastVisibleLocked": "Во время работы оверлея оставьте хотя бы один видимый слой"
   },
   "common": {
     "add": "Добавить",
@@ -85,7 +86,8 @@
     "startOverlay": "Запустить оверлей",
     "stopOverlay": "Остановить оверлей",
     "invalidFormat": "Неверный формат конфигурации",
-    "switchToLayersFallback": "Перейти в редактор слоёв"
+    "switchToLayersFallback": "Перейти в редактор слоёв",
+    "startOverlayNoContent": "Невозможно запустить оверлей: нет видимых слоёв (сначала добавьте или покажите слой)"
   },
   "profile": {
     "title": "Профиль",
@@ -330,6 +332,9 @@
   "backend": {
     "target_window_required": "Целевое окно не выбрано",
     "overlay_active_cannot_change_mode": "Оверлей активен. Остановите оверлей перед сменой режима.",
-    "png_filter": "PNG-изображения"
+    "png_filter": "PNG-изображения",
+    "no_renderable_content": "Невозможно запустить оверлей: нет видимых слоёв или прицела",
+    "overlay_active_remove_last_visible": "Невозможно удалить последний видимый слой во время работы оверлея",
+    "overlay_active_hide_last_visible": "Невозможно скрыть последний видимый слой во время работы оверлея"
   }
 }

@@ -36,7 +36,8 @@
     "offsetX": "水平偏移",
     "offsetY": "垂直偏移",
     "scale": "缩放",
-    "rotation": "旋转"
+    "rotation": "旋转",
+    "lastVisibleLocked": "覆盖层运行期间需至少保留一个可见图层"
   },
   "common": {
     "add": "添加",
@@ -85,7 +86,8 @@
     "startOverlay": "开始覆盖",
     "stopOverlay": "停止覆盖",
     "invalidFormat": "配置格式异常",
-    "switchToLayersFallback": "切换到图层编辑器"
+    "switchToLayersFallback": "切换到图层编辑器",
+    "startOverlayNoContent": "无法开始覆盖：没有可见图层（请先添加或显示一个图层）"
   },
   "profile": {
     "title": "配置方案",
@@ -330,6 +332,9 @@
   "backend": {
     "target_window_required": "未选择目标窗口",
     "overlay_active_cannot_change_mode": "覆盖层运行中，请先停止覆盖层后再切换模式",
-    "png_filter": "PNG 图片"
+    "png_filter": "PNG 图片",
+    "no_renderable_content": "无法启动覆盖层：没有可见图层或准星",
+    "overlay_active_remove_last_visible": "覆盖层运行中，无法删除最后一个可见图层",
+    "overlay_active_hide_last_visible": "覆盖层运行中，无法隐藏最后一个可见图层"
   }
 }

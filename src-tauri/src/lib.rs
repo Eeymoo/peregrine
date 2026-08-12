@@ -842,6 +842,18 @@ fn start_overlay(state: State<AppState>, target_window: String) -> Result<(), St
         let cfg = state.config.lock().map_err(|e| e.to_string())?;
         cfg.settings.fullscreen_overlay
     };
+    // 渲染不变量前置校验：活跃 profile 必须有可渲染内容（可见图层或 legacy crosshair）。
+    {
+        let cfg = state.config.lock().map_err(|e| e.to_string())?;
+        if let Some(profile) = cfg.active_profile() {
+            if !profile.has_renderable_content() {
+                return Err(translate(
+                    current_locale(&state),
+                    "backend.no_renderable_content",
+                ));
+            }
+        }
+    }
     if !is_fullscreen && target_window.is_empty() {
         return Err(translate(
             current_locale(&state),
@@ -1737,6 +1749,22 @@ async fn remove_layer(
             return Err(format!("layer '{}' not found", layer_id));
         }
     }
+    // 渲染不变量保护：overlay 活动中删除最后一个可见图层且无 legacy crosshair 时拒绝。
+    // 在 persist_and_broadcast / emit_layers_changed 之前返回，不修改配置、不广播事件。
+    if state
+        .overlay_active
+        .load(std::sync::atomic::Ordering::SeqCst)
+    {
+        if let Some(profile) = config.active_profile() {
+            let remaining_visible = profile.layers.iter().filter(|l| l.visible).count();
+            if remaining_visible == 0 && profile.crosshair.is_none() {
+                return Err(translate(
+                    current_locale(&state),
+                    "backend.overlay_active_remove_last_visible",
+                ));
+            }
+        }
+    }
     persist_and_broadcast(&state, &config).await?;
     emit_layers_changed(&app);
     let _ = state
@@ -1835,6 +1863,32 @@ async fn update_layer(
         let guard = state.config.lock().map_err(|e| e.to_string())?;
         guard.as_ref().clone()
     };
+    // 渲染不变量保护：overlay 活动中将最后一个可见图层置为隐藏且无 legacy crosshair 时拒绝。
+    // 在 persist_and_broadcast / emit_layers_changed 之前返回，不修改配置、不广播事件。
+    if patch.visible == Some(false)
+        && state
+            .overlay_active
+            .load(std::sync::atomic::Ordering::SeqCst)
+    {
+        if let Some(profile) = config.active_profile() {
+            if let Some(layer) = profile.layers.iter().find(|l| l.id == layer_id) {
+                if layer.visible {
+                    // 其余可见层数（排除当前图层）。
+                    let other_visible = profile
+                        .layers
+                        .iter()
+                        .filter(|l| l.id != layer_id && l.visible)
+                        .count();
+                    if other_visible == 0 && profile.crosshair.is_none() {
+                        return Err(translate(
+                            current_locale(&state),
+                            "backend.overlay_active_hide_last_visible",
+                        ));
+                    }
+                }
+            }
+        }
+    }
     if let Some(profile) = config.active_profile_mut() {
         let layer = profile
             .layers
@@ -2379,6 +2433,9 @@ mod tests {
             "backend.target_window_required",
             "backend.overlay_active_cannot_change_mode",
             "backend.png_filter",
+            "backend.no_renderable_content",
+            "backend.overlay_active_remove_last_visible",
+            "backend.overlay_active_hide_last_visible",
         ];
         for locale in SUPPORTED_LOCALES {
             for key in backend_keys {

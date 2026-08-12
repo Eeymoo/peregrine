@@ -111,12 +111,16 @@ impl OverlayRenderer {
         let renderer_backend = config.settings.renderer_backend;
 
         // 判断走新格式（layers）还是旧格式（crosshair）：
-        // - 新格式：layers 非空 → 调用 build_layers_shapes
-        // - 旧格式：crosshair = Some(...) → 调用旧 build_shapes
-        // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，强制走旧版 Crosshair 路径；
-        // layers 数据保留但忽略，crosshair 缺失时回退默认准星。
+        // - 新格式：迁移后的 profile `crosshair` 恒为 None（见 migration.rs），
+        //   故以 `crosshair.is_none()` 或 layers 非空作为新格式标志
+        // - 旧格式：`crosshair = Some(...)` → 调用旧 build_shapes
+        // 空 layers + None crosshair 走新路径 → build_layers_shapes 空迭代 → 渲染空白，
+        // 与预览一致；纯 legacy 配置（crosshair=Some）走旧路径，行为不变。
+        // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭时强制走旧版 Crosshair 路径。
         let use_new_format = crate::MATERIAL_RUNTIME_ENABLED
-            && profile.map(|p| !p.layers.is_empty()).unwrap_or(false);
+            && profile
+                .map(|p| !p.layers.is_empty() || p.crosshair.is_none())
+                .unwrap_or(false);
 
         // 旧格式路径：克隆 crosshair，供 build_shapes 使用。
         let legacy_crosshair = if !use_new_format {

@@ -36,7 +36,8 @@
     "offsetX": "Versatz X",
     "offsetY": "Versatz Y",
     "scale": "Skalierung",
-    "rotation": "Rotation"
+    "rotation": "Rotation",
+    "lastVisibleLocked": "Mindestens eine sichtbare Ebene beibehalten, während das Overlay läuft"
   },
   "common": {
     "add": "Hinzufügen",
@@ -85,7 +86,8 @@
     "startOverlay": "Overlay starten",
     "stopOverlay": "Overlay stoppen",
     "invalidFormat": "Ungültiges Konfigurationsformat",
-    "switchToLayersFallback": "Zum Ebenen-Editor wechseln"
+    "switchToLayersFallback": "Zum Ebenen-Editor wechseln",
+    "startOverlayNoContent": "Overlay kann nicht gestartet werden: keine sichtbaren Ebenen (bitte zuerst eine Ebene hinzufügen oder einblenden)"
   },
   "profile": {
     "title": "Profil",
@@ -330,6 +332,9 @@
   "backend": {
     "target_window_required": "Kein Zielfenster ausgewählt",
     "overlay_active_cannot_change_mode": "Overlay ist aktiv. Bitte das Overlay stoppen, bevor der Modus gewechselt wird.",
-    "png_filter": "PNG-Bilder"
+    "png_filter": "PNG-Bilder",
+    "no_renderable_content": "Overlay kann nicht gestartet werden: keine sichtbaren Ebenen oder Fadenkreuz",
+    "overlay_active_remove_last_visible": "Die letzte sichtbare Ebene kann während das Overlay läuft nicht gelöscht werden",
+    "overlay_active_hide_last_visible": "Die letzte sichtbare Ebene kann während das Overlay läuft nicht ausgeblendet werden"
   }
 }

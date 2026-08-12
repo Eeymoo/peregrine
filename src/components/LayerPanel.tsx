@@ -33,6 +33,10 @@ interface LayerPanelProps {
   onSelectLayer: (id: string) => void;
   /** 图层数据变化后的回调函数，用于刷新图层数据 */
   onChanged: () => void;
+  /** overlay 是否处于活动状态（渲染不变量保护：禁用最后可见图层的删除/隐藏） */
+  overlayActive: boolean;
+  /** 是否存在 legacy crosshair（存在时不受「最后可见图层」保护） */
+  hasCrosshair: boolean;
 }
 
 /**
@@ -43,6 +47,8 @@ export function LayerPanel({
   selectedLayerId,
   onSelectLayer,
   onChanged,
+  overlayActive,
+  hasCrosshair,
 }: LayerPanelProps) {
   const { t } = useI18n();
   const [materials, setMaterials] = useState<MaterialInfo[]>([]);
@@ -65,26 +71,37 @@ export function LayerPanel({
       });
   }, []);
 
-  const handleAdd = async (materialId: string, name: string) => {
+  const handleAdd = (materialId: string, name: string) => {
     logAction("add-layer", { materialId, name });
-    await addLayer(materialId, name);
-    setShowAddDialog(false);
-    onChanged();
+    addLayer(materialId, name)
+      .then(() => {
+        setShowAddDialog(false);
+        onChanged();
+      })
+      .catch(() => {
+        // invoke 包装已 toast；吞掉 rejection 防止 unhandled rejection 上报（PGR-3003）。
+      });
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     logAction("remove-layer", { id });
-    await removeLayer(id);
-    onChanged();
+    removeLayer(id)
+      .then(() => onChanged())
+      .catch(() => {
+        // invoke 包装已 toast；吞掉 rejection 防止 unhandled rejection 上报（PGR-3003）。
+      });
   };
 
-  const handleDuplicate = async (id: string) => {
+  const handleDuplicate = (id: string) => {
     logAction("duplicate-layer", { id });
-    await duplicateLayer(id);
-    onChanged();
+    duplicateLayer(id)
+      .then(() => onChanged())
+      .catch(() => {
+        // invoke 包装已 toast；吞掉 rejection 防止 unhandled rejection 上报（PGR-3003）。
+      });
   };
 
-  const handleMove = async (id: string, direction: "up" | "down") => {
+  const handleMove = (id: string, direction: "up" | "down") => {
     const idx = layers.findIndex((l) => l.id === id);
     if (idx < 0) return;
     // 列表反序显示（顶层图层在最上，Photoshop 习惯），
@@ -92,24 +109,30 @@ export function LayerPanel({
     const newIdx = direction === "up" ? Math.min(layers.length - 1, idx + 1) : Math.max(0, idx - 1);
     if (newIdx === idx) return;
     logAction("move-layer", { id, from: idx, to: newIdx });
-    await moveLayer(id, newIdx);
-    onChanged();
+    moveLayer(id, newIdx)
+      .then(() => onChanged())
+      .catch(() => {
+        // invoke 包装已 toast；吞掉 rejection 防止 unhandled rejection 上报（PGR-3003）。
+      });
   };
 
-  const handleToggleVisible = async (layer: Layer) => {
+  const handleToggleVisible = (layer: Layer) => {
     logAction("toggle-visible", { id: layer.id, visible: !layer.visible });
-    await updateLayer(layer.id, { visible: !layer.visible });
-    onChanged();
+    updateLayer(layer.id, { visible: !layer.visible })
+      .then(() => onChanged())
+      .catch(() => {
+        // invoke 包装已 toast；吞掉 rejection 防止 unhandled rejection 上报（PGR-3003）。
+      });
   };
 
-  const handleToggleLock = async (layer: Layer) => {
+  const handleToggleLock = (layer: Layer) => {
     logAction("toggle-lock", { id: layer.id, locked: !layer.locked });
-    await updateLayer(layer.id, { locked: !layer.locked });
-    onChanged();
+    updateLayer(layer.id, { locked: !layer.locked })
+      .then(() => onChanged())
+      .catch(() => {
+        // invoke 包装已 toast；吞掉 rejection 防止 unhandled rejection 上报（PGR-3003）。
+      });
   };
-
-  // 渲染顺序：最顶层图层显示在最上面（与 Photoshop 习惯一致）。
-  const reversedLayers = [...layers].reverse();
 
   return (
     <div className="flex flex-col h-full bg-card border-l relative">
@@ -127,12 +150,19 @@ export function LayerPanel({
 
       {/* 图层列表 */}
       <div className="flex-1 overflow-y-auto">
-        {reversedLayers.length === 0 ? (
+        {layers.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             {t("layers.empty")}
           </div>
         ) : (
-          reversedLayers.map((layer) => {
+          (() => {
+            // 渲染不变量：overlay 活动中且无 legacy crosshair 时，
+            // 最后一个可见图层的删除与隐藏按钮需禁用（后端 Err 为最终防线）。
+            const visibleCount = layers.filter((l) => l.visible).length;
+            const protectLastVisible = overlayActive && !hasCrosshair;
+            const reversedLayers = [...layers].reverse();
+            return reversedLayers.map((layer) => {
+              const isLastVisible = protectLastVisible && layer.visible && visibleCount <= 1;
             const materialId =
               layer.material.kind === "builtin" ? layer.material.id : layer.material.name;
             const material = materials.find((m) => m.id === materialId);
@@ -149,8 +179,15 @@ export function LayerPanel({
                     e.stopPropagation();
                     handleToggleVisible(layer);
                   }}
-                  className="text-muted-foreground hover:text-foreground"
-                  title={layer.visible ? t("layers.hide") : t("layers.show")}
+                  disabled={isLastVisible}
+                  className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={
+                    isLastVisible
+                      ? t("layers.lastVisibleLocked")
+                      : layer.visible
+                        ? t("layers.hide")
+                        : t("layers.show")
+                  }
                 >
                   {layer.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                 </button>
@@ -205,14 +242,16 @@ export function LayerPanel({
                     e.stopPropagation();
                     handleDelete(layer.id);
                   }}
-                  className="text-muted-foreground hover:text-red-500"
-                  title={t("layers.delete")}
+                  disabled={isLastVisible}
+                  className="text-muted-foreground hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={isLastVisible ? t("layers.lastVisibleLocked") : t("layers.delete")}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             );
-          })
+          });
+          })()
         )}
       </div>
 

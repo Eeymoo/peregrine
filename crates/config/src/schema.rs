@@ -217,6 +217,8 @@ impl Profile {
     /// 校验 Profile 内字段范围。
     ///
     /// 当 `layers` 非空时校验图层；否则回退到旧 `crosshair` 校验。
+    /// 空 layers + None crosshair 是合法配置（语义为「当前不显示任何锚点」），
+    /// 不再视为配置损坏。
     pub fn validate(&self) -> crate::Result<()> {
         if !self.layers.is_empty() {
             for (i, layer) in self.layers.iter().enumerate() {
@@ -228,10 +230,17 @@ impl Profile {
         } else if let Some(crosshair) = &self.crosshair {
             crosshair.validate()
         } else {
-            Err(crate::ConfigError::Validation(
-                "profile has neither layers nor crosshair".to_string(),
-            ))
+            // 空 layers + None crosshair：合法状态（不显示任何锚点）。
+            Ok(())
         }
+    }
+
+    /// 判断该 Profile 是否有可渲染内容。
+    ///
+    /// 条件：存在 legacy `crosshair`，或至少有一个可见图层。
+    /// 三处后端硬校验（`start_overlay` / `remove_layer` / `update_layer`）复用此谓词。
+    pub fn has_renderable_content(&self) -> bool {
+        self.crosshair.is_some() || self.layers.iter().any(|l| l.visible)
     }
 
     /// 判断该 Profile 是否可在单图层（旧版）UI 中编辑。
@@ -1496,6 +1505,48 @@ mod tests {
             },
         ));
         assert!(!profile.is_legacy_compatible());
+    }
+
+    #[test]
+    fn empty_profile_layers_with_none_crosshair_is_valid() {
+        // 空 layers + None crosshair 现在是合法状态（语义：不显示任何锚点）。
+        let mut profile = Profile::default_profile();
+        profile.layers.clear();
+        profile.crosshair = None;
+        assert!(profile.validate().is_ok());
+    }
+
+    #[test]
+    fn profile_has_renderable_content() {
+        // 空 layers + None crosshair：无可渲染内容。
+        let mut empty = Profile::default_profile();
+        empty.layers.clear();
+        empty.crosshair = None;
+        assert!(!empty.has_renderable_content());
+
+        // 纯 crosshair（legacy）：有可渲染内容。
+        let mut legacy = Profile::legacy_default_profile();
+        assert!(legacy.has_renderable_content());
+
+        // 部分可见图层：有可渲染内容。
+        let mut partial = Profile::default_profile();
+        // default_profile 有 1 个可见图层，再加一个隐藏图层。
+        let mut hidden_layer = Layer::new(
+            "l2",
+            "hidden",
+            MaterialRef::Builtin {
+                id: "builtin.cross".to_string(),
+            },
+        );
+        hidden_layer.visible = false;
+        partial.layers.push(hidden_layer);
+        assert!(partial.has_renderable_content());
+
+        // 全部隐藏 + None crosshair：无可渲染内容。
+        let mut all_hidden = Profile::default_profile();
+        all_hidden.layers[0].visible = false;
+        all_hidden.crosshair = None;
+        assert!(!all_hidden.has_renderable_content());
     }
 
     #[test]

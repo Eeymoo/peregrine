@@ -159,6 +159,11 @@ export function LayersEditor({
 
   const profile = config.profiles[config.active_profile];
   const isFullscreen = config.settings.fullscreen_overlay ?? true;
+  // 渲染不变量：无可渲染内容（无 legacy crosshair 且无可见图层）时禁用「开始覆盖」按钮。
+  // 后端 start_overlay 同样硬校验兜底（backend.no_renderable_content）。
+  const noRenderableContent = !(
+    !!profile?.crosshair || (profile?.layers ?? []).some((l) => l.visible)
+  );
 
   const updateTargetWindow = (targetWindow: string) => {
     if (!profile) return;
@@ -225,6 +230,8 @@ export function LayersEditor({
               refresh();
               triggerPreviewRefresh();
             }}
+            overlayActive={overlayActive}
+            hasCrosshair={!!profile?.crosshair}
           />
         </div>
 
@@ -379,7 +386,12 @@ export function LayersEditor({
                 <Button
                   className="w-full h-8 text-sm"
                   onClick={onStartOverlay}
-                  disabled={!isFullscreen && !profile?.target_window}
+                  disabled={
+                    noRenderableContent || (!isFullscreen && !profile?.target_window)
+                  }
+                  title={
+                    noRenderableContent ? t("config.startOverlayNoContent") : undefined
+                  }
                 >
                   ▶ {t("config.startOverlay")}
                 </Button>

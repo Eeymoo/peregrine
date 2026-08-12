@@ -3,6 +3,7 @@ created: 2026-08-06
 status: active
 issue: 41
 branch: feature/add-multi-language-support
+pr: 42
 note: |
   0.2.0 正式版本已发布（2026-08），暂缓条件解除。
   design / specs / tasks 已于 2026-08-12 补齐，change 现已可进入实施阶段。

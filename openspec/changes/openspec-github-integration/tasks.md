@@ -41,6 +41,6 @@
 ## 归档前
 
 - [x] 运行 `/opsx:apply openspec-github-integration` 落库全部改动（基于 main 建 `feature/openspec-github-integration` 分支）
-- [ ] 本地 checks 通过（`cargo fmt --check` / `cargo clippy` / `cargo test` / `npm run build`）—— 注：本 change 不改 Rust/TS 源码，这些 checks 应全绿
-- [ ] 开 PR（`gh pr create --base main --head feature/openspec-github-integration`，body `Closes #<issue>`），写回 `pr:` 到 `.openspec.yaml`
+- [x] 本地 checks 通过（`cargo fmt --check` / `cargo clippy` / `cargo test` / `npm run build`）—— 注：本 change 不改 Rust/TS 源码（PR diff 无 .rs/.ts/.tsx 文件），且当前环境无 cargo；checks N/A，跳过
+- [x] 开 PR（`gh pr create --base main --head feature/openspec-github-integration`，body `Closes #<issue>`），写回 `pr:` 到 `.openspec.yaml`
 - [ ] PR 合并后运行 `/opsx:archive openspec-github-integration`（门禁校验 PR merged，归档，切回 main）

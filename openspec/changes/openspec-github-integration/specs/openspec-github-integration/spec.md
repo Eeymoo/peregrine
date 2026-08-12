@@ -83,7 +83,7 @@
 
 ### Requirement: `/opsx:archive` PR 合并硬门禁
 
-`/opsx:archive` 在移动 change 目录到 `archive/` 之前 MUST 读取 change 的 `.openspec.yaml` 的 `pr:` 键，并通过 `gh pr view <number> --json state,merged` 校验；当 PR 的 `merged` 字段为 `false`（state 为 `OPEN` 或 `CLOSED`）时 MUST 阻塞归档（输出 `## Archive Blocked`），不移动 change 目录，不执行后续步骤。此门禁不可跳过、不可被用户确认绕过（除无 `pr:` 键的历史 change 外）。
+`/opsx:archive` 在移动 change 目录到 `archive/` 之前 MUST 读取 change 的 `.openspec.yaml` 的 `pr:` 键，并通过 `gh pr view <number> --json state,mergedAt` 校验；当 PR 的 `mergedAt` 字段为 `null`（state 为 `OPEN` 或 `CLOSED`）时 MUST 阻塞归档（输出 `## Archive Blocked`），不移动 change 目录，不执行后续步骤。此门禁不可跳过、不可被用户确认绕过（除无 `pr:` 键的历史 change 外）。
 
 #### Scenario: PR 已合并通过门禁
 

@@ -27,10 +27,10 @@ Archive a completed change in the experimental workflow.
 
    b. **If `pr:` is present**, check the PR's merge state via the `gh` CLI:
       ```bash
-      gh pr view <number> --json state,merged
+      gh pr view <number> --json state,mergedAt
       ```
-      - If `"merged": true` → gate PASSED, proceed to the next step.
-      - If `"merged": false` (state `OPEN`, `CLOSED`, or any non-merged state) → **gate FAILED. STOP.** Do not archive. Report the blocker clearly:
+      - If `"mergedAt"` is non-null (a timestamp) → gate PASSED, proceed to the next step.
+      - If `"mergedAt": null` (state `OPEN`, `CLOSED`, or any non-merged state) → **gate FAILED. STOP.** Do not archive. Report the blocker clearly:
         ```
         ## Archive Blocked
 

@@ -1,0 +1,31 @@
+/**
+ * Peregrine 文档自定义主题
+ *
+ * 将原 VitePress 的品牌色（--vp-c-brand-*）映射为 Starlight 的语义色（--sl-color-*）。
+ * 图标主色 BLUE = (37, 99, 235) = #2563EB（见 assets/gen_icon.py 与 docs/public/logo.svg）。
+ * 色阶基于 Tailwind blue（blue-400 ~ blue-800），保证 hover / 深浅模式下的明暗层次合理。
+ */
+
+/* -----------------------------------------------------------
+ * 深色模式：Starlight 默认以 :root 作为深色主题
+ * - --sl-color-accent：主强调色（链接、按钮背景、侧边栏激活态）
+ * - --sl-color-accent-high：hover 加深色
+ * - --sl-color-accent-low：徽章、tag 等软背景
+ * - --sl-color-text-accent：强调色文字（对应 VitePress --vp-c-brand-1）
+ * --------------------------------------------------------- */
+:root {
+  --sl-color-accent: #3b82f6;
+  --sl-color-accent-high: #2563eb;
+  --sl-color-accent-low: rgba(59, 130, 246, 0.16);
+  --sl-color-text-accent: var(--sl-color-accent);
+}
+
+/* -----------------------------------------------------------
+ * 浅色模式：主品牌色统一为 #2563EB
+ * --------------------------------------------------------- */
+:root[data-theme='light'] {
+  --sl-color-accent: #2563eb;
+  --sl-color-accent-high: #1d4ed8;
+  --sl-color-accent-low: rgba(37, 99, 235, 0.14);
+  --sl-color-text-accent: var(--sl-color-accent);
+}

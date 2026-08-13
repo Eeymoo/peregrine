@@ -42,5 +42,5 @@ dist/
 
 # 文档站点依赖与构建产物
 docs/node_modules
-docs/.vitepress/dist
-docs/.vitepress/cache
+docs/dist
+docs/.astro

@@ -8,6 +8,13 @@
  * - 加速/直连切换：仅 showProxy=true（zh-cn）时渲染，内置多个 gh-proxy 候选。
  * - 交互为 vanilla <script>，不引入 React island。
  * - 图标全部来自 lucide-static（与主应用 lucide-react 同源），不手写 SVG。
+ *
+ * 样式为 Tailwind 工具类（twcss-migration change）：
+ * - is-active 为 JS 状态钩子类（D5-2），其视觉态以 aria-pressed="true" 属性选择器
+ *   工具类承载（与 JS 同步维护的 ARIA 属性单一事实源），无残留手写态样式；
+ * - is-hidden 保留为语义钩子 + hidden 工具类；
+ * - 现代化项：筛选/通道按钮 hover 边框过渡细化为 border-color+color+background-color
+ *   三通道 200ms，active 态背景淡染加重（14% → 16%）提升选中可读性。
  */
 import type { ReleasesData, ReleaseInfo } from '../../lib/releases';
 import { fetchReleases } from '../../lib/releases';
@@ -76,41 +83,50 @@ if (releases?.prerelease) channels.push({ key: 'prerelease', label: labels.prere
 
 const downloadIcon = lucideIcon('Download');
 const externalIcon = lucideIcon('ExternalLink');
+
+/** 通道/筛选按钮共用工具类串（pill 形态 + hover/active 态，active 由 aria-pressed 属性选择器承载）。 */
+const PILL =
+  'inline-flex items-center gap-1.5 rounded-full border border-(--sl-color-hairline) bg-transparent px-3.5 py-1.5 ' +
+  'text-sm font-medium text-gray-700 transition-[border-color,color,background-color] duration-200 ease-out ' +
+  'hover:border-[color-mix(in_srgb,var(--color-accent-500)_55%,transparent)] hover:text-gray-900 ' +
+  'aria-pressed:border-accent-600 aria-pressed:bg-[color-mix(in_srgb,var(--color-accent-500)_16%,transparent)] aria-pressed:text-gray-900 ' +
+  'motion-reduce:transition-none ' +
+  'dark:text-gray-300 dark:hover:text-white dark:aria-pressed:border-accent-200 dark:aria-pressed:text-white';
 ---
 
 {
   releases && channels.length > 0 ? (
     <div class="download-table not-content" data-pagefind-ignore>
-      <div class="dt-controls">
+      <div class="dt-controls mb-5 flex flex-wrap items-center gap-x-5 gap-y-3">
         {channels.length > 0 && (
-          <div class="dt-group" role="group" aria-label="channel">
+          <div class="dt-group inline-flex flex-wrap gap-1.5" role="group" aria-label="channel">
             {channels.map((c, i) => (
               <button
                 type="button"
-                class:list={['dt-tab', i === 0 && 'is-active']}
+                class:list={['dt-tab', PILL, i === 0 && 'is-active']}
                 data-channel={c.key}
                 aria-pressed={i === 0 ? 'true' : 'false'}
               >
                 {c.label}
-                <span class="dt-tag">{c.info.tag}</span>
+                <span class="dt-tag text-xs text-accent-600 dark:text-accent-200">{c.info.tag}</span>
               </button>
             ))}
           </div>
         )}
-        <div class="dt-group" role="group" aria-label="arch">
-          <button type="button" class="dt-filter is-active" data-arch="all" aria-pressed="true">
+        <div class="dt-group inline-flex flex-wrap gap-1.5" role="group" aria-label="arch">
+          <button type="button" class:list={['dt-filter', 'is-active', PILL]} data-arch="all" aria-pressed="true">
             {labels.allArch}
           </button>
           {ARCHES.map((a) => (
-            <button type="button" class="dt-filter" data-arch={a.key} aria-pressed="false">
+            <button type="button" class:list={['dt-filter', PILL]} data-arch={a.key} aria-pressed="false">
               {a.label}
             </button>
           ))}
         </div>
         {showProxy && (
-          <label class="dt-proxy">
+          <label class="dt-proxy inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <span class="dt-proxy-label">{labels.accelerate}</span>
-            <select class="dt-proxy-select">
+            <select class="dt-proxy-select rounded-lg border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-2.5 py-1.5 text-sm text-gray-900 dark:text-white">
               <option value="">{labels.direct}</option>
               {PROXY_PREFIXES.map((p) => (
                 <option value={p}>{new URL(p).host}</option>
@@ -121,8 +137,8 @@ const externalIcon = lucideIcon('ExternalLink');
       </div>
 
       {channels.map((c, i) => (
-        <div class:list={['dt-channel', i !== 0 && 'is-hidden']} data-channel={c.key}>
-          <table>
+        <div class:list={['dt-channel', i !== 0 && 'is-hidden hidden']} data-channel={c.key}>
+          <table class="w-full">
             <thead>
               <tr>
                 <th>{labels.colOs}</th>
@@ -142,8 +158,13 @@ const externalIcon = lucideIcon('ExternalLink');
                     <td>{a.label}</td>
                     <td>
                       {assets.setup ? (
-                        <a class="dt-dl" href={assets.setup} data-direct={assets.setup} rel="noopener">
-                          <span class="dt-icon" aria-hidden="true" set:html={downloadIcon} />
+                        <a
+                          class="dt-dl inline-flex items-center gap-1.5 font-medium whitespace-nowrap text-accent-600 no-underline hover:underline hover:underline-offset-[0.18em] dark:text-accent-200"
+                          href={assets.setup}
+                          data-direct={assets.setup}
+                          rel="noopener"
+                        >
+                          <span class="dt-icon inline-flex [&_svg]:size-4" aria-hidden="true" set:html={downloadIcon} />
                           {labels.download}
                         </a>
                       ) : (
@@ -152,15 +173,20 @@ const externalIcon = lucideIcon('ExternalLink');
                     </td>
                     <td>
                       {assets.zip ? (
-                        <a class="dt-dl" href={assets.zip} data-direct={assets.zip} rel="noopener">
-                          <span class="dt-icon" aria-hidden="true" set:html={downloadIcon} />
+                        <a
+                          class="dt-dl inline-flex items-center gap-1.5 font-medium whitespace-nowrap text-accent-600 no-underline hover:underline hover:underline-offset-[0.18em] dark:text-accent-200"
+                          href={assets.zip}
+                          data-direct={assets.zip}
+                          rel="noopener"
+                        >
+                          <span class="dt-icon inline-flex [&_svg]:size-4" aria-hidden="true" set:html={downloadIcon} />
                           {labels.download}
                         </a>
                       ) : (
                         '—'
                       )}
                     </td>
-                    <td class="dt-note">{labels.note}</td>
+                    <td class="dt-note text-[0.8125rem] text-gray-500 dark:text-gray-400">{labels.note}</td>
                   </tr>
                 );
               })}
@@ -169,19 +195,29 @@ const externalIcon = lucideIcon('ExternalLink');
         </div>
       ))}
 
-      <p class="dt-more">
-        <a class="dt-more-link" href={RELEASES_PAGE} target="_blank" rel="noopener">
-          <span class="dt-icon" aria-hidden="true" set:html={externalIcon} />
+      <p class="dt-more mt-5 mb-0 text-center">
+        <a
+          class="dt-more-link inline-flex items-center gap-2 rounded-full border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-[1.375rem] py-2.5 text-[0.9375rem] font-semibold text-gray-900 no-underline transition-[border-color] duration-200 ease-out hover:border-[color-mix(in_srgb,var(--color-accent-500)_55%,transparent)] motion-reduce:transition-none dark:text-white"
+          href={RELEASES_PAGE}
+          target="_blank"
+          rel="noopener"
+        >
+          <span class="dt-icon inline-flex text-accent-600 dark:text-accent-200 [&_svg]:size-4" aria-hidden="true" set:html={externalIcon} />
           {labels.moreReleases}
         </a>
       </p>
     </div>
   ) : (
     <div class="download-table dt-fallback not-content" data-pagefind-ignore>
-      <p>{labels.fallbackText}</p>
-      <p class="dt-more">
-        <a class="dt-more-link" href={RELEASES_PAGE} target="_blank" rel="noopener">
-          <span class="dt-icon" aria-hidden="true" set:html={externalIcon} />
+      <p class="text-gray-700 dark:text-gray-300">{labels.fallbackText}</p>
+      <p class="dt-more mt-5 mb-0 text-center">
+        <a
+          class="dt-more-link inline-flex items-center gap-2 rounded-full border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-[1.375rem] py-2.5 text-[0.9375rem] font-semibold text-gray-900 no-underline transition-[border-color] duration-200 ease-out hover:border-[color-mix(in_srgb,var(--color-accent-500)_55%,transparent)] motion-reduce:transition-none dark:text-white"
+          href={RELEASES_PAGE}
+          target="_blank"
+          rel="noopener"
+        >
+          <span class="dt-icon inline-flex text-accent-600 dark:text-accent-200 [&_svg]:size-4" aria-hidden="true" set:html={externalIcon} />
           {labels.fallbackLink}
         </a>
       </p>
@@ -200,7 +236,9 @@ const externalIcon = lucideIcon('ExternalLink');
           b.setAttribute('aria-pressed', String(b === btn));
         });
         root.querySelectorAll<HTMLElement>('.dt-channel').forEach((sec) => {
-          sec.classList.toggle('is-hidden', sec.dataset.channel !== btn.dataset.channel);
+          const hide = sec.dataset.channel !== btn.dataset.channel;
+          sec.classList.toggle('is-hidden', hide);
+          sec.classList.toggle('hidden', hide);
         });
       });
     });
@@ -214,7 +252,9 @@ const externalIcon = lucideIcon('ExternalLink');
         });
         const arch = btn.dataset.arch;
         root.querySelectorAll<HTMLElement>('tbody tr[data-arch]').forEach((row) => {
-          row.classList.toggle('is-hidden', arch !== 'all' && row.dataset.arch !== arch);
+          const hide = arch !== 'all' && row.dataset.arch !== arch;
+          row.classList.toggle('is-hidden', hide);
+          row.classList.toggle('hidden', hide);
         });
       });
     });
@@ -230,149 +270,3 @@ const externalIcon = lucideIcon('ExternalLink');
     });
   });
 </script>
-
-<style>
-  .dt-controls {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem 1.25rem;
-    margin-bottom: 1.25rem;
-  }
-
-  .dt-group {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 0.375rem;
-  }
-
-  .dt-tab,
-  .dt-filter {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.375rem 0.875rem;
-    border-radius: 999px;
-    border: 1px solid var(--sl-color-hairline);
-    background: transparent;
-    color: var(--sl-color-gray-2);
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition:
-      border-color 200ms ease,
-      color 200ms ease;
-  }
-
-  .dt-tab:hover,
-  .dt-filter:hover {
-    border-color: color-mix(in srgb, var(--color-accent-500) 55%, transparent);
-    color: var(--sl-color-white);
-  }
-
-  .dt-tab.is-active,
-  .dt-filter.is-active {
-    border-color: var(--sl-color-text-accent);
-    color: var(--sl-color-white);
-    background: color-mix(in srgb, var(--color-accent-500) 14%, transparent);
-  }
-
-  .dt-tag {
-    font-size: 0.75rem;
-    color: var(--sl-color-text-accent);
-  }
-
-  .dt-proxy {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: var(--sl-color-gray-2);
-  }
-
-  .dt-proxy-select {
-    padding: 0.375rem 0.625rem;
-    border-radius: 0.5rem;
-    border: 1px solid var(--sl-color-hairline);
-    background: var(--sl-color-bg-sidebar);
-    color: var(--sl-color-white);
-    font-size: 0.875rem;
-  }
-
-  .is-hidden {
-    display: none;
-  }
-
-  .dt-channel table {
-    width: 100%;
-  }
-
-  .dt-dl {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    color: var(--sl-color-text-accent);
-    font-weight: 500;
-    text-decoration: none;
-    white-space: nowrap;
-  }
-
-  .dt-dl:hover {
-    text-decoration: underline;
-    text-underline-offset: 0.18em;
-  }
-
-  .dt-icon {
-    display: inline-flex;
-  }
-
-  .dt-icon :global(svg) {
-    width: 1rem;
-    height: 1rem;
-  }
-
-  .dt-note {
-    font-size: 0.8125rem;
-    color: var(--sl-color-gray-3);
-  }
-
-  .dt-more {
-    margin: 1.25rem 0 0;
-    text-align: center;
-  }
-
-  .dt-more-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.375rem;
-    border-radius: 999px;
-    border: 1px solid var(--sl-color-hairline);
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--sl-color-white);
-    background: var(--sl-color-bg-sidebar);
-    text-decoration: none;
-    transition: border-color 200ms ease;
-  }
-
-  .dt-more-link:hover {
-    border-color: color-mix(in srgb, var(--color-accent-500) 55%, transparent);
-  }
-
-  .dt-more-link .dt-icon :global(svg) {
-    color: var(--sl-color-text-accent);
-  }
-
-  .dt-fallback p:first-child {
-    color: var(--sl-color-gray-2);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .dt-tab,
-    .dt-filter,
-    .dt-more-link {
-      transition: none;
-    }
-  }
-</style>

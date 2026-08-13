@@ -342,6 +342,31 @@ for (const theme of ['dark', 'light']) {
         dlLinks: qa('.dt-dl').length,
         visibleRows: qa('.dt-channel tbody tr').filter(visible).length,
         more: q('.dt-more-link')?.getAttribute('href'),
+        // DownloadTable 迁移断言（Section 6）
+        dtTab: (() => {
+          const el = q('.dt-tab');
+          if (!el) return null;
+          const s = getComputedStyle(el);
+          return { borderRadius: s.borderRadius, fontSize: s.fontSize, transitionProperty: s.transitionProperty };
+        })(),
+        dtTabActive: (() => {
+          const el = q('.dt-tab.is-active');
+          if (!el) return null;
+          const s = getComputedStyle(el);
+          return { backgroundColor: s.backgroundColor, ariaPressed: el.getAttribute('aria-pressed') };
+        })(),
+        dtDl: (() => {
+          const el = q('.dt-dl');
+          if (!el) return null;
+          const s = getComputedStyle(el);
+          return { color: s.color, fontWeight: s.fontWeight, textDecorationLine: s.textDecorationLine };
+        })(),
+        dtMoreLink: (() => {
+          const el = q('.dt-more-link');
+          if (!el) return null;
+          const s = getComputedStyle(el);
+          return { borderRadius: s.borderRadius, fontWeight: s.fontWeight };
+        })(),
         overflowX: document.documentElement.scrollWidth <= 1440,
       };
     });
@@ -354,6 +379,28 @@ for (const theme of ['dark', 'light']) {
       check(`${t} 下载链接存在`, r.dlLinks > 0, String(r.dlLinks));
       check(`${t} 可见行 ≥3`, r.visibleRows >= 3, String(r.visibleRows));
       check(`${t} 查看更多版本 → Releases`, r.more === 'https://github.com/Eeymoo/peregrine/releases', r.more);
+      // DownloadTable 迁移断言（Section 6）：pill 形态 / aria-pressed active 态 / 链接样式
+      const accentDl = theme === 'dark' ? 'oklch(0.882 0.059 254.128)' : 'oklch(0.546 0.245 262.881)';
+      check(
+        `${t} 通道/筛选按钮 pill 形态`,
+        r.dtTab && parseFloat(r.dtTab.borderRadius) > 1e6 && r.dtTab.fontSize === '14px' && r.dtTab.transitionProperty?.includes('border-color'),
+        JSON.stringify(r.dtTab),
+      );
+      check(
+        `${t} active 态（aria-pressed + 背景淡染）`,
+        r.dtTabActive?.ariaPressed === 'true' && r.dtTabActive?.backgroundColor?.includes('0.16'),
+        JSON.stringify(r.dtTabActive),
+      );
+      check(
+        `${t} 下载链接样式`,
+        r.dtDl?.color === accentDl && r.dtDl?.fontWeight === '500' && r.dtDl?.textDecorationLine === 'none',
+        JSON.stringify(r.dtDl),
+      );
+      check(
+        `${t} 查看更多按钮 pill 形态`,
+        r.dtMoreLink && parseFloat(r.dtMoreLink.borderRadius) > 1e6 && r.dtMoreLink.fontWeight === '600',
+        JSON.stringify(r.dtMoreLink),
+      );
     }
     check(`${t} 加速通道${expectProxy ? '存在' : '不渲染'}`, r.proxy === expectProxy);
     if (expectProxy && r.proxy) {

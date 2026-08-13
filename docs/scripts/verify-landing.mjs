@@ -206,12 +206,12 @@ for (const theme of ['dark', 'light']) {
     );
     check(
       `${t} 特性卡 hairline 分隔网格`,
-      r.fgGrid?.display === 'grid' && r.fgGrid?.gap === '1px' && r.fgGrid?.gridTemplateColumns.split(' ').length === 4 && r.fgGrid?.backgroundColor !== 'rgba(0, 0, 0, 0)',
+      r.fgGrid?.display === 'grid' && r.fgGrid?.gap === '1px' && r.fgGrid?.gridTemplateColumns.split(' ').length === 3 && r.fgGrid?.backgroundColor !== 'rgba(0, 0, 0, 0)',
       JSON.stringify(r.fgGrid),
     );
     check(
-      `${t} 特性卡 hover 反馈 + 列跨`,
-      r.fgCard?.padding === '22px' && r.fgCard?.transitionProperty?.includes('background-color') && r.fgCard5?.startsWith('span 2'),
+      `${t} 特性卡 hover 反馈 + 矩形网格`,
+      r.fgCard?.padding === '22px' && r.fgCard?.transitionProperty?.includes('background-color') && r.fgCard5 === 'auto',
       JSON.stringify({ fgCard: r.fgCard, fgCard5: r.fgCard5 }),
     );
     check(

@@ -6,11 +6,20 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "screenshots": "node scripts/capture-screenshots.mjs",
+    "verify": "node scripts/verify-landing.mjs && node scripts/verify-polish.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.7",
+    "@astrojs/starlight-tailwind": "^5.0.0",
+    "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.2.1",
-    "starlight-llms-txt": "^0.11.0"
+    "starlight-llms-txt": "^0.11.0",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1",
+    "vite": "^8.2.1"
   }
 }

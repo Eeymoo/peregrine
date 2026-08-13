@@ -1,0 +1,57 @@
+/**
+ * Tailwind CSS v4 入口（官方 Starlight 集成配方）
+ *
+ * - @layer 声明：Starlight 内建样式处于 starlight 层，Tailwind 的 theme/utilities
+ *   置于其后；不引入完整 preflight，由 @astrojs/starlight-tailwind 恢复必要部分。
+ * - 兼容包同时完成：dark: 变体桥接 Starlight 暗色模式、Starlight UI 消费
+ *   Tailwind theme token（--color-accent-* / --color-gray-* / --font-*）。
+ *
+ * 品牌 token 单一事实源：全站蓝/灰色阶只允许在下方的 @theme 块中出现十六进制值，
+ * 其他文件一律通过工具类或 var() 引用。
+ */
+@layer base, starlight, theme, components, utilities;
+@import '@astrojs/starlight-tailwind';
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme {
+  /* 品牌蓝 = Tailwind blue 色阶，主色 #2563EB（blue-600，见 assets/gen_icon.py）。
+   * Starlight 原生消费 --color-accent-* 用于链接、导航高亮等 UI 场景。 */
+  --color-accent-50: var(--color-blue-50);
+  --color-accent-100: var(--color-blue-100);
+  --color-accent-200: var(--color-blue-200);
+  --color-accent-300: var(--color-blue-300);
+  --color-accent-400: var(--color-blue-400);
+  --color-accent-500: var(--color-blue-500);
+  --color-accent-600: var(--color-blue-600);
+  --color-accent-700: var(--color-blue-700);
+  --color-accent-800: var(--color-blue-800);
+  --color-accent-900: var(--color-blue-900);
+  --color-accent-950: var(--color-blue-950);
+
+  /* 中性色 = zinc 冷灰，Starlight 原生消费 --color-gray-* 用于背景与边框。 */
+  --color-gray-50: var(--color-zinc-50);
+  --color-gray-100: var(--color-zinc-100);
+  --color-gray-200: var(--color-zinc-200);
+  --color-gray-300: var(--color-zinc-300);
+  --color-gray-400: var(--color-zinc-400);
+  --color-gray-500: var(--color-zinc-500);
+  --color-gray-600: var(--color-zinc-600);
+  --color-gray-700: var(--color-zinc-700);
+  --color-gray-800: var(--color-zinc-800);
+  --color-gray-900: var(--color-zinc-900);
+  --color-gray-950: var(--color-zinc-950);
+
+  /* 语义化别名：landing 组件使用 brand-* 表达"品牌色"意图，与 accent 同阶。 */
+  --color-brand-50: var(--color-blue-50);
+  --color-brand-100: var(--color-blue-100);
+  --color-brand-200: var(--color-blue-200);
+  --color-brand-300: var(--color-blue-300);
+  --color-brand-400: var(--color-blue-400);
+  --color-brand-500: var(--color-blue-500);
+  --color-brand-600: var(--color-blue-600);
+  --color-brand-700: var(--color-blue-700);
+  --color-brand-800: var(--color-blue-800);
+  --color-brand-900: var(--color-blue-900);
+  --color-brand-950: var(--color-blue-950);
+}

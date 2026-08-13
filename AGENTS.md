@@ -283,7 +283,15 @@ The project integrates `tauri-plugin-updater` (Rust plugin + frontend `@tauri-ap
 
 ## Documentation Site
 
-`docs/` is a **VitePress**-based documentation site (`lang: en-US`, `base: /`, deployed to the custom domain `https://peregrine.aukcraft.org/`), including a mermaid diagram plugin and `vitepress-plugin-llms` (generates `llms-txt` / `llms-full.txt`). Local preview: `cd docs && npm ci && npm run docs:dev`. Content is in `docs/guide/` (user guide, introduction, quick start, features, configuration, development/build). The Simplified Chinese version is located under `docs/zh-cn/`.
+`docs/` is an **Astro 7 + Starlight 0.41** documentation site (bilingual: `root` = en, `zh-cn`; deployed to the custom domain `https://peregrine.aukcraft.org/`; `starlight-llms-txt` generates `llms.txt` / `llms-full.txt`). **Requires Node >= 22.12** (Astro 7). Local preview: `cd docs && npm ci && npm run dev`. Content lives in `docs/src/content/docs/` (16 guide pages + splash homepage per locale).
+
+Design system (added by the docs-modern-redesign change):
+
+- **Tailwind CSS v4** via `@tailwindcss/vite` + the official compat package `@astrojs/starlight-tailwind`. Entry: `src/styles/global.css` (official cascade-layer recipe, no full preflight). Brand tokens (accent = brand blue `#2563EB` scale, gray = zinc) are defined **only** in the `@theme` block there; Starlight consumes `--color-accent-*` / `--color-gray-*` natively. Never hand-write the same hex values elsewhere.
+- **Docs-page polish**: `src/styles/starlight-polish.css` (typography rhythm, code blocks, asides, tables, links, sidebar). Only CSS variables + `.sl-markdown-content` selectors; the **only** Starlight component override is `Hero` (`src/components/landing/LandingHero.astro`, registered in `astro.config.mjs`). Do not add more overrides casually.
+- **Landing components**: `src/components/landing/` (LandingHero / FeatureGrid / HowItWorks / DownloadCta), pure Astro + scoped CSS, no React islands; copy is passed via props from the bilingual `index.mdx` files.
+- **Screenshot pipeline** (`docs/scripts/`): `mock-tauri.js` stubs the full Tauri IPC surface in a plain browser; fixtures in `docs/scripts/fixtures/` (checked in) were exported from the real Rust `build_layers_shapes` via a temporary example that was deleted after export — to regenerate, recreate a similar example calling `build_layers_shapes` + `MaterialRegistry::load_builtin` (see `openspec/changes/archive/*/design.md` D5 or the git history of this change). `capture-screenshots.mjs` renders the real settings UI (root `npm run dev`, ConfigApp window = the layers editor) in headless Chromium and writes `public/img/screenshots/settings-layers.png`. Note: the app UI is a fixed dark theme. Re-run with `npm run screenshots` (needs the root Vite dev server on :5199).
+- **Acceptance checks**: `npm run verify` runs `verify-landing.mjs` + `verify-polish.mjs` (Playwright computed-style assertions over `dist/`; build first).
 
 ## Telemetry Module
 

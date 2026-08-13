@@ -1,0 +1,160 @@
+{
+  "active_profile": "Demo",
+  "profiles": {
+    "Demo": {
+      "crosshair": null,
+      "layers": [
+        {
+          "id": "layer-edge",
+          "name": "边缘箭头",
+          "material": {
+            "kind": "builtin",
+            "id": "builtin.edge_arrows"
+          },
+          "params": {
+            "distance": 72.0,
+            "size": 18.0
+          },
+          "style": {
+            "color": [
+              0.13,
+              0.83,
+              0.93,
+              1.0
+            ],
+            "opacity": 0.55,
+            "blend_mode": "normal"
+          },
+          "transform": {
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "scale": 1.0,
+            "rotation_deg": 0.0
+          },
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "layer-ring",
+          "name": "中心环",
+          "material": {
+            "kind": "builtin",
+            "id": "builtin.ring"
+          },
+          "params": {
+            "ring_radius_pct": 0.07,
+            "ring_style": "dashed",
+            "thickness": 2.5
+          },
+          "style": {
+            "color": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "opacity": 0.7,
+            "blend_mode": "normal"
+          },
+          "transform": {
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "scale": 1.0,
+            "rotation_deg": 0.0
+          },
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "layer-cross",
+          "name": "中心准星",
+          "material": {
+            "kind": "builtin",
+            "id": "builtin.cross"
+          },
+          "params": {
+            "gap": 6.0,
+            "size": 26.0,
+            "thickness": 2.5
+          },
+          "style": {
+            "color": [
+              0.145,
+              0.388,
+              0.922,
+              1.0
+            ],
+            "opacity": 0.95,
+            "blend_mode": "normal"
+          },
+          "transform": {
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "scale": 1.0,
+            "rotation_deg": 0.0
+          },
+          "visible": true,
+          "locked": false
+        }
+      ],
+      "trigger": {
+        "enabled": false,
+        "process_names": []
+      },
+      "settings_hotkey": "Ctrl+Shift+P",
+      "target_window": "Demo Game"
+    }
+  },
+  "settings": {
+    "auto_switch_on_overlay": "ask",
+    "locale": "zh-CN",
+    "fullscreen_overlay": true,
+    "live_drag_preview": false,
+    "gpu_acceleration": false,
+    "update_channel": "stable",
+    "cn_mirror": false,
+    "mirror_url": "https://v4.gh-proxy.org",
+    "antialiasing": true,
+    "renderer_backend": "cpu",
+    "quick_colors": [
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        1.0
+      ],
+      [
+        0.2,
+        0.5,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      [
+        1.0,
+        0.5,
+        0.0,
+        1.0
+      ]
+    ],
+    "hotkey_bindings": [
+      [
+        "toggle_overlay",
+        "Ctrl+Alt+O"
+      ]
+    ],
+    "telemetry_enabled": false,
+    "developer_mode": false
+  }
+}

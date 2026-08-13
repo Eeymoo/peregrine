@@ -1,0 +1,626 @@
+[
+  {
+    "id": "builtin.random_orb",
+    "display_name": "随机球",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "center_deviation": 0.2,
+      "jitter": 30.0,
+      "mode": "lock_on_start",
+      "offset": 80.0,
+      "orb_count": 3,
+      "radius_max": 10.0,
+      "radius_min": 4.0
+    },
+    "schema": [
+      {
+        "key": "orb_count",
+        "label": "每边球数",
+        "max": 20,
+        "min": 1,
+        "step": 1,
+        "widget": "slider"
+      },
+      {
+        "key": "offset",
+        "label": "距边缘距离",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "jitter",
+        "label": "随机扰动",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "radius_min",
+        "label": "最小半径",
+        "max": 500.0,
+        "min": 1.0,
+        "step": 0.5,
+        "widget": "slider"
+      },
+      {
+        "key": "radius_max",
+        "label": "最大半径",
+        "max": 500.0,
+        "min": 1.0,
+        "step": 0.5,
+        "widget": "slider"
+      },
+      {
+        "key": "center_deviation",
+        "label": "中心偏离",
+        "max": 0.3,
+        "min": 0.1,
+        "step": 0.01,
+        "widget": "slider"
+      },
+      {
+        "coming_soon": true,
+        "default": "lock_on_start",
+        "key": "mode",
+        "label": "模式（开发中）",
+        "options": [
+          {
+            "label": "锁定随机位置",
+            "value": "lock_on_start"
+          },
+          {
+            "label": "每次重新随机",
+            "value": "reshuffle"
+          }
+        ],
+        "widget": "select"
+      }
+    ]
+  },
+  {
+    "id": "builtin.ring",
+    "display_name": "中心环",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "ring_radius_pct": 0.06,
+      "ring_style": "solid",
+      "thickness": 2.0
+    },
+    "schema": [
+      {
+        "key": "thickness",
+        "label": "粗细",
+        "max": 50.0,
+        "min": 0.5,
+        "step": 0.5,
+        "widget": "slider"
+      },
+      {
+        "key": "ring_radius_pct",
+        "label": "半径占比",
+        "max": 0.08,
+        "min": 0.03,
+        "step": 0.005,
+        "widget": "slider"
+      },
+      {
+        "default": "solid",
+        "key": "ring_style",
+        "label": "线型",
+        "options": [
+          {
+            "label": "实线",
+            "value": "solid"
+          },
+          {
+            "label": "虚线",
+            "value": "dashed"
+          },
+          {
+            "label": "双环",
+            "value": "double"
+          }
+        ],
+        "widget": "select"
+      }
+    ]
+  },
+  {
+    "id": "builtin.custom_orb",
+    "display_name": "自定义定位球",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "bottom_count": 3,
+      "left_count": 3,
+      "offset": 30.0,
+      "orb_positions": 3,
+      "radius": 6.0,
+      "right_count": 3,
+      "top_count": 3
+    },
+    "schema": [
+      {
+        "key": "radius",
+        "label": "半径",
+        "max": 500.0,
+        "min": 1.0,
+        "step": 0.5,
+        "widget": "slider"
+      },
+      {
+        "key": "offset",
+        "label": "距边缘距离",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "bitmask": true,
+        "key": "orb_positions",
+        "label": "启用边缘",
+        "max": 15,
+        "min": 0,
+        "step": 1,
+        "widget": "number"
+      },
+      {
+        "key": "top_count",
+        "label": "上边球数",
+        "max": 20,
+        "min": 0,
+        "step": 1,
+        "widget": "slider"
+      },
+      {
+        "key": "bottom_count",
+        "label": "下边球数",
+        "max": 20,
+        "min": 0,
+        "step": 1,
+        "widget": "slider"
+      },
+      {
+        "key": "left_count",
+        "label": "左边球数",
+        "max": 20,
+        "min": 0,
+        "step": 1,
+        "widget": "slider"
+      },
+      {
+        "key": "right_count",
+        "label": "右边球数",
+        "max": 20,
+        "min": 0,
+        "step": 1,
+        "widget": "slider"
+      }
+    ]
+  },
+  {
+    "id": "builtin.cross",
+    "display_name": "准星",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "gap": 4.0,
+      "size": 24.0,
+      "thickness": 2.0
+    },
+    "schema": [
+      {
+        "key": "size",
+        "label": "臂长",
+        "max": 1920.0,
+        "min": 1.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "thickness",
+        "label": "粗细",
+        "max": 50.0,
+        "min": 0.5,
+        "step": 0.5,
+        "widget": "slider"
+      },
+      {
+        "key": "gap",
+        "label": "中心间隙",
+        "max": 200.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      }
+    ]
+  },
+  {
+    "id": "builtin.edge_arrows",
+    "display_name": "箭头",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "distance": 60.0,
+      "positions_mask": 0,
+      "size": 16.0,
+      "tail_bottom": 0.0,
+      "tail_left": 0.0,
+      "tail_per_edge": false,
+      "tail_right": 0.0,
+      "tail_top": 0.0,
+      "width": 0.0
+    },
+    "schema": [
+      {
+        "key": "size",
+        "label": "箭头大小",
+        "max": 400.0,
+        "min": 4.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "distance",
+        "label": "距边缘距离",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "width",
+        "label": "尾巴宽度（0=默认）",
+        "max": 200.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "default": false,
+        "key": "tail_per_edge",
+        "label": "每边单独尾巴长度",
+        "widget": "toggle"
+      },
+      {
+        "key": "tail_top",
+        "label": "上尾巴长度",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "tail_bottom",
+        "label": "下尾巴长度",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "tail_left",
+        "label": "左尾巴长度",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "tail_right",
+        "label": "右尾巴长度",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "bitmask": true,
+        "key": "positions_mask",
+        "label": "启用边缘",
+        "max": 15,
+        "min": 0,
+        "step": 1,
+        "widget": "number"
+      }
+    ]
+  },
+  {
+    "id": "builtin.large_cross",
+    "display_name": "大准星",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "thickness": 2.0
+    },
+    "schema": [
+      {
+        "key": "thickness",
+        "label": "粗细",
+        "max": 50.0,
+        "min": 0.5,
+        "step": 0.5,
+        "widget": "slider"
+      }
+    ]
+  },
+  {
+    "id": "builtin.corner_dots",
+    "display_name": "定位球",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "count": 4,
+      "offset": 40.0,
+      "radius": 8.0
+    },
+    "schema": [
+      {
+        "default": 4,
+        "key": "count",
+        "label": "点数",
+        "options": [
+          {
+            "label": "4 点（四角）",
+            "value": 4
+          },
+          {
+            "label": "6 点（四角+上下中）",
+            "value": 6
+          },
+          {
+            "label": "8 点（四角+四边中）",
+            "value": 8
+          }
+        ],
+        "widget": "select"
+      },
+      {
+        "key": "offset",
+        "label": "距边缘距离",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "radius",
+        "label": "半径",
+        "max": 500.0,
+        "min": 1.0,
+        "step": 0.5,
+        "widget": "slider"
+      }
+    ]
+  },
+  {
+    "id": "builtin.edge_rect",
+    "display_name": "贴边矩形",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "anchor": "top",
+      "margin": 16.0,
+      "secondary_size": 24.0,
+      "size": 180.0
+    },
+    "schema": [
+      {
+        "key": "size",
+        "label": "宽度",
+        "max": 1920.0,
+        "min": 10.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "secondary_size",
+        "label": "高度",
+        "max": 1920.0,
+        "min": 4.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "default": "top",
+        "key": "anchor",
+        "label": "位置",
+        "options": [
+          {
+            "label": "顶部",
+            "value": "top"
+          },
+          {
+            "label": "底部",
+            "value": "bottom"
+          },
+          {
+            "label": "左侧",
+            "value": "left"
+          },
+          {
+            "label": "右侧",
+            "value": "right"
+          },
+          {
+            "label": "中心",
+            "value": "center"
+          }
+        ],
+        "widget": "select"
+      },
+      {
+        "key": "margin",
+        "label": "边距",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      }
+    ]
+  },
+  {
+    "id": "builtin.grid",
+    "display_name": "网格",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "alignment": "center",
+      "grid_size": 120.0,
+      "thickness": 2.0
+    },
+    "schema": [
+      {
+        "key": "grid_size",
+        "label": "单格宽度",
+        "max": 1920.0,
+        "min": 10.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "thickness",
+        "label": "线条粗细",
+        "max": 50.0,
+        "min": 0.5,
+        "step": 0.5,
+        "widget": "slider"
+      },
+      {
+        "default": "center",
+        "key": "alignment",
+        "label": "对齐方式",
+        "options": [
+          {
+            "label": "居中",
+            "value": "center"
+          },
+          {
+            "label": "贴边",
+            "value": "edge"
+          }
+        ],
+        "widget": "select"
+      }
+    ]
+  },
+  {
+    "id": "builtin.border_frame",
+    "display_name": "边框",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "frame_style": "solid",
+      "inset": false,
+      "offset": 24.0,
+      "thickness": 6.0
+    },
+    "schema": [
+      {
+        "key": "thickness",
+        "label": "粗细",
+        "max": 50.0,
+        "min": 1.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "offset",
+        "label": "距边缘距离",
+        "max": 1920.0,
+        "min": 0.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "default": "solid",
+        "key": "frame_style",
+        "label": "样式",
+        "options": [
+          {
+            "label": "实线",
+            "value": "solid"
+          },
+          {
+            "label": "中间留空",
+            "value": "gap"
+          }
+        ],
+        "widget": "select"
+      },
+      {
+        "default": false,
+        "key": "inset",
+        "label": "位于屏幕内侧",
+        "widget": "toggle"
+      }
+    ]
+  },
+  {
+    "id": "builtin.image",
+    "display_name": "自定义图片",
+    "builtin": true,
+    "is_dynamic": false,
+    "defaults": {
+      "height": 64.0,
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "path": "",
+      "scale": 1.0,
+      "width": 64.0
+    },
+    "schema": [
+      {
+        "key": "path",
+        "label": "图片路径",
+        "widget": "image_path"
+      },
+      {
+        "key": "scale",
+        "label": "缩放",
+        "max": 50.0,
+        "min": 0.1,
+        "step": 0.1,
+        "widget": "slider"
+      },
+      {
+        "key": "offset_x",
+        "label": "水平偏移",
+        "max": 1920.0,
+        "min": -1920.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "offset_y",
+        "label": "垂直偏移",
+        "max": 1920.0,
+        "min": -1920.0,
+        "step": 1.0,
+        "widget": "slider"
+      },
+      {
+        "key": "width",
+        "label": "原始宽度（显示用）",
+        "max": 2000.0,
+        "min": 1.0,
+        "step": 1.0,
+        "widget": "number"
+      },
+      {
+        "key": "height",
+        "label": "原始高度（显示用）",
+        "max": 2000.0,
+        "min": 1.0,
+        "step": 1.0,
+        "widget": "number"
+      }
+    ]
+  }
+]

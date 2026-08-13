@@ -1,0 +1,211 @@
+---
+/**
+ * 落地页 Hero（覆写 Starlight 默认 Hero 组件）
+ *
+ * 左文右图非对称布局：左侧 eyebrow + 标题 + 副标题 + 双 CTA，右侧真实产品截图
+ * （截图由 docs/scripts/capture-screenshots.mjs 产出，主程序 UI 为固定深色主题）。
+ *
+ * 数据沿用 frontmatter `hero` 字段（title / tagline / actions）。
+ * eyebrow 与截图 alt 为组件内置的 locale 字典（Starlight frontmatter schema
+ * 会剥离未知键，自定义字段无法透传，故按 Astro.locals.starlightRoute.locale 取词）。
+ *
+ * 注意：splash 模板中本组件位于 .sl-markdown-content 之外，Tailwind 工具类直接生效；
+ * dark: 变体已由 @astrojs/starlight-tailwind 桥接到站点主题开关。
+ */
+import { LinkButton } from '@astrojs/starlight/components';
+
+const { data, locale } = Astro.locals.starlightRoute.entry
+  ? { data: Astro.locals.starlightRoute.entry.data, locale: Astro.locals.starlightRoute.locale }
+  : { data: {} as Record<string, never>, locale: 'root' };
+
+/** locale 字典：root 为英文，zh-cn 为简体中文。 */
+const STRINGS: Record<string, { eyebrow: string; screenshotAlt: string }> = {
+  root: {
+    eyebrow: 'Open source · Windows',
+    screenshotAlt: 'Peregrine layers editor: multi-layer visual anchors with live preview',
+  },
+  'zh-cn': {
+    eyebrow: '开源 · Windows 平台',
+    screenshotAlt: 'Peregrine 图层编辑器：多图层视觉锚点与实时预览',
+  },
+};
+const s = STRINGS[locale] ?? STRINGS.root;
+
+const { title = (data as { title?: string }).title, tagline, actions = [] } =
+  (data as { hero?: { title?: string; tagline?: string; actions?: never[] } }).hero ?? {};
+
+/** Starlight frontmatter 的 title 可能含 HTML（换行控制），原样渲染。 */
+---
+
+<section class="landing-hero not-content" data-pagefind-ignore>
+  <div class="lh-grid">
+    <div class="lh-copy">
+      <p class="lh-eyebrow">{s.eyebrow}</p>
+      <h1 class="lh-title" set:html={title} />
+      {tagline && <p class="lh-tagline" set:html={tagline} />}
+      {
+        actions.length > 0 && (
+          <div class="lh-actions">
+            {actions.map(({ attrs = {}, icon, link: href, text, variant }) => (
+              <LinkButton {href} {variant} icon={icon?.name} {...attrs}>
+                {text}
+              </LinkButton>
+            ))}
+          </div>
+        )
+      }
+    </div>
+
+    <div class="lh-visual" aria-hidden="false">
+      <div class="lh-frame">
+        <div class="lh-frame-bar">
+          <span class="lh-frame-dot"></span>
+          <span class="lh-frame-dot"></span>
+          <span class="lh-frame-dot"></span>
+        </div>
+        <img
+          src="/img/screenshots/settings-layers.png"
+          alt={s.screenshotAlt}
+          width="1600"
+          height="1000"
+          loading="eager"
+          decoding="async"
+          class="lh-shot"
+        />
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .landing-hero {
+    /* 顶距上限 pt-24（6rem）规则：内容不悬浮到视口中段。 */
+    padding-block: clamp(2.5rem, 6vw, 5rem) 3rem;
+  }
+
+  .lh-grid {
+    display: grid;
+    gap: 2.5rem;
+    align-items: center;
+  }
+
+  @media (min-width: 64rem) {
+    .lh-grid {
+      /* 左文右图，文 5 图 7 的非对称配比。 */
+      grid-template-columns: 5fr 7fr;
+      gap: 3.5rem;
+    }
+  }
+
+  .lh-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+
+  .lh-eyebrow {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--sl-color-text-accent);
+  }
+
+  .lh-title {
+    margin: 0;
+    font-size: clamp(2.25rem, 5vw, 3.5rem);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: var(--sl-color-white);
+    text-wrap: balance;
+  }
+
+  .lh-tagline {
+    margin: 0;
+    max-width: 32rem;
+    font-size: clamp(1rem, 1.4vw, 1.125rem);
+    line-height: 1.7;
+    color: var(--sl-color-gray-2);
+  }
+
+  .lh-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  /* Starlight LinkButton 形态统一：primary 实心品牌色，secondary 描边。 */
+  .lh-actions :global(.sl-link-button) {
+    border-radius: 999px;
+  }
+
+  .lh-visual {
+    min-width: 0;
+  }
+
+  /* 截图窗口框：深色边框 + 顶部窗钮条，衬托深色 app UI。 */
+  .lh-frame {
+    overflow: hidden;
+    border-radius: 0.75rem;
+    border: 1px solid var(--sl-color-hairline);
+    background: var(--sl-color-bg-sidebar);
+    box-shadow:
+      0 1px 2px color-mix(in srgb, var(--color-gray-950) 8%, transparent),
+      0 16px 48px -16px color-mix(in srgb, var(--color-gray-950) 35%, transparent);
+  }
+
+  .lh-frame-bar {
+    display: flex;
+    gap: 0.375rem;
+    align-items: center;
+    padding: 0.625rem 0.875rem;
+    border-bottom: 1px solid var(--sl-color-hairline-light);
+  }
+
+  .lh-frame-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 999px;
+    background: var(--sl-color-hairline);
+  }
+
+  .lh-shot {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* 入场渐显：仅 transform/opacity，reduced-motion 下塌缩（见全局块）。 */
+  @media (prefers-reduced-motion: no-preference) {
+    .lh-copy > * {
+      animation: lh-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .lh-copy > *:nth-child(2) {
+      animation-delay: 80ms;
+    }
+    .lh-copy > *:nth-child(3) {
+      animation-delay: 160ms;
+    }
+    .lh-copy > *:nth-child(4) {
+      animation-delay: 240ms;
+    }
+    .lh-visual {
+      animation: lh-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 160ms both;
+    }
+  }
+
+  @keyframes lh-rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>

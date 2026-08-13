@@ -2,6 +2,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLlmsTxt from 'starlight-llms-txt';
+import tailwindcss from '@tailwindcss/vite';
 
 /**
  * 显式 sidebar 配置（放弃 autogenerate）
@@ -61,7 +62,11 @@ export default defineConfig({
         },
       },
       sidebar,
-      customCss: ['./src/styles/custom.css'],
+      customCss: ['./src/styles/global.css', './src/styles/starlight-polish.css'],
+      // 仅覆写 Hero（首页落地页化）；其余 Starlight 组件一律不动，降低升级脆弱性。
+      components: {
+        Hero: './src/components/landing/LandingHero.astro',
+      },
       lastUpdated: true,
       favicon: '/img/icons/favicon-32x32.png',
       head: [
@@ -76,4 +81,7 @@ export default defineConfig({
       plugins: [starlightLlmsTxt()],
     }),
   ],
+  vite: {
+    plugins: [tailwindcss()],
+  },
 });

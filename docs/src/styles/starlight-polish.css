@@ -1,0 +1,173 @@
+/**
+ * Starlight 文档页精修
+ *
+ * 只通过 CSS 变量与 .sl-markdown-content 选择器校准排版与配色层次，
+ * 不覆写任何 Starlight 组件（Hero 除外，见 astro.config.mjs）。
+ * 色值一律引用 global.css @theme 中的 token（var(--color-*)），禁止手写十六进制。
+ *
+ * 圆角体系（全站唯一）：容器级 0.75rem（code block / 表格 / aside），
+ * 行内小元素 0.375rem（inline code / kbd / badge）。
+ */
+
+/* -----------------------------------------------------------
+ * 1. 正文排版节奏
+ * --------------------------------------------------------- */
+.sl-markdown-content {
+  /* 长文阅读行高略放宽，中英文混排更舒适。 */
+  line-height: 1.75;
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6):not(:where(.not-content *)) {
+  /* 标题收紧字距，层级靠字重与颜色而非单纯字号。 */
+  letter-spacing: -0.01em;
+}
+
+.sl-markdown-content h2:not(:where(.not-content *)) {
+  /* 章节标题与上方内容拉开呼吸感，下方用细发丝线收束。 */
+  margin-top: 2.75rem;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+}
+
+/* -----------------------------------------------------------
+ * 2. 链接：下划线偏移 + 悬停反馈
+ * --------------------------------------------------------- */
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--sl-color-text-accent) 40%, transparent);
+  text-underline-offset: 0.18em;
+  transition: text-decoration-color 150ms ease;
+}
+
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+  text-decoration-color: var(--sl-color-text-accent);
+}
+
+/* -----------------------------------------------------------
+ * 3. 行内代码与 kbd
+ * --------------------------------------------------------- */
+.sl-markdown-content :not(pre):not(.not-content) > code {
+  border-radius: 0.375rem;
+  padding: 0.1em 0.35em;
+  font-size: 0.875em;
+}
+
+.sl-markdown-content kbd:not(:where(.not-content *)) {
+  border-radius: 0.375rem;
+  border: 1px solid var(--sl-color-hairline);
+  border-bottom-width: 2px;
+  padding: 0.1em 0.4em;
+  font-size: 0.8125em;
+  background: var(--sl-color-bg-sidebar);
+}
+
+/* -----------------------------------------------------------
+ * 4. 代码块（Expressive Code 外壳）
+ * --------------------------------------------------------- */
+.sl-markdown-content .expressive-code:not(:where(.not-content *)) {
+  border-radius: 0.75rem;
+}
+
+.sl-markdown-content .expressive-code .frame:not(:where(.not-content *)) {
+  border-radius: 0.75rem;
+  border: 1px solid var(--sl-color-hairline-light);
+}
+
+/* -----------------------------------------------------------
+ * 5. Aside 提示块：圆角 + 左侧强调条（颜色语义保持 Starlight 原定义）
+ * --------------------------------------------------------- */
+.sl-markdown-content .starlight-aside:not(:where(.not-content *)) {
+  border-radius: 0.75rem;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-inline-start: 0.25rem solid var(--sl-color-asides-border);
+}
+
+/* -----------------------------------------------------------
+ * 6. 表格：圆角容器 + 表头底色 + 行悬停
+ * --------------------------------------------------------- */
+.sl-markdown-content table:not(:where(.not-content *)) {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid var(--sl-color-hairline-light);
+}
+
+.sl-markdown-content thead:not(:where(.not-content *)) {
+  background: var(--sl-color-bg-sidebar);
+}
+
+.sl-markdown-content tbody tr:not(:where(.not-content *)) {
+  transition: background-color 150ms ease;
+}
+
+.sl-markdown-content tbody tr:not(:where(.not-content *)):hover {
+  background: color-mix(in srgb, var(--color-accent-500) 6%, transparent);
+}
+
+/* -----------------------------------------------------------
+ * 7. 引用块与分割线
+ * --------------------------------------------------------- */
+.sl-markdown-content blockquote:not(:where(.not-content *)) {
+  border-inline-start: 0.25rem solid var(--sl-color-hairline);
+  padding-inline-start: 1rem;
+  color: var(--sl-color-gray-2);
+  font-style: normal;
+}
+
+.sl-markdown-content hr:not(:where(.not-content *)) {
+  margin-block: 3rem;
+}
+
+/* -----------------------------------------------------------
+ * 8. 全局细节：选中文本 / 焦点环 / 滚动条
+ * --------------------------------------------------------- */
+::selection {
+  background: color-mix(in srgb, var(--color-accent-500) 32%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--sl-color-text-accent);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+/* -----------------------------------------------------------
+ * 9. 侧边栏：当前页品牌色软底 pill，悬停短过渡
+ * --------------------------------------------------------- */
+.sidebar-content a {
+  border-radius: 0.5rem;
+  transition: background-color 150ms ease;
+}
+
+.sidebar-content a[aria-current='page'] {
+  border-radius: 0.5rem;
+  border-inline-start: 2px solid var(--sl-color-text-accent);
+}
+
+/* -----------------------------------------------------------
+ * 11. 落地页区块节奏（首页 MDX 中的 .lp-section / .lp-heading）
+ * --------------------------------------------------------- */
+.lp-section {
+  margin-top: clamp(3.5rem, 8vw, 6rem);
+}
+
+.lp-heading {
+  margin: 0 0 1.75rem;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  color: var(--sl-color-white);
+  max-width: 40rem;
+  text-wrap: balance;
+}
+
+/* -----------------------------------------------------------
+ * 10. 减少动效偏好：以上过渡全部塌缩
+ * --------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .sl-markdown-content a:not(:where(.not-content *)),
+  .sl-markdown-content tbody tr:not(:where(.not-content *)),
+  .sidebar-content a {
+    transition: none;
+  }
+}

@@ -1,35 +1,49 @@
 ---
 title: Peregrine
-description: Peregrine — 桌面视觉锚点工具，专为缓解 3D 眩晕而设计
+description: Peregrine 是桌面视觉锚点工具，专为缓解 3D 眩晕而设计
 template: splash
 hero:
-  title: Peregrine
-  tagline: 缓解 3D 眩晕的桌面工具
-  image:
-    html: <img src="/logo.svg" alt="Peregrine" width="200" height="200" />
+  title: 玩 3D 游戏，不再眩晕
+  tagline: 透明覆盖层把可定制的视觉锚点固定在游戏窗口上，给眼睛一个稳定的参照点。
   actions:
     - text: 立即下载
       link: https://github.com/eeymoo/peregrine/releases
       variant: primary
       icon: right-arrow
-    - text: 立即了解
+    - text: 了解更多
       link: /zh-cn/guide/intro
       variant: secondary
-    - text: GitHub 仓库
-      link: https://github.com/eeymoo/peregrine
-      variant: secondary
-      icon: external
 ---
 
-import FeatureCards from '../../../components/FeatureCards.astro';
+import FeatureGrid from '../../../components/landing/FeatureGrid.astro';
+import HowItWorks from '../../../components/landing/HowItWorks.astro';
+import DownloadCta from '../../../components/landing/DownloadCta.astro';
 
-通过可定制的视觉锚点稳定你的视觉系统，让你正常游玩容易眩晕的 3D 游戏。
+<section class="lp-section">
+  <h2 class="lp-heading">保持方向感所需的一切</h2>
+  <FeatureGrid features={[
+    { icon: 'overlay', title: '透明置顶覆盖层', details: '点击穿透的覆盖层直接绘制在游戏画面上，不抢焦点、不干扰操作。' },
+    { icon: 'follow', title: '目标窗口跟随', details: '锁定游戏窗口并随之移动，锚点始终停留在你设定的位置。' },
+    { icon: 'styles', title: '十二种锚点样式', details: '十字准星、中心环、边缘箭头、边框等多种样式，可跨图层叠加组合。' },
+    { icon: 'image', title: '自定义 PNG 贴图', details: '加载自己的 PNG 图片作为视觉锚点，支持缩放与偏移调节。' },
+    { icon: 'preview', title: '实时预览', details: '设置面板中的每次调整都即时渲染，所见即覆盖层实际绘制效果。' },
+    { icon: 'hotreload', title: '热重载配置', details: '直接编辑配置文件，覆盖层无需重启即可应用变更。' },
+  ]} />
+</section>
 
-<FeatureCards cards={[
-  { title: '透明置顶覆盖层', details: '使用 Win32 分层窗口与每像素 Alpha 实现透明、置顶、鼠标穿透的覆盖层，不影响游戏操作。' },
-  { title: '目标窗口跟随', details: '自动查找并跟随指定游戏窗口移动，锚点始终保持在正确位置。' },
-  { title: '多种视觉锚点样式', details: '内置边缘矩形、十字准星、大型十字准星、边缘标记、中心圆环、边框等多种样式，所见即所得。' },
-  { title: '自定义 PNG 贴图', details: '支持加载自定义 PNG 图片作为视觉锚点，满足个性化需求。' },
-  { title: '实时设置与预览', details: '内置设置面板，调整参数后可立即预览并自动持久化到配置文件。' },
-  { title: '热重载配置', details: '配置文件修改后自动检测并广播更新，无需重启程序。' },
-]} />
+<section class="lp-section">
+  <h2 class="lp-heading">几分钟即可上手</h2>
+  <HowItWorks steps={[
+    { title: '下载安装', details: '获取 Windows x64、x86 或 ARM64 的 NSIS 安装包并运行。' },
+    { title: '选择游戏窗口', details: '在设置面板中选定目标窗口，启动覆盖层。' },
+    { title: '调整锚点', details: '样式、大小、颜色、透明度随调随见，预览实时更新。' },
+  ]} />
+</section>
+
+<section class="lp-section">
+  <DownloadCta
+    label="下载"
+    note="适用于 Windows 10/11 的 NSIS 安装包。"
+    releasesText="全部版本"
+  />
+</section>

@@ -1,12 +1,10 @@
 ---
 title: Peregrine
-description: Peregrine — a desktop visual anchor tool designed to reduce 3D motion sickness
+description: Peregrine is a desktop visual anchor tool designed to reduce 3D motion sickness
 template: splash
 hero:
-  title: Peregrine
-  tagline: Desktop Tool for Relieving 3D Motion Sickness
-  image:
-    html: <img src="/logo.svg" alt="Peregrine" width="200" height="200" />
+  title: Play 3D games without the dizziness
+  tagline: A transparent overlay pins customizable visual anchors over any game window, giving your eyes a fixed reference point.
   actions:
     - text: Download Now
       link: https://github.com/eeymoo/peregrine/releases
@@ -15,21 +13,37 @@ hero:
     - text: Learn More
       link: /guide/intro
       variant: secondary
-    - text: GitHub Repository
-      link: https://github.com/eeymoo/peregrine
-      variant: secondary
-      icon: external
 ---
 
-import FeatureCards from '../../components/FeatureCards.astro';
+import FeatureGrid from '../../components/landing/FeatureGrid.astro';
+import HowItWorks from '../../components/landing/HowItWorks.astro';
+import DownloadCta from '../../components/landing/DownloadCta.astro';
 
-Stabilize your visual system with customizable visual anchors so you can comfortably play 3D games that tend to cause motion sickness.
+<section class="lp-section">
+  <h2 class="lp-heading">Everything you need to stay oriented</h2>
+  <FeatureGrid features={[
+    { icon: 'overlay', title: 'Transparent Always-on-Top Overlay', details: 'A click-through overlay drawn over the game that never steals focus or interferes with controls.' },
+    { icon: 'follow', title: 'Target Window Following', details: 'Locks onto the game window and moves with it, so the anchor stays exactly where you set it.' },
+    { icon: 'styles', title: 'Twelve Anchor Styles', details: 'Crosshair, ring, edge arrows, border frame and more, composited across multiple layers.' },
+    { icon: 'image', title: 'Custom PNG Decals', details: 'Load your own PNG as a visual anchor, with scale and offset control.' },
+    { icon: 'preview', title: 'Real-Time Preview', details: 'Every adjustment renders instantly in the settings panel. What you see is what the overlay draws.' },
+    { icon: 'hotreload', title: 'Hot-Reload Configuration', details: 'Edit the config file directly and the overlay picks up changes without a restart.' },
+  ]} />
+</section>
 
-<FeatureCards cards={[
-  { title: 'Transparent Always-on-Top Overlay', details: "Uses Win32 layered windows with per-pixel alpha to create a transparent, always-on-top, click-through overlay that doesn't interfere with gameplay." },
-  { title: 'Target Window Following', details: 'Automatically finds and follows the selected game window so the anchor always stays in the right place.' },
-  { title: 'Multiple Visual Anchor Styles', details: 'Built-in edge rectangle, crosshair, large crosshair, edge markers, center ring, border frame, and more, with true WYSIWYG preview.' },
-  { title: 'Custom PNG Decal', details: 'Supports loading custom PNG images as visual anchors to match your personal preferences.' },
-  { title: 'Real-Time Settings & Preview', details: 'Built-in settings panel with instant preview; parameters are automatically persisted to the config file.' },
-  { title: 'Hot-Reload Configuration', details: 'Automatically detects and broadcasts updates when the config file changes, no restart required.' },
-]} />
+<section class="lp-section">
+  <h2 class="lp-heading">Up and running in minutes</h2>
+  <HowItWorks steps={[
+    { title: 'Download and install', details: 'Grab the NSIS installer for Windows x64, x86 or ARM64 and run it.' },
+    { title: 'Pick the game window', details: 'Choose the target window in the settings panel and start the overlay.' },
+    { title: 'Tune your anchors', details: 'Adjust style, size, color and opacity while the preview updates live.' },
+  ]} />
+</section>
+
+<section class="lp-section">
+  <DownloadCta
+    label="Download for"
+    note="Windows 10/11, NSIS installer."
+    releasesText="All releases"
+  />
+</section>

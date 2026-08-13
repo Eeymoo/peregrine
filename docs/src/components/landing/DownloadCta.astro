@@ -1,0 +1,131 @@
+---
+/**
+ * 下载入口（落地页收尾区块）
+ *
+ * Windows 三架构入口 + GitHub Releases 总入口。
+ * 产物命名与 .github/workflows/release.yml 的 NSIS 产物一致
+ *（peregrine_<version>_windows-{x64,x86,arm64}-setup.exe 指向 latest 重定向链接）。
+ * 文案由 MDX 以 props 传入。
+ */
+interface Props {
+  /** 副标题说明（如"Windows 10/11，NSIS 安装包"）。 */
+  note: string;
+  /** 架构按钮标签前缀（如 "Download for"）。 */
+  label: string;
+  /** Releases 总入口文字。 */
+  releasesText: string;
+}
+
+const { note, label, releasesText } = Astro.props;
+
+/** GitHub Releases latest 的重定向下载链接（release.yml 产物名：peregrine-v<version>-windows-<arch>-setup.exe）。 */
+const RELEASES = 'https://github.com/eeymoo/peregrine/releases';
+const artifacts = [
+  { arch: 'x64', href: `${RELEASES}/latest/download/peregrine-windows-x64-setup.exe` },
+  { arch: 'x86', href: `${RELEASES}/latest/download/peregrine-windows-x86-setup.exe` },
+  { arch: 'ARM64', href: `${RELEASES}/latest/download/peregrine-windows-arm64-setup.exe` },
+];
+---
+
+<div class="dl-block not-content" data-pagefind-ignore>
+  <div class="dl-buttons">
+    {
+      artifacts.map((a) => (
+        <a class="dl-button" href={a.href} rel="noopener">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 3v12" />
+            <path d="m7 10 5 5 5-5" />
+            <path d="M4 21h16" />
+          </svg>
+          {label} {a.arch}
+        </a>
+      ))
+    }
+  </div>
+  <p class="dl-note">
+    {note}
+    <a class="dl-releases" href={RELEASES} rel="noopener">{releasesText}</a>
+  </p>
+</div>
+
+<style>
+  .dl-block {
+    border-top: 1px solid var(--sl-color-hairline);
+    padding-top: 2.5rem;
+    text-align: center;
+  }
+
+  .dl-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  .dl-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.375rem;
+    border-radius: 999px;
+    border: 1px solid var(--sl-color-hairline);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--sl-color-white);
+    background: var(--sl-color-bg-sidebar);
+    text-decoration: none;
+    transition:
+      border-color 200ms ease,
+      transform 200ms ease;
+  }
+
+  .dl-button:hover {
+    border-color: color-mix(in srgb, var(--color-accent-500) 55%, transparent);
+    transform: translateY(-1px);
+  }
+
+  .dl-button:active {
+    transform: translateY(0);
+  }
+
+  .dl-button svg {
+    width: 1rem;
+    height: 1rem;
+    color: var(--sl-color-text-accent);
+  }
+
+  .dl-note {
+    margin: 1.25rem 0 0;
+    font-size: 0.875rem;
+    color: var(--sl-color-gray-2);
+  }
+
+  .dl-releases {
+    margin-inline-start: 0.375rem;
+    color: var(--sl-color-text-accent);
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+    text-decoration-color: color-mix(in srgb, var(--sl-color-text-accent) 40%, transparent);
+  }
+
+  .dl-releases:hover {
+    text-decoration-color: var(--sl-color-text-accent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dl-button {
+      transition: none;
+    }
+    .dl-button:hover {
+      transform: none;
+    }
+  }
+</style>

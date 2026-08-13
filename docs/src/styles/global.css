@@ -70,6 +70,20 @@ html.js [data-reveal].is-revealed {
    * Tailwind 默认 md 为 48rem；此处对齐使 hidden md:flex 与 sl-hidden md:sl-flex 语义等价（D3）。 */
   --breakpoint-md: 50rem;
 
+  /* 入场渐显动效 token（D6）：LandingHero 文案/截图入场，reduced-motion 由组件侧塌缩块豁免。 */
+  --animate-rise: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   /* 语义化别名：landing 组件使用 brand-* 表达"品牌色"意图，与 accent 同阶。 */
   --color-brand-50: var(--color-blue-50);
   --color-brand-100: var(--color-blue-100);

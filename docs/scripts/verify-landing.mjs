@@ -74,6 +74,20 @@ for (const theme of ['dark', 'light']) {
           const s = getComputedStyle(el);
           return { opacity: s.opacity, transition: s.transitionDuration, revealed: el.classList.contains('is-revealed') };
         })(),
+        // LandingHero 迁移断言（Section 5）：animate-rise token + 截图框 hover 浮起
+        lhEyebrowAnim: (() => {
+          const el = document.querySelector('.lh-eyebrow');
+          if (!el) return null;
+          const s = getComputedStyle(el);
+          return { name: s.animationName, duration: s.animationDuration };
+        })(),
+        lhVisualAnim: (() => {
+          const el = document.querySelector('.lh-visual');
+          if (!el) return null;
+          const s = getComputedStyle(el);
+          return { name: s.animationName, delay: s.animationDelay, duration: s.animationDuration };
+        })(),
+        lhFrame: cs('.lh-frame', ['borderRadius', 'borderWidth', 'transitionProperty', 'transitionDuration']),
         // HowItWorks 计算样式基线（twcss 迁移断言先行，twcss-migration change）
         hwGrid: cs('.hw-grid', ['display', 'gap', 'gridTemplateColumns', 'marginTop', 'paddingLeft', 'listStyleType']),
         hwStep: cs('.hw-step', ['borderTopWidth', 'borderTopStyle', 'paddingTop']),
@@ -105,6 +119,21 @@ for (const theme of ['dark', 'light']) {
     check(`${t} 副标题 ≤20 词`, (r.taglineWords ?? 99) <= 20, String(r.taglineWords));
     check(`${t} CTA ≤2 个`, r.ctas.length >= 1 && r.ctas.length <= 2, JSON.stringify(r.ctas));
     check(`${t} CTA 首屏可见`, r.ctaInViewport === true);
+    // LandingHero（Section 5）：animate-rise 生效 + 截图框样式与 hover 浮起
+    check(
+      `${t} hero 入场渐显（animate-rise）`,
+      r.lhEyebrowAnim?.name === 'rise' && r.lhVisualAnim?.name === 'rise' && r.lhVisualAnim?.delay === '0.16s',
+      JSON.stringify({ copy: r.lhEyebrowAnim, visual: r.lhVisualAnim }),
+    );
+    check(
+      `${t} 截图框样式`,
+      r.lhFrame?.borderRadius === '12px' && r.lhFrame?.borderWidth === '1px' && r.lhFrame?.transitionProperty?.includes('transform'),
+      JSON.stringify(r.lhFrame),
+    );
+    const frameHover = await page.locator('.lh-frame').hover().then(() =>
+      page.evaluate(() => getComputedStyle(document.querySelector('.lh-frame')).translate),
+    );
+    check(`${t} 截图框 hover 微浮起`, frameHover === '0px -2px', frameHover);
     check(`${t} 截图引用本地资产`, r.shotSrc === '/img/screenshots/settings-layers.png', r.shotSrc);
     check(`${t} 截图加载成功`, r.shotLoaded === true);
     check(`${t} 桌面双列 hero 网格`, r.gridCols === 2, String(r.gridCols));

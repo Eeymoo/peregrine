@@ -11,6 +11,10 @@
  *
  * 注意：splash 模板中本组件位于 .sl-markdown-content 之外，Tailwind 工具类直接生效；
  * dark: 变体已由 @astrojs/starlight-tailwind 桥接到站点主题开关。
+ *
+ * 样式为 Tailwind 工具类（twcss-migration change）：入场渐显用 @theme 的
+ * animate-rise token + 任意值 delay（D6），reduced-motion 塌缩块保留为豁免 CSS；
+ * 现代化项：截图框 hover 微浮起（-2px + 阴影加深，motion-reduce 塌缩）。
  */
 import { LinkButton } from '@astrojs/starlight/components';
 
@@ -34,18 +38,41 @@ const s = STRINGS[locale] ?? STRINGS.root;
 const { title = (data as { title?: string }).title, tagline, actions = [] } =
   (data as { hero?: { title?: string; tagline?: string; actions?: never[] } }).hero ?? {};
 
+/** 入场错峰 delay（motion-safe 下生效）。 */
+const COPY_DELAYS = ['[animation-delay:0ms]', '[animation-delay:80ms]', '[animation-delay:160ms]', '[animation-delay:240ms]'];
+
 /** Starlight frontmatter 的 title 可能含 HTML（换行控制），原样渲染。 */
 ---
 
-<section class="landing-hero not-content" data-pagefind-ignore>
-  <div class="lh-grid">
-    <div class="lh-copy">
-      <p class="lh-eyebrow">{s.eyebrow}</p>
-      <h1 class="lh-title" set:html={title} />
-      {tagline && <p class="lh-tagline" set:html={tagline} />}
+<section class="landing-hero not-content py-[clamp(2.5rem,6vw,5rem)] pb-12" data-pagefind-ignore>
+  <div class="lh-grid grid items-center gap-10 lg:grid-cols-[5fr_7fr] lg:gap-14">
+    <div class="lh-copy flex min-w-0 flex-col gap-5">
+      <p class:list={['lh-eyebrow m-0 text-[0.8125rem] font-semibold tracking-[0.16em] text-accent-600 uppercase dark:text-accent-200', 'motion-safe:animate-rise', COPY_DELAYS[0]]}>
+        {s.eyebrow}
+      </p>
+      <h1
+        class:list={[
+          'lh-title m-0 text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.08] font-bold tracking-[-0.02em] text-balance text-gray-900 dark:text-white',
+          'motion-safe:animate-rise',
+          COPY_DELAYS[1],
+        ]}
+        set:html={title}
+      />
+      {
+        tagline && (
+          <p
+            class:list={[
+              'lh-tagline m-0 max-w-lg text-[clamp(1rem,1.4vw,1.125rem)] leading-[1.7] text-gray-700 dark:text-gray-300',
+              'motion-safe:animate-rise',
+              COPY_DELAYS[2],
+            ]}
+            set:html={tagline}
+          />
+        )
+      }
       {
         actions.length > 0 && (
-          <div class="lh-actions">
+          <div class:list={['lh-actions mt-2 flex flex-wrap gap-3', 'motion-safe:animate-rise', COPY_DELAYS[3]]}>
             {actions.map(({ attrs = {}, icon, link: href, text, variant }) => (
               <LinkButton {href} {variant} icon={icon?.name} {...attrs}>
                 {text}
@@ -56,12 +83,14 @@ const { title = (data as { title?: string }).title, tagline, actions = [] } =
       }
     </div>
 
-    <div class="lh-visual" aria-hidden="false">
-      <div class="lh-frame">
-        <div class="lh-frame-bar">
-          <span class="lh-frame-dot"></span>
-          <span class="lh-frame-dot"></span>
-          <span class="lh-frame-dot"></span>
+    <div class="lh-visual min-w-0 motion-safe:animate-rise motion-safe:[animation-delay:160ms] motion-safe:[animation-duration:0.7s]" aria-hidden="false">
+      <div
+        class="lh-frame overflow-hidden rounded-xl border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) shadow-[0_1px_2px_color-mix(in_srgb,var(--color-gray-950)_8%,transparent),0_16px_48px_-16px_color-mix(in_srgb,var(--color-gray-950)_35%,transparent)] transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_2px_4px_color-mix(in_srgb,var(--color-gray-950)_10%,transparent),0_24px_56px_-16px_color-mix(in_srgb,var(--color-gray-950)_45%,transparent)] motion-reduce:transition-none motion-reduce:hover:transform-none"
+      >
+        <div class="lh-frame-bar flex items-center gap-1.5 border-b border-(--sl-color-hairline-light) px-3.5 py-2.5">
+          <span class="lh-frame-dot size-2.5 rounded-full bg-(--sl-color-hairline)"></span>
+          <span class="lh-frame-dot size-2.5 rounded-full bg-(--sl-color-hairline)"></span>
+          <span class="lh-frame-dot size-2.5 rounded-full bg-(--sl-color-hairline)"></span>
         </div>
         <img
           src="/img/screenshots/settings-layers.png"
@@ -70,7 +99,7 @@ const { title = (data as { title?: string }).title, tagline, actions = [] } =
           height="1000"
           loading="eager"
           decoding="async"
-          class="lh-shot"
+          class="lh-shot block h-auto w-full"
         />
       </div>
     </div>
@@ -78,134 +107,9 @@ const { title = (data as { title?: string }).title, tagline, actions = [] } =
 </section>
 
 <style>
-  .landing-hero {
-    /* 顶距上限 pt-24（6rem）规则：内容不悬浮到视口中段。 */
-    padding-block: clamp(2.5rem, 6vw, 5rem) 3rem;
-  }
-
-  .lh-grid {
-    display: grid;
-    gap: 2.5rem;
-    align-items: center;
-  }
-
-  @media (min-width: 64rem) {
-    .lh-grid {
-      /* 左文右图，文 5 图 7 的非对称配比。 */
-      grid-template-columns: 5fr 7fr;
-      gap: 3.5rem;
-    }
-  }
-
-  .lh-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    min-width: 0;
-  }
-
-  .lh-eyebrow {
-    margin: 0;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--sl-color-text-accent);
-  }
-
-  .lh-title {
-    margin: 0;
-    font-size: clamp(2.25rem, 5vw, 3.5rem);
-    font-weight: 700;
-    line-height: 1.08;
-    letter-spacing: -0.02em;
-    color: var(--sl-color-white);
-    text-wrap: balance;
-  }
-
-  .lh-tagline {
-    margin: 0;
-    max-width: 32rem;
-    font-size: clamp(1rem, 1.4vw, 1.125rem);
-    line-height: 1.7;
-    color: var(--sl-color-gray-2);
-  }
-
-  .lh-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-top: 0.5rem;
-  }
-
-  /* Starlight LinkButton 形态统一：primary 实心品牌色，secondary 描边。 */
+  /* Starlight LinkButton 形态统一（:global 选择器，豁免清单 D5-3）：
+     primary 实心品牌色，secondary 描边，统一为 pill 圆角。 */
   .lh-actions :global(.sl-link-button) {
     border-radius: 999px;
-  }
-
-  .lh-visual {
-    min-width: 0;
-  }
-
-  /* 截图窗口框：深色边框 + 顶部窗钮条，衬托深色 app UI。 */
-  .lh-frame {
-    overflow: hidden;
-    border-radius: 0.75rem;
-    border: 1px solid var(--sl-color-hairline);
-    background: var(--sl-color-bg-sidebar);
-    box-shadow:
-      0 1px 2px color-mix(in srgb, var(--color-gray-950) 8%, transparent),
-      0 16px 48px -16px color-mix(in srgb, var(--color-gray-950) 35%, transparent);
-  }
-
-  .lh-frame-bar {
-    display: flex;
-    gap: 0.375rem;
-    align-items: center;
-    padding: 0.625rem 0.875rem;
-    border-bottom: 1px solid var(--sl-color-hairline-light);
-  }
-
-  .lh-frame-dot {
-    width: 0.625rem;
-    height: 0.625rem;
-    border-radius: 999px;
-    background: var(--sl-color-hairline);
-  }
-
-  .lh-shot {
-    display: block;
-    width: 100%;
-    height: auto;
-  }
-
-  /* 入场渐显：仅 transform/opacity，reduced-motion 下塌缩（见全局块）。 */
-  @media (prefers-reduced-motion: no-preference) {
-    .lh-copy > * {
-      animation: lh-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-    .lh-copy > *:nth-child(2) {
-      animation-delay: 80ms;
-    }
-    .lh-copy > *:nth-child(3) {
-      animation-delay: 160ms;
-    }
-    .lh-copy > *:nth-child(4) {
-      animation-delay: 240ms;
-    }
-    .lh-visual {
-      animation: lh-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 160ms both;
-    }
-  }
-
-  @keyframes lh-rise {
-    from {
-      opacity: 0;
-      transform: translateY(14px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 </style>

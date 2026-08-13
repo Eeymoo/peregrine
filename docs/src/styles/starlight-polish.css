@@ -7,6 +7,14 @@
  *
  * 圆角体系（全站唯一）：容器级 0.75rem（code block / 表格 / aside），
  * 行内小元素 0.375rem（inline code / kbd / badge）。
+ *
+ * 迁移判定（twcss-migration change，D5-3）：本文件全部规则均属豁免清单第 3 条
+ * 「Starlight 内部选择器全局润色」——.sl-markdown-content / .sidebar-content /
+ * ::selection / :focus-visible 等选择器作用于 Starlight 渲染的文档内容 DOM，
+ * 不属于任何自定义组件模板，无法以工具类表达，整体保留。
+ * 唯一例外是第 11 节 .lp-section / .lp-heading：落地页 MDX 中的区块节奏类，
+ * 其中 .lp-heading 已由 SectionHeading.astro 组件取代（保留类名仅为兼容
+ * margin/max-width 节奏声明，见该节注释）。
  */
 
 /* -----------------------------------------------------------
@@ -145,6 +153,11 @@
 
 /* -----------------------------------------------------------
  * 11. 落地页区块节奏（首页 MDX 中的 .lp-section / .lp-heading）
+ *
+ * 迁移注记（twcss-migration change）：.lp-heading 的排版职责已由
+ * SectionHeading.astro 组件以工具类承载（mono 微标签 + hairline 贯穿线，
+ * D10 签名元素 1）；此处仅保留 .lp-section 的区块间距（MDX 自定义类，
+ * 无法迁为组件内工具类）与 .lp-heading 的 margin/max-width 节奏兜底。
  * --------------------------------------------------------- */
 .lp-section {
   margin-top: clamp(3.5rem, 8vw, 6rem);
@@ -152,13 +165,12 @@
 
 .lp-heading {
   margin: 0 0 1.75rem;
-  font-size: clamp(1.5rem, 3vw, 2rem);
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.2;
-  color: var(--sl-color-white);
   max-width: 40rem;
   text-wrap: balance;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: normal;
 }
 
 /* -----------------------------------------------------------

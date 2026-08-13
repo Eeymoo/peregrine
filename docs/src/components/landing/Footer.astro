@@ -1,0 +1,92 @@
+---
+/**
+ * 落地页页脚（aukcraft 壳层，docs-aukcraft-shell）
+ *
+ * 参照 .agents/skills/aukcraft-site-design 的 Footer 资产改写：
+ * - 词标 Peregrine + lucide Bird 图标（不引入 aukcraft PuffinMark 吉祥物）；
+ * - 站点导航（文档 / 下载 / GitHub ↗）用 .link-line 行内链接基元；
+ * - 「开源」列：MIT 许可证 / 议题 / Releases 外链；
+ * - 底行 hairline 分隔 + mono 微字版权行；
+ * - 链接色走 .link-line（var(--sl-color-text-accent)，暗色 accent-high），
+ *   次要文字由 gray 阶承载；全站圆角 ≤4px 无圆角元素、零阴影。
+ *
+ * 仅由双语 index.mdx 挂载（guide / download 页不挂，与 DotField 同范围）。
+ */
+import { lucideIcon } from '../../lib/icons';
+import { localeBase } from '../../lib/locale';
+
+interface Props {
+  /** 版权行（如 "© 2026 Peregrine contributors. MIT License."）。 */
+  copyright: string;
+  /** 「开源」列标题（如 "Open Source" / "开源"）。 */
+  ossLabel: string;
+}
+
+const { copyright, ossLabel } = Astro.props;
+
+/** locale URL base（root=en 无前缀；内部处理了非 Starlight 渲染上下文）。 */
+const locale = localeBase(Astro);
+const prefix = locale ? `/${locale}` : '';
+const zh = locale === 'zh-cn';
+
+const siteNav = [
+  { label: zh ? '文档' : 'Docs', href: `${prefix}/guide/intro` },
+  { label: zh ? '下载' : 'Download', href: `${prefix}/download` },
+  { label: 'GitHub ↗', href: 'https://github.com/eeymoo/peregrine', external: true },
+];
+
+const ossNav = [
+  { label: zh ? 'MIT 许可证' : 'MIT License', href: 'https://github.com/eeymoo/peregrine/blob/main/LICENSE' },
+  { label: zh ? '议题' : 'Issues', href: 'https://github.com/eeymoo/peregrine/issues' },
+  { label: 'Releases', href: 'https://github.com/eeymoo/peregrine/releases' },
+];
+
+const birdIcon = lucideIcon('Bird');
+---
+
+<footer class="lp-footer not-content mt-24 border-t border-(--sl-color-hairline)" data-pagefind-ignore>
+  <div class="grid gap-12 py-16 md:grid-cols-3">
+    <div>
+      <p class="m-0 flex items-center gap-2 font-mono text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+        <span class="inline-flex text-accent-600 dark:text-accent-400 [&_svg]:size-5" aria-hidden="true" set:html={birdIcon} />
+        Peregrine
+      </p>
+      <nav class="mt-6" aria-label="Site">
+        <ul class="m-0 flex list-none flex-col gap-2 p-0">
+          {
+            siteNav.map((item) => (
+              <li>
+                <a
+                  class="link-line font-mono text-xs tracking-[0.15em] uppercase"
+                  href={item.href}
+                  {...(item.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+    </div>
+
+    <div class="md:col-span-2">
+      <p class="micro m-0 text-xs text-gray-600 dark:text-gray-400">{ossLabel}</p>
+      <ul class="m-0 mt-6 flex list-none flex-col gap-3 p-0">
+        {
+          ossNav.map((item) => (
+            <li>
+              <a class="link-line font-mono text-sm" href={item.href} target="_blank" rel="noopener noreferrer">
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+
+  <div class="border-t border-(--sl-color-hairline)">
+    <p class="m-0 py-6 font-mono text-xs text-gray-600 dark:text-gray-400">{copyright}</p>
+  </div>
+</footer>

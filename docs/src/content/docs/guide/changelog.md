@@ -6,6 +6,23 @@ This page records every Peregrine release. Stable releases are listed first; pre
 
 ---
 
+## [v0.2.5] — 2026-08-14
+
+This release makes an empty layer list a legal configuration state and hardens the render invariant so a running overlay never renders blank by accident — the "delete all layers" path no longer bricks the editor.
+
+### Added
+
+- **Empty layer list is now valid**: deleting the last layer is a legal configuration state (meaning "show no anchors right now"); it persists and loads normally, and after emptying you stay in the layers editor's empty state with a working "add layer" entry to recover instantly. @Eeymoo
+- **Render-invariant protection**: while the overlay is running, deleting or hiding the last visible layer is rejected — backend commands (`remove_layer` / `update_layer`) hard-validate and the frontend disables the buttons with a tooltip; "start overlay" is disabled when there is nothing renderable. The predicate matches the render path (non-empty layers count only visible layers; `crosshair` only acts as a fallback when layers are empty). @Eeymoo
+
+### Fixed
+
+- **Delete-all dead loop (#45)**: the empty-anchor state wrongly showed "invalid config format" and the "switch to layers editor" button had no effect, trapping the user on that page. @Eeymoo
+- **Blank overlay while running**: dual-write configs (`crosshair = Some` + non-empty layers, produced by single-layer mode editing) made the guards assume a crosshair fallback that isn't actually rendered, allowing all layers to be hidden/deleted and leaving a blank overlay. @Eeymoo
+- **PGR-3003 unhandled-rejection noise**: layer panel handlers now catch rejections. @Eeymoo
+
+---
+
 ## [v0.2.4] — 2026-08-13
 
 Stable release. The UI goes international: Peregrine now ships in six languages with a data-driven i18n backend and a community translation pipeline (issue templates + an auto-PR workflow + a CI key-alignment gate). The OpenSpec spec-driven workflow is also now end-to-end integrated with GitHub (tracking issues / PRs / branching strategy).

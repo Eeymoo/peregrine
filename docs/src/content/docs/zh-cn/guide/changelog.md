@@ -6,13 +6,33 @@ title: "更新日志"
 
 ---
 
-## 未发布 / Unreleased
+## [v0.2.5] — 2026-08-14
+
+本版本将空图层列表合法化为配置状态，并加固渲染不变量，使运行中的覆盖层不会意外渲染空白——「删除所有图层」路径不再卡死编辑器。
+
+### 新增
+
+- **空图层列表合法化**：删除最后一个图层成为合法配置状态（语义为「当前不显示任何锚点」），可正常持久化与加载；删空后停留在图层编辑器空态，通过「添加图层」入口即可恢复。 @Eeymoo
+- **渲染不变量保护**：覆盖层运行中删除 / 隐藏最后一个可见图层会被拒绝——后端命令（`remove_layer` / `update_layer`）硬校验，前端禁用按钮并提示；无可渲染内容时禁用「开始覆盖」。判定与渲染路径一致（layers 非空只看可见层；`crosshair` 仅在 layers 为空时兜底）。 @Eeymoo
+
+### 修复
+
+- **删光图层死循环（#45）**：空锚点状态误报「配置格式异常」且「切换到图层编辑器」按钮不生效，用户被困在该页面。 @Eeymoo
+- **运行中空白覆盖**：双写配置（`crosshair = Some` + layers 非空，单图层模式编辑会产生）让守卫误判存在准星兜底（实际不渲染），导致可隐藏 / 删除全部图层而留下空白覆盖。 @Eeymoo
+- **PGR-3003 unhandled rejection 噪音**：图层面板各操作 handler 补充 catch。 @Eeymoo
+
+---
+
+## [v0.2.4] — 2026-08-13
+
+正式版本。UI 走向国际化：Peregrine 现以六种语言发布，后端 i18n 数据驱动化，并建立社区翻译管线（issue 模板 + 自动 PR workflow + CI key 对齐闸门）；OpenSpec 规格驱动工作流也已与 GitHub 端到端集成（跟踪 issue / PR / 分支策略）。
 
 ### 新增
 
 - **6 语 UI 支持**：在简体中文与英文之外新增日本語（ja-JP）、Deutsch（de-DE）、Français（fr-FR）、Русский（ru-RU）。非中文翻译由 AI 初版生成，欢迎母语者通过新的翻译改进 issue 模板提交修正建议。后端 i18n 从「硬编码枚举 + match 表」重构为数据驱动模型：通过 `include_str!` 编译期内嵌与前端共用的 locale JSON，新增语言只改 JSON 即可、无需改动 Rust 代码。`FALLBACK_LOCALE` 由 `zh-CN` 切换为 `en`。 @Eeymoo
 - **Issue 模板体系**：新增 Bug 反馈模板（默认推荐）、翻译改进模板（喂给自动翻译 workflow）、提问模板（兜底，因禁用了空白 issue），以及 `config.yml` 控制 issue 选择器入口。
 - **翻译自动化**：新增 `auto-translate` GitHub Actions job——issue 被打 `translation` 标签时自动开 PR 编辑对应 locale JSON；新增 `i18n-check` CI job——对触碰 locale 文件的 PR 强制 JSON 可解析 + 单语 key 集合不变 + 6 语 key 集合对齐三重校验。
+- **OpenSpec ↔ GitHub 集成**：`/opsx:propose` / `/opsx:apply` / `/opsx:archive` 工作流现为每个变更创建跟踪 issue、专用功能分支与关联 PR；`.openspec.yaml` 记录 `issue` / `branch` / `pr` 键；归档以 PR 合并为前提。
 
 ### 变更
 

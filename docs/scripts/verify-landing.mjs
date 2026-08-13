@@ -63,6 +63,16 @@ for (const theme of ['dark', 'light']) {
         hwDetails: cs('.hw-details', ['marginTop', 'fontSize', 'lineHeight', 'color']),
         dlButtons: qa('.dl-button').map((a) => a.textContent.trim() + ' -> ' + a.getAttribute('href')),
         headerNav: qa('.header-nav-link').map((a) => a.getAttribute('href')),
+        // Header 导航区计算样式基线（twcss 迁移断言先行）
+        hnNav: cs('.header-nav', ['display', 'alignItems', 'gap', 'marginInlineStart']),
+        hnLink: cs('.header-nav-link', ['display', 'alignItems', 'gap', 'fontSize', 'fontWeight', 'color', 'textDecorationLine', 'whiteSpace']),
+        hnIcon: cs('.header-nav-icon', ['display']),
+        hnSvg: (() => {
+          const svg = document.querySelector('.header-nav-icon svg');
+          if (!svg) return null;
+          const s = getComputedStyle(svg);
+          return { width: s.width, height: s.height };
+        })(),
         topbar: !!q('site-title, .site-title'),
         themeToggle: !!q('starlight-theme-select, [data-theme-toggle], starlight-theme-select'),
         // Hero 首屏可见性：CTA 在 900px 视口内
@@ -138,6 +148,67 @@ for (const theme of ['dark', 'light']) {
       JSON.stringify(r.headerNav),
     );
     check(`${t} 顶栏保留`, r.topbar === true);
+    // Header 导航区计算样式（twcss 迁移锁）
+    const hnLinkColor = theme === 'dark' ? 'oklch(0.871 0.006 286.286)' : 'oklch(0.37 0.013 285.805)';
+    check(
+      `${t} 导航容器`,
+      r.hnNav?.display === 'flex' && r.hnNav?.alignItems === 'center' && r.hnNav?.gap === '20px' && r.hnNav?.marginInlineStart === '24px',
+      JSON.stringify(r.hnNav),
+    );
+    check(
+      `${t} 导航链接`,
+      r.hnLink?.display === 'flex' &&
+        r.hnLink?.alignItems === 'center' &&
+        r.hnLink?.gap === '4px' &&
+        r.hnLink?.fontSize === '15px' &&
+        r.hnLink?.fontWeight === '500' &&
+        r.hnLink?.color === hnLinkColor &&
+        r.hnLink?.textDecorationLine === 'none' &&
+        r.hnLink?.whiteSpace === 'nowrap',
+      JSON.stringify(r.hnLink),
+    );
+    check(`${t} 导航图标`, r.hnIcon?.display === 'flex' && r.hnSvg?.width === '14px' && r.hnSvg?.height === '14px', JSON.stringify(r.hnSvg));
+    // 现代化项断言（首页）：落地页无任何 active 链接；hover 下划线动画基态 scaleX(0) + 200ms 过渡；focus-visible 规则存在
+    const firstLink = page.locator('.header-nav-link').first();
+    const hnBefore = await page.evaluate(() => {
+      const links = [...document.querySelectorAll('.header-nav-link')];
+      const underline = links[0]?.querySelector('span[aria-hidden="true"]:last-child');
+      const us = underline ? getComputedStyle(underline) : null;
+      return { noActive: links.every((a) => a.getAttribute('aria-current') !== 'page'), scale: us?.scale, duration: us?.transitionDuration };
+    });
+    check(`${t} 导航首页无 active 态`, hnBefore.noActive === true);
+    await firstLink.hover();
+    await page.waitForTimeout(250);
+    const hnAfter = await page.evaluate(() => {
+      const underline = document.querySelector('.header-nav-link span[aria-hidden="true"]:last-child');
+      return underline ? getComputedStyle(underline).scale : null;
+    });
+    check(
+      `${t} 导航 hover 下划线 200ms 动画`,
+      hnBefore.duration === '0.2s' && hnBefore.scale === '0 1' && (hnAfter === '1' || hnAfter === '1 1'),
+      JSON.stringify({ ...hnBefore, after: hnAfter }),
+    );
+    // focus-visible 焦点环（规则级断言）：外链 CSS 无 CORS 头时 cssRules 为空，故通过
+    // page 上下文 fetch 同源 CSS 文本做规则存在性断言；另验证元素 class 与规则选择器对应。
+    const focusRule = await page.evaluate(async () => {
+      const hrefs = [...document.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.href);
+      let css = '';
+      for (const h of hrefs) css += (await (await fetch(h)).text()) + '\n';
+      const el = document.querySelector('.header-nav-link');
+      const cl = el?.className ?? '';
+      return {
+        hasWidth: css.includes('.focus-visible\\:outline-2:focus-visible'),
+        hasOffset: css.includes('.focus-visible\\:outline-offset-4:focus-visible'),
+        hasAccentLight: css.includes('.focus-visible\\:outline-accent-600:focus-visible'),
+        hasAccentDark: css.includes('.dark\\:focus-visible\\:outline-accent-200:where([data-theme=dark],[data-theme=dark] *):focus-visible'),
+        elHasClasses: ['focus-visible:outline-2', 'focus-visible:outline-offset-4', 'focus-visible:outline-accent-600', 'dark:focus-visible:outline-accent-200'].every((c) => cl.includes(c)),
+      };
+    });
+    check(
+      `${t} 导航 focus-visible 焦点环`,
+      focusRule.hasWidth && focusRule.hasOffset && focusRule.hasAccentLight && focusRule.hasAccentDark && focusRule.elHasClasses,
+      JSON.stringify(focusRule),
+    );
     await ctx.close();
   }
 }

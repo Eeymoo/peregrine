@@ -35,23 +35,56 @@ const navLinks = [
 	{ label: locale ? '下载' : 'Download', href: `${prefix}/download`, external: false },
 ];
 const externalIcon = lucideIcon('ExternalLink');
+// 现代化项 1：当前页 active 态。路由判定最小化——pathname 去掉可选 .html 后缀与尾斜杠后前缀比较。
+// 注意 build.format: 'file' 下 Astro.url.pathname 形如 /guide/usage.html，必须先剥 .html。
+const normalize = (p: string) => p.replace(/\.html$/, '').replace(/\/$/, '') || '/';
+const pathname = normalize(Astro.url.pathname);
+const isActive = (href: string) => {
+	if (href.startsWith('http')) return false;
+	const h = normalize(href);
+	// 子路径判断按首段（如 /guide）而非整链（/guide/intro），否则 guide 下其他页无 active 态。
+	const firstSeg = h.match(/^\/[^/]+/)?.[0] ?? h;
+	return pathname === h || pathname === h + '/index' || pathname.startsWith(firstSeg + '/');
+};
 ---
 
 <div class="header">
 	<div class="title-wrapper sl-flex">
 		<SiteTitle />
-		<nav class="header-nav sl-hidden md:sl-flex" aria-label="Top">
+		<nav class="header-nav hidden items-center gap-5 ms-6 md:flex" aria-label="Top">
 			{
-				navLinks.map((l) => (
-					<a
-						class="header-nav-link"
-						href={l.href}
-						{...(l.external ? { target: '_blank', rel: 'noopener' } : {})}
-					>
-						{l.label}
-						{l.external && <span class="header-nav-icon" aria-hidden="true" set:html={externalIcon} />}
-					</a>
-				))
+				navLinks.map((l) => {
+					const active = isActive(l.href);
+					return (
+						<a
+							class:list={[
+								'header-nav-link group relative inline-flex items-center gap-1 text-[0.9375rem] font-medium whitespace-nowrap no-underline transition-colors duration-200 ease-out',
+								'focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-600 dark:focus-visible:outline-accent-200',
+								active
+									? 'is-active text-gray-900 dark:text-white'
+									: 'text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white',
+							]}
+							href={l.href}
+							{...(active ? { 'aria-current': 'page' } : {})}
+							{...(l.external ? { target: '_blank', rel: 'noopener' } : {})}
+						>
+							{l.label}
+							{l.external && (
+								<span class="header-nav-icon inline-flex [&_svg]:size-3.5" aria-hidden="true" set:html={externalIcon} />
+							)}
+							{/* 现代化项 2：hover 下划线 scaleX 动画；active 态常显（现代化项 1 的指示）。reduced-motion 塌缩 */}
+							<span
+								class:list={[
+									'pointer-events-none absolute inset-x-0 -bottom-0.5 h-px origin-left transition-transform duration-200 ease-out motion-reduce:transition-none',
+									active
+										? 'scale-x-100 bg-accent-600 dark:bg-accent-200'
+										: 'scale-x-0 bg-gray-400 group-hover:scale-x-100 dark:bg-gray-500',
+								]}
+								aria-hidden="true"
+							/>
+						</a>
+					);
+				})
 			}
 		</nav>
 	</div>
@@ -84,38 +117,6 @@ const externalIcon = lucideIcon('ExternalLink');
 			padding: 0.25rem;
 			margin: -0.25rem;
 			min-width: 0;
-		}
-
-		/* 顶部导航链接区（本覆写唯一新增内容）。 */
-		.header-nav {
-			align-items: center;
-			gap: 1.25rem;
-			margin-inline-start: 1.5rem;
-		}
-
-		.header-nav-link {
-			display: inline-flex;
-			align-items: center;
-			gap: 0.25rem;
-			font-size: 0.9375rem;
-			font-weight: 500;
-			color: var(--sl-color-gray-2);
-			text-decoration: none;
-			white-space: nowrap;
-			transition: color 200ms ease;
-		}
-
-		.header-nav-link:hover {
-			color: var(--sl-color-white);
-		}
-
-		.header-nav-icon {
-			display: inline-flex;
-		}
-
-		.header-nav-icon :global(svg) {
-			width: 0.875rem;
-			height: 0.875rem;
 		}
 
 		.right-group,

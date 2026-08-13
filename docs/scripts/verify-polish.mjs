@@ -86,6 +86,27 @@ for (const theme of ['dark', 'light']) {
     const t = `${theme}/${name}`;
     check(`${t} aside 圆角+强调条`, r.aside?.borderRadius === '12px' && r.aside?.borderInlineStartWidth === '4px', JSON.stringify(r.aside));
     check(`${t} 链接下划线+偏移`, r.linkDeco?.textDecorationLine?.includes('underline') && r.linkDeco?.textUnderlineOffset !== '0px', JSON.stringify(r.linkDeco));
+    // Header 导航 active 态（现代化项 1）：guide 页 Docs 链接应带 aria-current + is-active，下划线常显
+    const hnActive = await page.evaluate(() => {
+      const docsLink = [...document.querySelectorAll('.header-nav-link')].find((a) => (a.getAttribute('href') || '').includes('/guide/'));
+      if (!docsLink) return null;
+      const underline = docsLink.querySelector('span[aria-hidden="true"]:last-child');
+      return {
+        aria: docsLink.getAttribute('aria-current'),
+        isActive: docsLink.classList.contains('is-active'),
+        color: getComputedStyle(docsLink).color,
+        underlineScale: underline ? getComputedStyle(underline).scale : null,
+      };
+    });
+    const expectActiveColor = theme === 'dark' ? 'rgb(255, 255, 255)' : 'oklch(0.21 0.006 285.885)';
+    check(
+      `${t} 导航 active 态（Docs 当前页）`,
+      hnActive?.aria === 'page' &&
+        hnActive?.isActive === true &&
+        hnActive?.color === expectActiveColor &&
+        (hnActive?.underlineScale === '1' || hnActive?.underlineScale === '1 1'),
+      JSON.stringify(hnActive),
+    );
     await ctx.close();
   }
 }

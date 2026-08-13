@@ -1,0 +1,35 @@
+---
+title: Peregrine
+description: Peregrine — a desktop visual anchor tool designed to reduce 3D motion sickness
+template: splash
+hero:
+  title: Peregrine
+  tagline: Desktop Tool for Relieving 3D Motion Sickness
+  image:
+    html: <img src="/logo.svg" alt="Peregrine" width="200" height="200" />
+  actions:
+    - text: Download Now
+      link: https://github.com/eeymoo/peregrine/releases
+      variant: primary
+      icon: right-arrow
+    - text: Learn More
+      link: /guide/intro
+      variant: secondary
+    - text: GitHub Repository
+      link: https://github.com/eeymoo/peregrine
+      variant: secondary
+      icon: external
+---
+
+import FeatureCards from '../../components/FeatureCards.astro';
+
+Stabilize your visual system with customizable visual anchors so you can comfortably play 3D games that tend to cause motion sickness.
+
+<FeatureCards cards={[
+  { title: 'Transparent Always-on-Top Overlay', details: "Uses Win32 layered windows with per-pixel alpha to create a transparent, always-on-top, click-through overlay that doesn't interfere with gameplay." },
+  { title: 'Target Window Following', details: 'Automatically finds and follows the selected game window so the anchor always stays in the right place.' },
+  { title: 'Multiple Visual Anchor Styles', details: 'Built-in edge rectangle, crosshair, large crosshair, edge markers, center ring, border frame, and more, with true WYSIWYG preview.' },
+  { title: 'Custom PNG Decal', details: 'Supports loading custom PNG images as visual anchors to match your personal preferences.' },
+  { title: 'Real-Time Settings & Preview', details: 'Built-in settings panel with instant preview; parameters are automatically persisted to the config file.' },
+  { title: 'Hot-Reload Configuration', details: 'Automatically detects and broadcasts updates when the config file changes, no restart required.' },
+]} />

@@ -3,10 +3,13 @@
  * 下载入口（落地页收尾区块）
  *
  * Windows 三架构入口 + GitHub Releases 总入口。
- * 产物命名与 .github/workflows/release.yml 的 NSIS 产物一致
- *（peregrine_<version>_windows-{x64,x86,arm64}-setup.exe 指向 latest 重定向链接）。
- * 文案由 MDX 以 props 传入。
+ * 三架构按钮指向站内下载页（/download，决策 D5），由下载页承接架构选择与加速通道，
+ * 不再直链 GitHub 资产（此前 latest/download/ 精确匹配产物名带版本号，全部 404）。
+ * 图标来自 lucide-static（与主应用 lucide-react 同源）。文案由 MDX 以 props 传入。
  */
+import { lucideIcon } from '../../lib/icons';
+import { localeBase } from '../../lib/locale';
+
 interface Props {
   /** 副标题说明（如"Windows 10/11，NSIS 安装包"）。 */
   note: string;
@@ -18,33 +21,25 @@ interface Props {
 
 const { note, label, releasesText } = Astro.props;
 
-/** GitHub Releases latest 的重定向下载链接（release.yml 产物名：peregrine-v<version>-windows-<arch>-setup.exe）。 */
+/** GitHub Releases 总入口（外链保留）。 */
 const RELEASES = 'https://github.com/eeymoo/peregrine/releases';
+/** 站内下载页路径（按当前 locale 适配双语；localeBase 内部处理了非 Starlight 渲染上下文）。 */
+const locale = localeBase(Astro);
+const downloadPage = locale ? `/${locale}/download` : '/download';
 const artifacts = [
-  { arch: 'x64', href: `${RELEASES}/latest/download/peregrine-windows-x64-setup.exe` },
-  { arch: 'x86', href: `${RELEASES}/latest/download/peregrine-windows-x86-setup.exe` },
-  { arch: 'ARM64', href: `${RELEASES}/latest/download/peregrine-windows-arm64-setup.exe` },
+  { arch: 'x64', href: downloadPage },
+  { arch: 'x86', href: downloadPage },
+  { arch: 'ARM64', href: downloadPage },
 ];
+const downloadIcon = lucideIcon('Download');
 ---
 
 <div class="dl-block not-content" data-pagefind-ignore>
   <div class="dl-buttons">
     {
       artifacts.map((a) => (
-        <a class="dl-button" href={a.href} rel="noopener">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M12 3v12" />
-            <path d="m7 10 5 5 5-5" />
-            <path d="M4 21h16" />
-          </svg>
+        <a class="dl-button" href={a.href}>
+          <span class="dl-icon" aria-hidden="true" set:html={downloadIcon} />
           {label} {a.arch}
         </a>
       ))
@@ -96,10 +91,14 @@ const artifacts = [
     transform: translateY(0);
   }
 
-  .dl-button svg {
+  .dl-button .dl-icon {
+    display: inline-flex;
+    color: var(--sl-color-text-accent);
+  }
+
+  .dl-button .dl-icon :global(svg) {
     width: 1rem;
     height: 1rem;
-    color: var(--sl-color-text-accent);
   }
 
   .dl-note {

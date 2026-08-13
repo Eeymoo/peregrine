@@ -12,6 +12,14 @@ import tailwindcss from '@tailwindcss/vite';
  * slug 为 locale 相对路径，root locale 映射到 /guide/*，zh-cn 映射到 /zh-cn/guide/*。
  */
 const sidebar = [
+  // 顶部导航的移动侧栏镜像（决策 D3）：AukCraft 外链 + Docs / Download 内链，随移动端抽屉展示。
+  {
+    label: 'AukCraft',
+    link: 'https://www.aukcraft.org/',
+    attrs: { target: '_blank', rel: 'noopener' },
+  },
+  { label: 'Docs', translations: { 'zh-CN': '文档' }, slug: 'guide/intro' },
+  { label: 'Download', translations: { 'zh-CN': '下载' }, slug: 'download' },
   {
     label: 'Guide',
     translations: { 'zh-CN': '指南' },
@@ -63,9 +71,15 @@ export default defineConfig({
       },
       sidebar,
       customCss: ['./src/styles/global.css', './src/styles/starlight-polish.css'],
-      // 仅覆写 Hero（首页落地页化）；其余 Starlight 组件一律不动，降低升级脆弱性。
+      // 仅覆写 Hero（首页落地页化）与 Header（顶部导航链接，仅插入导航区、其余结构不动）。
+      // 不增加其他覆写，降低升级脆弱性；Header 覆写理由与维护注意见 AGENTS.md。
       components: {
         Hero: './src/components/landing/LandingHero.astro',
+        Header: './src/components/Header.astro',
+      },
+      // 「在 GitHub 上编辑此页面」链接（Starlight 自动拼接 src/content/docs 相对路径并适配双语子目录）。
+      editLink: {
+        baseUrl: 'https://github.com/Eeymoo/peregrine/edit/main/docs/',
       },
       lastUpdated: true,
       favicon: '/img/icons/favicon-32x32.png',

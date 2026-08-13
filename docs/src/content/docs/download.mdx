@@ -1,0 +1,36 @@
+---
+title: Download
+description: Download Peregrine for Windows — NSIS installer and portable zip for x64, x86 and ARM64.
+tableOfContents: false
+# 独立下载页不参与指南翻页序列（sidebar 顶层导航项会使其自动获得错误的上/下一页）。
+prev: false
+next: false
+---
+
+import DownloadTable from '../../components/landing/DownloadTable.astro';
+
+Peregrine is a desktop visual anchor tool designed to reduce 3D motion sickness. Pick your build below, or browse [all releases on GitHub](https://github.com/Eeymoo/peregrine/releases).
+
+:::note
+The NSIS installer supports in-app auto-updates. The portable zip does not — download a new one manually when a release comes out.
+:::
+
+<DownloadTable
+  labels={{
+    stable: 'Stable',
+    prerelease: 'Preview',
+    allArch: 'All',
+    accelerate: 'GitHub proxy',
+    direct: 'Direct',
+    colOs: 'OS',
+    colArch: 'Arch',
+    colSetup: 'Installer (exe)',
+    colZip: 'Portable (zip)',
+    colNote: 'Notes',
+    note: 'Installer supports auto-update; portable zip does not.',
+    download: 'Download',
+    moreReleases: 'View more releases',
+    fallbackText: 'Release information is temporarily unavailable. You can always download the latest build directly from GitHub Releases.',
+    fallbackLink: 'View GitHub Releases',
+  }}
+/>

@@ -1,5 +1,8 @@
 ---
 title: "使用说明"
+# sidebar 顶层导航项（AukCraft/Docs/Download）会进入 Starlight 分页序列，
+# 这里显式修正本页上一页（否则指向 Download 页）。
+prev: false
 ---
 
 ## 下载

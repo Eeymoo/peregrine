@@ -1,0 +1,117 @@
+---
+/**
+ * DotField — fixed, site-wide dot grid behind all content.
+ * Rings are barely visible at rest; they fill teal near the cursor
+ * (eased, distance-falloff). Static under prefers-reduced-motion.
+ */
+---
+
+<canvas
+  id="dot-field"
+  class="pointer-events-none fixed inset-0 z-[var(--z-field)] h-full w-full"
+  aria-hidden="true"></canvas>
+
+<script>
+  const field = document.getElementById('dot-field');
+  if (field instanceof HTMLCanvasElement) {
+    const ctx = field.getContext('2d');
+    if (ctx) {
+      const TEAL = '20, 184, 166';
+      const INK = '237, 237, 237';
+      const GAP = 30;
+      const DOT_R = 1.6;
+      const CURSOR_R = 130;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+      let dots = [];
+      let baseLayer = null;
+      let w = 0;
+      let h = 0;
+      let raf = 0;
+      const mouse = { x: -1e4, y: -1e4 };
+      const eased = { x: -1e4, y: -1e4 };
+
+      function build() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = window.innerWidth;
+        h = window.innerHeight;
+        field.width = Math.round(w * dpr);
+        field.height = Math.round(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        dots = [];
+        for (let y = GAP / 2; y < h; y += GAP) {
+          for (let x = GAP / 2; x < w; x += GAP) {
+            dots.push({ x, y });
+          }
+        }
+
+        baseLayer = document.createElement('canvas');
+        baseLayer.width = field.width;
+        baseLayer.height = field.height;
+        const bctx = baseLayer.getContext('2d');
+        if (!bctx) return;
+        bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        bctx.strokeStyle = `rgba(${INK}, 0.05)`;
+        bctx.lineWidth = 1;
+        for (const d of dots) {
+          bctx.beginPath();
+          bctx.arc(d.x, d.y, DOT_R, 0, Math.PI * 2);
+          bctx.stroke();
+        }
+        draw();
+      }
+
+      function draw() {
+        raf = 0;
+        if (!baseLayer) return;
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(baseLayer, 0, 0, w, h);
+
+        eased.x += (mouse.x - eased.x) * 0.18;
+        eased.y += (mouse.y - eased.y) * 0.18;
+
+        if (eased.x > -9999) {
+          for (const d of dots) {
+            const fill = Math.max(0, 1 - Math.hypot(d.x - eased.x, d.y - eased.y) / CURSOR_R);
+            if (fill > 0.04) {
+              ctx.fillStyle = `rgba(${TEAL}, ${(fill * 0.55).toFixed(3)})`;
+              ctx.beginPath();
+              ctx.arc(d.x, d.y, DOT_R + fill * 1.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+
+        // Keep easing until the cursor trail settles, then sleep.
+        if (Math.abs(mouse.x - eased.x) > 0.5 || Math.abs(mouse.y - eased.y) > 0.5) {
+          raf = requestAnimationFrame(draw);
+        }
+      }
+
+      if (!reduceMotion.matches) {
+        window.addEventListener(
+          'pointermove',
+          (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            if (!raf) raf = requestAnimationFrame(draw);
+          },
+          { passive: true }
+        );
+        document.addEventListener('mouseleave', () => {
+          mouse.x = -1e4;
+          mouse.y = -1e4;
+        });
+      }
+
+      let resizeTimer = 0;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(build, 150);
+      });
+
+      build();
+    }
+  }
+</script>

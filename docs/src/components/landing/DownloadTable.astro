@@ -19,6 +19,7 @@
 import type { ReleasesData, ReleaseInfo } from '../../lib/releases';
 import { fetchReleases } from '../../lib/releases';
 import { lucideIcon } from '../../lib/icons';
+import FlightLine from '../FlightLine.astro';
 
 /** 页面文案（组件与语言无关，全部由 MDX 注入）。 */
 export interface DownloadTableLabels {
@@ -84,9 +85,9 @@ if (releases?.prerelease) channels.push({ key: 'prerelease', label: labels.prere
 const downloadIcon = lucideIcon('Download');
 const externalIcon = lucideIcon('ExternalLink');
 
-/** 通道/筛选按钮共用工具类串（pill 形态 + hover/active 态，active 由 aria-pressed 属性选择器承载）。 */
+/** 通道/筛选按钮共用工具类串（方形描边 4px + hover/active 态，active 由 aria-pressed 属性选择器承载）。 */
 const PILL =
-  'inline-flex items-center gap-1.5 rounded-full border border-(--sl-color-hairline) bg-transparent px-3.5 py-1.5 ' +
+  'inline-flex items-center gap-1.5 rounded border border-(--sl-color-hairline) bg-transparent px-3.5 py-1.5 ' +
   'text-sm font-medium text-gray-700 transition-[border-color,color,background-color] duration-200 ease-out ' +
   'hover:border-[color-mix(in_srgb,var(--color-accent-500)_55%,transparent)] hover:text-gray-900 ' +
   'aria-pressed:border-accent-600 aria-pressed:bg-[color-mix(in_srgb,var(--color-accent-500)_16%,transparent)] aria-pressed:text-gray-900 ' +
@@ -126,7 +127,7 @@ const PILL =
         {showProxy && (
           <label class="dt-proxy inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <span class="dt-proxy-label">{labels.accelerate}</span>
-            <select class="dt-proxy-select rounded-lg border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-2.5 py-1.5 text-sm text-gray-900 dark:text-white">
+            <select class="dt-proxy-select rounded border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-2.5 py-1.5 text-sm text-gray-900 dark:text-gray-50">
               <option value="">{labels.direct}</option>
               {PROXY_PREFIXES.map((p) => (
                 <option value={p}>{new URL(p).host}</option>
@@ -197,13 +198,14 @@ const PILL =
 
       <p class="dt-more mt-5 mb-0 text-center">
         <a
-          class="dt-more-link inline-flex items-center gap-2 rounded-full border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-[1.375rem] py-2.5 text-[0.9375rem] font-semibold text-gray-900 no-underline transition-[border-color] duration-200 ease-out hover:border-[color-mix(in_srgb,var(--color-accent-500)_55%,transparent)] motion-reduce:transition-none dark:text-white"
+          class="dt-more-link flight inline-flex items-center gap-2 rounded border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-[1.375rem] py-2.5 text-[0.9375rem] font-semibold text-gray-900 no-underline dark:text-gray-50"
           href={RELEASES_PAGE}
           target="_blank"
           rel="noopener"
         >
-          <span class="dt-icon inline-flex text-accent-600 dark:text-accent-200 [&_svg]:size-4" aria-hidden="true" set:html={externalIcon} />
+          <span class="dt-icon inline-flex text-accent-600 dark:text-accent-400 [&_svg]:size-4" aria-hidden="true" set:html={externalIcon} />
           {labels.moreReleases}
+          <FlightLine />
         </a>
       </p>
     </div>
@@ -212,13 +214,14 @@ const PILL =
       <p class="text-gray-700 dark:text-gray-300">{labels.fallbackText}</p>
       <p class="dt-more mt-5 mb-0 text-center">
         <a
-          class="dt-more-link inline-flex items-center gap-2 rounded-full border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-[1.375rem] py-2.5 text-[0.9375rem] font-semibold text-gray-900 no-underline transition-[border-color] duration-200 ease-out hover:border-[color-mix(in_srgb,var(--color-accent-500)_55%,transparent)] motion-reduce:transition-none dark:text-white"
+          class="dt-more-link flight inline-flex items-center gap-2 rounded border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-[1.375rem] py-2.5 text-[0.9375rem] font-semibold text-gray-900 no-underline dark:text-gray-50"
           href={RELEASES_PAGE}
           target="_blank"
           rel="noopener"
         >
-          <span class="dt-icon inline-flex text-accent-600 dark:text-accent-200 [&_svg]:size-4" aria-hidden="true" set:html={externalIcon} />
+          <span class="dt-icon inline-flex text-accent-600 dark:text-accent-400 [&_svg]:size-4" aria-hidden="true" set:html={externalIcon} />
           {labels.fallbackLink}
+          <FlightLine />
         </a>
       </p>
     </div>

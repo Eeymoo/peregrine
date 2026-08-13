@@ -1,0 +1,95 @@
+---
+import PuffinMark from './PuffinMark.astro';
+
+interface Props {
+  lang?: 'en' | 'zh';
+}
+
+const { lang = 'en' } = Astro.props;
+const zh = lang === 'zh';
+
+const nav = zh
+  ? [
+      { label: '理念', href: '#philosophy' },
+      { label: '项目', href: '#projects' },
+      { label: '工作流', href: '#workflow' },
+      { label: '开源', href: '#open-source' },
+      { label: '参与贡献', href: '#contribute' },
+    ]
+  : [
+      { label: 'Philosophy', href: '#philosophy' },
+      { label: 'Projects', href: '#projects' },
+      { label: 'Workflow', href: '#workflow' },
+      { label: 'Open Source', href: '#open-source' },
+      { label: 'Contribute', href: '#contribute' },
+    ];
+
+const emails = [
+  {
+    addr: 'hello@aukcraft.org',
+    note: zh ? '通用与社区' : 'general & community',
+  },
+  { addr: 'dev@aukcraft.org', note: zh ? '技术' : 'technical' },
+  {
+    addr: 'security@aukcraft.org',
+    note: zh ? '漏洞报告' : 'vulnerability reports',
+  },
+];
+
+const t = {
+  contact: zh ? '联系方式' : 'CONTACT',
+  copyright: zh ? '© 2026 aukcraft. 以匠心打造。' : '© 2026 aukcraft. Crafted with precision.',
+};
+---
+
+<footer class="border-t border-hairline">
+  <div class="mx-auto grid max-w-5xl gap-12 px-6 py-20 md:grid-cols-3">
+    <div>
+      <p class="flex items-center gap-2 font-mono text-sm tracking-tight">
+        <PuffinMark class="h-6 w-6" />
+        aukcraft
+      </p>
+      <nav class="mt-6" aria-label="Site">
+        <ul class="space-y-2">
+          {
+            nav.map((item) => (
+              <li>
+                <a class="link-line font-mono text-xs uppercase tracking-[0.15em]" href={item.href}>
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+          <li>
+            <a
+              class="link-line font-mono text-xs uppercase tracking-[0.15em]"
+              href="https://github.com/aukcraft"
+              target="_blank"
+              rel="noopener noreferrer">GitHub&thinsp;↗</a
+            >
+          </li>
+        </ul>
+      </nav>
+    </div>
+
+    <div class="md:col-span-2">
+      <p class="micro text-xs text-muted">{t.contact}</p>
+      <ul class="mt-6 space-y-3">
+        {
+          emails.map((e) => (
+            <li class="font-mono text-sm">
+              <a class="link-line" href={`mailto:${e.addr}`}>{e.addr}</a>
+              <span class="ml-3 text-xs text-muted">{e.note}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+
+  <div class="border-t border-hairline">
+    <p class="mx-auto max-w-5xl px-6 py-6 font-mono text-xs text-muted">
+      {t.copyright}
+    </p>
+  </div>
+</footer>

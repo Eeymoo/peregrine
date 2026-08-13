@@ -1,0 +1,343 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design tokens (brand design system v2) ─────────────────────── */
+:root {
+  --color-base: #0b0e11;
+  --color-raised: #14181d;
+  --color-hairline: rgba(255, 255, 255, 0.08);
+  --color-teal: #14b8a6;
+  --color-ink: #ededed;
+  --color-muted: #8a9199;
+
+  --ease-lock: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-line-btn: 700ms;
+  --motion-line-card: 1100ms;
+  --motion-line-input: 500ms;
+  --motion-line-link: 300ms;
+
+  /* z-index scale */
+  --z-field: -1; /* DotField canvas, behind content */
+  --z-noise: 60; /* film grain overlay */
+  --z-skip: 70; /* skip-to-content link */
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-ink);
+}
+
+/* ── Smooth anchor scrolling ────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Section scroll snap (PPT-like) ───────────────────────────────
+   proximity, not mandatory: sections taller than the viewport must
+   stay fully reachable on small screens. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-snap-type: y proximity;
+  }
+
+  main > * {
+    scroll-snap-align: start;
+  }
+
+  /* Short footer lands naturally at the viewport bottom. */
+  body > footer {
+    scroll-snap-align: end;
+  }
+}
+
+/* ── Consistent keyboard focus indicator ──────────────────────────
+   .flight elements show the Flight Line on focus instead. */
+:focus-visible {
+  outline: 1px solid var(--color-teal);
+  outline-offset: 3px;
+}
+
+.flight:focus-visible {
+  outline: none;
+}
+
+/* ── Skip to content (keyboard users) ───────────────────────────── */
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: var(--z-skip);
+  transform: translateY(-300%);
+  background: var(--color-raised);
+  color: var(--color-ink);
+  border: 1px solid var(--color-hairline);
+  padding: 0.5rem 1rem;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.75rem;
+  text-decoration: none;
+  transition: transform 200ms var(--ease-lock);
+}
+
+.skip-link:focus-visible {
+  transform: none;
+}
+
+::selection {
+  background: rgba(20, 184, 166, 0.22);
+}
+
+/* ── Backdrop canvas (behind everything) ────────────────────────── */
+#backdrop-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Frosted glass surfaces — canvas shows through ──────────────── */
+.glass {
+  background: color-mix(in srgb, var(--color-raised) 55%, transparent);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+
+.glass-deep {
+  background: color-mix(in srgb, var(--color-base) 55%, transparent);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+
+/* ── Film grain overlay (2–3%) ──────────────────────────────────── */
+.noise {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-noise);
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+}
+
+/* ── Flight Line ──────────────────────────────────────────────────
+   1px Auk Teal line starts at the top-left corner, travels the
+   perimeter clockwise once, then the full ring stays lit ("locked")
+   until hover/focus ends, fading back to the 8% hairline. */
+.flight {
+  position: relative;
+  transition: transform 200ms var(--ease-lock);
+}
+
+.flight:active {
+  transform: scale(0.98);
+}
+
+.flight-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.flight-line rect {
+  x: 0.5px;
+  y: 0.5px;
+  width: calc(100% - 1px);
+  height: calc(100% - 1px);
+  rx: 3px;
+  fill: none;
+  stroke: var(--color-teal);
+  stroke-width: 1px;
+}
+
+.flight-line__trace {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.flight-line__ring {
+  opacity: 0;
+  transition: opacity var(--motion-line-link) ease;
+}
+
+.flight:hover .flight-line__trace,
+.flight:focus-visible .flight-line__trace {
+  animation: flight-trace var(--fl-duration, var(--motion-line-btn))
+    var(--ease-lock) forwards;
+}
+
+.flight:hover .flight-line__ring,
+.flight:focus-visible .flight-line__ring {
+  opacity: 1;
+  transition-delay: var(--fl-duration, var(--motion-line-btn));
+}
+
+@keyframes flight-trace {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ── Inline link underline (left → right grow, 300ms) ───────────── */
+.link-line {
+  position: relative;
+  color: var(--color-teal);
+  text-decoration: none;
+}
+
+.link-line::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--motion-line-link) var(--ease-lock);
+}
+
+.link-line:hover::after,
+.link-line:focus-visible::after {
+  transform: scaleX(1);
+}
+
+/* ── Scroll reveal: fade in + 16px rise, ≤600ms ───────────────────
+   Hidden initial state only applies when JS is available (html.js),
+   so the page stays fully readable with scripts disabled. */
+[data-reveal] {
+  transition:
+    opacity 600ms var(--ease-lock),
+    transform 600ms var(--ease-lock);
+}
+
+html.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+html.js [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Staggered entry: siblings cascade in, never mount all at once ── */
+html.js [data-reveal]:nth-child(2) {
+  transition-delay: 70ms;
+}
+
+html.js [data-reveal]:nth-child(3) {
+  transition-delay: 140ms;
+}
+
+html.js [data-reveal]:nth-child(4) {
+  transition-delay: 210ms;
+}
+
+html.js [data-reveal]:nth-child(n + 5) {
+  transition-delay: 280ms;
+}
+
+/* ── Reduced motion: direct color change, no flow ───────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .flight {
+    transition: none;
+  }
+
+  .flight:active {
+    transform: none;
+  }
+
+  .flight-line__trace {
+    display: none;
+  }
+
+  .flight-line__ring {
+    transition: none;
+  }
+
+  .flight:hover .flight-line__ring,
+  .flight:focus-visible .flight-line__ring {
+    opacity: 1;
+    transition-delay: 0s;
+  }
+
+  .link-line::after {
+    transition: none;
+  }
+
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ── Puffin mark (dark-theme mapping of the layered icon) ───────── */
+.puffin-mark path,
+.puffin-mark polygon {
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.pm-feather {
+  fill: #8a9199;
+  stroke: #8a9199;
+}
+.pm-feather-2 {
+  fill: #788089;
+  stroke: #788089;
+}
+.pm-belly-1 {
+  fill: #1b2027;
+  stroke: none;
+}
+.pm-belly-2 {
+  fill: #151a20;
+  stroke: none;
+}
+.pm-belly-3 {
+  fill: #0f1319;
+  stroke: none;
+}
+.pm-face {
+  fill: #ededed;
+  stroke: #ededed;
+}
+.pm-face-2 {
+  fill: #d6d9dd;
+  stroke: #d6d9dd;
+}
+.pm-face-3 {
+  fill: #bdc2c8;
+  stroke: #bdc2c8;
+}
+.pm-eye {
+  fill: #0b0e11;
+  stroke: none;
+}
+
+
+/* ── Serif accents (keywords only) ──────────────────────────────── */
+.serif-zh {
+  font-family: "Noto Serif SC", serif;
+}
+
+/* ── Balanced display lines (no orphaned words) ─────────────────── */
+.balance {
+  text-wrap: balance;
+}
+
+/* ── Micro labels ───────────────────────────────────────────────── */
+.micro {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}

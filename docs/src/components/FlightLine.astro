@@ -1,0 +1,28 @@
+---
+/**
+ * FlightLine —— 边框描边动效元素（aukcraft 壳层签名组件，D6）
+ *
+ * 复用 .agents/skills/aukcraft-site-design 资产：SVG rect 沿宿主 .flight 元素
+ * 边框走一圈（__trace），随后整圈常亮（__ring）直至 hover/focus 结束。
+ * 描边色经 var(--flight-stroke)（品牌蓝；暗色主题 accent-400 亮阶，见 global.css）。
+ * prefers-reduced-motion 下塌缩为描边瞬时常亮（global.css reduced-motion 块）。
+ *
+ * 用法：放入任意带 .flight class 的元素内。
+ */
+interface Props {
+  /** 单圈描边时长，如 'var(--motion-line-card)'；缺省用 --motion-line-btn（700ms）。 */
+  duration?: string;
+}
+
+const { duration } = Astro.props;
+---
+
+<svg
+  class="flight-line"
+  style={duration ? `--fl-duration: ${duration}` : undefined}
+  aria-hidden="true"
+  focusable="false"
+>
+  <rect class="flight-line__ring" pathLength="1"></rect>
+  <rect class="flight-line__trace" pathLength="1"></rect>
+</svg>

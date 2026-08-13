@@ -22,7 +22,7 @@ const { steps } = Astro.props;
     steps.map((step, i) => (
       <li class="hw-step border-t border-solid border-(--sl-color-hairline) pt-5">
         <span
-          class="hw-index text-[0.8125rem] font-semibold tracking-[0.12em] text-accent-600 tabular-nums dark:text-accent-200"
+          class="hw-index font-mono text-[0.8125rem] font-semibold tracking-[0.12em] text-accent-600 tabular-nums dark:text-accent-200"
           aria-hidden="true"
         >
           {String(i + 1).padStart(2, '0')}

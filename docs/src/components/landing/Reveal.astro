@@ -1,0 +1,25 @@
+---
+/**
+ * 落地页滚入揭示脚本（aukcraft 家族签名元素 4，D10）
+ *
+ * html.js 门控：无 JS 时 [data-reveal] 内容常显可读；
+ * IntersectionObserver 逐区块触发 600ms rise；reduced-motion 由 CSS 侧塌缩（global.css）。
+ * 内联于落地页 MDX 各区块之后，不引入依赖。
+ */
+---
+
+<script is:inline>
+  document.documentElement.classList.add('js');
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add('is-revealed');
+          io.unobserve(e.target);
+        }
+      }
+    },
+    { rootMargin: '0px 0px -10% 0px' },
+  );
+  document.querySelectorAll('[data-reveal]').forEach((el) => io.observe(el));
+</script>

@@ -1,0 +1,26 @@
+---
+/**
+ * 区块标题（aukcraft 产品家族签名元素，D10）
+ *
+ * 序号 + micro mono 标签 + hairline 贯穿线，落地页各区块统一以其开篇。
+ * 全 Tailwind 工具类实现，无 scoped CSS；文案由 MDX 以 props 传入。
+ */
+interface Props {
+  /** 两位序号（如 "01"）。 */
+  index: string;
+  /** 区块标题（沿用各区块既有标题文案）。 */
+  label: string;
+}
+
+const { index, label } = Astro.props;
+---
+
+<h2 class="lp-heading sh-heading m-0 mb-7 flex max-w-2xl items-baseline gap-3 text-balance">
+  <span class="sh-index font-mono text-[0.8125rem] font-medium tracking-[0.15em] text-accent-600 uppercase tabular-nums dark:text-accent-200" aria-hidden="true">
+    {index}
+  </span>
+  <span class="sh-label font-mono text-[0.8125rem] font-semibold tracking-[0.15em] text-gray-900 uppercase dark:text-white">
+    {label}
+  </span>
+  <span class="sh-rule h-px flex-1 self-center bg-(--sl-color-hairline)" aria-hidden="true"></span>
+</h2>

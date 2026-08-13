@@ -5,6 +5,10 @@
  * 非等宽网格：首卡跨两列形成视觉锚点，避免"六张一样的卡"的套路感。
  * 图标为 lucide 系 1.5px 线稿（lucide-static 构建时内联，与主应用 lucide-react 同源数据）。
  * 文案由 MDX 以 props 传入，组件与语言无关。
+ *
+ * 样式为 Tailwind 工具类（twcss-migration change）：
+ * - hairline 分隔网格：gap-px + 网格容器 hairline 底色衬出分隔线（D10 签名元素 3），卡片边框取消；
+ * - 现代化项：图标品牌色淡染容器（accent 12% 底）+ 卡片 hover 底色微反馈（motion-reduce 塌缩）。
  */
 import { lucideIcon } from '../../lib/icons';
 
@@ -36,88 +40,28 @@ const ICONS: Record<Feature['icon'], string> = {
 };
 ---
 
-<div class="fg-grid not-content" data-pagefind-ignore>
+<div
+  class="fg-grid not-content grid grid-cols-1 gap-px overflow-hidden rounded-xl bg-(--sl-color-hairline-light) min-[48rem]:grid-cols-2 lg:grid-cols-4"
+  data-pagefind-ignore
+>
   {
     features.map((f, i) => (
-      <article class:list={['fg-card', i === 0 && 'fg-card-wide']}>
-        <span class="fg-icon" aria-hidden="true" set:html={ICONS[f.icon]} />
-        <h3 class="fg-title">{f.title}</h3>
-        <p class="fg-details">{f.details}</p>
+      <article
+        class:list={[
+          'fg-card bg-white p-[1.375rem] transition-colors duration-200 ease-out motion-reduce:transition-none hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700',
+          // 6 卡节奏：首卡 2 列宽 + 3 卡 → 第二行 2 卡各 2 列宽（仅 lg 4 列网格）。
+          i === 0 && 'fg-card-wide lg:col-span-2',
+          (i === 4 || i === 5) && 'lg:col-span-2',
+        ]}
+      >
+        <span
+          class="fg-icon inline-flex rounded-lg bg-[color-mix(in_srgb,var(--color-accent-500)_12%,transparent)] p-2 text-accent-600 dark:text-accent-200 [&_svg]:size-5"
+          aria-hidden="true"
+          set:html={ICONS[f.icon]}
+        />
+        <h3 class="fg-title mt-3.5 mb-1.5 text-base leading-[1.4] font-semibold text-gray-900 dark:text-white">{f.title}</h3>
+        <p class="fg-details m-0 text-sm leading-[1.65] text-gray-700 dark:text-gray-300">{f.details}</p>
       </article>
     ))
   }
 </div>
-
-<style>
-  .fg-grid {
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: 1fr;
-  }
-
-  @media (min-width: 48rem) {
-    .fg-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-
-  @media (min-width: 64rem) {
-    .fg-grid {
-      grid-template-columns: repeat(4, 1fr);
-    }
-    /* 6 卡节奏：首卡 2 列宽 + 3 卡 → 第二行 2 卡各 2 列宽。 */
-    .fg-card-wide {
-      grid-column: span 2;
-    }
-    .fg-card:nth-child(5),
-    .fg-card:nth-child(6) {
-      grid-column: span 2;
-    }
-  }
-
-  .fg-card {
-    border: 1px solid var(--sl-color-hairline-light);
-    border-radius: 0.75rem;
-    padding: 1.375rem;
-    background: var(--sl-color-bg-sidebar);
-    transition: border-color 200ms ease;
-  }
-
-  .fg-card:hover {
-    border-color: color-mix(in srgb, var(--color-accent-500) 45%, transparent);
-  }
-
-  .fg-icon {
-    display: inline-flex;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    color: var(--sl-color-text-accent);
-    background: color-mix(in srgb, var(--color-accent-500) 12%, transparent);
-  }
-
-  .fg-icon svg {
-    width: 1.25rem;
-    height: 1.25rem;
-  }
-
-  .fg-title {
-    margin: 0.875rem 0 0.375rem;
-    font-size: 1rem;
-    font-weight: 600;
-    line-height: 1.4;
-    color: var(--sl-color-white);
-  }
-
-  .fg-details {
-    margin: 0;
-    font-size: 0.875rem;
-    line-height: 1.65;
-    color: var(--sl-color-gray-2);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .fg-card {
-      transition: none;
-    }
-  }
-</style>

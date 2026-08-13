@@ -15,12 +15,14 @@ hero:
       variant: secondary
 ---
 
+import SectionHeading from '../../components/landing/SectionHeading.astro';
+import Reveal from '../../components/landing/Reveal.astro';
 import FeatureGrid from '../../components/landing/FeatureGrid.astro';
 import HowItWorks from '../../components/landing/HowItWorks.astro';
 import DownloadCta from '../../components/landing/DownloadCta.astro';
 
-<section class="lp-section">
-  <h2 class="lp-heading">Everything you need to stay oriented</h2>
+<section class="lp-section" data-reveal>
+  <SectionHeading index="01" label="Everything you need to stay oriented" />
   <FeatureGrid features={[
     { icon: 'overlay', title: 'Transparent Always-on-Top Overlay', details: 'A click-through overlay drawn over the game that never steals focus or interferes with controls.' },
     { icon: 'follow', title: 'Target Window Following', details: 'Locks onto the game window and moves with it, so the anchor stays exactly where you set it.' },
@@ -31,8 +33,8 @@ import DownloadCta from '../../components/landing/DownloadCta.astro';
   ]} />
 </section>
 
-<section class="lp-section">
-  <h2 class="lp-heading">Up and running in minutes</h2>
+<section class="lp-section" data-reveal>
+  <SectionHeading index="02" label="Up and running in minutes" />
   <HowItWorks steps={[
     { title: 'Download and install', details: 'Grab the NSIS installer for Windows x64, x86 or ARM64 and run it.' },
     { title: 'Pick the game window', details: 'Choose the target window in the settings panel and start the overlay.' },
@@ -40,10 +42,13 @@ import DownloadCta from '../../components/landing/DownloadCta.astro';
   ]} />
 </section>
 
-<section class="lp-section">
+<section class="lp-section" data-reveal>
+  <SectionHeading index="03" label="Download" />
   <DownloadCta
     label="Download for"
     note="Windows 10/11, NSIS installer."
     releasesText="All releases"
   />
 </section>
+
+<Reveal />

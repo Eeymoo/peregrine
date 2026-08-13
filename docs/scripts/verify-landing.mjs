@@ -54,6 +54,26 @@ for (const theme of ['dark', 'light']) {
         features: qa('.fg-card').length,
         featureIcons: qa('.fg-icon svg.lucide').length,
         steps: qa('.hw-step').length,
+        // SectionHeading / FeatureGrid / DownloadCta / 滚入揭示（twcss-migration Section 4）
+        sh: qa('.sh-heading').length,
+        shIndex: cs('.sh-index', ['fontFamily', 'fontSize', 'letterSpacing', 'textTransform', 'color']),
+        shLabel: cs('.sh-label', ['fontFamily', 'textTransform', 'letterSpacing', 'color']),
+        shRule: cs('.sh-rule', ['height', 'backgroundColor']),
+        fgGrid: cs('.fg-grid', ['display', 'gap', 'backgroundColor', 'gridTemplateColumns']),
+        fgCard: cs('.fg-card', ['padding', 'backgroundColor', 'transitionProperty', 'transitionDuration']),
+        fgCard5: (() => {
+          const c5 = document.querySelectorAll('.fg-card')[4];
+          return c5 ? getComputedStyle(c5).gridColumn : null;
+        })(),
+        fgIcon: cs('.fg-icon', ['color', 'backgroundColor', 'padding', 'borderRadius']),
+        dlArch: cs('.dl-arch', ['fontFamily', 'textTransform', 'letterSpacing', 'fontSize']),
+        dlButton: cs('.dl-button', ['transitionProperty', 'borderRadius', 'padding']),
+        revealInit: (() => {
+          const el = document.querySelector('[data-reveal]');
+          if (!el) return null;
+          const s = getComputedStyle(el);
+          return { opacity: s.opacity, transition: s.transitionDuration, revealed: el.classList.contains('is-revealed') };
+        })(),
         // HowItWorks 计算样式基线（twcss 迁移断言先行，twcss-migration change）
         hwGrid: cs('.hw-grid', ['display', 'gap', 'gridTemplateColumns', 'marginTop', 'paddingLeft', 'listStyleType']),
         hwStep: cs('.hw-step', ['borderTopWidth', 'borderTopStyle', 'paddingTop']),
@@ -127,6 +147,45 @@ for (const theme of ['dark', 'light']) {
         r.hwTitle?.fontWeight === '600' &&
         r.hwTitle?.color === hwTitleExpect,
       JSON.stringify(r.hwTitle),
+    );
+    // Section 4 断言：SectionHeading / hairline 网格 / CTA mono 微标签 / 滚入揭示
+    const accentText = theme === 'dark' ? 'oklch(0.882 0.059 254.128)' : 'oklch(0.546 0.245 262.881)';
+    const headingText = theme === 'dark' ? 'rgb(255, 255, 255)' : 'oklch(0.21 0.006 285.885)';
+    check(`${t} SectionHeading ×3`, r.sh === 3, String(r.sh));
+    check(
+      `${t} SectionHeading 序号 mono 微标签`,
+      r.shIndex?.fontFamily?.includes('mono') && r.shIndex?.textTransform === 'uppercase' && r.shIndex?.letterSpacing === '1.95px' && r.shIndex?.color === accentText,
+      JSON.stringify(r.shIndex),
+    );
+    check(
+      `${t} SectionHeading 标签 + hairline 贯穿线`,
+      r.shLabel?.fontFamily?.includes('mono') && r.shLabel?.textTransform === 'uppercase' && r.shLabel?.color === headingText && r.shRule?.height === '1px',
+      JSON.stringify({ shLabel: r.shLabel, shRule: r.shRule }),
+    );
+    check(
+      `${t} 特性卡 hairline 分隔网格`,
+      r.fgGrid?.display === 'grid' && r.fgGrid?.gap === '1px' && r.fgGrid?.gridTemplateColumns.split(' ').length === 4 && r.fgGrid?.backgroundColor !== 'rgba(0, 0, 0, 0)',
+      JSON.stringify(r.fgGrid),
+    );
+    check(
+      `${t} 特性卡 hover 反馈 + 列跨`,
+      r.fgCard?.padding === '22px' && r.fgCard?.transitionProperty?.includes('background-color') && r.fgCard5?.startsWith('span 2'),
+      JSON.stringify({ fgCard: r.fgCard, fgCard5: r.fgCard5 }),
+    );
+    check(
+      `${t} 特性图标品牌色淡染`,
+      r.fgIcon?.color === accentText && r.fgIcon?.backgroundColor?.includes('0.12') && r.fgIcon?.padding === '8px',
+      JSON.stringify(r.fgIcon),
+    );
+    check(
+      `${t} CTA mono 微标签 + pill`,
+      r.dlArch?.fontFamily?.includes('mono') && r.dlArch?.textTransform === 'uppercase' && parseFloat(r.dlButton?.borderRadius) > 1e6,
+      JSON.stringify({ dlArch: r.dlArch, dlButton: r.dlButton }),
+    );
+    check(
+      `${t} 滚入揭示（html.js 门控）`,
+      r.revealInit && (r.revealInit.revealed === true || (r.revealInit.opacity === '0' && r.revealInit.transition === '0.6s')),
+      JSON.stringify(r.revealInit),
     );
     check(
       `${t} hw 详情样式`,

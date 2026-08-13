@@ -14,6 +14,30 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
+/* 落地页滚入揭示（aukcraft 家族签名元素 4，D10）：
+ * html.js 门控保证无 JS 时内容常显可读；600ms rise + IntersectionObserver 逐区块触发；
+ * reduced-motion 下全量塌缩。 */
+html.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 600ms ease-out,
+    transform 600ms ease-out;
+}
+
+html.js [data-reveal].is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.js [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
 @theme {
   /* 品牌蓝 = Tailwind blue 色阶，主色 #2563EB（blue-600，见 assets/gen_icon.py）。
    * Starlight 原生消费 --color-accent-* 用于链接、导航高亮等 UI 场景。 */

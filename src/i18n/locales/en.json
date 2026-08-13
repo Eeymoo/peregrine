@@ -36,7 +36,8 @@
     "offsetX": "Offset X",
     "offsetY": "Offset Y",
     "scale": "Scale",
-    "rotation": "Rotation"
+    "rotation": "Rotation",
+    "lastVisibleLocked": "Keep at least one visible layer while the overlay is running"
   },
   "common": {
     "add": "Add",
@@ -84,8 +85,9 @@
     "none": "(none)",
     "startOverlay": "Start overlay",
     "stopOverlay": "Stop overlay",
-    "invalidFormat": "Invalid config format",
-    "switchToLayersFallback": "Switch to Layer Editor"
+    "emptyLayers": "No anchors to display. Switch to the layers editor to add one",
+    "switchToLayersFallback": "Switch to Layer Editor",
+    "startOverlayNoContent": "Cannot start overlay: no visible layers (add a layer or show one first)"
   },
   "profile": {
     "title": "Profile",
@@ -330,6 +332,9 @@
   "backend": {
     "target_window_required": "No target window selected",
     "overlay_active_cannot_change_mode": "Overlay is active. Stop the overlay before changing the mode.",
-    "png_filter": "PNG images"
+    "png_filter": "PNG images",
+    "no_renderable_content": "Cannot start overlay: no visible layers or crosshair configured",
+    "overlay_active_remove_last_visible": "Cannot delete the last visible layer while the overlay is running",
+    "overlay_active_hide_last_visible": "Cannot hide the last visible layer while the overlay is running"
   }
 }

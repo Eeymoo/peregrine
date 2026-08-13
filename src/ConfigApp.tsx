@@ -129,12 +129,17 @@ export default function ConfigApp() {
     );
   }
 
-  // 异常情况（既没有 crosshair 又没有 layers）：显示错误并提供切换到图层编辑器。
-  if (!crosshair && !hasLayers) {
+  // 空锚点状态（既没有 crosshair 又没有 layers）：空 layers 是合法配置
+  // （allow-empty-profile-layers），不是「配置格式异常」。
+  // - 多图层模式：不拦截，直接落到图层编辑器空态（LayerPanel 提供「添加图层」
+  //   入口，「开始覆盖」按钮已由 noRenderableContent 禁用——无法遮盖而非报错）。
+  // - 单图层模式：单图层 UI 依赖 crosshair（从 layers[0] 反向生成），无内容
+  //   可编辑时显示空态提示并提供切换入口（按钮真正生效，不再死循环）。
+  if (!crosshair && !hasLayers && !layersMode) {
     return (
       <div className="h-screen flex flex-col items-center justify-center text-muted-foreground gap-4">
-        <span className="text-lg">{t("config.invalidFormat")}</span>
-        {/* 异常兜底入口：软关闭不门控模式切换（D4 2026-08-03 二次修订） */}
+        <span className="text-lg">{t("config.emptyLayers")}</span>
+        {/* 空态兜底入口：软关闭不门控模式切换（D4 2026-08-03 二次修订） */}
         <button
           className="text-xs px-3 py-1 border rounded hover:bg-accent"
           onClick={() => setLayersMode(true)}
@@ -145,7 +150,9 @@ export default function ConfigApp() {
     );
   }
 
-  // 到这里 crosshair 必为非 null（已从 layers[0] 反向生成）。
+  // 到这里：若非多图层模式，crosshair 必为非 null（空状态已被上方拦截，
+  // 或已从 layers[0] 反向生成）；多图层模式下 crosshair 可为 null（合法空配置），
+  // 此时 ch 不被使用（仅单图层 UI 引用）。
   const ch = crosshair!;
 
   // MATERIAL_RUNTIME_ENABLED 门控：物料运行时启用时使用真实兼容性判定——

@@ -842,6 +842,18 @@ fn start_overlay(state: State<AppState>, target_window: String) -> Result<(), St
         let cfg = state.config.lock().map_err(|e| e.to_string())?;
         cfg.settings.fullscreen_overlay
     };
+    // 渲染不变量前置校验：活跃 profile 必须有可渲染内容（可见图层或 legacy crosshair）。
+    {
+        let cfg = state.config.lock().map_err(|e| e.to_string())?;
+        if let Some(profile) = cfg.active_profile() {
+            if !profile.has_renderable_content() {
+                return Err(translate(
+                    current_locale(&state),
+                    "backend.no_renderable_content",
+                ));
+            }
+        }
+    }
     if !is_fullscreen && target_window.is_empty() {
         return Err(translate(
             current_locale(&state),
@@ -1737,6 +1749,24 @@ async fn remove_layer(
             return Err(format!("layer '{}' not found", layer_id));
         }
     }
+    // 渲染不变量保护：overlay 活动中删除会使活跃 profile 无可渲染内容时拒绝。
+    // 判定与渲染路径一致（layers 非空只看可见层；crosshair 仅在 layers 为空时兜底），
+    // 直接对「删除后」的内存态调用统一谓词，避免豁免条件与渲染判定不一致
+    // （双写配置 crosshair=Some + layers 非空时 crosshair 不参与渲染）。
+    // 在 persist_and_broadcast / emit_layers_changed 之前返回，不修改配置、不广播事件。
+    if state
+        .overlay_active
+        .load(std::sync::atomic::Ordering::SeqCst)
+    {
+        if let Some(profile) = config.active_profile() {
+            if !profile.has_renderable_content() {
+                return Err(translate(
+                    current_locale(&state),
+                    "backend.overlay_active_remove_last_visible",
+                ));
+            }
+        }
+    }
     persist_and_broadcast(&state, &config).await?;
     emit_layers_changed(&app);
     let _ = state
@@ -1813,6 +1843,18 @@ async fn duplicate_layer(
     new_layer.ok_or_else(|| "active profile not found".to_string())
 }
 
+/// 模拟将指定图层隐藏后的 profile（浅拷贝 + 仅翻转目标图层 visible）。
+///
+/// 供 `update_layer` 的渲染不变量校验使用：对「应用 patch 后」的状态调用
+/// `has_renderable_content`，避免守卫豁免条件与渲染路径判定不一致。
+fn simulate_hide(profile: &peregrine_config::Profile, layer_id: &str) -> peregrine_config::Profile {
+    let mut simulated = profile.clone();
+    if let Some(layer) = simulated.layers.iter_mut().find(|l| l.id == layer_id) {
+        layer.visible = false;
+    }
+    simulated
+}
+
 /// 批量更新图层字段。
 #[tauri::command]
 async fn update_layer(
@@ -1835,6 +1877,27 @@ async fn update_layer(
         let guard = state.config.lock().map_err(|e| e.to_string())?;
         guard.as_ref().clone()
     };
+    // 渲染不变量保护：overlay 活动中隐藏会使活跃 profile 无可渲染内容时拒绝。
+    // 判定与渲染路径一致（layers 非空只看可见层；crosshair 仅在 layers 为空时兜底），
+    // 对「模拟应用 patch 后」的内存态调用统一谓词。只关注 visible=true→false 的降级，
+    // 反向（隐藏→显示）只会增加可渲染内容，无需拦截。
+    // 在 persist_and_broadcast / emit_layers_changed 之前返回，不修改配置、不广播事件。
+    if patch.visible == Some(false)
+        && state
+            .overlay_active
+            .load(std::sync::atomic::Ordering::SeqCst)
+    {
+        if let Some(profile) = config.active_profile() {
+            if let Some(layer) = profile.layers.iter().find(|l| l.id == layer_id) {
+                if layer.visible && !simulate_hide(profile, &layer_id).has_renderable_content() {
+                    return Err(translate(
+                        current_locale(&state),
+                        "backend.overlay_active_hide_last_visible",
+                    ));
+                }
+            }
+        }
+    }
     if let Some(profile) = config.active_profile_mut() {
         let layer = profile
             .layers
@@ -2379,6 +2442,9 @@ mod tests {
             "backend.target_window_required",
             "backend.overlay_active_cannot_change_mode",
             "backend.png_filter",
+            "backend.no_renderable_content",
+            "backend.overlay_active_remove_last_visible",
+            "backend.overlay_active_hide_last_visible",
         ];
         for locale in SUPPORTED_LOCALES {
             for key in backend_keys {

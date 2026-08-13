@@ -217,6 +217,8 @@ impl Profile {
     /// 校验 Profile 内字段范围。
     ///
     /// 当 `layers` 非空时校验图层；否则回退到旧 `crosshair` 校验。
+    /// 空 layers + None crosshair 是合法配置（语义为「当前不显示任何锚点」），
+    /// 不再视为配置损坏。
     pub fn validate(&self) -> crate::Result<()> {
         if !self.layers.is_empty() {
             for (i, layer) in self.layers.iter().enumerate() {
@@ -228,9 +230,27 @@ impl Profile {
         } else if let Some(crosshair) = &self.crosshair {
             crosshair.validate()
         } else {
-            Err(crate::ConfigError::Validation(
-                "profile has neither layers nor crosshair".to_string(),
-            ))
+            // 空 layers + None crosshair：合法状态（不显示任何锚点）。
+            Ok(())
+        }
+    }
+
+    /// 判断该 Profile 是否有可渲染内容（与渲染路径的格式判定一致）。
+    ///
+    /// - `layers` 非空：走新格式渲染路径（`build_layers_shapes` 只看 layers，
+    ///   crosshair 不参与渲染），故仅当存在可见图层时为真；
+    /// - `layers` 为空：走旧格式渲染路径（渲染 legacy `crosshair`），
+    ///   crosshair 存在即为真。
+    ///
+    /// 注意：`crosshair = Some` 且 `layers` 非空的「双写」配置（单图层模式
+    /// 编辑会产生）在新格式路径下 crosshair 不被渲染，不能作为兜底豁免。
+    /// 三处后端硬校验（`start_overlay` / `remove_layer` / `update_layer`）
+    /// 与前端按钮禁用均复用此谓词语义。
+    pub fn has_renderable_content(&self) -> bool {
+        if !self.layers.is_empty() {
+            self.layers.iter().any(|l| l.visible)
+        } else {
+            self.crosshair.is_some()
         }
     }
 
@@ -1496,6 +1516,60 @@ mod tests {
             },
         ));
         assert!(!profile.is_legacy_compatible());
+    }
+
+    #[test]
+    fn empty_profile_layers_with_none_crosshair_is_valid() {
+        // 空 layers + None crosshair 现在是合法状态（语义：不显示任何锚点）。
+        let mut profile = Profile::default_profile();
+        profile.layers.clear();
+        profile.crosshair = None;
+        assert!(profile.validate().is_ok());
+    }
+
+    #[test]
+    fn profile_has_renderable_content() {
+        // 空 layers + None crosshair：无可渲染内容。
+        let mut empty = Profile::default_profile();
+        empty.layers.clear();
+        empty.crosshair = None;
+        assert!(!empty.has_renderable_content());
+
+        // 纯 crosshair（legacy）：有可渲染内容。
+        let mut legacy = Profile::legacy_default_profile();
+        assert!(legacy.has_renderable_content());
+
+        // 部分可见图层：有可渲染内容。
+        let mut partial = Profile::default_profile();
+        // default_profile 有 1 个可见图层，再加一个隐藏图层。
+        let mut hidden_layer = Layer::new(
+            "l2",
+            "hidden",
+            MaterialRef::Builtin {
+                id: "builtin.cross".to_string(),
+            },
+        );
+        hidden_layer.visible = false;
+        partial.layers.push(hidden_layer);
+        assert!(partial.has_renderable_content());
+
+        // 全部隐藏 + None crosshair：无可渲染内容。
+        let mut all_hidden = Profile::default_profile();
+        all_hidden.layers[0].visible = false;
+        all_hidden.crosshair = None;
+        assert!(!all_hidden.has_renderable_content());
+
+        // 双写配置（crosshair=Some + layers 非空）且全部隐藏：
+        // 新格式渲染路径只看 layers，crosshair 不参与渲染，不能豁免。
+        let mut dual_written = Profile::default_profile();
+        dual_written.crosshair = Some(Crosshair::default_crosshair());
+        dual_written.layers[0].visible = false;
+        assert!(!dual_written.has_renderable_content());
+
+        // 双写配置且存在可见图层：有可渲染内容。
+        let mut dual_visible = Profile::default_profile();
+        dual_visible.crosshair = Some(Crosshair::default_crosshair());
+        assert!(dual_visible.has_renderable_content());
     }
 
     #[test]

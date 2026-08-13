@@ -36,7 +36,8 @@
     "offsetX": "Décalage X",
     "offsetY": "Décalage Y",
     "scale": "Échelle",
-    "rotation": "Rotation"
+    "rotation": "Rotation",
+    "lastVisibleLocked": "Conserver au moins un calque visible pendant l'exécution de l'overlay"
   },
   "common": {
     "add": "Ajouter",
@@ -84,8 +85,9 @@
     "none": "(aucun)",
     "startOverlay": "Démarrer l'overlay",
     "stopOverlay": "Arrêter l'overlay",
-    "invalidFormat": "Format de configuration invalide",
-    "switchToLayersFallback": "Basculer vers l'éditeur de calques"
+    "emptyLayers": "Aucune ancre à afficher. Passez à l'éditeur de calques pour en ajouter une",
+    "switchToLayersFallback": "Basculer vers l'éditeur de calques",
+    "startOverlayNoContent": "Impossible de démarrer l'overlay : aucun calque visible (ajoutez ou affichez d'abord un calque)"
   },
   "profile": {
     "title": "Profil",
@@ -330,6 +332,9 @@
   "backend": {
     "target_window_required": "Aucune fenêtre cible sélectionnée",
     "overlay_active_cannot_change_mode": "L'overlay est actif. Veuillez l'arrêter avant de changer de mode.",
-    "png_filter": "Images PNG"
+    "png_filter": "Images PNG",
+    "no_renderable_content": "Impossible de démarrer l'overlay : aucun calque visible ni réticule configuré",
+    "overlay_active_remove_last_visible": "Impossible de supprimer le dernier calque visible pendant l'exécution de l'overlay",
+    "overlay_active_hide_last_visible": "Impossible de masquer le dernier calque visible pendant l'exécution de l'overlay"
   }
 }

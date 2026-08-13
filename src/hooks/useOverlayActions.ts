@@ -24,6 +24,13 @@ export function useOverlayActions(
   const handleStartOverlay = useCallback(async () => {
     const isFullscreen = config?.settings.fullscreen_overlay ?? true;
     if (!isFullscreen && !profile?.target_window) return;
+    // 渲染不变量前置兜底：无可渲染内容时不发起请求（后端 start_overlay 硬校验兜底）。
+    // 判定与渲染路径一致：layers 非空只看可见层；crosshair 仅在 layers 为空时兜底。
+    const hasRenderable =
+      (profile?.layers ?? []).length > 0
+        ? (profile?.layers ?? []).some((l) => l.visible)
+        : !!profile?.crosshair;
+    if (!hasRenderable) return;
     try {
       await startOverlay(profile?.target_window ?? "");
       setOverlayActive(true);
@@ -45,6 +52,8 @@ export function useOverlayActions(
     config?.settings.fullscreen_overlay,
     config?.settings.auto_switch_on_overlay,
     profile?.target_window,
+    profile?.crosshair,
+    profile?.layers,
     setOverlayActive,
     hideAndSwitch,
     onAskAutoSwitch,

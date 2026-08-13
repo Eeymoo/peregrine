@@ -235,12 +235,23 @@ impl Profile {
         }
     }
 
-    /// 判断该 Profile 是否有可渲染内容。
+    /// 判断该 Profile 是否有可渲染内容（与渲染路径的格式判定一致）。
     ///
-    /// 条件：存在 legacy `crosshair`，或至少有一个可见图层。
-    /// 三处后端硬校验（`start_overlay` / `remove_layer` / `update_layer`）复用此谓词。
+    /// - `layers` 非空：走新格式渲染路径（`build_layers_shapes` 只看 layers，
+    ///   crosshair 不参与渲染），故仅当存在可见图层时为真；
+    /// - `layers` 为空：走旧格式渲染路径（渲染 legacy `crosshair`），
+    ///   crosshair 存在即为真。
+    ///
+    /// 注意：`crosshair = Some` 且 `layers` 非空的「双写」配置（单图层模式
+    /// 编辑会产生）在新格式路径下 crosshair 不被渲染，不能作为兜底豁免。
+    /// 三处后端硬校验（`start_overlay` / `remove_layer` / `update_layer`）
+    /// 与前端按钮禁用均复用此谓词语义。
     pub fn has_renderable_content(&self) -> bool {
-        self.crosshair.is_some() || self.layers.iter().any(|l| l.visible)
+        if !self.layers.is_empty() {
+            self.layers.iter().any(|l| l.visible)
+        } else {
+            self.crosshair.is_some()
+        }
     }
 
     /// 判断该 Profile 是否可在单图层（旧版）UI 中编辑。
@@ -1547,6 +1558,18 @@ mod tests {
         all_hidden.layers[0].visible = false;
         all_hidden.crosshair = None;
         assert!(!all_hidden.has_renderable_content());
+
+        // 双写配置（crosshair=Some + layers 非空）且全部隐藏：
+        // 新格式渲染路径只看 layers，crosshair 不参与渲染，不能豁免。
+        let mut dual_written = Profile::default_profile();
+        dual_written.crosshair = Some(Crosshair::default_crosshair());
+        dual_written.layers[0].visible = false;
+        assert!(!dual_written.has_renderable_content());
+
+        // 双写配置且存在可见图层：有可渲染内容。
+        let mut dual_visible = Profile::default_profile();
+        dual_visible.crosshair = Some(Crosshair::default_crosshair());
+        assert!(dual_visible.has_renderable_content());
     }
 
     #[test]

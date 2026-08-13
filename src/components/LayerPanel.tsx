@@ -33,9 +33,9 @@ interface LayerPanelProps {
   onSelectLayer: (id: string) => void;
   /** 图层数据变化后的回调函数，用于刷新图层数据 */
   onChanged: () => void;
-  /** overlay 是否处于活动状态（渲染不变量保护：禁用最后可见图层的删除/隐藏） */
+  /** overlay 是否处于活动状态（渲染不变量保护：禁用使可见图层归零的删除/隐藏） */
   overlayActive: boolean;
-  /** 是否存在 legacy crosshair（存在时不受「最后可见图层」保护） */
+  /** 是否存在 legacy crosshair（仅 layers 为空时作为渲染兜底、豁免保护） */
   hasCrosshair: boolean;
 }
 
@@ -156,10 +156,13 @@ export function LayerPanel({
           </div>
         ) : (
           (() => {
-            // 渲染不变量：overlay 活动中且无 legacy crosshair 时，
-            // 最后一个可见图层的删除与隐藏按钮需禁用（后端 Err 为最终防线）。
+            // 渲染不变量：overlay 活动中，使可见图层归零的删除/隐藏需禁用（后端 Err 为最终防线）。
+            // 豁免条件与渲染路径一致：crosshair 仅在 layers 为空时才被渲染（legacy 兜底）；
+            // layers 非空时 crosshair 不参与渲染（双写配置也不能豁免），
+            // 即删除/隐藏最后一个可见图层在 layers 非空时一律禁用。
             const visibleCount = layers.filter((l) => l.visible).length;
-            const protectLastVisible = overlayActive && !hasCrosshair;
+            const legacyFallback = layers.length === 0 && hasCrosshair;
+            const protectLastVisible = overlayActive && !legacyFallback;
             const reversedLayers = [...layers].reverse();
             return reversedLayers.map((layer) => {
               const isLastVisible = protectLastVisible && layer.visible && visibleCount <= 1;

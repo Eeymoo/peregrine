@@ -1,5 +1,11 @@
 ---
 title: "Introduction"
+# sidebar 顶层导航项（AukCraft/Docs/Download）会进入 Starlight 分页序列，
+# 本页同时被顶层 Docs 项引用（分页序列中命中首个），这里显式修正上/下一页。
+prev: false
+next:
+  label: "Getting Started"
+  link: "/guide/getting-started"
 ---
 
 **Peregrine** is a desktop tool focused on relieving 3D motion sickness. It provides customizable visual anchors on your screen (such as crosshairs, border frames, edge arrows, and more) to help players stay visually stable during fast camera movements or complex scenes, reducing nausea and dizziness caused by vestibular-visual conflict. This lets you comfortably play games like *Half-Life 2*, *Mirror's Edge*, *Dying Light*, and *No Man's Sky* that often trigger motion sickness.

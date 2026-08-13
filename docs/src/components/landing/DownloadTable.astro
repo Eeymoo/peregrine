@@ -1,0 +1,378 @@
+---
+/**
+ * 下载页表格组件（决策 D1/D2：构建时 API 数据 + 通道/加速/架构筛选）。
+ *
+ * - 数据由 props 注入（releases）；未注入时组件在构建时自行拉取 GitHub Releases API。
+ * - API 失败（releases 为 null）降级为「查看 GitHub Releases」外链，页面始终可渲染。
+ * - 通道切换：稳定版 / 预发布版（无对应 release 的通道不渲染）。
+ * - 加速/直连切换：仅 showProxy=true（zh-cn）时渲染，内置多个 gh-proxy 候选。
+ * - 交互为 vanilla <script>，不引入 React island。
+ * - 图标全部来自 lucide-static（与主应用 lucide-react 同源），不手写 SVG。
+ */
+import type { ReleasesData, ReleaseInfo } from '../../lib/releases';
+import { fetchReleases } from '../../lib/releases';
+import { lucideIcon } from '../../lib/icons';
+
+/** 页面文案（组件与语言无关，全部由 MDX 注入）。 */
+export interface DownloadTableLabels {
+  /** 通道名：稳定版。 */
+  stable: string;
+  /** 通道名：预发布版。 */
+  prerelease: string;
+  /** 架构筛选：全部。 */
+  allArch: string;
+  /** 加速通道标签（如 "GitHub 加速"）。 */
+  accelerate: string;
+  /** 直连选项标签。 */
+  direct: string;
+  /** 表头：操作系统。 */
+  colOs: string;
+  /** 表头：硬件架构。 */
+  colArch: string;
+  /** 表头：安装包（NSIS exe）。 */
+  colSetup: string;
+  /** 表头：便携版（zip）。 */
+  colZip: string;
+  /** 表头：注意事项。 */
+  colNote: string;
+  /** 注意事项列正文（三行共用）。 */
+  note: string;
+  /** 下载链接文字（如 "下载" / "Download"）。 */
+  download: string;
+  /** 「查看更多版本」按钮文字。 */
+  moreReleases: string;
+  /** 降级态文案（API 不可用时的说明）。 */
+  fallbackText: string;
+  /** 降级态外链文字（如 "查看 GitHub Releases"）。 */
+  fallbackLink: string;
+}
+
+interface Props {
+  /** 构建时注入的 release 数据；缺省时组件自行拉取；null 表示 API 不可用（降级）。 */
+  releases?: ReleasesData | null;
+  /** 是否渲染「GitHub 加速」通道（仅 zh-cn 传 true）。 */
+  showProxy?: boolean;
+  labels: DownloadTableLabels;
+}
+
+const { showProxy = false, labels } = Astro.props;
+// props 未注入（undefined）时构建时拉取；显式传 null 走降级路径。
+const releases = Astro.props.releases === undefined ? await fetchReleases() : Astro.props.releases;
+
+const RELEASES_PAGE = 'https://github.com/Eeymoo/peregrine/releases';
+
+/** gh-proxy 候选前缀（公益代理存活期短，内置多个供用户切换，决策 D2）。 */
+const PROXY_PREFIXES = ['https://ghfast.top/', 'https://gh-proxy.com/', 'https://ghproxy.net/'];
+
+const ARCHES = [
+  { key: 'x64', label: 'x64' },
+  { key: 'x86', label: 'x86' },
+  { key: 'arm64', label: 'ARM64' },
+] as const;
+
+const channels: { key: 'stable' | 'prerelease'; label: string; info: ReleaseInfo }[] = [];
+if (releases?.stable) channels.push({ key: 'stable', label: labels.stable, info: releases.stable });
+if (releases?.prerelease) channels.push({ key: 'prerelease', label: labels.prerelease, info: releases.prerelease });
+
+const downloadIcon = lucideIcon('Download');
+const externalIcon = lucideIcon('ExternalLink');
+---
+
+{
+  releases && channels.length > 0 ? (
+    <div class="download-table not-content" data-pagefind-ignore>
+      <div class="dt-controls">
+        {channels.length > 0 && (
+          <div class="dt-group" role="group" aria-label="channel">
+            {channels.map((c, i) => (
+              <button
+                type="button"
+                class:list={['dt-tab', i === 0 && 'is-active']}
+                data-channel={c.key}
+                aria-pressed={i === 0 ? 'true' : 'false'}
+              >
+                {c.label}
+                <span class="dt-tag">{c.info.tag}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div class="dt-group" role="group" aria-label="arch">
+          <button type="button" class="dt-filter is-active" data-arch="all" aria-pressed="true">
+            {labels.allArch}
+          </button>
+          {ARCHES.map((a) => (
+            <button type="button" class="dt-filter" data-arch={a.key} aria-pressed="false">
+              {a.label}
+            </button>
+          ))}
+        </div>
+        {showProxy && (
+          <label class="dt-proxy">
+            <span class="dt-proxy-label">{labels.accelerate}</span>
+            <select class="dt-proxy-select">
+              <option value="">{labels.direct}</option>
+              {PROXY_PREFIXES.map((p) => (
+                <option value={p}>{new URL(p).host}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+
+      {channels.map((c, i) => (
+        <div class:list={['dt-channel', i !== 0 && 'is-hidden']} data-channel={c.key}>
+          <table>
+            <thead>
+              <tr>
+                <th>{labels.colOs}</th>
+                <th>{labels.colArch}</th>
+                <th>{labels.colSetup}</th>
+                <th>{labels.colZip}</th>
+                <th>{labels.colNote}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ARCHES.map((a) => {
+                const assets = c.info.arches[a.key];
+                if (!assets.setup && !assets.zip) return null;
+                return (
+                  <tr data-arch={a.key}>
+                    <td>Windows 10/11</td>
+                    <td>{a.label}</td>
+                    <td>
+                      {assets.setup ? (
+                        <a class="dt-dl" href={assets.setup} data-direct={assets.setup} rel="noopener">
+                          <span class="dt-icon" aria-hidden="true" set:html={downloadIcon} />
+                          {labels.download}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      {assets.zip ? (
+                        <a class="dt-dl" href={assets.zip} data-direct={assets.zip} rel="noopener">
+                          <span class="dt-icon" aria-hidden="true" set:html={downloadIcon} />
+                          {labels.download}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td class="dt-note">{labels.note}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ))}
+
+      <p class="dt-more">
+        <a class="dt-more-link" href={RELEASES_PAGE} target="_blank" rel="noopener">
+          <span class="dt-icon" aria-hidden="true" set:html={externalIcon} />
+          {labels.moreReleases}
+        </a>
+      </p>
+    </div>
+  ) : (
+    <div class="download-table dt-fallback not-content" data-pagefind-ignore>
+      <p>{labels.fallbackText}</p>
+      <p class="dt-more">
+        <a class="dt-more-link" href={RELEASES_PAGE} target="_blank" rel="noopener">
+          <span class="dt-icon" aria-hidden="true" set:html={externalIcon} />
+          {labels.fallbackLink}
+        </a>
+      </p>
+    </div>
+  )
+}
+
+<script>
+  // 下载页交互：通道切换 / 架构筛选 / 加速前缀（vanilla，无框架依赖）。
+  document.querySelectorAll<HTMLElement>('.download-table').forEach((root) => {
+    // 通道切换：显示对应 data-channel 区块。
+    root.querySelectorAll<HTMLButtonElement>('.dt-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        root.querySelectorAll('.dt-tab').forEach((b) => {
+          b.classList.toggle('is-active', b === btn);
+          b.setAttribute('aria-pressed', String(b === btn));
+        });
+        root.querySelectorAll<HTMLElement>('.dt-channel').forEach((sec) => {
+          sec.classList.toggle('is-hidden', sec.dataset.channel !== btn.dataset.channel);
+        });
+      });
+    });
+
+    // 架构筛选：只显示对应 data-arch 行。
+    root.querySelectorAll<HTMLButtonElement>('.dt-filter').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        root.querySelectorAll('.dt-filter').forEach((b) => {
+          b.classList.toggle('is-active', b === btn);
+          b.setAttribute('aria-pressed', String(b === btn));
+        });
+        const arch = btn.dataset.arch;
+        root.querySelectorAll<HTMLElement>('tbody tr[data-arch]').forEach((row) => {
+          row.classList.toggle('is-hidden', arch !== 'all' && row.dataset.arch !== arch);
+        });
+      });
+    });
+
+    // 加速/直连：重写所有下载链接 href（prefix + 原始 URL）。
+    const select = root.querySelector<HTMLSelectElement>('.dt-proxy-select');
+    select?.addEventListener('change', () => {
+      const prefix = select.value;
+      root.querySelectorAll<HTMLAnchorElement>('.dt-dl').forEach((a) => {
+        const direct = a.dataset.direct;
+        if (direct) a.href = prefix + direct;
+      });
+    });
+  });
+</script>
+
+<style>
+  .dt-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .dt-group {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .dt-tab,
+  .dt-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.875rem;
+    border-radius: 999px;
+    border: 1px solid var(--sl-color-hairline);
+    background: transparent;
+    color: var(--sl-color-gray-2);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      border-color 200ms ease,
+      color 200ms ease;
+  }
+
+  .dt-tab:hover,
+  .dt-filter:hover {
+    border-color: color-mix(in srgb, var(--color-accent-500) 55%, transparent);
+    color: var(--sl-color-white);
+  }
+
+  .dt-tab.is-active,
+  .dt-filter.is-active {
+    border-color: var(--sl-color-text-accent);
+    color: var(--sl-color-white);
+    background: color-mix(in srgb, var(--color-accent-500) 14%, transparent);
+  }
+
+  .dt-tag {
+    font-size: 0.75rem;
+    color: var(--sl-color-text-accent);
+  }
+
+  .dt-proxy {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--sl-color-gray-2);
+  }
+
+  .dt-proxy-select {
+    padding: 0.375rem 0.625rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--sl-color-hairline);
+    background: var(--sl-color-bg-sidebar);
+    color: var(--sl-color-white);
+    font-size: 0.875rem;
+  }
+
+  .is-hidden {
+    display: none;
+  }
+
+  .dt-channel table {
+    width: 100%;
+  }
+
+  .dt-dl {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--sl-color-text-accent);
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .dt-dl:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
+  .dt-icon {
+    display: inline-flex;
+  }
+
+  .dt-icon :global(svg) {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .dt-note {
+    font-size: 0.8125rem;
+    color: var(--sl-color-gray-3);
+  }
+
+  .dt-more {
+    margin: 1.25rem 0 0;
+    text-align: center;
+  }
+
+  .dt-more-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.375rem;
+    border-radius: 999px;
+    border: 1px solid var(--sl-color-hairline);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--sl-color-white);
+    background: var(--sl-color-bg-sidebar);
+    text-decoration: none;
+    transition: border-color 200ms ease;
+  }
+
+  .dt-more-link:hover {
+    border-color: color-mix(in srgb, var(--color-accent-500) 55%, transparent);
+  }
+
+  .dt-more-link .dt-icon :global(svg) {
+    color: var(--sl-color-text-accent);
+  }
+
+  .dt-fallback p:first-child {
+    color: var(--sl-color-gray-2);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dt-tab,
+    .dt-filter,
+    .dt-more-link {
+      transition: none;
+    }
+  }
+</style>

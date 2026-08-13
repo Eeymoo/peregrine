@@ -3,9 +3,11 @@
  * 特性网格（落地页区块）
  *
  * 非等宽网格：首卡跨两列形成视觉锚点，避免"六张一样的卡"的套路感。
- * 图标为内联 Phosphor 风格 1.5px 线稿（仅 6 枚，按需内联不引依赖）。
+ * 图标为 lucide 系 1.5px 线稿（lucide-static 构建时内联，与主应用 lucide-react 同源数据）。
  * 文案由 MDX 以 props 传入，组件与语言无关。
  */
+import { lucideIcon } from '../../lib/icons';
+
 interface Feature {
   title: string;
   details: string;
@@ -20,23 +22,17 @@ const { features } = Astro.props;
 
 const ICONS: Record<Feature['icon'], string> = {
   // 堆叠窗口（透明覆盖层）
-  overlay:
-    '<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M7 5V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/>',
-  // 靶心跟随（目标窗口跟随）
-  follow:
-    '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
+  overlay: lucideIcon('Layers'),
+  // 定位跟随（目标窗口跟随）
+  follow: lucideIcon('LocateFixed'),
   // 准星样式（多种锚点样式）
-  styles:
-    '<circle cx="12" cy="12" r="8"/><path d="M12 4v4M12 16v4M4 12h4M16 12h4"/>',
+  styles: lucideIcon('Crosshair'),
   // 图片（自定义 PNG 贴图）
-  image:
-    '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5a1.5 1.5 0 0 0-2 0L6 19"/>',
+  image: lucideIcon('Image'),
   // 眼睛（实时设置与预览）
-  preview:
-    '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/>',
+  preview: lucideIcon('Eye'),
   // 环形箭头（热重载配置）
-  hotreload:
-    '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>',
+  hotreload: lucideIcon('RefreshCw'),
 };
 ---
 
@@ -44,19 +40,7 @@ const ICONS: Record<Feature['icon'], string> = {
   {
     features.map((f, i) => (
       <article class:list={['fg-card', i === 0 && 'fg-card-wide']}>
-        <span class="fg-icon" aria-hidden="true">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            set:html={''}
-          >
-            <Fragment set:html={ICONS[f.icon]} />
-          </svg>
-        </span>
+        <span class="fg-icon" aria-hidden="true" set:html={ICONS[f.icon]} />
         <h3 class="fg-title">{f.title}</h3>
         <p class="fg-details">{f.details}</p>
       </article>

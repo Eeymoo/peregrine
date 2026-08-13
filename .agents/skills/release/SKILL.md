@@ -127,7 +127,8 @@ CI 构建完成后，每个架构产生以下产物：
 
 打 tag 并推送前，必须完成以下步骤：
 
-1. **代码格式化** — 在仓库根目录执行以下命令，确保 CI 的格式检查通过：
+1. **先合 changelog、后打 tag（CI 强制）** — 纯版本号 tag（如 `v0.2.4`）推送时，release.yml 的 `verify-docs` 前置闸门会解析 `docs/src/content/docs/guide/changelog.md` 的最新 `## [vX.Y.Z] — <日期>` 条目并与 tag 比对，**不一致直接 fail、不会创建 GitHub Release**（预发布 tag 即含 `-` 者跳过）。因此正式版发版前必须先完成：版本号 bump（`package.json` / `Cargo.toml` / `src-tauri/tauri.conf.json`）+ changelog 新条目合并进 main，然后再打 tag。ci.yml 的 `docs-consistency` job 会在 PR 阶段比对 `package.json` 版本与 changelog 最新条目，提前暴露遗漏。changelog 条目格式必须是行首 `## [v<版本号>] — <日期>`（闸门用正则 `^## \[(v[\d.]+[^\]]*)\]` 解析）。
+2. **代码格式化** — 在仓库根目录执行以下命令，确保 CI 的格式检查通过：
 
    ```bash
    cargo fmt --all
@@ -136,9 +137,9 @@ CI 构建完成后，每个架构产生以下产物：
 
    若有未提交的格式化改动，需提交后再继续。
 
-2. **版本号** — 确认版本号符不符合 SemVer（major/minor/patch 是否合理），正式版还是预发布。**除非用户明确说明，默认只递增 patch（z 位），不要主动升级 major（x）或 minor（y）**；确认时向用户说明本次递增的是哪一位。
-3. **Tag 消息** — 展示完整的 tag 提交信息（即 Release body），让用户审阅。
-4. **最后机会** — 推送 tag 会触发真实构建发布，等待用户明确回复"确认"或"推送"再执行。
+3. **版本号** — 确认版本号符不符合 SemVer（major/minor/patch 是否合理），正式版还是预发布。**除非用户明确说明，默认只递增 patch（z 位），不要主动升级 major（x）或 minor（y）**；确认时向用户说明本次递增的是哪一位。
+4. **Tag 消息** — 展示完整的 tag 提交信息（即 Release body），让用户审阅。
+5. **最后机会** — 推送 tag 会触发真实构建发布，等待用户明确回复"确认"或"推送"再执行。
 
 ```bash
 # 创建正式版 tag

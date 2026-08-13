@@ -52,6 +52,16 @@ cargo fmt
 cargo clippy -p peregrine_config -- -D warnings
 ```
 
+## 发版与文档同步（CI 强制）
+
+正式版发版遵循「先合 changelog、后打 tag」时序，由 CI 强制执行：
+
+1. 版本号 bump（`package.json` / `Cargo.toml` / `src-tauri/tauri.conf.json`）+ 在 `docs/src/content/docs/guide/changelog.md` 顶部新增 `## [vX.Y.Z] — <日期>` 条目，合并进 main。
+2. 推送纯版本号 tag（如 `v0.2.4`）。release.yml 的 `verify-docs` 前置闸门会比对 tag 与 changelog 最新条目，**不一致直接失败、不创建 Release**（预发布 tag 即含 `-` 者跳过）。
+3. ci.yml 的 `docs-consistency` job 在 PR 阶段比对 `package.json` 版本与 changelog 最新条目，提前暴露遗漏。
+
+文档站的[下载页](/zh-cn/download)在构建时通过 GitHub Releases API 动态获取最新版本与资产链接，页面不含任何硬编码版本号；每次正式版发布后 pages.yml 会自动重建部署，下载页随之更新。
+
 ## 发布产物
 
 `npx tauri build` 生成的 release 产物位于 `src-tauri/target/release/` 目录下，MSI 安装包位于 `src-tauri/target/release/bundle/msi/`。

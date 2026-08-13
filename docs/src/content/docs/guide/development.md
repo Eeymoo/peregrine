@@ -52,6 +52,16 @@ cargo fmt
 cargo clippy -p peregrine_config -- -D warnings
 ```
 
+## Release & Docs Sync (CI-enforced)
+
+Stable releases follow a strict "changelog first, tag second" sequence, enforced by CI:
+
+1. Bump the version (`package.json` / `Cargo.toml` / `src-tauri/tauri.conf.json`) and add a `## [vX.Y.Z] — <date>` entry at the top of `docs/src/content/docs/guide/changelog.md`, then merge to main.
+2. Push a plain version tag (e.g. `v0.2.4`). The `verify-docs` gate in release.yml compares the tag against the latest changelog entry and **fails the release without creating a GitHub Release on mismatch** (prerelease tags containing `-` are skipped).
+3. The `docs-consistency` job in ci.yml compares the `package.json` version with the latest changelog entry at PR time, surfacing omissions early.
+
+The docs site's [download page](/download) fetches the latest version and asset links from the GitHub Releases API at build time — no version number is hard-coded. After each stable release, pages.yml rebuilds and deploys the site, so the download page updates automatically.
+
 ## Release Artifacts
 
 The release artifacts produced by `npx tauri build` are located under `src-tauri/target/release/`. The MSI installer is located at `src-tauri/target/release/bundle/msi/`.

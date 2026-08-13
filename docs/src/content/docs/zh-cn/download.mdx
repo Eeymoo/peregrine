@@ -1,0 +1,37 @@
+---
+title: 下载
+description: 下载 Windows 版 Peregrine —— x64 / x86 / ARM64 的 NSIS 安装包与便携 zip。
+tableOfContents: false
+# 独立下载页不参与指南翻页序列（sidebar 顶层导航项会使其自动获得错误的上/下一页）。
+prev: false
+next: false
+---
+
+import DownloadTable from '../../../components/landing/DownloadTable.astro';
+
+Peregrine 是桌面视觉锚点工具，专为缓解 3D 眩晕而设计。在下方选择适合你的版本，或前往 [GitHub Releases](https://github.com/Eeymoo/peregrine/releases) 浏览全部版本。
+
+:::note
+NSIS 安装包支持应用内自动更新；便携 zip 不支持，出新版本时需手动下载替换。GitHub 直连速度不理想时，可切换「GitHub 加速」通道。
+:::
+
+<DownloadTable
+  showProxy={true}
+  labels={{
+    stable: '稳定版',
+    prerelease: '预发布版',
+    allArch: '全部架构',
+    accelerate: 'GitHub 加速',
+    direct: '直连',
+    colOs: '操作系统',
+    colArch: '硬件架构',
+    colSetup: '安装包（exe）',
+    colZip: '便携版（zip）',
+    colNote: '注意事项',
+    note: '安装包支持自动更新；便携版需手动更新。',
+    download: '下载',
+    moreReleases: '查看更多版本',
+    fallbackText: '暂时无法获取版本信息。你也可以直接前往 GitHub Releases 下载最新版本。',
+    fallbackLink: '查看 GitHub Releases',
+  }}
+/>

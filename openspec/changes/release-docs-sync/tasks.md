@@ -16,7 +16,7 @@
 - [x] 2.1 新增 Header 覆写组件（只插入导航链接区，不动其他内部结构）：AukCraft ↗ / Docs / Download
 - [x] 2.2 `astro.config.mjs` 注册 `components: { Header }`；CSS 窄屏隐藏桌面导航（移动端走 sidebar）
 - [x] 2.3 sidebar 顶层增加 `link` 项：AukCraft（外链）/ Docs / Download（内链，双语各指向自己的 `/download`）
-- [ ] 2.4 更新 AGENTS.md：「仅覆写 Hero」约定改为「仅覆写 Hero + Header」，注明理由与维护注意
+- [x] 2.4 更新 AGENTS.md：「仅覆写 Hero」约定改为「仅覆写 Hero + Header」，注明理由与维护注意
 
 ## 3. 图标修复 + lucide 统一（用户批准 lucide 系）
 
@@ -39,14 +39,14 @@
 
 ## 6. CI 闸门（L1 fail + L3 job）
 
-- [ ] 6.1 release.yml 新增 `verify-docs` 前置 job：解析 changelog 最新 `## [vX.Y.Z]`，与 tag 版本比对；纯版本号 tag 强制，含 `-` 跳过；不等 → exit 1
-- [ ] 6.2 ci.yml 新增 `docs-consistency` job：比对 `package.json` 版本与 changelog 最新条目，不一致 fail（PR 阶段提醒）
-- [ ] 6.3 验证：构造不一致样例确认 fail 路径；正常发版路径通过
+- [x] 6.1 release.yml 新增 `verify-docs` 前置 job：解析 changelog 最新 `## [vX.Y.Z]`，与 tag 版本比对；纯版本号 tag 强制，含 `-` 跳过；不等 → exit 1
+- [x] 6.2 ci.yml 新增 `docs-consistency` job：比对 `package.json` 版本与 changelog 最新条目，不一致 fail（PR 阶段提醒）
+- [x] 6.3 验证：构造不一致样例确认 fail 路径；正常发版路径通过
 
 ## 7. 规范与文档同步
 
-- [ ] 7.1 更新 `.agents/skills/release/SKILL.md`：固化「先合 changelog、后打 tag」时序 + CI 闸门说明
-- [ ] 7.2 更新 `docs/src/content/docs/guide/development.md`（中英）：发版流程新增 changelog 强制说明与下载页动态版本说明
+- [x] 7.1 更新 `.agents/skills/release/SKILL.md`：固化「先合 changelog、后打 tag」时序 + CI 闸门说明
+- [x] 7.2 更新 `docs/src/content/docs/guide/development.md`（中英）：发版流程新增 changelog 强制说明与下载页动态版本说明
 
 ## 8. 验收
 

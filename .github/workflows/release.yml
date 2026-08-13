@@ -18,8 +18,40 @@ env:
   BIN_NAME: peregrine-tauri
 
 jobs:
+  # 前置闸门（L1 fail）：纯版本号 tag 必须与 changelog 最新条目一致，否则中止发布。
+  # 预发布 tag（含 '-'）跳过（与下方通道判定一致）。不设 [skip-docs] 逃生口：
+  # 紧急热修也需先合 changelog 再打 tag。
+  verify-docs:
+    name: Verify changelog matches tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check changelog latest entry matches tag
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ "$TAG" == *-* ]]; then
+            echo "预发布 tag（含 '-'），跳过 changelog 闸门"
+            exit 0
+          fi
+          CHANGELOG="docs/src/content/docs/guide/changelog.md"
+          # 条目格式约定：## [vX.Y.Z] — <日期>（取首个匹配即最新版本）。
+          LATEST=$(sed -n 's/^## \[\(v[0-9.][^]]*\)\].*/\1/p' "$CHANGELOG" | head -1)
+          if [[ -z "$LATEST" ]]; then
+            echo "::error::$CHANGELOG 中不存在任何 '## [v...]' 条目，请先补充 $TAG 的 changelog 条目"
+            exit 1
+          fi
+          if [[ "$LATEST" != "$TAG" ]]; then
+            echo "::error::tag ($TAG) 与 changelog 最新条目 ($LATEST) 不一致——先合并 changelog 再打 tag"
+            exit 1
+          fi
+          echo "changelog 最新条目 $LATEST 与 tag 一致 ✓"
+
   build:
     name: Build ${{ matrix.target }}
+    needs: verify-docs
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

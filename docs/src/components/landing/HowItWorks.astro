@@ -17,62 +17,19 @@ interface Props {
 const { steps } = Astro.props;
 ---
 
-<ol class="hw-grid not-content" data-pagefind-ignore>
+<ol class="hw-grid not-content m-0 grid list-none grid-cols-1 gap-8 p-0 lg:grid-cols-3 lg:gap-10" data-pagefind-ignore>
   {
     steps.map((step, i) => (
-      <li class="hw-step">
-        <span class="hw-index" aria-hidden="true">
+      <li class="hw-step border-t border-solid border-(--sl-color-hairline) pt-5">
+        <span
+          class="hw-index font-mono text-[0.8125rem] font-semibold tracking-[0.12em] text-accent-600 tabular-nums dark:text-accent-200"
+          aria-hidden="true"
+        >
           {String(i + 1).padStart(2, '0')}
         </span>
-        <h3 class="hw-title">{step.title}</h3>
-        <p class="hw-details">{step.details}</p>
+        <h3 class="hw-title mt-2 mb-1.5 text-lg font-semibold text-gray-900 dark:text-white">{step.title}</h3>
+        <p class="hw-details m-0 text-sm leading-[1.65] text-gray-700 dark:text-gray-300">{step.details}</p>
       </li>
     ))
   }
 </ol>
-
-<style>
-  .hw-grid {
-    display: grid;
-    gap: 2rem;
-    grid-template-columns: 1fr;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    counter-reset: none;
-  }
-
-  @media (min-width: 64rem) {
-    .hw-grid {
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2.5rem;
-    }
-  }
-
-  .hw-step {
-    border-top: 1px solid var(--sl-color-hairline);
-    padding-top: 1.25rem;
-  }
-
-  .hw-index {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    color: var(--sl-color-text-accent);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .hw-title {
-    margin: 0.5rem 0 0.375rem;
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--sl-color-white);
-  }
-
-  .hw-details {
-    margin: 0;
-    font-size: 0.875rem;
-    line-height: 1.65;
-    color: var(--sl-color-gray-2);
-  }
-</style>

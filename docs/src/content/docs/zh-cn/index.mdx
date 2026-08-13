@@ -15,12 +15,14 @@ hero:
       variant: secondary
 ---
 
+import SectionHeading from '../../../components/landing/SectionHeading.astro';
+import Reveal from '../../../components/landing/Reveal.astro';
 import FeatureGrid from '../../../components/landing/FeatureGrid.astro';
 import HowItWorks from '../../../components/landing/HowItWorks.astro';
 import DownloadCta from '../../../components/landing/DownloadCta.astro';
 
-<section class="lp-section">
-  <h2 class="lp-heading">保持方向感所需的一切</h2>
+<section class="lp-section" data-reveal>
+  <SectionHeading index="01" label="保持方向感所需的一切" />
   <FeatureGrid features={[
     { icon: 'overlay', title: '透明置顶覆盖层', details: '点击穿透的覆盖层直接绘制在游戏画面上，不抢焦点、不干扰操作。' },
     { icon: 'follow', title: '目标窗口跟随', details: '锁定游戏窗口并随之移动，锚点始终停留在你设定的位置。' },
@@ -31,8 +33,8 @@ import DownloadCta from '../../../components/landing/DownloadCta.astro';
   ]} />
 </section>
 
-<section class="lp-section">
-  <h2 class="lp-heading">几分钟即可上手</h2>
+<section class="lp-section" data-reveal>
+  <SectionHeading index="02" label="几分钟即可上手" />
   <HowItWorks steps={[
     { title: '下载安装', details: '获取 Windows x64、x86 或 ARM64 的 NSIS 安装包并运行。' },
     { title: '选择游戏窗口', details: '在设置面板中选定目标窗口，启动覆盖层。' },
@@ -40,10 +42,13 @@ import DownloadCta from '../../../components/landing/DownloadCta.astro';
   ]} />
 </section>
 
-<section class="lp-section">
+<section class="lp-section" data-reveal>
+  <SectionHeading index="03" label="下载" />
   <DownloadCta
     label="下载"
     note="适用于 Windows 10/11 的 NSIS 安装包。"
     releasesText="全部版本"
   />
 </section>
+
+<Reveal />

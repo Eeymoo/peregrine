@@ -14,6 +14,30 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
+/* 落地页滚入揭示（aukcraft 家族签名元素 4，D10）：
+ * html.js 门控保证无 JS 时内容常显可读；600ms rise + IntersectionObserver 逐区块触发；
+ * reduced-motion 下全量塌缩。 */
+html.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 600ms ease-out,
+    transform 600ms ease-out;
+}
+
+html.js [data-reveal].is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.js [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
 @theme {
   /* 品牌蓝 = Tailwind blue 色阶，主色 #2563EB（blue-600，见 assets/gen_icon.py）。
    * Starlight 原生消费 --color-accent-* 用于链接、导航高亮等 UI 场景。 */
@@ -41,6 +65,24 @@
   --color-gray-800: var(--color-zinc-800);
   --color-gray-900: var(--color-zinc-900);
   --color-gray-950: var(--color-zinc-950);
+
+  /* 断点对齐：Starlight 的 md 断点为 50rem（starlight/style/util.css），
+   * Tailwind 默认 md 为 48rem；此处对齐使 hidden md:flex 与 sl-hidden md:sl-flex 语义等价（D3）。 */
+  --breakpoint-md: 50rem;
+
+  /* 入场渐显动效 token（D6）：LandingHero 文案/截图入场，reduced-motion 由组件侧塌缩块豁免。 */
+  --animate-rise: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
   /* 语义化别名：landing 组件使用 brand-* 表达"品牌色"意图，与 accent 同阶。 */
   --color-brand-50: var(--color-blue-50);

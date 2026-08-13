@@ -6,6 +6,10 @@
  * 三架构按钮指向站内下载页（/download，决策 D5），由下载页承接架构选择与加速通道，
  * 不再直链 GitHub 资产（此前 latest/download/ 精确匹配产物名带版本号，全部 404）。
  * 图标来自 lucide-static（与主应用 lucide-react 同源）。文案由 MDX 以 props 传入。
+ *
+ * 样式为 Tailwind 工具类（twcss-migration change）；现代化项：
+ * 1. CTA 架构词改 mono 微标签形态（uppercase + 宽字距，D10 签名元素 2）；
+ * 2. CTA :active 下压触感（hover -1px 浮起 → active 归位，motion-reduce 塌缩）。
  */
 import { lucideIcon } from '../../lib/icons';
 import { localeBase } from '../../lib/locale';
@@ -34,97 +38,29 @@ const artifacts = [
 const downloadIcon = lucideIcon('Download');
 ---
 
-<div class="dl-block not-content" data-pagefind-ignore>
-  <div class="dl-buttons">
+<div class="dl-block not-content border-t border-(--sl-color-hairline) pt-10 text-center" data-pagefind-ignore>
+  <div class="dl-buttons flex flex-wrap justify-center gap-3">
     {
       artifacts.map((a) => (
-        <a class="dl-button" href={a.href}>
-          <span class="dl-icon" aria-hidden="true" set:html={downloadIcon} />
-          {label} {a.arch}
+        <a
+          class="dl-button inline-flex items-center gap-2 rounded-full border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-[1.375rem] py-2.5 text-[0.9375rem] font-semibold text-gray-900 no-underline transition-[border-color,transform] duration-200 ease-out hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--color-accent-500)_55%,transparent)] active:translate-y-0 motion-reduce:transition-none motion-reduce:hover:transform-none dark:text-white"
+          href={a.href}
+        >
+          <span class="dl-icon inline-flex text-accent-600 dark:text-accent-200 [&_svg]:size-4" aria-hidden="true" set:html={downloadIcon} />
+          {label}
+          <span class="dl-arch font-mono text-[0.8125rem] font-medium tracking-[0.15em] uppercase">{a.arch}</span>
         </a>
       ))
     }
   </div>
-  <p class="dl-note">
+  <p class="dl-note mt-5 mb-0 text-sm text-gray-700 dark:text-gray-300">
     {note}
-    <a class="dl-releases" href={RELEASES} rel="noopener">{releasesText}</a>
+    <a
+      class="dl-releases ms-1.5 text-accent-600 underline decoration-[color-mix(in_srgb,currentColor_40%,transparent)] underline-offset-[0.18em] transition-[text-decoration-color] duration-150 hover:decoration-current dark:text-accent-200"
+      href={RELEASES}
+      rel="noopener"
+    >
+      {releasesText}
+    </a>
   </p>
 </div>
-
-<style>
-  .dl-block {
-    border-top: 1px solid var(--sl-color-hairline);
-    padding-top: 2.5rem;
-    text-align: center;
-  }
-
-  .dl-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.75rem;
-  }
-
-  .dl-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.375rem;
-    border-radius: 999px;
-    border: 1px solid var(--sl-color-hairline);
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--sl-color-white);
-    background: var(--sl-color-bg-sidebar);
-    text-decoration: none;
-    transition:
-      border-color 200ms ease,
-      transform 200ms ease;
-  }
-
-  .dl-button:hover {
-    border-color: color-mix(in srgb, var(--color-accent-500) 55%, transparent);
-    transform: translateY(-1px);
-  }
-
-  .dl-button:active {
-    transform: translateY(0);
-  }
-
-  .dl-button .dl-icon {
-    display: inline-flex;
-    color: var(--sl-color-text-accent);
-  }
-
-  .dl-button .dl-icon :global(svg) {
-    width: 1rem;
-    height: 1rem;
-  }
-
-  .dl-note {
-    margin: 1.25rem 0 0;
-    font-size: 0.875rem;
-    color: var(--sl-color-gray-2);
-  }
-
-  .dl-releases {
-    margin-inline-start: 0.375rem;
-    color: var(--sl-color-text-accent);
-    text-decoration: underline;
-    text-underline-offset: 0.18em;
-    text-decoration-color: color-mix(in srgb, var(--sl-color-text-accent) 40%, transparent);
-  }
-
-  .dl-releases:hover {
-    text-decoration-color: var(--sl-color-text-accent);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .dl-button {
-      transition: none;
-    }
-    .dl-button:hover {
-      transform: none;
-    }
-  }
-</style>

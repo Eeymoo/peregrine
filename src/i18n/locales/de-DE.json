@@ -85,7 +85,7 @@
     "none": "(keins)",
     "startOverlay": "Overlay starten",
     "stopOverlay": "Overlay stoppen",
-    "invalidFormat": "Ungültiges Konfigurationsformat",
+    "emptyLayers": "Keine Anker zum Anzeigen. Wechsle zum Ebenen-Editor, um einen hinzuzufügen",
     "switchToLayersFallback": "Zum Ebenen-Editor wechseln",
     "startOverlayNoContent": "Overlay kann nicht gestartet werden: keine sichtbaren Ebenen (bitte zuerst eine Ebene hinzufügen oder einblenden)"
   },

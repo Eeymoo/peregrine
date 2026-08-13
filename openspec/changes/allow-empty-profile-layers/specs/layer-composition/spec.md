@@ -104,6 +104,26 @@ overlay 运行期间，活跃 Profile MUST 始终保持至少 1 个可见图层�
 - **THEN** 前端 SHALL toast 显示错误信息
 - **AND** 不触发 `unhandledrejection` 事件（不产生 PGR-3003 上报）
 
+### Requirement: 空锚点状态下编辑器可达且可恢复
+
+活跃 Profile 无 crosshair 且无图层时，配置编辑器 SHALL NOT 将该状态判定为「配置格式异常」：
+
+- 多图层模式 SHALL 正常渲染图层编辑器（空图层列表 + 「添加图层」入口），不拦截。
+- 单图层模式 SHALL 显示空态提示（非错误文案）与「切换到图层编辑器」入口，该入口 MUST 实际生效（切换后离开提示页）。
+- 「开始覆盖」按既有需求禁用（无法遮盖，而非报错死循环）。
+
+#### Scenario: 删光图层后停留在图层编辑器
+
+- **WHEN** 多图层模式下用户删除最后一个图层
+- **THEN** 图层编辑器 SHALL 保持可用（空态列表 + 添加入口）
+- **AND** SHALL NOT 出现「配置格式异常」提示页
+
+#### Scenario: 单图层模式空态可恢复
+
+- **WHEN** 活跃 Profile 无 crosshair 且无图层，且当前为单图层模式
+- **THEN** 页面显示空态提示与切换入口
+- **AND** 点击切换入口后进入图层编辑器（不再回到提示页）
+
 ## MODIFIED Requirements
 
 ### Requirement: 图层操作通过 Tauri commands 暴露

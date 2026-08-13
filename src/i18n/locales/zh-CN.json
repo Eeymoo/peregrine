@@ -85,7 +85,7 @@
     "none": "（未选择）",
     "startOverlay": "开始覆盖",
     "stopOverlay": "停止覆盖",
-    "invalidFormat": "配置格式异常",
+    "emptyLayers": "当前没有可显示的锚点，可切换到图层编辑器添加",
     "switchToLayersFallback": "切换到图层编辑器",
     "startOverlayNoContent": "无法开始覆盖：没有可见图层（请先添加或显示一个图层）"
   },

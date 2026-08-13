@@ -85,7 +85,7 @@
     "none": "（なし）",
     "startOverlay": "オーバーレイ開始",
     "stopOverlay": "オーバーレイ停止",
-    "invalidFormat": "設定形式が無効です",
+    "emptyLayers": "表示できるアンカーがありません。レイヤーエディタに切り替えて追加してください",
     "switchToLayersFallback": "レイヤーエディタに切り替え",
     "startOverlayNoContent": "オーバーレイを開始できません：表示可能なレイヤーがありません（先にレイヤーを追加または表示してください）"
   },

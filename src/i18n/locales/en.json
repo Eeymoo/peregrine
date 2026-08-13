@@ -85,7 +85,7 @@
     "none": "(none)",
     "startOverlay": "Start overlay",
     "stopOverlay": "Stop overlay",
-    "invalidFormat": "Invalid config format",
+    "emptyLayers": "No anchors to display. Switch to the layers editor to add one",
     "switchToLayersFallback": "Switch to Layer Editor",
     "startOverlayNoContent": "Cannot start overlay: no visible layers (add a layer or show one first)"
   },

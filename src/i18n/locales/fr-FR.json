@@ -85,7 +85,7 @@
     "none": "(aucun)",
     "startOverlay": "Démarrer l'overlay",
     "stopOverlay": "Arrêter l'overlay",
-    "invalidFormat": "Format de configuration invalide",
+    "emptyLayers": "Aucune ancre à afficher. Passez à l'éditeur de calques pour en ajouter une",
     "switchToLayersFallback": "Basculer vers l'éditeur de calques",
     "startOverlayNoContent": "Impossible de démarrer l'overlay : aucun calque visible (ajoutez ou affichez d'abord un calque)"
   },

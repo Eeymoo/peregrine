@@ -24,6 +24,7 @@
 - [x] 4.2 `LayerPanel.tsx`：overlay 活动中禁用「最后可见图层」的删除按钮与可见性切换按钮 + tooltip 说明原因
 - [x] 4.3 开始覆盖按钮：活跃 profile 可见图层数为 0 且无 crosshair 时禁用 + tooltip（`useOverlayActions.handleStartOverlay` 同步前置 return 兜底）
 - [x] 4.4 `LayerPanel.tsx` 各 handler（handleDelete / handleDuplicate / handleMove / handleToggleVisible / handleToggleLock）补 `.catch(() => {})`，消除 unhandled rejection（invoke 包装已负责 toast）
+- [x] 4.5 `ConfigApp.tsx`：修正空锚点早退拦截——`!crosshair && !hasLayers` 仅在单图层模式拦截（提示页 + 生效的切换入口），多图层模式放行至图层编辑器空态；「配置格式异常」文案改为空态提示（`config.emptyLayers`，6 语）
 
 ## 5. i18n 与文案
 
@@ -36,3 +37,4 @@
 - [x] 6.2 `cargo clippy -p peregrine_config -- -D warnings` 与 `cargo fmt --check` 通过
 - [x] 6.3 `npm run build`（tsc 类型检查 + vite build）通过
 - [x] 6.4 手动复现原事故链：多图层模式删除最后一个图层 → 成功且无 unhandled rejection；空图层点开始覆盖 → 按钮禁用/后端 Err；渲染中删/隐最后可见层 → 按钮禁用/后端 Err
+- [x] 6.5 复现「配置格式异常死循环」：删光图层 → 多图层模式直接呈现图层编辑器空态；单图层模式显示空态提示，切换按钮生效离开提示页

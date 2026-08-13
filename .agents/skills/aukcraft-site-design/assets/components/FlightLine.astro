@@ -1,0 +1,18 @@
+---
+interface Props {
+  /** CSS duration for one full perimeter travel, e.g. 'var(--motion-line-card)' */
+  duration?: string;
+}
+
+const { duration } = Astro.props;
+---
+
+<svg
+  class="flight-line"
+  style={duration ? `--fl-duration: ${duration}` : undefined}
+  aria-hidden="true"
+  focusable="false"
+>
+  <rect class="flight-line__ring" pathLength="1"></rect>
+  <rect class="flight-line__trace" pathLength="1"></rect>
+</svg>

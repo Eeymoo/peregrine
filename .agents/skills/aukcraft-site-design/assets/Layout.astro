@@ -1,0 +1,83 @@
+---
+import '@fontsource-variable/inter';
+import '@fontsource-variable/newsreader/wght-italic.css';
+import '@fontsource/jetbrains-mono/400.css';
+import '@fontsource/jetbrains-mono/500.css';
+import DotField from '../components/DotField.astro';
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+  lang?: 'en' | 'zh';
+  noindex?: boolean;
+}
+
+const { lang = 'en', noindex = false } = Astro.props;
+const zh = lang === 'zh';
+
+const {
+  title = zh ? 'aukcraft — 架构即工艺。' : 'aukcraft — Craft the architecture.',
+  description = zh
+    ? '一个小而精的开源团队，以模块化思维构建可复用的基础设施——配以刻意轻量的技术栈。'
+    : 'A small open-source team building modular, reusable infrastructure — with a deliberately lightweight stack.',
+} = Astro.props;
+
+const canonical = zh ? 'https://aukcraft.org/zh/' : 'https://aukcraft.org/';
+---
+
+<!doctype html>
+<html lang={zh ? 'zh-CN' : 'en'}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="color-scheme" content="dark" />
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="en" href="https://aukcraft.org/" />
+    <link rel="alternate" hreflang="zh-CN" href="https://aukcraft.org/zh/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="aukcraft" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content={zh ? 'zh_CN' : 'en_US'} />
+    <meta property="og:image" content="https://aukcraft.org/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:image" content="https://aukcraft.org/og-image.png" />
+    <script is:inline>
+      document.documentElement.classList.add('js');
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500&family=Noto+Serif+SC:wght@600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-base font-sans text-ink antialiased">
+    <a href="#main" class="skip-link">{zh ? '跳到主要内容' : 'Skip to content'}</a>
+    <DotField />
+    <div class="noise" aria-hidden="true"></div>
+    <slot />
+    <script>
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              io.unobserve(entry.target);
+            }
+          }
+        },
+        { threshold: 0.15 }
+      );
+      document.querySelectorAll('[data-reveal]').forEach((el) => io.observe(el));
+    </script>
+  </body>
+</html>

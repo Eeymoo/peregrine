@@ -1,0 +1,145 @@
+---
+/**
+ * HeroCanvas — "AUKCRAFT" letterforms rendered as a dot matrix.
+ * Dots are hollow rings by default; they turn solid teal near the cursor
+ * (distance-falloff), and an idle wave periodically sweeps through.
+ * Rings are pre-rendered to an offscreen layer; each frame only paints fills.
+ */
+---
+
+<canvas
+  id="hero-canvas"
+  class="pointer-events-none absolute inset-0 h-full w-full"
+  aria-hidden="true"></canvas>
+
+<script>
+  const canvas = document.getElementById('hero-canvas');
+  if (canvas instanceof HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const TEAL = '20, 184, 166';
+      const INK = '237, 237, 237';
+      const DOT_R = 3; // ring radius
+      const CURSOR_R = 150; // cursor influence radius
+      const WAVE_MS = 7000; // idle wave period
+      const WAVE_W = 110; // wave half-width
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+      let dots = [];
+      let ringsLayer = null;
+      let w = 0;
+      let h = 0;
+      let raf = 0;
+      let inView = false;
+      const mouse = { x: -1e4, y: -1e4 };
+
+      function build() {
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width < 2 || rect.height < 2) return;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = rect.width;
+        h = rect.height;
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Sample AUKCRAFT letterforms into dot coordinates.
+        const off = document.createElement('canvas');
+        off.width = Math.round(w);
+        off.height = Math.round(h);
+        const octx = off.getContext('2d');
+        if (!octx) return;
+        const text = 'AUKCRAFT';
+        const family = '"Inter Variable", Inter, "Noto Sans SC", system-ui, sans-serif';
+        octx.font = `900 100px ${family}`;
+        const fontSize = (100 * (w * 0.92)) / octx.measureText(text).width;
+        octx.font = `900 ${fontSize}px ${family}`;
+        octx.textBaseline = 'middle';
+        octx.fillStyle = '#fff';
+        octx.fillText(text, (w - octx.measureText(text).width) / 2, h * 0.52);
+
+        const img = octx.getImageData(0, 0, off.width, off.height).data;
+        const step = Math.max(8, Math.round(fontSize / 13));
+        dots = [];
+        for (let y = step / 2; y < h; y += step) {
+          for (let x = step / 2; x < w; x += step) {
+            if (img[(Math.floor(y) * off.width + Math.floor(x)) * 4 + 3] > 120) {
+              dots.push({ x, y });
+            }
+          }
+        }
+
+        // Pre-render hollow rings once.
+        ringsLayer = document.createElement('canvas');
+        ringsLayer.width = canvas.width;
+        ringsLayer.height = canvas.height;
+        const rctx = ringsLayer.getContext('2d');
+        if (!rctx) return;
+        rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        rctx.strokeStyle = `rgba(${INK}, 0.14)`;
+        rctx.lineWidth = 1;
+        for (const d of dots) {
+          rctx.beginPath();
+          rctx.arc(d.x, d.y, DOT_R, 0, Math.PI * 2);
+          rctx.stroke();
+        }
+      }
+
+      function frame(now) {
+        raf = 0;
+        if (!ringsLayer) return;
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(ringsLayer, 0, 0, w, h);
+
+        const waveX = reduceMotion.matches
+          ? -1e4
+          : ((now % WAVE_MS) / WAVE_MS) * (w + 480) - 240;
+
+        for (const d of dots) {
+          const fill = Math.max(
+            Math.max(0, 1 - Math.hypot(d.x - mouse.x, d.y - mouse.y) / CURSOR_R),
+            Math.max(0, 1 - Math.abs(d.x - waveX) / WAVE_W) * 0.8
+          );
+          if (fill > 0.04) {
+            ctx.fillStyle = `rgba(${TEAL}, ${(fill * 0.85).toFixed(3)})`;
+            ctx.beginPath();
+            ctx.arc(d.x, d.y, DOT_R + fill * 1.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        if (inView) raf = requestAnimationFrame(frame);
+      }
+
+      new IntersectionObserver(([entry]) => {
+        inView = entry.isIntersecting;
+        if (inView && !raf) raf = requestAnimationFrame(frame);
+      }).observe(canvas);
+
+      window.addEventListener(
+        'pointermove',
+        (e) => {
+          const rect = canvas.getBoundingClientRect();
+          mouse.x = e.clientX - rect.left;
+          mouse.y = e.clientY - rect.top;
+        },
+        { passive: true }
+      );
+      document.addEventListener('mouseleave', () => {
+        mouse.x = -1e4;
+        mouse.y = -1e4;
+      });
+
+      let resizeTimer = 0;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(build, 150);
+      });
+
+      build();
+      // Re-sample once the real display font arrives.
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => build());
+      }
+    }
+  }
+</script>

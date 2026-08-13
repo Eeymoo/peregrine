@@ -41,25 +41,25 @@ const ICONS: Record<Feature['icon'], string> = {
 ---
 
 <div
-  class="fg-grid not-content grid grid-cols-1 gap-px overflow-hidden rounded-xl bg-(--sl-color-hairline-light) min-[48rem]:grid-cols-2 lg:grid-cols-4"
+  class="fg-grid not-content grid grid-cols-1 gap-px overflow-hidden rounded bg-(--sl-color-hairline-light) min-[48rem]:grid-cols-2 lg:grid-cols-4"
   data-pagefind-ignore
 >
   {
     features.map((f, i) => (
       <article
         class:list={[
-          'fg-card bg-white p-[1.375rem] transition-colors duration-200 ease-out motion-reduce:transition-none hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700',
+          'fg-card bg-white p-[1.375rem] transition-colors duration-200 ease-out motion-reduce:transition-none hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800',
           // 6 卡节奏：首卡 2 列宽 + 3 卡 → 第二行 2 卡各 2 列宽（仅 lg 4 列网格）。
           i === 0 && 'fg-card-wide lg:col-span-2',
           (i === 4 || i === 5) && 'lg:col-span-2',
         ]}
       >
         <span
-          class="fg-icon inline-flex rounded-lg bg-[color-mix(in_srgb,var(--color-accent-500)_12%,transparent)] p-2 text-accent-600 dark:text-accent-200 [&_svg]:size-5"
+          class="fg-icon inline-flex rounded bg-[color-mix(in_srgb,var(--color-accent-500)_12%,transparent)] p-2 text-accent-600 dark:text-accent-200 [&_svg]:size-5"
           aria-hidden="true"
           set:html={ICONS[f.icon]}
         />
-        <h3 class="fg-title mt-3.5 mb-1.5 text-base leading-[1.4] font-semibold text-gray-900 dark:text-white">{f.title}</h3>
+        <h3 class="fg-title mt-3.5 mb-1.5 text-base leading-[1.4] font-semibold text-gray-900 dark:text-gray-50">{f.title}</h3>
         <p class="fg-details m-0 text-sm leading-[1.65] text-gray-700 dark:text-gray-300">{f.details}</p>
       </article>
     ))

@@ -111,6 +111,19 @@ for (const theme of ['dark', 'light']) {
         themeToggle: !!q('starlight-theme-select, [data-theme-toggle], starlight-theme-select'),
         // Hero 首屏可见性：CTA 在 900px 视口内
         ctaInViewport: (() => { const a = q('.lh-actions a'); return a && a.getBoundingClientRect().bottom <= 900; })(),
+        // aukcraft 壳层断言（docs-aukcraft-shell，D3/D4/D5/D6/D8/D10）
+        dotField: !!q('#dot-field'),
+        noise: !!q('.noise'),
+        bodyBg: cs('body', ['backgroundColor'])?.backgroundColor,
+        emFont: (() => { const e = q('.lh-title em'); return e ? getComputedStyle(e).fontFamily : null; })(),
+        dlButtonPrimaryColor: cs('.dl-button', ['color'])?.color,
+        // 落地页关键容器圆角 + 阴影采样（D3/D4：≤4px + 零阴影）
+        landingRadii: ['.lh-frame', '.dl-button', '.fg-icon', '.lh-actions a'].map((s) => {
+          const el = q(s); return el ? { s, r: getComputedStyle(el).borderRadius } : null;
+        }),
+        landingShadows: ['.lh-frame', '.dl-button', '.fg-card', '.fg-grid', '.sh-rule'].map((s) => {
+          const el = q(s); return el ? { s, sh: getComputedStyle(el).boxShadow } : null;
+        }),
       };
     });
     const t = `${theme}/${name}`;
@@ -127,13 +140,13 @@ for (const theme of ['dark', 'light']) {
     );
     check(
       `${t} 截图框样式`,
-      r.lhFrame?.borderRadius === '12px' && r.lhFrame?.borderWidth === '1px' && r.lhFrame?.transitionProperty?.includes('transform'),
+      r.lhFrame?.borderRadius === '4px' && r.lhFrame?.borderWidth === '1px',
       JSON.stringify(r.lhFrame),
     );
     const frameHover = await page.locator('.lh-frame').hover().then(() =>
-      page.evaluate(() => getComputedStyle(document.querySelector('.lh-frame')).translate),
+      page.evaluate(() => getComputedStyle(document.querySelector('.lh-frame')).boxShadow),
     );
-    check(`${t} 截图框 hover 微浮起`, frameHover === '0px -2px', frameHover);
+    check(`${t} 截图框 hover 静态零阴影`, frameHover === 'none', frameHover);
     check(`${t} 截图引用本地资产`, r.shotSrc === '/img/screenshots/settings-layers.png', r.shotSrc);
     check(`${t} 截图加载成功`, r.shotLoaded === true);
     check(`${t} 桌面双列 hero 网格`, r.gridCols === 2, String(r.gridCols));
@@ -142,8 +155,8 @@ for (const theme of ['dark', 'light']) {
     check(`${t} 三步上手`, r.steps === 3, String(r.steps));
     // HowItWorks 计算样式（twcss 迁移锁，与主题相关的颜色按主题断言）
     const hwIdxExpect = theme === 'dark' ? 'oklch(0.882 0.059 254.128)' : 'oklch(0.546 0.245 262.881)';
-    const hwTitleExpect = theme === 'dark' ? 'rgb(255, 255, 255)' : 'oklch(0.21 0.006 285.885)';
-    const hwDetailsExpect = theme === 'dark' ? 'oklch(0.871 0.006 286.286)' : 'oklch(0.37 0.013 285.805)';
+    const hwTitleExpect = theme === 'dark' ? 'rgb(245, 247, 249)' : 'rgb(20, 24, 29)';
+    const hwDetailsExpect = theme === 'dark' ? 'rgb(198, 207, 215)' : 'rgb(69, 78, 90)';
     check(
       `${t} hw 网格结构`,
       r.hwGrid?.display === 'grid' &&
@@ -179,7 +192,7 @@ for (const theme of ['dark', 'light']) {
     );
     // Section 4 断言：SectionHeading / hairline 网格 / CTA mono 微标签 / 滚入揭示
     const accentText = theme === 'dark' ? 'oklch(0.882 0.059 254.128)' : 'oklch(0.546 0.245 262.881)';
-    const headingText = theme === 'dark' ? 'rgb(255, 255, 255)' : 'oklch(0.21 0.006 285.885)';
+    const headingText = theme === 'dark' ? 'rgb(245, 247, 249)' : 'rgb(20, 24, 29)';
     check(`${t} SectionHeading ×3`, r.sh === 3, String(r.sh));
     check(
       `${t} SectionHeading 序号 mono 微标签`,
@@ -207,8 +220,8 @@ for (const theme of ['dark', 'light']) {
       JSON.stringify(r.fgIcon),
     );
     check(
-      `${t} CTA mono 微标签 + pill`,
-      r.dlArch?.fontFamily?.includes('mono') && r.dlArch?.textTransform === 'uppercase' && parseFloat(r.dlButton?.borderRadius) > 1e6,
+      `${t} CTA mono 微标签 + 方形描边`,
+      r.dlArch?.fontFamily?.includes('mono') && r.dlArch?.textTransform === 'uppercase' && r.dlButton?.borderRadius === '4px',
       JSON.stringify({ dlArch: r.dlArch, dlButton: r.dlButton }),
     );
     check(
@@ -236,8 +249,44 @@ for (const theme of ['dark', 'light']) {
       JSON.stringify(r.headerNav),
     );
     check(`${t} 顶栏保留`, r.topbar === true);
+    // aukcraft 壳层断言（docs-aukcraft-shell）
+    check(`${t} DotField 点阵背景`, r.dotField === true);
+    check(`${t} 胶片颗粒 overlay`, r.noise === true);
+    const bgExpect = theme === 'dark' ? 'rgb(11, 14, 17)' : 'rgb(245, 247, 249)';
+    check(`${t} 页面底色蓝调近黑/近白`, r.bodyBg === bgExpect, r.bodyBg);
+    check(
+      `${t} Hero serif-italic 强调`,
+      !!r.emFont && (name === 'zh' ? /Songti|Noto Serif CJK|Source Han Serif/.test(r.emFont) : r.emFont.includes('Newsreader')),
+      r.emFont,
+    );
+    check(
+      `${t} 落地页容器圆角 ≤4px`,
+      r.landingRadii?.every((x) => x && parseFloat(x.r) <= 4),
+      JSON.stringify(r.landingRadii),
+    );
+    check(
+      `${t} 落地页容器零阴影`,
+      r.landingShadows?.every((x) => !x || x.sh === 'none'),
+      JSON.stringify(r.landingShadows),
+    );
+    if (theme === 'dark') {
+      // 暗色 CTA primary 文字对比度 ≥4.5:1（D6：accent-400 亮阶）。
+      const lum = (rgb) => {
+        const m = rgb.match(/\d+/g);
+        if (!m) return 0;
+        const [R, G, B] = m.map((n) => {
+          const s = n / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+      };
+      const fg = lum(r.dlButtonPrimaryColor);
+      const bg = lum(r.bodyBg);
+      const contrast = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+      check(`${t} 暗色 CTA primary 对比度 ≥4.5:1`, contrast >= 4.5, contrast.toFixed(2));
+    }
     // Header 导航区计算样式（twcss 迁移锁）
-    const hnLinkColor = theme === 'dark' ? 'oklch(0.871 0.006 286.286)' : 'oklch(0.37 0.013 285.805)';
+    const hnLinkColor = theme === 'dark' ? 'rgb(198, 207, 215)' : 'rgb(69, 78, 90)';
     check(
       `${t} 导航容器`,
       r.hnNav?.display === 'flex' && r.hnNav?.alignItems === 'center' && r.hnNav?.gap === '20px' && r.hnNav?.marginInlineStart === '24px',
@@ -379,11 +428,11 @@ for (const theme of ['dark', 'light']) {
       check(`${t} 下载链接存在`, r.dlLinks > 0, String(r.dlLinks));
       check(`${t} 可见行 ≥3`, r.visibleRows >= 3, String(r.visibleRows));
       check(`${t} 查看更多版本 → Releases`, r.more === 'https://github.com/Eeymoo/peregrine/releases', r.more);
-      // DownloadTable 迁移断言（Section 6）：pill 形态 / aria-pressed active 态 / 链接样式
+      // DownloadTable 迁移断言（Section 6）：方形描边形态 / aria-pressed active 态 / 链接样式
       const accentDl = theme === 'dark' ? 'oklch(0.882 0.059 254.128)' : 'oklch(0.546 0.245 262.881)';
       check(
-        `${t} 通道/筛选按钮 pill 形态`,
-        r.dtTab && parseFloat(r.dtTab.borderRadius) > 1e6 && r.dtTab.fontSize === '14px' && r.dtTab.transitionProperty?.includes('border-color'),
+        `${t} 通道/筛选按钮方形描边`,
+        r.dtTab && r.dtTab.borderRadius === '4px' && r.dtTab.fontSize === '14px' && r.dtTab.transitionProperty?.includes('border-color'),
         JSON.stringify(r.dtTab),
       );
       check(
@@ -397,8 +446,8 @@ for (const theme of ['dark', 'light']) {
         JSON.stringify(r.dtDl),
       );
       check(
-        `${t} 查看更多按钮 pill 形态`,
-        r.dtMoreLink && parseFloat(r.dtMoreLink.borderRadius) > 1e6 && r.dtMoreLink.fontWeight === '600',
+        `${t} 查看更多按钮方形描边`,
+        r.dtMoreLink && r.dtMoreLink.borderRadius === '4px' && r.dtMoreLink.fontWeight === '600',
         JSON.stringify(r.dtMoreLink),
       );
     }

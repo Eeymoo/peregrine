@@ -47,23 +47,27 @@ for (const theme of ['dark', 'light']) {
       return {
         lineHeight: cs('.sl-markdown-content', ['lineHeight'])?.lineHeight,
         h2Border: cs('.sl-markdown-content h2', ['borderBottomWidth'])?.borderBottomWidth,
-        inlineCode: cs('.sl-markdown-content :not(pre) > code', ['borderRadius', 'backgroundColor']),
+        inlineCode: cs('.sl-markdown-content :not(pre) > code', ['borderRadius', 'backgroundColor', 'boxShadow']),
         thead: cs('.sl-markdown-content thead', ['backgroundColor'])?.backgroundColor,
-        tableRadius: cs('.sl-markdown-content table', ['borderRadius'])?.borderRadius,
-        aside: cs('.starlight-aside', ['borderRadius', 'borderInlineStartWidth']),
+        table: cs('.sl-markdown-content table', ['borderRadius', 'boxShadow']),
+        codeBlock: cs('.sl-markdown-content .expressive-code .frame', ['borderRadius', 'boxShadow']),
+        aside: cs('.starlight-aside', ['borderRadius', 'borderInlineStartWidth', 'boxShadow']),
         linkDeco: cs('.sl-markdown-content p a', ['textDecorationLine', 'textUnderlineOffset']),
         bodyText: cs('.sl-markdown-content p', ['color'])?.color,
         pageBg: cs('body', ['backgroundColor'])?.backgroundColor,
         sidebarCurrent: cs('.sidebar-content a[aria-current="page"]', ['borderInlineStartWidth']),
+        sidebarPillRadius: cs('.sidebar-content a', ['borderRadius'])?.borderRadius,
       };
     });
     const t = `${theme}/${name}`;
     check(`${t} 正文行高 1.75`, r.lineHeight?.endsWith('px') && Math.abs(parseFloat(r.lineHeight) / parseFloat(r.bodyTextSize || 16) - 1.75) < 0.3 || r.lineHeight === '28px', r.lineHeight);
     check(`${t} h2 底部发丝线`, r.h2Border === '1px', r.h2Border);
-    check(`${t} 行内代码圆角+底色`, r.inlineCode?.borderRadius === '6px' && r.inlineCode?.backgroundColor !== 'rgba(0, 0, 0, 0)' && r.inlineCode?.backgroundColor !== 'transparent', JSON.stringify(r.inlineCode));
+    check(`${t} 行内代码 2px 圆角+底色+零阴影`, r.inlineCode?.borderRadius === '2px' && r.inlineCode?.backgroundColor !== 'rgba(0, 0, 0, 0)' && r.inlineCode?.backgroundColor !== 'transparent' && r.inlineCode?.boxShadow === 'none', JSON.stringify(r.inlineCode));
     check(`${t} 表头底色`, !!r.thead && r.thead !== 'rgba(0, 0, 0, 0)' && r.thead !== 'transparent', r.thead);
-    check(`${t} 表格圆角`, r.tableRadius === '12px', r.tableRadius);
-    check(`${t} 侧边栏当前页强调条`, r.sidebarCurrent?.borderInlineStartWidth === '2px', JSON.stringify(r.sidebarCurrent));
+    check(`${t} 表格 4px 圆角+零阴影`, r.table?.borderRadius === '4px' && r.table?.boxShadow === 'none', JSON.stringify(r.table));
+    check(`${t} 代码块 4px 圆角+零阴影`, r.codeBlock?.borderRadius === '4px' && r.codeBlock?.boxShadow === 'none', JSON.stringify(r.codeBlock));
+    check(`${t} 侧栏当前页强调条`, r.sidebarCurrent?.borderInlineStartWidth === '2px', JSON.stringify(r.sidebarCurrent));
+    check(`${t} 侧栏 pill ≤4px`, parseFloat(r.sidebarPillRadius) <= 4, r.sidebarPillRadius);
     await ctx.close();
   }
   // aside / 正文链接在 usage 页校验（config 页不含这两种元素）。
@@ -79,12 +83,12 @@ for (const theme of ['dark', 'light']) {
         return Object.fromEntries(props.map((p) => [p, s[p]]));
       };
       return {
-        aside: cs('.starlight-aside', ['borderRadius', 'borderInlineStartWidth']),
+        aside: cs('.starlight-aside', ['borderRadius', 'borderInlineStartWidth', 'boxShadow']),
         linkDeco: cs('.sl-markdown-content p a, .sl-markdown-content li a', ['textDecorationLine', 'textUnderlineOffset']),
       };
     });
     const t = `${theme}/${name}`;
-    check(`${t} aside 圆角+强调条`, r.aside?.borderRadius === '12px' && r.aside?.borderInlineStartWidth === '4px', JSON.stringify(r.aside));
+    check(`${t} aside 4px 圆角+强调条+零阴影`, r.aside?.borderRadius === '4px' && r.aside?.borderInlineStartWidth === '4px' && r.aside?.boxShadow === 'none', JSON.stringify(r.aside));
     check(`${t} 链接下划线+偏移`, r.linkDeco?.textDecorationLine?.includes('underline') && r.linkDeco?.textUnderlineOffset !== '0px', JSON.stringify(r.linkDeco));
     // Header 导航 active 态（现代化项 1）：guide 页 Docs 链接应带 aria-current + is-active，下划线常显
     const hnActive = await page.evaluate(() => {
@@ -98,7 +102,7 @@ for (const theme of ['dark', 'light']) {
         underlineScale: underline ? getComputedStyle(underline).scale : null,
       };
     });
-    const expectActiveColor = theme === 'dark' ? 'rgb(255, 255, 255)' : 'oklch(0.21 0.006 285.885)';
+    const expectActiveColor = theme === 'dark' ? 'rgb(245, 247, 249)' : 'rgb(20, 24, 29)';
     check(
       `${t} 导航 active 态（Docs 当前页）`,
       hnActive?.aria === 'page' &&

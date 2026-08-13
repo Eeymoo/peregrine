@@ -1,12 +1,20 @@
 /**
- * Starlight 文档页精修
+ * Starlight 文档页精修（aukcraft 壳层版，docs-aukcraft-shell）
  *
- * 只通过 CSS 变量与 .sl-markdown-content 选择器校准排版与配色层次，
- * 不覆写任何 Starlight 组件（Hero 除外，见 astro.config.mjs）。
- * 色值一律引用 global.css @theme 中的 token（var(--color-*)），禁止手写十六进制。
+ * 只通过 CSS 变量与 .sl-markdown-content / 控件内部 class 选择器校准排版与配色层次，
+ * 不覆写任何 Starlight 组件（Hero / Header 除外，见 astro.config.mjs）。
+ * 色值一律引用 global.css @theme 中的 token（var(--color-*)）或 --sl-color-* 语义变量，
+ * 禁止手写十六进制。
  *
- * 圆角体系（全站唯一）：容器级 0.75rem（code block / 表格 / aside），
- * 行内小元素 0.375rem（inline code / kbd / badge）。
+ * 表面语言（全站唯一）：零阴影 + ≤4px 圆角 + hairline 边框分层。
+ * 圆角体系：容器级 4px（code block / 表格 / aside / 控件），行内小元素 2px
+ * （inline code / kbd / badge）。阴影经 global.css 中 --sl-shadow-*: none 全站清零，
+ * 本文件仅对个别可能自带阴影的内容容器做防御性归零。
+ *
+ * 控件覆写维护约定（D7）：每条作用于 Starlight 内部 class 的控件覆写规则，
+ * 注释中标注目标 Starlight 版本与所覆写的内部 class 名；升级 Starlight 时按
+ * 注释清单逐条核对是否仍命中（与 Header.astro 的 diff 工作流同级）。
+ * 当前目标版本：@astrojs/starlight 0.41。
  *
  * 迁移判定（twcss-migration change，D5-3）：本文件全部规则均属豁免清单第 3 条
  * 「Starlight 内部选择器全局润色」——.sl-markdown-content / .sidebar-content /
@@ -52,16 +60,16 @@
 }
 
 /* -----------------------------------------------------------
- * 3. 行内代码与 kbd
+ * 3. 行内代码与 kbd（行内小元素：2px 圆角）
  * --------------------------------------------------------- */
 .sl-markdown-content :not(pre):not(.not-content) > code {
-  border-radius: 0.375rem;
+  border-radius: 2px;
   padding: 0.1em 0.35em;
   font-size: 0.875em;
 }
 
 .sl-markdown-content kbd:not(:where(.not-content *)) {
-  border-radius: 0.375rem;
+  border-radius: 2px;
   border: 1px solid var(--sl-color-hairline);
   border-bottom-width: 2px;
   padding: 0.1em 0.4em;
@@ -70,33 +78,38 @@
 }
 
 /* -----------------------------------------------------------
- * 4. 代码块（Expressive Code 外壳）
+ * 4. 代码块（Expressive Code 外壳）：4px + hairline + 零阴影
  * --------------------------------------------------------- */
 .sl-markdown-content .expressive-code:not(:where(.not-content *)) {
-  border-radius: 0.75rem;
+  border-radius: 4px;
 }
 
 .sl-markdown-content .expressive-code .frame:not(:where(.not-content *)) {
-  border-radius: 0.75rem;
+  border-radius: 4px;
   border: 1px solid var(--sl-color-hairline-light);
+  /* 防御性归零：Expressive Code 主题可能自带阴影。 */
+  box-shadow: none;
 }
 
 /* -----------------------------------------------------------
- * 5. Aside 提示块：圆角 + 左侧强调条（颜色语义保持 Starlight 原定义）
+ * 5. Aside 提示块：4px 圆角 + 左侧强调条 + 零阴影
+ *    （颜色语义保持 Starlight 原定义）
  * --------------------------------------------------------- */
 .sl-markdown-content .starlight-aside:not(:where(.not-content *)) {
-  border-radius: 0.75rem;
+  border-radius: 4px;
   border: 1px solid var(--sl-color-hairline-light);
   border-inline-start: 0.25rem solid var(--sl-color-asides-border);
+  box-shadow: none;
 }
 
 /* -----------------------------------------------------------
- * 6. 表格：圆角容器 + 表头底色 + 行悬停
+ * 6. 表格：4px 圆角容器 + 表头底色 + 行悬停 + 零阴影
  * --------------------------------------------------------- */
 .sl-markdown-content table:not(:where(.not-content *)) {
-  border-radius: 0.75rem;
+  border-radius: 4px;
   overflow: hidden;
   border: 1px solid var(--sl-color-hairline-light);
+  box-shadow: none;
 }
 
 .sl-markdown-content thead:not(:where(.not-content *)) {
@@ -126,7 +139,7 @@
 }
 
 /* -----------------------------------------------------------
- * 8. 全局细节：选中文本 / 焦点环 / 滚动条
+ * 8. 全局细节：选中文本 / 焦点环
  * --------------------------------------------------------- */
 ::selection {
   background: color-mix(in srgb, var(--color-accent-500) 32%, transparent);
@@ -135,21 +148,50 @@
 :focus-visible {
   outline: 2px solid var(--sl-color-text-accent);
   outline-offset: 2px;
-  border-radius: 0.25rem;
+  border-radius: 2px;
 }
 
+/* .flight 元素的焦点反馈由 Flight Line 描边承担（global.css），此处保持通用焦点环。 */
+
 /* -----------------------------------------------------------
- * 9. 侧边栏：当前页品牌色软底 pill，悬停短过渡
+ * 9. 控件覆写：侧栏导航 pill（D7）
+ *    目标：@astrojs/starlight 0.41；内部 class：.sidebar-content a
+ *    升级 Starlight 时核对该选择器是否仍命中。
  * --------------------------------------------------------- */
 .sidebar-content a {
-  border-radius: 0.5rem;
+  border-radius: 4px;
   transition: background-color 150ms ease;
 }
 
 .sidebar-content a[aria-current='page'] {
-  border-radius: 0.5rem;
+  border-radius: 4px;
   border-inline-start: 2px solid var(--sl-color-text-accent);
 }
+
+/* -----------------------------------------------------------
+ * 10. 控件覆写：搜索框 / 主题切换（D7）
+ * --------------------------------------------------------- */
+
+/* 搜索触发按钮：0.5rem → 4px。
+ * 目标：@astrojs/starlight 0.41；内部 class：site-search button[data-open-modal]
+ * （Search.astro 内联样式，桌面断点 50rem 下声明）。 */
+site-search button[data-open-modal] {
+  border-radius: 4px;
+}
+
+/* 搜索对话框：阴影已由 --sl-shadow-lg: none 清零，此处将 Pagefind 结果区圆角
+ * 收紧到 4px（--sl-search-corners 默认 calc(0.3125rem * var(--pagefind-ui-scale))）。
+ * 目标：@astrojs/starlight 0.41；内部钩子：site-search 的 --sl-search-corners 变量。 */
+site-search {
+  --sl-search-corners: 4px;
+}
+
+/* 主题切换 / 语言切换（ThemeSelect.astro / LanguageSelect.astro → Select.astro）：
+ * 目标：@astrojs/starlight 0.41；内部 class：starlight-theme-select select。
+ * 核对结论：Starlight 0.41 的 select 控件 border:0 + 透明背景，本身无圆角无阴影，
+ * 无需覆写；此处仅保证其下拉 option 背景继承已校准的 --sl-color-bg-nav（深色端
+ * raised #14181D / 浅色端 #FFFFFF，见 global.css 语义映射）。若升级后 Select.astro
+ * 引入圆角或阴影，需在此处补 ≤4px + 零阴影覆写。 */
 
 /* -----------------------------------------------------------
  * 11. 落地页区块节奏（首页 MDX 中的 .lp-section / .lp-heading）
@@ -174,7 +216,7 @@
 }
 
 /* -----------------------------------------------------------
- * 10. 减少动效偏好：以上过渡全部塌缩
+ * 12. 减少动效偏好：以上过渡全部塌缩
  * --------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .sl-markdown-content a:not(:where(.not-content *)),

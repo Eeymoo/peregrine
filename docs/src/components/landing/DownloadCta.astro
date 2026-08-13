@@ -7,12 +7,18 @@
  * 不再直链 GitHub 资产（此前 latest/download/ 精确匹配产物名带版本号，全部 404）。
  * 图标来自 lucide-static（与主应用 lucide-react 同源）。文案由 MDX 以 props 传入。
  *
- * 样式为 Tailwind 工具类（twcss-migration change）；现代化项：
- * 1. CTA 架构词改 mono 微标签形态（uppercase + 宽字距，D10 签名元素 2）；
- * 2. CTA :active 下压触感（hover -1px 浮起 → active 归位，motion-reduce 塌缩）。
+ * 样式为 Tailwind 工具类（twcss-migration change）；aukcraft 壳层改造
+ * （docs-aukcraft-shell，D6）：
+ * 1. 三架构按钮由 pill 改为 .flight 方形 hairline 描边按钮，内含 <FlightLine />
+ *    描边动效（hover/focus 走一圈后整圈常亮，reduced-motion 瞬时常亮）；
+ * 2. CTA 层级：主架构 x64 = primary（text-accent，暗色用 accent-400 亮阶满足
+ *    小字对比度 ≥4.5:1），其余架构 = secondary（text-ink）；
+ * 3. Releases 总入口降级为 .link-line 行内链接（同目的地重复入口的层级规则）；
+ * 4. CTA 架构词保持 mono 微标签形态（uppercase + 宽字距，D10 签名元素 2）。
  */
 import { lucideIcon } from '../../lib/icons';
 import { localeBase } from '../../lib/locale';
+import FlightLine from '../FlightLine.astro';
 
 interface Props {
   /** 副标题说明（如"Windows 10/11，NSIS 安装包"）。 */
@@ -41,25 +47,28 @@ const downloadIcon = lucideIcon('Download');
 <div class="dl-block not-content border-t border-(--sl-color-hairline) pt-10 text-center" data-pagefind-ignore>
   <div class="dl-buttons flex flex-wrap justify-center gap-3">
     {
-      artifacts.map((a) => (
+      artifacts.map((a, i) => (
         <a
-          class="dl-button inline-flex items-center gap-2 rounded-full border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-[1.375rem] py-2.5 text-[0.9375rem] font-semibold text-gray-900 no-underline transition-[border-color,transform] duration-200 ease-out hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--color-accent-500)_55%,transparent)] active:translate-y-0 motion-reduce:transition-none motion-reduce:hover:transform-none dark:text-white"
+          class:list={[
+            // aukcraft 壳层（D6）：.flight 方形 hairline 描边按钮 + FlightLine 描边动效；
+            // 主架构 x64 为 primary（text-accent，暗色 accent-400 亮阶保证 ≥4.5:1），
+            // 其余架构为 secondary（text-ink）。
+            'dl-button flight inline-flex items-center gap-2 rounded border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-[1.375rem] py-2.5 text-[0.9375rem] font-semibold no-underline',
+            i === 0 ? 'text-accent-600 dark:text-accent-400' : 'text-gray-900 dark:text-gray-50',
+          ]}
           href={a.href}
         >
-          <span class="dl-icon inline-flex text-accent-600 dark:text-accent-200 [&_svg]:size-4" aria-hidden="true" set:html={downloadIcon} />
+          <span class="dl-icon inline-flex [&_svg]:size-4" aria-hidden="true" set:html={downloadIcon} />
           {label}
           <span class="dl-arch font-mono text-[0.8125rem] font-medium tracking-[0.15em] uppercase">{a.arch}</span>
+          <FlightLine />
         </a>
       ))
     }
   </div>
   <p class="dl-note mt-5 mb-0 text-sm text-gray-700 dark:text-gray-300">
     {note}
-    <a
-      class="dl-releases ms-1.5 text-accent-600 underline decoration-[color-mix(in_srgb,currentColor_40%,transparent)] underline-offset-[0.18em] transition-[text-decoration-color] duration-150 hover:decoration-current dark:text-accent-200"
-      href={RELEASES}
-      rel="noopener"
-    >
+    <a class="dl-releases link-line ms-1.5" href={RELEASES} rel="noopener">
       {releasesText}
     </a>
   </p>

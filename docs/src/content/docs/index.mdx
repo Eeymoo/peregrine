@@ -3,7 +3,7 @@ title: Peregrine
 description: Peregrine is a desktop visual anchor tool designed to reduce 3D motion sickness
 template: splash
 hero:
-  title: Play 3D games without the dizziness
+  title: 'Play 3D games without the <em>dizziness</em>'
   tagline: A transparent overlay pins customizable visual anchors over any game window, giving your eyes a fixed reference point.
   actions:
     - text: Download Now
@@ -20,6 +20,11 @@ import Reveal from '../../components/landing/Reveal.astro';
 import FeatureGrid from '../../components/landing/FeatureGrid.astro';
 import HowItWorks from '../../components/landing/HowItWorks.astro';
 import DownloadCta from '../../components/landing/DownloadCta.astro';
+import DotField from '../../components/DotField.astro';
+
+{/* aukcraft 壳层（D5/D10）：DotField 点阵背景 + .noise 胶片颗粒仅落地页挂载。 */}
+<DotField />
+<div class="noise" aria-hidden="true"></div>
 
 <section class="lp-section" data-reveal>
   <SectionHeading index="01" label="Everything you need to stay oriented" />

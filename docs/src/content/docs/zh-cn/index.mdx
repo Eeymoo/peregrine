@@ -3,7 +3,7 @@ title: Peregrine
 description: Peregrine 是桌面视觉锚点工具，专为缓解 3D 眩晕而设计
 template: splash
 hero:
-  title: 玩 3D 游戏，不再眩晕
+  title: 玩 3D 游戏，不再<em class="serif-zh">眩晕</em>
   tagline: 透明覆盖层把可定制的视觉锚点固定在游戏窗口上，给眼睛一个稳定的参照点。
   actions:
     - text: 立即下载
@@ -20,6 +20,11 @@ import Reveal from '../../../components/landing/Reveal.astro';
 import FeatureGrid from '../../../components/landing/FeatureGrid.astro';
 import HowItWorks from '../../../components/landing/HowItWorks.astro';
 import DownloadCta from '../../../components/landing/DownloadCta.astro';
+import DotField from '../../../components/DotField.astro';
+
+{/* aukcraft 壳层（D5/D10）：DotField 点阵背景 + .noise 胶片颗粒仅落地页挂载。 */}
+<DotField />
+<div class="noise" aria-hidden="true"></div>
 
 <section class="lp-section" data-reveal>
   <SectionHeading index="01" label="保持方向感所需的一切" />

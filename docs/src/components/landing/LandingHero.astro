@@ -14,7 +14,9 @@
  *
  * 样式为 Tailwind 工具类（twcss-migration change）：入场渐显用 @theme 的
  * animate-rise token + 任意值 delay（D6），reduced-motion 塌缩块保留为豁免 CSS；
- * 现代化项：截图框 hover 微浮起（-2px + 阴影加深，motion-reduce 塌缩）。
+ * aukcraft 壳层改造（docs-aukcraft-shell）：截图框零阴影 + hairline 边框（D4，
+ * 静态无 hover 浮起）、圆角收紧 ≤4px（D3）、标题 serif-italic 关键词强调（D8，
+ * 经 frontmatter title 内嵌 <em> / <em class="serif-zh"> 承载）。
  */
 import { LinkButton } from '@astrojs/starlight/components';
 
@@ -52,7 +54,7 @@ const COPY_DELAYS = ['[animation-delay:0ms]', '[animation-delay:80ms]', '[animat
       </p>
       <h1
         class:list={[
-          'lh-title m-0 text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.08] font-bold tracking-[-0.02em] text-balance text-gray-900 dark:text-white',
+          'lh-title m-0 pb-1 text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.1] font-bold tracking-[-0.02em] text-balance text-gray-900 dark:text-gray-50',
           'motion-safe:animate-rise',
           COPY_DELAYS[1],
         ]}
@@ -85,7 +87,7 @@ const COPY_DELAYS = ['[animation-delay:0ms]', '[animation-delay:80ms]', '[animat
 
     <div class="lh-visual min-w-0 motion-safe:animate-rise motion-safe:[animation-delay:160ms] motion-safe:[animation-duration:0.7s]" aria-hidden="false">
       <div
-        class="lh-frame overflow-hidden rounded-xl border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) shadow-[0_1px_2px_color-mix(in_srgb,var(--color-gray-950)_8%,transparent),0_16px_48px_-16px_color-mix(in_srgb,var(--color-gray-950)_35%,transparent)] transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_2px_4px_color-mix(in_srgb,var(--color-gray-950)_10%,transparent),0_24px_56px_-16px_color-mix(in_srgb,var(--color-gray-950)_45%,transparent)] motion-reduce:transition-none motion-reduce:hover:transform-none"
+        class="lh-frame overflow-hidden rounded border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar)"
       >
         <div class="lh-frame-bar flex items-center gap-1.5 border-b border-(--sl-color-hairline-light) px-3.5 py-2.5">
           <span class="lh-frame-dot size-2.5 rounded-full bg-(--sl-color-hairline)"></span>
@@ -108,8 +110,22 @@ const COPY_DELAYS = ['[animation-delay:0ms]', '[animation-delay:80ms]', '[animat
 
 <style>
   /* Starlight LinkButton 形态统一（:global 选择器，豁免清单 D5-3）：
-     primary 实心品牌色，secondary 描边，统一为 pill 圆角。 */
+     primary 实心品牌色，secondary 描边，统一为 4px 方形（D3）。 */
   .lh-actions :global(.sl-link-button) {
-    border-radius: 999px;
+    border-radius: 4px;
+  }
+
+  /* serif-italic 强调词（frontmatter title 中的 <em>）：Newsreader italic；
+     中文关键词用 .serif-zh 系统 serif 栈（D8）。descender（y/g 等）由标题
+     leading-[1.08] + pb-1 预留空间防裁剪。 */
+  .lh-title :global(em) {
+    font-family: 'Newsreader Variable', 'Newsreader', serif;
+    font-style: italic;
+    font-weight: 500;
+  }
+
+  .lh-title :global(em.serif-zh) {
+    font-family: 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+    font-style: normal;
   }
 </style>

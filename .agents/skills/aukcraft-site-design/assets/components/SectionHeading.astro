@@ -1,0 +1,17 @@
+---
+interface Props {
+  /** Two-digit section number, e.g. '01' */
+  index: string;
+  /** Uppercase section label, e.g. 'PHILOSOPHY' */
+  label: string;
+}
+
+const { index, label } = Astro.props;
+---
+
+<div class="flex items-center gap-4" data-reveal>
+  <span class="micro text-xs text-muted">
+    {index}&thinsp;─&thinsp;<span class="text-ink">{label}</span>
+  </span>
+  <span class="h-px flex-1 bg-hairline" aria-hidden="true"></span>
+</div>

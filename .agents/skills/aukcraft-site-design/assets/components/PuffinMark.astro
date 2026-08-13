@@ -1,0 +1,56 @@
+---
+/**
+ * PuffinMark — 海鹦吉祥物 / logo（深色主题内联版本）。
+ * 与 public/favicon.svg 同一路径数据，颜色经 .pm-* class 映射到暗色底。
+ * 换色：只改 global.css 中对应 .pm-* 的 fill 与 stroke。
+ */
+interface Props {
+  class?: string;
+}
+
+const { class: className = '' } = Astro.props;
+---
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1080 1080"
+  class:list={['puffin-mark', className]}
+  role="img"
+  aria-label="aukcraft puffin mascot"
+>
+  <slot />
+  <g class="puffin-mark__body">
+    <g id="pm-foot">
+      <path class="pm-feather" d="M501,801 L517,866 L645,866 L649,843 L556,844 L546,801 Z"></path>
+    </g>
+    <g id="pm-belly">
+      <defs>
+        <clipPath id="pmBellyClip">
+          <path d="M 560,462 L 747,462 A 315,315 0 0 1 508,796 L 354,790 Z"></path>
+        </clipPath>
+      </defs>
+      <g clip-path="url(#pmBellyClip)">
+        <rect class="pm-belly-1" x="300" y="420" width="480" height="420"></rect>
+        <polygon class="pm-belly-2" points="300,579 780,579 780,840 300,840"></polygon>
+        <polygon class="pm-belly-3" points="345,805 357,787 445,723 495,805"></polygon>
+      </g>
+    </g>
+    <g id="pm-wing">
+      <path class="pm-feather-2" d="M594,466 L590,465 L578,471 L536,503 L316,695 L310,705 L245,772 L246,776 L280,769 L287,771 L288,768 L432,722 L438,722 L439,725 L445,718 L518,689 L532,680 L535,674 L539,674 L548,661 L565,647 L569,638 L573,637 L587,617 L588,611 L595,604 L593,599 L599,597 L603,584 L607,582 L628,534 Z"></path>
+      <path class="pm-feather-2" d="M533,449 L527,448 L523,451 L522,459 L515,460 L514,464 L504,465 L503,474 L499,474 L498,469 L490,472 L489,476 L484,476 L483,472 L480,472 L479,479 L468,481 L474,495 L462,502 L482,499 L484,496 L489,496 L490,499 L497,498 L500,486 L509,487 L515,483 L518,473 L531,471 L533,459 L528,450 Z"></path>
+      <path class="pm-feather-2" d="M472,523 L467,522 L460,508 L454,508 L460,509 L459,515 L449,513 L430,526 L446,528 L452,535 L457,535 L458,531 L472,526 Z"></path>
+      <path class="pm-feather" d="M446,719 L280,770 L284,770 L285,775 L249,839 L287,828 L323,809 Z"></path>
+    </g>
+    <g id="pm-head">
+      <path class="pm-feather" d="M717,235 L703,226 L675,217 L631,216 L611,221 L589,231 L558,259 L526,307 L518,378 L509,411 L420,484 L391,514 L372,539 L348,582 L335,614 L311,702 L450,575 L578,470 L587,465 L594,465 L597,471 L596,463 L674,463 L723,429 L708,389 L662,383 L619,370 L564,306 L565,299 L636,250 L653,244 L684,243 L730,260 L741,268 Z"></path>
+      <path class="pm-feather-2" d="M529,303 L562,302 L572,293 L561,295 L556,293 L556,288 L544,289 L545,276 Z"></path>
+      <path class="pm-feather" d="M612,499 L622,531 L622,539 L619,540 L620,552 L615,554 L615,562 L609,564 L603,585 L589,596 L586,611 L581,621 L575,622 L569,638 L563,641 L557,651 L553,651 L547,662 L542,663 L540,670 L525,679 L525,682 L513,691 L533,679 L564,648 L590,612 L611,574 L627,536 Z"></path>
+      <path class="pm-face" d="M560,300 L624,254 L686,241 L740,258 L746,272 L738,334 L732,366 L708,390 L661,384 L623,373 L603,354 Z"></path>
+      <path class="pm-face-2" d="M567,298 L625,262 L664,273 L655,284 L614,289 Z"></path>
+      <path class="pm-face-3" d="M735,327 L668,380 L710,388 L729,366 Z"></path>
+      <circle class="pm-eye" cx="673" cy="290" r="13.5"></circle>
+      <path class="pm-feather-2" d="M744,270 L738,325 L833,347 L834,351 L836,348 L824,331 L798,303 L775,286 Z"></path>
+      <path class="pm-feather" d="M732,364 L776,361 L837,350 L831,342 L830,347 L742,327 L738,325 L738,319 Z"></path>
+    </g>
+  </g>
+</svg>

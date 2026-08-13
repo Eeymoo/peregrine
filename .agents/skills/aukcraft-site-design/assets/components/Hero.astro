@@ -1,0 +1,92 @@
+---
+import FlightLine from './FlightLine.astro';
+import HeroCanvas from './HeroCanvas.astro';
+import PuffinMark from './PuffinMark.astro';
+
+interface Props {
+  lang?: 'en' | 'zh';
+}
+
+const { lang = 'en' } = Astro.props;
+const zh = lang === 'zh';
+
+const t = {
+  homeHref: zh ? '/zh/' : '/',
+  switchHref: zh ? '/' : '/zh/',
+  body: zh
+    ? '一个小而精的开源团队，以模块化思维构建可复用的基础设施——配以刻意轻量的技术栈。'
+    : 'A small open-source team building modular, reusable infrastructure — with a deliberately lightweight stack.',
+  viewGithub: zh ? '访问 GitHub' : 'View GitHub',
+  explore: zh ? '探索 Peregrine' : 'Explore Peregrine',
+};
+---
+
+<div>
+<header class="mx-auto flex max-w-5xl items-baseline justify-between px-6 pt-10">
+  <a href={t.homeHref} class="flex items-center gap-2 font-mono text-sm tracking-tight text-ink">
+    <PuffinMark class="h-6 w-6" />
+    aukcraft
+  </a>
+  <nav class="flex items-baseline gap-6" aria-label="Language and links">
+    <span class="flex items-baseline gap-2 font-mono text-xs">
+      <span class="text-muted" aria-current="true">{zh ? '中文' : 'EN'}</span>
+      <span class="text-muted" aria-hidden="true">/</span>
+      <a class="link-line" href={t.switchHref}>{zh ? 'EN' : '中文'}</a>
+    </span>
+    <a
+      class="link-line font-mono text-xs"
+      href="https://github.com/aukcraft"
+      target="_blank"
+      rel="noopener noreferrer">github.com/aukcraft</a
+    >
+  </nav>
+</header>
+
+<section class="relative mx-auto max-w-5xl px-6 pb-40 pt-32 md:pt-44">
+  <HeroCanvas />
+  <div class="relative">
+  {
+    zh ? (
+      <h1
+        class="balance text-5xl font-medium leading-tight tracking-tight md:text-7xl"
+        data-reveal
+      >
+        架构即<span class="serif-zh">工艺</span>。
+      </h1>
+    ) : (
+      <h1
+        class="balance text-5xl font-medium leading-tight tracking-tight md:text-7xl"
+        data-reveal
+      >
+        Craft the <em class="font-serif italic">architecture</em>.
+      </h1>
+    )
+  }
+
+  <p class="mt-12 max-w-prose text-lg leading-relaxed md:text-xl" data-reveal>
+    {t.body}
+  </p>
+
+  <div class="mt-14 flex flex-wrap gap-4" data-reveal>
+    <a
+      href="https://github.com/aukcraft"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="flight inline-flex items-center border border-hairline px-6 py-3 font-mono text-xs uppercase tracking-[0.15em] text-teal"
+    >
+      {t.viewGithub}
+      <FlightLine />
+    </a>
+    <a
+      href="https://peregrine.aukcraft.org/"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="flight inline-flex items-center border border-hairline px-6 py-3 font-mono text-xs uppercase tracking-[0.15em] text-ink"
+    >
+      {t.explore}
+      <FlightLine />
+    </a>
+  </div>
+  </div>
+</section>
+</div>

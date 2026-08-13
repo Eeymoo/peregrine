@@ -42,7 +42,7 @@
 
 ## 7. starlight-polish.css 与收尾
 
-- [ ] 7.1 逐条判定 `starlight-polish.css`（173 行）规则归属：可归工具类的迁移，必须豁免（`:global` / `.sl-markdown-content` / 级联层声明）的保留并注释豁免理由
-- [ ] 7.2 全量 `npm run build && npm run verify`（双主题、双语）最终验收 + taste-skill pre-flight 逐页过一遍（D7 门禁）
-- [ ] 7.3 更新 AGENTS.md 文档站设计系统小节：迁移状态、豁免清单、D3 断点对齐与 D4 token 映射规约、D9 现代化边界
-- [ ] 7.4 将英文文案 em-dash 问题（download.mdx 3 处）登记为后续任务（不属于本 change）
+- [x] 7.1 逐条判定 `starlight-polish.css`（173 行）规则归属：可归工具类的迁移，必须豁免（`:global` / `.sl-markdown-content` / 级联层声明）的保留并注释豁免理由
+- [x] 7.2 全量 `npm run build && npm run verify`（双主题、双语）最终验收 + taste-skill pre-flight 逐页过一遍（D7 门禁）
+- [x] 7.3 更新 AGENTS.md 文档站设计系统小节：迁移状态、豁免清单、D3 断点对齐与 D4 token 映射规约、D9 现代化边界
+- [x] 7.4 将英文文案 em-dash 问题（download.mdx 3 处）登记为后续任务（不属于本 change）

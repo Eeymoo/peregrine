@@ -50,7 +50,7 @@
 
 ## 8. 验收
 
-- [ ] 8.1 全量本地构建 `cd docs && npm run build` 通过
-- [ ] 8.2 明暗双主题 × 中英文抽查下载页 / 导航 / 落地页，无裸默认样式
-- [ ] 8.3 CI 三平台编译测试不受影响（ci.yml 新增 job 独立）
-- [ ] 8.4 `docs/scripts/verify-landing.mjs` / `verify-polish.mjs` 对新增元素适配后全 PASS
+- [x] 8.1 全量本地构建 `cd docs && npm run build` 通过
+- [x] 8.2 明暗双主题 × 中英文抽查下载页 / 导航 / 落地页，无裸默认样式
+- [x] 8.3 CI 三平台编译测试不受影响（ci.yml 新增 job 独立）
+- [x] 8.4 `docs/scripts/verify-landing.mjs` / `verify-polish.mjs` 对新增元素适配后全 PASS

@@ -35,6 +35,12 @@ for (const theme of ['dark', 'light']) {
     const r = await page.evaluate(() => {
       const q = (s) => document.querySelector(s);
       const qa = (s) => [...document.querySelectorAll(s)];
+      const cs = (sel, props) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const s = getComputedStyle(el);
+        return Object.fromEntries(props.map((p) => [p, s[p]]));
+      };
       const shot = q('.lh-shot');
       return {
         hero: !!q('.landing-hero'),
@@ -48,6 +54,13 @@ for (const theme of ['dark', 'light']) {
         features: qa('.fg-card').length,
         featureIcons: qa('.fg-icon svg.lucide').length,
         steps: qa('.hw-step').length,
+        // HowItWorks 计算样式基线（twcss 迁移断言先行，twcss-migration change）
+        hwGrid: cs('.hw-grid', ['display', 'gap', 'gridTemplateColumns', 'marginTop', 'paddingLeft', 'listStyleType']),
+        hwStep: cs('.hw-step', ['borderTopWidth', 'borderTopStyle', 'paddingTop']),
+        hwIndex: cs('.hw-index', ['fontSize', 'fontWeight', 'letterSpacing', 'fontVariantNumeric']),
+        hwIndexColor: cs('.hw-index', ['color'])?.color,
+        hwTitle: cs('.hw-title', ['marginTop', 'marginBottom', 'fontSize', 'fontWeight', 'color']),
+        hwDetails: cs('.hw-details', ['marginTop', 'fontSize', 'lineHeight', 'color']),
         dlButtons: qa('.dl-button').map((a) => a.textContent.trim() + ' -> ' + a.getAttribute('href')),
         headerNav: qa('.header-nav-link').map((a) => a.getAttribute('href')),
         topbar: !!q('site-title, .site-title'),
@@ -68,6 +81,51 @@ for (const theme of ['dark', 'light']) {
     check(`${t} 特性 6 卡`, r.features === 6, String(r.features));
     check(`${t} 特性图标渲染（lucide）`, r.featureIcons === 6, String(r.featureIcons));
     check(`${t} 三步上手`, r.steps === 3, String(r.steps));
+    // HowItWorks 计算样式（twcss 迁移锁，与主题相关的颜色按主题断言）
+    const hwIdxExpect = theme === 'dark' ? 'oklch(0.882 0.059 254.128)' : 'oklch(0.546 0.245 262.881)';
+    const hwTitleExpect = theme === 'dark' ? 'rgb(255, 255, 255)' : 'oklch(0.21 0.006 285.885)';
+    const hwDetailsExpect = theme === 'dark' ? 'oklch(0.871 0.006 286.286)' : 'oklch(0.37 0.013 285.805)';
+    check(
+      `${t} hw 网格结构`,
+      r.hwGrid?.display === 'grid' &&
+        r.hwGrid?.gap === '40px' &&
+        r.hwGrid?.gridTemplateColumns.split(' ').length === 3 &&
+        r.hwGrid?.marginTop === '0px' &&
+        r.hwGrid?.paddingLeft === '0px' &&
+        r.hwGrid?.listStyleType === 'none',
+      JSON.stringify(r.hwGrid),
+    );
+    check(
+      `${t} hw 步骤发丝线`,
+      r.hwStep?.borderTopWidth === '1px' && r.hwStep?.borderTopStyle === 'solid' && r.hwStep?.paddingTop === '20px',
+      JSON.stringify(r.hwStep),
+    );
+    check(
+      `${t} hw 序号样式`,
+      r.hwIndex?.fontSize === '13px' &&
+        r.hwIndex?.fontWeight === '600' &&
+        r.hwIndex?.letterSpacing === '1.56px' &&
+        r.hwIndex?.fontVariantNumeric === 'tabular-nums' &&
+        r.hwIndexColor === hwIdxExpect,
+      JSON.stringify(r.hwIndex) + ' ' + r.hwIndexColor,
+    );
+    check(
+      `${t} hw 标题样式`,
+      r.hwTitle?.marginTop === '8px' &&
+        r.hwTitle?.marginBottom === '6px' &&
+        r.hwTitle?.fontSize === '18px' &&
+        r.hwTitle?.fontWeight === '600' &&
+        r.hwTitle?.color === hwTitleExpect,
+      JSON.stringify(r.hwTitle),
+    );
+    check(
+      `${t} hw 详情样式`,
+      r.hwDetails?.marginTop === '0px' &&
+        r.hwDetails?.fontSize === '14px' &&
+        r.hwDetails?.lineHeight === '23.1px' &&
+        r.hwDetails?.color === hwDetailsExpect,
+      JSON.stringify(r.hwDetails),
+    );
     check(`${t} 下载三架构`, r.dlButtons.length === 3, JSON.stringify(r.dlButtons));
     check(
       `${t} 下载按钮指向站内下载页`,

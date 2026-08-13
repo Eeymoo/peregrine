@@ -42,6 +42,10 @@
   --color-gray-900: var(--color-zinc-900);
   --color-gray-950: var(--color-zinc-950);
 
+  /* 断点对齐：Starlight 的 md 断点为 50rem（starlight/style/util.css），
+   * Tailwind 默认 md 为 48rem；此处对齐使 hidden md:flex 与 sl-hidden md:sl-flex 语义等价（D3）。 */
+  --breakpoint-md: 50rem;
+
   /* 语义化别名：landing 组件使用 brand-* 表达"品牌色"意图，与 accent 同阶。 */
   --color-brand-50: var(--color-blue-50);
   --color-brand-100: var(--color-blue-100);

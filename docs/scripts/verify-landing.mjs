@@ -98,8 +98,15 @@ for (const theme of ['dark', 'light']) {
         dlButtons: qa('.dl-button').map((a) => a.textContent.trim() + ' -> ' + a.getAttribute('href')),
         headerNav: qa('.header-nav-link').map((a) => a.getAttribute('href')),
         // Header 导航区计算样式基线（aukcraft 平铺头栏，header-aukcraft-nav）
+        headerBox: cs('div.header', ['maxWidth', 'marginLeft']),
         hnNav: cs('.header-nav', ['display', 'alignItems', 'gap']),
-        hnLink: cs('.header-nav-link', ['display', 'alignItems', 'fontSize', 'fontWeight', 'color', 'textDecorationLine', 'whiteSpace', 'transitionProperty', 'transitionDuration']),
+        hnLink: cs('.header-nav-link', ['fontFamily', 'fontSize', 'color', 'textDecorationLine', 'whiteSpace']),
+        hnLinkAfter: (() => {
+          const el = q('.header-nav-link');
+          if (!el) return null;
+          const s = getComputedStyle(el, '::after');
+          return { height: s.height, transform: s.transform, duration: s.transitionDuration };
+        })(),
         // 新头栏控件：语言平铺切换 / 主题图标按钮 / 图标化搜索
         langToggle: (() => {
           const el = q('.lang-toggle');
@@ -321,24 +328,25 @@ for (const theme of ['dark', 'light']) {
       const contrast = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
       check(`${t} 暗色 CTA primary 对比度 ≥4.5:1`, contrast >= 4.5, contrast.toFixed(2));
     }
-    // Header 导航区计算样式（aukcraft 平铺头栏，header-aukcraft-nav）
-    const hnLinkColor = theme === 'dark' ? 'rgb(198, 207, 215)' : 'rgb(69, 78, 90)';
+    // Header 导航区计算样式（aukcraft 平铺头栏 + .link-line 统一基元）
+    const hnLinkColor = theme === 'dark' ? 'oklch(0.882 0.059 254.128)' : 'oklch(0.546 0.245 262.881)';
+    check(
+      `${t} 头栏容器 max-w-5xl 居中`,
+      r.headerBox?.maxWidth === '1024px' && parseFloat(r.headerBox?.marginLeft) > 0,
+      JSON.stringify(r.headerBox),
+    );
     check(
       `${t} 导航容器（右侧平铺）`,
-      r.hnNav?.display === 'flex' && r.hnNav?.alignItems === 'center' && r.hnNav?.gap === '20px',
+      r.hnNav?.display === 'flex' && r.hnNav?.alignItems === 'baseline' && r.hnNav?.gap === '24px',
       JSON.stringify(r.hnNav),
     );
     check(
-      `${t} 导航链接（平铺文本 + 颜色过渡）`,
-      r.hnLink?.display === 'flex' &&
-        r.hnLink?.alignItems === 'center' &&
-        r.hnLink?.fontSize === '15px' &&
-        r.hnLink?.fontWeight === '500' &&
+      `${t} 导航链接（link-line 基元：mono 12px 品牌蓝）`,
+      r.hnLink?.fontFamily?.includes('mono') &&
+        r.hnLink?.fontSize === '12px' &&
         r.hnLink?.color === hnLinkColor &&
         r.hnLink?.textDecorationLine === 'none' &&
-        r.hnLink?.whiteSpace === 'nowrap' &&
-        r.hnLink?.transitionProperty?.includes('color') &&
-        r.hnLink?.transitionDuration === '0.2s',
+        r.hnLink?.whiteSpace === 'nowrap',
       JSON.stringify(r.hnLink),
     );
     // 语言平铺切换：EN/中文，当前语言 aria-current，另一语言为同页互转链接
@@ -376,6 +384,18 @@ for (const theme of ['dark', 'light']) {
       [...document.querySelectorAll('.header-nav-link')].every((a) => a.getAttribute('aria-current') !== 'page'),
     );
     check(`${t} 导航首页无 active 态`, hnNoActive === true);
+    // link-line 下划线：基态 scaleX(0)、300ms 过渡，hover 后生长为 scaleX(1)
+    check(
+      `${t} link-line 下划线基态`,
+      r.hnLinkAfter?.height === '1px' && r.hnLinkAfter?.duration === '0.3s' && /matrix\(0, 0, 0, 1/.test(r.hnLinkAfter?.transform ?? ''),
+      JSON.stringify(r.hnLinkAfter),
+    );
+    await page.hover('.header-nav-link');
+    await page.waitForTimeout(400);
+    const hnHoverScale = await page.evaluate(
+      () => getComputedStyle(document.querySelector('.header-nav-link'), '::after').transform,
+    );
+    check(`${t} link-line hover 下划线生长`, /matrix\(1, 0, 0, 1/.test(hnHoverScale ?? ''), hnHoverScale);
     // focus-visible 焦点环（规则级断言）：外链 CSS 无 CORS 头时 cssRules 为空，故通过
     // page 上下文 fetch 同源 CSS 文本做规则存在性断言；另验证元素 class 与规则选择器对应。
     const focusRule = await page.evaluate(async () => {

@@ -205,12 +205,12 @@ site-search button[data-open-modal] {
 
   site-search button[data-open-modal]:hover {
     border-color: transparent;
-    color: var(--sl-color-white);
+    color: var(--sl-color-text-accent);
   }
 }
 
 site-search button[data-open-modal]:hover {
-  color: var(--sl-color-white);
+  color: var(--sl-color-text-accent);
 }
 
 /* 隐藏搜索按钮内的文字标签与快捷键提示（保留 aria-label 无障碍语义）。 */

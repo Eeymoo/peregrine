@@ -69,7 +69,7 @@ const moonIcon = lucideIcon('Moon');
 const themeLabel = locale ? '切换主题' : 'Toggle theme';
 ---
 
-<div class="header mx-auto w-full max-w-5xl px-6">
+<div class="header mx-auto! w-full max-w-5xl! px-6">
 	<div class="title-wrapper sl-flex">
 		<SiteTitle />
 	</div>
@@ -86,7 +86,9 @@ const themeLabel = locale ? '切换主题' : 'Toggle theme';
 							class:list={[
 								'header-nav-link link-line font-mono text-xs whitespace-nowrap',
 								'focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-600 dark:focus-visible:outline-accent-200',
-								active && 'is-active',
+								// active 态下划线常显：! 重要级任意值工具类（.link-line 基元在未分层
+								// 全局 CSS 中，普通 utilities 层规则压不过，需 ! 提升）。
+								active && 'is-active after:[transform:scaleX(1)]!',
 							]}
 							href={l.href}
 							{...(active ? { 'aria-current': 'page' } : {})}
@@ -159,19 +161,6 @@ const themeLabel = locale ? '切换主题' : 'Toggle theme';
 </script>
 
 <style>
-	/* active 导航链接下划线常显（.link-line 基元的 ::after），其余时刻 hover/focus 生长。 */
-	.header-nav-link.is-active::after {
-		transform: scaleX(1);
-	}
-
-	/* aukcraft 居中容器：scoped .header 规则带作用域属性选择器，特异性高于
-	 * utilities 层的 max-w-5xl / mx-auto，故在此同作用域覆写（max-w-5xl 工具类
-	 * 仍保留在 class 上作语义标注，实际生效值以此处为准）。 */
-	.header {
-		max-width: var(--container-5xl);
-		margin-inline: auto;
-	}
-
 	@layer starlight.core {
 		.header {
 			display: flex;

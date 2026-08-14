@@ -3,18 +3,22 @@
  * Starlight Header 覆写（本站点仅有的第二个组件覆写，第一个是 Hero）。
  *
  * aukcraft 平铺头栏（header-aukcraft-nav）：
+ * - 容器：mx-auto max-w-5xl px-6 居中（与 aukcraft.org 顶栏同一节奏），
+ *   品牌左置、功能区右置（justify-between）；
  * - 品牌标识：图标 + 文字（SiteTitle，logo 配置见 astro.config.mjs）；
- * - 核心导航移至右侧功能区：Docs / Download / GitHub 平铺文本链接（无图标、
- *   无外链箭头），当前页 active 态仅变色；
- * - 语言切换：EN / 中文 平铺切换（斜杠分隔，无下拉）；
+ * - 核心导航右置：Docs / Download / GitHub 平铺文本链接，统一 .link-line
+ *   下划线（与落地页 Footer 链接同一基元：左→右生长、品牌蓝），active 态
+ *   下划线常显；
+ * - 语言切换：EN / 中文 平铺切换（斜杠分隔，无下拉），可点侧同样用 .link-line；
  * - 主题切换：图标按钮（sun/moon，lucide 线稿），点击在 dark/light 间翻转，
  *   写入 localStorage `starlight-theme` 与 <html data-theme>（与 Starlight
  *   ThemeProvider 协议一致）；
  * - 搜索：沿用 Starlight Search 组件，图标按钮化由 starlight-polish.css 定点
- *   覆写（隐藏文字与 ⌘K 提示，hover 与头栏链接同一过渡效果）；
+ *   覆写（隐藏文字与 ⌘K 提示，hover 与头栏图标按钮同一品牌蓝过渡）；
  * - AukCraft 外链移至落地页 Footer，不再出现在头栏。
  *
- * 头栏链接 / 图标按钮共享 .header-item 同一 hover 过渡（颜色 200ms）。
+ * 注：Starlight 头栏为固定高度的 sticky bar（--sl-nav-height），无法承载
+ * aukcraft 的 pt-10 大留白；居中分栏与链接下划线保持一致，纵向节奏保留 bar 形态。
  * 桌面端显示（md 断点以上），窄屏隐藏——移动端入口由 sidebar 顶层 link 项承担。
  * 除上述功能区外保持 @astrojs/starlight@0.41 默认 Header 结构，Starlight 升级时
  * 需对照默认 Header.astro 复核本文件。
@@ -65,26 +69,26 @@ const moonIcon = lucideIcon('Moon');
 const themeLabel = locale ? '切换主题' : 'Toggle theme';
 ---
 
-<div class="header">
+<div class="header mx-auto! w-full max-w-5xl! px-6">
 	<div class="title-wrapper sl-flex">
 		<SiteTitle />
 	</div>
-	<div class="search-slot sl-flex print:hidden">
+	<div class="search-slot sl-flex flex-1 print:hidden">
 		{shouldRenderSearch && <Search />}
 	</div>
 	<div class="sl-hidden md:sl-flex print:hidden right-group">
-		<nav class="header-nav flex items-center gap-5" aria-label="Top">
+		<nav class="header-nav flex items-baseline gap-6" aria-label="Top">
 			{
 				navLinks.map((l) => {
 					const active = isActive(l.href);
 					return (
 						<a
 							class:list={[
-								'header-nav-link header-item inline-flex items-center text-[0.9375rem] font-medium whitespace-nowrap no-underline transition-colors duration-200 ease-out',
+								'header-nav-link link-line font-mono text-xs whitespace-nowrap',
 								'focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-600 dark:focus-visible:outline-accent-200',
-								active
-									? 'is-active text-gray-900 dark:text-gray-50'
-									: 'text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50',
+								// active 态下划线常显：! 重要级任意值工具类（.link-line 基元在未分层
+								// 全局 CSS 中，普通 utilities 层规则压不过，需 ! 提升）。
+								active && 'is-active after:[transform:scaleX(1)]!',
 							]}
 							href={l.href}
 							{...(active ? { 'aria-current': 'page' } : {})}
@@ -96,11 +100,11 @@ const themeLabel = locale ? '切换主题' : 'Toggle theme';
 				})
 			}
 		</nav>
-		{/* 语言平铺切换：EN / 中文，当前语言高亮为 ink、另一语言为可点链接。 */}
-		<span class="lang-toggle flex items-center gap-1.5 font-mono text-[0.8125rem] tracking-[0.08em]">
+		{/* 语言平铺切换：EN / 中文，当前语言高亮为 ink、另一语言为 .link-line 链接。 */}
+		<span class="lang-toggle flex items-baseline gap-2 font-mono text-xs">
 			{
 				isZh ? (
-					<a class="header-item text-gray-700 no-underline transition-colors duration-200 ease-out hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50" href={enHref}>EN</a>
+					<a class="link-line" href={enHref}>EN</a>
 				) : (
 					<span class="font-semibold text-gray-900 dark:text-gray-50" aria-current="true">EN</span>
 				)
@@ -110,14 +114,14 @@ const themeLabel = locale ? '切换主题' : 'Toggle theme';
 				isZh ? (
 					<span class="font-semibold text-gray-900 dark:text-gray-50" aria-current="true">中文</span>
 				) : (
-					<a class="header-item text-gray-700 no-underline transition-colors duration-200 ease-out hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50" href={zhHref}>中文</a>
+					<a class="link-line" href={zhHref}>中文</a>
 				)
 			}
 		</span>
 		{/* 主题平铺切换：图标按钮，dark ↔ light 翻转；dark 下显示 sun（点击转 light），反之显示 moon。 */}
 		<button
 			type="button"
-			class="theme-toggle header-item inline-flex items-center p-1 text-gray-700 transition-colors duration-200 ease-out hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50"
+			class="theme-toggle inline-flex items-center p-1 text-gray-700 transition-colors duration-200 ease-out hover:text-accent-600 dark:text-gray-300 dark:hover:text-accent-400"
 			data-theme-toggle
 			aria-label={themeLabel}
 		>
@@ -138,6 +142,21 @@ const themeLabel = locale ? '切换主题' : 'Toggle theme';
 			(window as { StarlightThemeProvider?: { updatePickers?: (t: string) => void } })
 				.StarlightThemeProvider?.updatePickers?.(next);
 		});
+	});
+
+	// 搜索按钮 .flight 化：注入 FlightLine SVG（与 FlightLine.astro 输出完全一致），
+	// 使 hover/focus 的边框描边动效与落地页其他 .flight 按钮保持同一实现。
+	// （Search 是 Starlight 内部组件，不能新增组件覆写，故用注入方式。）
+	document.querySelectorAll('site-search button[data-open-modal]').forEach((btn) => {
+		if (btn.querySelector('.flight-line')) return;
+		btn.classList.add('flight');
+		btn.insertAdjacentHTML(
+			'beforeend',
+			'<svg class="flight-line" aria-hidden="true" focusable="false">' +
+				'<rect class="flight-line__ring" pathLength="1"></rect>' +
+				'<rect class="flight-line__trace" pathLength="1"></rect>' +
+				'</svg>',
+		);
 	});
 </script>
 

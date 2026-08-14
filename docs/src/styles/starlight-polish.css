@@ -45,6 +45,13 @@
   border-bottom: 1px solid var(--sl-color-hairline-light);
 }
 
+/* 落地页 SectionHeading（.sh-heading 即 .lp-heading）的分隔线由 sh-rule 贯穿线承担，
+ * 此处清除 h2 通用发丝线，避免与 sh-rule 叠加成两条平行线。 */
+.sl-markdown-content h2.sh-heading {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
 /* -----------------------------------------------------------
  * 2. 链接：下划线偏移 + 悬停反馈
  * --------------------------------------------------------- */

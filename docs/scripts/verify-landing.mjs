@@ -97,16 +97,47 @@ for (const theme of ['dark', 'light']) {
         hwDetails: cs('.hw-details', ['marginTop', 'fontSize', 'lineHeight', 'color']),
         dlButtons: qa('.dl-button').map((a) => a.textContent.trim() + ' -> ' + a.getAttribute('href')),
         headerNav: qa('.header-nav-link').map((a) => a.getAttribute('href')),
-        // Header 导航区计算样式基线（twcss 迁移断言先行）
-        hnNav: cs('.header-nav', ['display', 'alignItems', 'gap', 'marginInlineStart']),
-        hnLink: cs('.header-nav-link', ['display', 'alignItems', 'gap', 'fontSize', 'fontWeight', 'color', 'textDecorationLine', 'whiteSpace']),
-        hnIcon: cs('.header-nav-icon', ['display']),
-        hnSvg: (() => {
-          const svg = document.querySelector('.header-nav-icon svg');
-          if (!svg) return null;
-          const s = getComputedStyle(svg);
-          return { width: s.width, height: s.height };
+        // Header 导航区计算样式基线（aukcraft 平铺头栏，header-aukcraft-nav）
+        hnNav: cs('.header-nav', ['display', 'alignItems', 'gap']),
+        hnLink: cs('.header-nav-link', ['display', 'alignItems', 'fontSize', 'fontWeight', 'color', 'textDecorationLine', 'whiteSpace', 'transitionProperty', 'transitionDuration']),
+        // 新头栏控件：语言平铺切换 / 主题图标按钮 / 图标化搜索
+        langToggle: (() => {
+          const el = q('.lang-toggle');
+          if (!el) return null;
+          return {
+            text: el.textContent?.replace(/\s+/g, ''),
+            links: [...el.querySelectorAll('a')].map((a) => a.getAttribute('href')),
+            current: el.querySelector('[aria-current]')?.textContent?.trim(),
+          };
         })(),
+        themeToggleBtn: (() => {
+          const el = q('[data-theme-toggle]');
+          if (!el) return null;
+          const sun = el.querySelector('.theme-icon-sun');
+          const moon = el.querySelector('.theme-icon-moon');
+          return {
+            sunDisplay: sun ? getComputedStyle(sun).display : null,
+            moonDisplay: moon ? getComputedStyle(moon).display : null,
+            ariaLabel: el.getAttribute('aria-label'),
+          };
+        })(),
+        searchIconBtn: (() => {
+          const el = q('site-search button[data-open-modal]');
+          if (!el) return null;
+          const s = getComputedStyle(el);
+          const span = el.querySelector('span');
+          const kbd = el.querySelector('kbd');
+          return {
+            borderWidth: s.borderWidth,
+            backgroundColor: s.backgroundColor,
+            iconVisible: !!el.querySelector('svg'),
+            labelHidden: !span || getComputedStyle(span).display === 'none',
+            kbdHidden: !kbd || getComputedStyle(kbd).display === 'none',
+          };
+        })(),
+        // 旧控件已移除（下拉主题/语言选择器、social 图标、AukCraft 头栏链接）
+        legacyControlsAbsent: !q('starlight-theme-select') && !q('starlight-lang-select') && !q('.social-icons'),
+        logoImg: !!q('.site-title img, .site-title svg'),
         topbar: !!q('site-title, .site-title'),
         themeToggle: !!q('starlight-theme-select, [data-theme-toggle], starlight-theme-select'),
         // Hero 首屏可见性：CTA 在 900px 视口内
@@ -244,11 +275,16 @@ for (const theme of ['dark', 'light']) {
       JSON.stringify(r.dlButtons),
     );
     check(
-      `${t} 顶栏导航 3 链接`,
-      r.headerNav.length === 3 && r.headerNav[0] === 'https://www.aukcraft.org/',
+      `${t} 顶栏导航 3 链接（Docs/Download/GitHub）`,
+      r.headerNav.length === 3 &&
+        r.headerNav[0].endsWith('/guide/intro') &&
+        r.headerNav[1].endsWith('/download') &&
+        r.headerNav[2] === 'https://github.com/eeymoo/peregrine',
       JSON.stringify(r.headerNav),
     );
     check(`${t} 顶栏保留`, r.topbar === true);
+    check(`${t} 品牌标识图标+文字`, r.logoImg === true);
+    check(`${t} 旧下拉控件已移除`, r.legacyControlsAbsent === true);
     // aukcraft 壳层断言（docs-aukcraft-shell）
     check(`${t} DotField 点阵背景`, r.dotField === true);
     check(`${t} 胶片颗粒 overlay`, r.noise === true);
@@ -285,46 +321,61 @@ for (const theme of ['dark', 'light']) {
       const contrast = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
       check(`${t} 暗色 CTA primary 对比度 ≥4.5:1`, contrast >= 4.5, contrast.toFixed(2));
     }
-    // Header 导航区计算样式（twcss 迁移锁）
+    // Header 导航区计算样式（aukcraft 平铺头栏，header-aukcraft-nav）
     const hnLinkColor = theme === 'dark' ? 'rgb(198, 207, 215)' : 'rgb(69, 78, 90)';
     check(
-      `${t} 导航容器`,
-      r.hnNav?.display === 'flex' && r.hnNav?.alignItems === 'center' && r.hnNav?.gap === '20px' && r.hnNav?.marginInlineStart === '24px',
+      `${t} 导航容器（右侧平铺）`,
+      r.hnNav?.display === 'flex' && r.hnNav?.alignItems === 'center' && r.hnNav?.gap === '20px',
       JSON.stringify(r.hnNav),
     );
     check(
-      `${t} 导航链接`,
+      `${t} 导航链接（平铺文本 + 颜色过渡）`,
       r.hnLink?.display === 'flex' &&
         r.hnLink?.alignItems === 'center' &&
-        r.hnLink?.gap === '4px' &&
         r.hnLink?.fontSize === '15px' &&
         r.hnLink?.fontWeight === '500' &&
         r.hnLink?.color === hnLinkColor &&
         r.hnLink?.textDecorationLine === 'none' &&
-        r.hnLink?.whiteSpace === 'nowrap',
+        r.hnLink?.whiteSpace === 'nowrap' &&
+        r.hnLink?.transitionProperty?.includes('color') &&
+        r.hnLink?.transitionDuration === '0.2s',
       JSON.stringify(r.hnLink),
     );
-    check(`${t} 导航图标`, r.hnIcon?.display === 'flex' && r.hnSvg?.width === '14px' && r.hnSvg?.height === '14px', JSON.stringify(r.hnSvg));
-    // 现代化项断言（首页）：落地页无任何 active 链接；hover 下划线动画基态 scaleX(0) + 200ms 过渡；focus-visible 规则存在
-    const firstLink = page.locator('.header-nav-link').first();
-    const hnBefore = await page.evaluate(() => {
-      const links = [...document.querySelectorAll('.header-nav-link')];
-      const underline = links[0]?.querySelector('span[aria-hidden="true"]:last-child');
-      const us = underline ? getComputedStyle(underline) : null;
-      return { noActive: links.every((a) => a.getAttribute('aria-current') !== 'page'), scale: us?.scale, duration: us?.transitionDuration };
-    });
-    check(`${t} 导航首页无 active 态`, hnBefore.noActive === true);
-    await firstLink.hover();
-    await page.waitForTimeout(250);
-    const hnAfter = await page.evaluate(() => {
-      const underline = document.querySelector('.header-nav-link span[aria-hidden="true"]:last-child');
-      return underline ? getComputedStyle(underline).scale : null;
-    });
+    // 语言平铺切换：EN/中文，当前语言 aria-current，另一语言为同页互转链接
     check(
-      `${t} 导航 hover 下划线 200ms 动画`,
-      hnBefore.duration === '0.2s' && hnBefore.scale === '0 1' && (hnAfter === '1' || hnAfter === '1 1'),
-      JSON.stringify({ ...hnBefore, after: hnAfter }),
+      `${t} 语言平铺切换 EN/中文`,
+      r.langToggle &&
+        r.langToggle.text === 'EN/中文' &&
+        r.langToggle.links.length === 1 &&
+        (name === 'zh' ? r.langToggle.current === '中文' : r.langToggle.current === 'EN'),
+      JSON.stringify(r.langToggle),
     );
+    // 主题图标按钮：dark 下显示 sun、light 下显示 moon
+    check(
+      `${t} 主题图标按钮（平铺切换）`,
+      r.themeToggleBtn &&
+        !!r.themeToggleBtn.ariaLabel &&
+        (theme === 'dark'
+          ? r.themeToggleBtn.sunDisplay !== 'none' && r.themeToggleBtn.moonDisplay === 'none'
+          : r.themeToggleBtn.moonDisplay !== 'none' && r.themeToggleBtn.sunDisplay === 'none'),
+      JSON.stringify(r.themeToggleBtn),
+    );
+    // 搜索图标按钮化：无边框无底色，文字标签与 kbd 隐藏，仅保留图标
+    check(
+      `${t} 搜索图标按钮（与头栏同效）`,
+      r.searchIconBtn &&
+        r.searchIconBtn.borderWidth === '0px' &&
+        (r.searchIconBtn.backgroundColor === 'rgba(0, 0, 0, 0)' || r.searchIconBtn.backgroundColor === 'transparent') &&
+        r.searchIconBtn.iconVisible === true &&
+        r.searchIconBtn.labelHidden === true &&
+        r.searchIconBtn.kbdHidden === true,
+      JSON.stringify(r.searchIconBtn),
+    );
+    // 首页无 active 链接（落地页不在导航项内）
+    const hnNoActive = await page.evaluate(() =>
+      [...document.querySelectorAll('.header-nav-link')].every((a) => a.getAttribute('aria-current') !== 'page'),
+    );
+    check(`${t} 导航首页无 active 态`, hnNoActive === true);
     // focus-visible 焦点环（规则级断言）：外链 CSS 无 CORS 头时 cssRules 为空，故通过
     // page 上下文 fetch 同源 CSS 文本做规则存在性断言；另验证元素 class 与规则选择器对应。
     const focusRule = await page.evaluate(async () => {

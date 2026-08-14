@@ -58,6 +58,12 @@ export default defineConfig({
     starlight({
       title: 'Peregrine',
       description: 'Peregrine — a desktop visual anchor tool designed to reduce 3D motion sickness',
+      logo: {
+        src: './public/logo.svg',
+        alt: 'Peregrine',
+        // 图标 + 文字并存（aukcraft 头栏品牌标识形态）
+        replacesTitle: false,
+      },
       defaultLocale: 'root',
       locales: {
         root: {

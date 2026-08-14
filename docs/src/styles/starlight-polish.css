@@ -179,11 +179,44 @@
  * 10. 控件覆写：搜索框 / 主题切换（D7）
  * --------------------------------------------------------- */
 
-/* 搜索触发按钮：0.5rem → 4px。
+/* 搜索触发按钮：图标按钮化（aukcraft 平铺头栏）——去边框/底色，隐藏文字标签
+ * 与 ⌘K kbd，仅保留放大镜图标；hover 与头栏链接同一颜色过渡（200ms）。
  * 目标：@astrojs/starlight 0.41；内部 class：site-search button[data-open-modal]
- * （Search.astro 内联样式，桌面断点 50rem 下声明）。 */
+ * （Search.astro 内联样式，桌面断点 50rem 下声明 border/background/width）。 */
 site-search button[data-open-modal] {
+  border: 0;
   border-radius: 4px;
+  background: transparent;
+  width: auto;
+  max-width: none;
+  height: auto;
+  padding: 0.25rem;
+  color: var(--sl-color-gray-2);
+  transition: color 200ms ease;
+}
+
+@media (min-width: 50rem) {
+  /* 桌面断点下 Starlight 默认声明了 border/background/padding，需同级覆写。 */
+  site-search button[data-open-modal] {
+    border: 0;
+    background: transparent;
+    padding: 0.25rem;
+  }
+
+  site-search button[data-open-modal]:hover {
+    border-color: transparent;
+    color: var(--sl-color-white);
+  }
+}
+
+site-search button[data-open-modal]:hover {
+  color: var(--sl-color-white);
+}
+
+/* 隐藏搜索按钮内的文字标签与快捷键提示（保留 aria-label 无障碍语义）。 */
+site-search button[data-open-modal] > span,
+site-search button[data-open-modal] > kbd {
+  display: none;
 }
 
 /* 搜索对话框：阴影已由 --sl-shadow-lg: none 清零，此处将 Pagefind 结果区圆角

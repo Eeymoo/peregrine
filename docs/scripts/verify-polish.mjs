@@ -90,7 +90,8 @@ for (const theme of ['dark', 'light']) {
     const t = `${theme}/${name}`;
     check(`${t} aside 4px 圆角+强调条+零阴影`, r.aside?.borderRadius === '4px' && r.aside?.borderInlineStartWidth === '4px' && r.aside?.boxShadow === 'none', JSON.stringify(r.aside));
     check(`${t} 链接下划线+偏移`, r.linkDeco?.textDecorationLine?.includes('underline') && r.linkDeco?.textUnderlineOffset !== '0px', JSON.stringify(r.linkDeco));
-    // Header 导航 active 态（aukcraft 平铺头栏）：guide 页 Docs 链接应带 aria-current + is-active，文字高亮
+    // Header 导航 active 态（aukcraft 平铺头栏 + link-line）：guide 页 Docs 链接
+    // 应带 aria-current + is-active，品牌蓝 + 下划线常显
     const hnActive = await page.evaluate(() => {
       const docsLink = [...document.querySelectorAll('.header-nav-link')].find((a) => (a.getAttribute('href') || '').includes('/guide/'));
       if (!docsLink) return null;
@@ -98,14 +99,16 @@ for (const theme of ['dark', 'light']) {
         aria: docsLink.getAttribute('aria-current'),
         isActive: docsLink.classList.contains('is-active'),
         color: getComputedStyle(docsLink).color,
+        underline: getComputedStyle(docsLink, '::after').transform,
       };
     });
-    const expectActiveColor = theme === 'dark' ? 'rgb(245, 247, 249)' : 'rgb(20, 24, 29)';
+    const expectActiveColor = theme === 'dark' ? 'oklch(0.882 0.059 254.128)' : 'oklch(0.546 0.245 262.881)';
     check(
       `${t} 导航 active 态（Docs 当前页）`,
       hnActive?.aria === 'page' &&
         hnActive?.isActive === true &&
-        hnActive?.color === expectActiveColor,
+        hnActive?.color === expectActiveColor &&
+        /matrix\(1, 0, 0, 1/.test(hnActive?.underline ?? ''),
       JSON.stringify(hnActive),
     );
     await ctx.close();

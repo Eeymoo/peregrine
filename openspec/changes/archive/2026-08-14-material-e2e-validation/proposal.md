@@ -1,5 +1,7 @@
 # 物料运行时端到端验证与质量基线
 
+> **取代说明**：本 change 已由 `restore-dynamic-material`（2026-08-14）收编并取代——与本 change 范围重叠的未竟事项已并入该 change 的 What Changes，其余宣告放弃。随该 change 归档，详见 `openspec/changes/restore-dynamic-material/proposal.md` 头部取代关系说明。
+
 ## Why
 
 `four-layer-customization` 的功能实现已完成（106 单元测试通过），但**发布 stable 所需的质量证据缺失**：迁移回归集成测试（tasks.md 7.10）从未创建却被勾选完成，§21 的七条端到端验证（真实配置迁移、性能、内存、体积、求值延迟、错误隔离、动态物料实效）全部未做。这些项彼此同质（都是验证而非新功能），拆为一个独立 change，作为 `v0.2.1` stable 发布的准入门槛。

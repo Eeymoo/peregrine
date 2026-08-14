@@ -14,11 +14,13 @@ pub mod svg_renderer;
 /// `disable-material-runtime`）。与 `MATERIAL_DYNAMIC_INPUT_ENABLED` 相互独立。
 pub const MATERIAL_RUNTIME_ENABLED: bool = true;
 
-/// 动态输入（时间 / 鼠标 / 键盘）与动态物料开关。
+/// 动态输入（时间 / 鼠标 / 键盘）与动态物料开关（编译期总闸）。
 ///
-/// 当前为 `false`：不轮询动态输入，物料求值使用
-/// `peregrine_material::DynamicContext::static_context()`（version=0，永久缓存），
-/// 动态物料冻结渲染且在设置 UI 中不可选；overlay 重绘保持纯事件驱动。
-/// 动态链路相关修复见挂起的 change `overlay-dynamic-text-fixes`，
-/// 将来收尾后改回 `true` 即可恢复动态物料。
-pub const MATERIAL_DYNAMIC_INPUT_ENABLED: bool = false;
+/// 当前为 `true`（change `restore-dynamic-material` 起恢复）：动态链路默认活跃，
+/// overlay 轮询动态输入、动态物料按帧率档位持续重绘、选择器展示动态物料。
+/// 运行时层另有用户开关 `settings.material.dynamic_enabled`（默认 true），
+/// 与本常量构成**与门**：任一层关闭即用户侧软关闭（求值走
+/// `DynamicContext::static_context()`、动态判定恒 false、选择器隐藏动态物料）。
+/// 翻回 `false` 可整体回退到 `material-static-rendering` 时代的软关闭行为
+/// （运行时开关与 FPS 设置退化为无消费 UI 字段，无害）。
+pub const MATERIAL_DYNAMIC_INPUT_ENABLED: bool = true;

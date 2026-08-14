@@ -73,6 +73,17 @@ impl OverlayRenderer {
         // softbuffer 的 resize 在 render_overlay 中按当前窗口尺寸自动处理。
     }
 
+    /// 物料热重载后替换 registry 句柄（整体替换，无部分更新窗口）。
+    ///
+    /// 供 overlay 线程在 `RefreshMaterials` 命令中调用，
+    /// 使运行中的渲染器无需重建即感知新物料（含新的 `is_dynamic`）。
+    pub fn update_material_registry(
+        &mut self,
+        material_registry: Arc<peregrine_material::MaterialRegistry>,
+    ) {
+        self.material_registry = material_registry;
+    }
+
     /// 渲染一帧遮盖层。
     ///
     /// 返回 `Result<(), Box<dyn std::error::Error>>`：仅 `surface.resize()` 失败
@@ -109,6 +120,11 @@ impl OverlayRenderer {
         let profile = config.active_profile();
         let antialiasing = config.settings.antialiasing;
         let renderer_backend = config.settings.renderer_backend;
+        // 动态链路合取判定（design D2）：编译期总闸 AND 运行时用户开关。
+        // 运行时关闭时为用户侧软关闭——求值走 static_context()，
+        // 与预览 IPC、动态性判定三处门控语义一致。
+        let dynamic_input_active =
+            crate::MATERIAL_DYNAMIC_INPUT_ENABLED && config.settings.material.dynamic_enabled;
 
         // 判断走新格式（layers）还是旧格式（crosshair）：
         // - 新格式：迁移后的 profile `crosshair` 恒为 None（见 migration.rs），
@@ -168,8 +184,8 @@ impl OverlayRenderer {
             if let Some(ref profile) = profile_clone {
                 // 动态上下文选择：MATERIAL_DYNAMIC_INPUT_ENABLED 门控。
                 // 启用时轮询真实动态输入（Win32 鼠标键盘 / 时间）；
-                // 停用时用 static_context()（version=0，静态物料永久缓存，动态物料冻结渲染）。
-                let ctx = if crate::MATERIAL_DYNAMIC_INPUT_ENABLED {
+                // 停用时用 static_context()（动态物料冻结渲染）。
+                let ctx = if dynamic_input_active {
                     crate::platform::poll_dynamic_context(logical_w, logical_h)
                 } else {
                     peregrine_material::DynamicContext::static_context()
@@ -220,9 +236,9 @@ impl OverlayRenderer {
                 return Ok(());
             };
             // 动态上下文选择：MATERIAL_DYNAMIC_INPUT_ENABLED 门控。
-            // 启用时轮询真实动态输入；停用时用 static_context()（version=0，
-            // 静态物料永久缓存，动态物料冻结渲染）。
-            let ctx = if crate::MATERIAL_DYNAMIC_INPUT_ENABLED {
+            // 启用时轮询真实动态输入；停用时用 static_context()
+            // （动态物料冻结渲染）。
+            let ctx = if dynamic_input_active {
                 crate::platform::poll_dynamic_context(logical_w, logical_h)
             } else {
                 peregrine_material::DynamicContext::static_context()

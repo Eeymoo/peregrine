@@ -145,6 +145,22 @@ export function LayersEditor({
     };
   }, [refresh, onConfigChange]);
 
+  // 任务 4.3：监听 peregrine:materials-changed（物料目录热重载完成）时
+  // 重拉物料列表，保证选择器 / 参数面板即时反映新增或修改的用户物料。
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen("peregrine:materials-changed", () => {
+      logAction("materials-changed event");
+      refresh();
+      setRefreshKey((n) => n + 1);
+    }).then((un) => {
+      unlisten = un;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [refresh]);
+
   const triggerPreviewRefresh = () => setRefreshKey((n) => n + 1);
 
   const selectedLayer = layers.find((l) => l.id === selectedId);
@@ -214,7 +230,10 @@ export function LayersEditor({
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* 左侧：预览 */}
         <div className="flex-1 p-4 min-w-0 min-h-0 relative">
-          <Preview previewKey={`${selectedId}-${refreshKey}`} />
+          <Preview
+            previewKey={`${selectedId}-${refreshKey}`}
+            dynamicMaterialEnabled={config.settings?.material?.dynamic_enabled}
+          />
           {/* 切换到单图层按钮：与单图层模式的切换按钮位置一致 */}
           <button
             onClick={onSwitchSingleLayer}
@@ -236,6 +255,7 @@ export function LayersEditor({
             }}
             overlayActive={overlayActive}
             hasCrosshair={!!profile?.crosshair}
+            dynamicMaterialEnabled={config.settings?.material?.dynamic_enabled}
           />
         </div>
 

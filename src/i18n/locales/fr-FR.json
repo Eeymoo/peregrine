@@ -216,7 +216,8 @@
     "devToolsHint": "Activé, le clic droit « Inspecter » et Ctrl+Maj+I sont disponibles. Désactivé pour économiser de la mémoire. Prend effet après réouverture de la fenêtre.",
     "devToolsRestartTitle": "Paramètre DevTools modifié",
     "devToolsRestartDesc": "DevTools nécessite un redémarrage de l'application pour prendre effet. Redémarrer maintenant ?",
-    "devOpenDevToolsFailed": "Échec de l'ouverture de DevTools"
+    "devOpenDevToolsFailed": "Échec de l'ouverture de DevTools",
+    "sectionMaterial": "Matériaux"
   },
   "styles": {
     "edge_rect": "Rectangle de bord",
@@ -336,5 +337,14 @@
     "no_renderable_content": "Impossible de démarrer l'overlay : aucun calque visible ni réticule configuré",
     "overlay_active_remove_last_visible": "Impossible de supprimer le dernier calque visible pendant l'exécution de l'overlay",
     "overlay_active_hide_last_visible": "Impossible de masquer le dernier calque visible pendant l'exécution de l'overlay"
+  },
+  "material": {
+    "dynamicEnabled": "Matériaux dynamiques",
+    "dynamicEnabledHint": "Désactivés, les matériaux dynamiques (ex. l'horloge) sont figés ; effet immédiat sans redémarrage",
+    "fps": "Fréquence d'animation",
+    "fpsHint": "Cadence maximale des matériaux dynamiques ; les profils purement statiques ne sont pas affectés",
+    "fpsSystem": "Suivre le système",
+    "statusActive": "Pipeline dynamique activé : les matériaux dynamiques se rafraîchissent à la cadence configurée",
+    "statusFrozen": "Pipeline dynamique désactivé : matériaux dynamiques figés ; couches statiques non affectées"
   }
 }

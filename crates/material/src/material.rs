@@ -214,7 +214,10 @@ fn make_engine_with_dynamic(ctx: &DynamicContext) -> Engine {
     let time_ms = ctx.time_ms as i64;
     engine.register_fn("time_ms", move || time_ms);
 
-    // now_ms() -> i64：当前系统时间（毫秒）。
+    // now_ms() -> i64：当前系统时间（毫秒），直读墙钟。
+    //
+    // 不推荐：绕过 DynamicContext 快照，导致预览与 overlay 求值时刻不一致
+    // （WYSIWYG 漂移）。仅为兼容既有用户脚本保留注册，新脚本一律用 time_ms()。
     engine.register_fn("now_ms", || chrono::Local::now().timestamp_millis());
 
     // format_time(ms, format) -> String：把毫秒时间戳格式化为本地时间字符串。
@@ -645,16 +648,20 @@ mod tests {
         }
     }
 
+    /// 测试辅助：加载已注册的 builtin.time 物料（time.rhai 已归位内置）。
+    fn load_builtin_time() -> std::sync::Arc<Material> {
+        let registry = crate::registry::MaterialRegistry::new();
+        registry.load_builtin().expect("load builtin materials");
+        registry
+            .get("builtin.time")
+            .expect("builtin.time registered")
+    }
+
     #[test]
     fn evaluate_time_material() {
-        // time.rhai 已从内置物料迁移到 examples/（作为动态物料范例，默认配置不引用）。
-        let m = Material::load(
-            "user.time".to_string(),
-            include_str!("../examples/time.rhai"),
-            false,
-        )
-        .expect("load time material");
-        assert_eq!(m.id(), "user.time");
+        // time.rhai 已归位内置物料（BUILTIN_MATERIALS 含 "time"）。
+        let m = load_builtin_time();
+        assert_eq!(m.id(), "builtin.time");
         assert_eq!(m.metadata().display_name, "时间显示");
         assert!(m.metadata().is_dynamic);
 
@@ -693,12 +700,7 @@ mod tests {
 
     #[test]
     fn evaluate_time_material_custom_format() {
-        let m = Material::load(
-            "user.time".to_string(),
-            include_str!("../examples/time.rhai"),
-            false,
-        )
-        .unwrap();
+        let m = load_builtin_time();
         let params = serde_json::json!({
             "font_size": 16.0,
             "x": 0.0,
@@ -724,12 +726,7 @@ mod tests {
 
     #[test]
     fn evaluate_time_material_free_format() {
-        let m = Material::load(
-            "user.time".to_string(),
-            include_str!("../examples/time.rhai"),
-            false,
-        )
-        .unwrap();
+        let m = load_builtin_time();
         let params = serde_json::json!({
             "font_size": 16.0,
             "x": 0.0,
@@ -1283,6 +1280,76 @@ fn build(params, screen) {
             &elements[0],
             Element::Text { content, .. } if !content.is_empty()
         ));
+    }
+
+    // ===== 内置时间物料：上下文时间快照（防 now_ms 逃逸回归） =====
+
+    /// `builtin.time` 求值必须使用注入上下文的 `time_ms`：
+    /// 固定 `DynamicContext.time_ms = T` → 输出文本对应时刻 T，
+    /// 而非求值发生的真实墙钟时刻（防 `now_ms()` 逃逸回归）。
+    #[test]
+    fn builtin_time_uses_injected_context_time() {
+        let m = load_builtin_time();
+
+        let screen = test_rect();
+        // 固定上下文时刻：2026-08-14 12:34:56.789 UTC+8 对应的 Unix 毫秒。
+        // 选一个与「当前墙钟」几乎不可能相同的时刻，防偶发通过。
+        let fixed_ms: u64 = 1_788_636_896_789;
+        let ctx = DynamicContext {
+            time_ms: fixed_ms,
+            mouse_pos: (0.0, 0.0),
+            key_state: crate::context::KeyState::new(),
+            rng_seed: 1,
+            version: fixed_ms,
+        };
+        let mut params = m.defaults().clone();
+        params["format"] = serde_json::json!("yyyy-MM-dd HH:mm:ss");
+        let elements = m
+            .evaluate(&params, &screen, &ctx)
+            .expect("evaluate builtin.time with fixed context");
+
+        assert_eq!(elements.len(), 1);
+        match &elements[0] {
+            Element::Text { content, .. } => {
+                // format_time 基于本地时区渲染，无法硬编码完整字符串；
+                // 秒数与时区无关（时区偏移均为分钟粒度）：fixed_ms 截断在 56 秒。
+                // 若物料逃逸用 now_ms() 直读墙钟，秒数几乎必然不同（1/60 通过率），
+                // 再叠加下条 epoch 测试双保险。
+                assert!(
+                    content.contains(":56"),
+                    "content `{}` should embed fixed-context time (second=56), not wall clock",
+                    content
+                );
+            }
+            other => panic!("expected Text element, got {:?}", other),
+        }
+    }
+
+    /// `builtin.time` 在 static 上下文（time_ms = 0）下输出 UNIX 起点
+    /// 对应的本地时刻，同样不是求值时刻（软关闭下冻结语义）。
+    #[test]
+    fn builtin_time_static_context_renders_epoch() {
+        let m = load_builtin_time();
+
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let mut params = m.defaults().clone();
+        // 默认 HH:mm:ss 不含年份，改用日期格式以便断言 epoch 时刻。
+        params["format"] = serde_json::json!("yyyy-MM-dd HH:mm:ss");
+        let elements = m.evaluate(&params, &screen, &ctx).expect("evaluate");
+        assert_eq!(elements.len(), 1);
+        match &elements[0] {
+            Element::Text { content, .. } => {
+                // UNIX 起点 1970-01-01：本地时区年份数字必含 1970（或 1969，
+                // 西半球负偏移时区）。无论如何不应是求值当下的年份。
+                assert!(
+                    content.contains("1970") || content.contains("1969"),
+                    "static context should render epoch time, got `{}`",
+                    content
+                );
+            }
+            other => panic!("expected Text element, got {:?}", other),
+        }
     }
 
     /// 示例物料：key_indicator（输入动态）

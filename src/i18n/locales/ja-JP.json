@@ -216,7 +216,8 @@
     "devToolsHint": "有効化すると右クリック「検証」と Ctrl+Shift+I が利用可能に。無効化でメモリを節約。ウィンドウ再オープンで有効化。",
     "devToolsRestartTitle": "DevTools 設定が変更されました",
     "devToolsRestartDesc": "DevTools の設定はアプリの再起動後に有効になります。今すぐ再起動しますか？",
-    "devOpenDevToolsFailed": "DevTools を開けませんでした"
+    "devOpenDevToolsFailed": "DevTools を開けませんでした",
+    "sectionMaterial": "マテリアル"
   },
   "styles": {
     "edge_rect": "エッジ矩形",
@@ -336,5 +337,14 @@
     "no_renderable_content": "オーバーレイを開始できません：表示可能なレイヤーまたはクロスヘアがありません",
     "overlay_active_remove_last_visible": "オーバーレイ実行中は最後の表示レイヤーを削除できません",
     "overlay_active_hide_last_visible": "オーバーレイ実行中は最後の表示レイヤーを非表示にできません"
+  },
+  "material": {
+    "dynamicEnabled": "動的マテリアル",
+    "dynamicEnabledHint": "オフにすると動的マテリアル（時計など）は静止描画になります。再起動不要で即時反映",
+    "fps": "アニメーションフレームレート",
+    "fpsHint": "動的マテリアルの最大リフレッシュレート。静的なプロファイルには影響しません",
+    "fpsSystem": "システムに追従",
+    "statusActive": "動的パイプライン有効：動的マテリアルは設定レートで更新されます",
+    "statusFrozen": "動的パイプライン無効：動的マテリアルは静止描画、静的レイヤーには影響しません"
   }
 }

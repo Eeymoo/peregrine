@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { getConfig, updatePreferences } from "@/lib/api";
-import type { AppConfig } from "@/types/config";
+import type { AppConfig, MaterialSettings } from "@/types/config";
 
 export function useSettingsSync(setConfig: (updater: (prev: AppConfig | null) => AppConfig | null) => void) {
   useEffect(() => {
@@ -20,6 +20,7 @@ export function useSettingsSync(setConfig: (updater: (prev: AppConfig | null) =>
         renderer_backend?: "cpu" | "svg";
         quick_colors?: [number, number, number, number][];
         hotkey_bindings?: [string, string][];
+        material?: MaterialSettings;
       }>("peregrine:settings-changed", (event) => {
         const {
           auto_switch_on_overlay,
@@ -33,6 +34,7 @@ export function useSettingsSync(setConfig: (updater: (prev: AppConfig | null) =>
           renderer_backend,
           quick_colors,
           hotkey_bindings,
+          material,
         } = event.payload;
         setConfig((prev) => {
           if (!prev) return prev;
@@ -69,6 +71,9 @@ export function useSettingsSync(setConfig: (updater: (prev: AppConfig | null) =>
           }
           if (hotkey_bindings !== undefined) {
             settings.hotkey_bindings = hotkey_bindings as any;
+          }
+          if (material !== undefined) {
+            settings.material = material;
           }
           return { ...prev, settings };
         });

@@ -185,7 +185,11 @@ export default function ConfigApp() {
           {/* 左侧预览 */}
           <div className="flex-1 p-4 min-w-0 min-h-0 relative">
             {/* 传入内存态 profile：单图层编辑防抖保存期间预览仍即时跟随（不修则滞后一次修改） */}
-            <Preview previewKey={profile?.layers} profile={profile} />
+            <Preview
+              previewKey={profile?.layers}
+              profile={profile}
+              dynamicMaterialEnabled={config.settings?.material?.dynamic_enabled}
+            />
 
             {/* 顶部工具栏：仅保留切换到多图层按钮 */}
             {/* 模式切换入口：软关闭不门控（D4 2026-08-03 二次修订） */}

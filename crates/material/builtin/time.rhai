@@ -2,6 +2,10 @@
 // 动态物料：显示当前时间，可自定义位置、字号、加粗与格式。
 // 支持格式占位符：yyyy(年), MM(月), dd(日), HH(24小时), hh(12小时), mm(分), ss(秒), a(AM/PM)
 // 示例：HH:mm:ss  → 14:30:25；yyyy-MM-dd HH:mm:ss → 2026-07-19 14:30:25
+//
+// 时间来源使用 time_ms()（DynamicContext 快照）：overlay 每帧求值拿到轮询时刻、
+// 预览拿到请求时刻，两侧一致受调度节拍约束（WYSIWYG）。
+// 不要用 now_ms()（直读墙钟，会绕过上下文快照导致预览/overlay 漂移）。
 
 fn defaults() {
     #{
@@ -34,7 +38,7 @@ fn build(params, screen) {
     let format = params.format;
     let bold = if params.contains("bold") { params.bold } else { false };
 
-    let content = format_time(now_ms(), format);
+    let content = format_time(time_ms(), format);
     // 加粗时输出字重 700，否则用 ()（序列化为 null → Rust 侧 None，常规 400）。
     let font_weight = if bold { 700 } else { () };
 

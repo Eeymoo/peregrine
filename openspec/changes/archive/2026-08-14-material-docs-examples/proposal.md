@@ -1,5 +1,7 @@
 # 物料创作文档与示例
 
+> **取代说明**：本 change 已由 `restore-dynamic-material`（2026-08-14）收编并取代——与本 change 范围重叠的未竟事项已并入该 change 的 What Changes，其余宣告放弃。随该 change 归档，详见 `openspec/changes/restore-dynamic-material/proposal.md` 头部取代关系说明。
+
 ## Why
 
 `four-layer-customization` 的物料运行时、12 份内置物料与图层 UI 已落地，但**用户创作侧的最后一公里缺失**：没有创作指南文档、没有示例物料、README 仍是旧样式清单。用户即使知道物料是 `.rhai` 脚本，也没有"照抄 → 修改 → 验证"的入门路径。该部分在原 change 的 tasks.md §19 中被错误勾选为已完成，现拆出独立交付。

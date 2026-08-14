@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Trash2, Copy, ChevronUp, ChevronDown, Plus, Eye, EyeOff, Lock, Unlock } from "lucide-react";
 import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
-import { MATERIAL_DYNAMIC_INPUT_ENABLED } from "@/lib/feature";
+import { dynamicInputEnabled } from "@/lib/feature";
 import { SliderField } from "@/components/fields/SliderField";
 import { NumberField } from "@/components/fields/NumberField";
 import { TextField } from "@/components/fields/TextField";
@@ -37,6 +37,8 @@ interface LayerPanelProps {
   overlayActive: boolean;
   /** 是否存在 legacy crosshair（仅 layers 为空时作为渲染兜底、豁免保护） */
   hasCrosshair: boolean;
+  /** 动态物料运行时开关（settings.material.dynamic_enabled），用于物料选择器合取过滤 */
+  dynamicMaterialEnabled?: boolean;
 }
 
 /**
@@ -49,27 +51,31 @@ export function LayerPanel({
   onChanged,
   overlayActive,
   hasCrosshair,
+  dynamicMaterialEnabled,
 }: LayerPanelProps) {
   const { t } = useI18n();
   const [materials, setMaterials] = useState<MaterialInfo[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
 
   // 加载物料列表（仅一次）。
-  // MATERIAL_DYNAMIC_INPUT_ENABLED 门控：动态输入停用时过滤 is_dynamic 物料，
-  // 动态物料在选择器中不可选（配置保留，渲染冻结）。
+  // 动态输入合取门控：编译期总闸 AND 运行时用户开关（design D2）。
+  // 任一关闭时过滤 is_dynamic 物料（配置保留，渲染冻结）；
+  // 运行时开关变化会以 dynamicMaterialEnabled 为依赖重拉列表，热生效。
   // custom_image 暂隐藏：图片渲染链路当前不可用（不渲染图片），待后续修复后恢复。
   useEffect(() => {
     listMaterials()
       .then((list) =>
         setMaterials(
-          (MATERIAL_DYNAMIC_INPUT_ENABLED ? list : list.filter((m) => !m.is_dynamic))
-            .filter((m) => m.id !== "builtin.custom_image"),
+          (dynamicInputEnabled(dynamicMaterialEnabled)
+            ? list
+            : list.filter((m) => !m.is_dynamic)
+          ).filter((m) => m.id !== "builtin.custom_image"),
         ),
       )
       .catch(() => {
         // listMaterials 失败由 invoke 包装 toast 提示；这里不阻塞 UI。
       });
-  }, []);
+  }, [dynamicMaterialEnabled]);
 
   const handleAdd = (materialId: string, name: string) => {
     logAction("add-layer", { materialId, name });

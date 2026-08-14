@@ -10,10 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { GeneralTab } from "@/components/settings/GeneralTab";
 import { OverlayTab } from "@/components/settings/OverlayTab";
+import { MaterialTab } from "@/components/settings/MaterialTab";
 import { HotkeysTab } from "@/components/settings/HotkeysTab";
 import { UpdateTab, type UpdateState } from "@/components/settings/UpdateTab";
 import { AboutTab } from "@/components/settings/AboutTab";
 import { DevTab } from "@/components/settings/DevTab";
+import { MATERIAL_RUNTIME_ENABLED } from "@/lib/feature";
 import { updatePreferences } from "@/lib/api";
 import type { AppConfig } from "@/types/config";
 
@@ -25,6 +27,8 @@ export default function SettingsApp() {
   const [updateState, setUpdateState] = useState<UpdateState>({ status: "idle" });
   // 开发者模式：解锁后或开发构建（import.meta.env.DEV）下显示「开发」Tab。
   const devUnlocked = !!config?.settings?.developer_mode || import.meta.env.DEV;
+  // 「物料」Tab 仅在物料运行时编译期开关开启时可见（软关闭构建整体隐藏）。
+  const materialTabVisible = MATERIAL_RUNTIME_ENABLED;
 
   useEffect(() => {
     getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("settings.title")}`).catch(() => {});
@@ -73,9 +77,14 @@ export default function SettingsApp() {
     <div className="h-screen flex flex-col bg-background text-foreground">
       <Tabs defaultValue="general" className="flex flex-col h-full">
         <div className="px-6 pt-5">
-          <TabsList className={`grid w-full ${devUnlocked ? "grid-cols-6" : "grid-cols-5"}`}>
+          <TabsList
+            className={`grid w-full ${devUnlocked ? "grid-cols-7" : materialTabVisible ? "grid-cols-6" : "grid-cols-5"}`}
+          >
             <TabsTrigger value="general">{t("settings.sectionGeneral")}</TabsTrigger>
             <TabsTrigger value="overlay">{t("settings.sectionOverlay")}</TabsTrigger>
+            {materialTabVisible && (
+              <TabsTrigger value="material">{t("settings.sectionMaterial")}</TabsTrigger>
+            )}
             <TabsTrigger value="hotkeys">{t("settings.sectionHotkeys")}</TabsTrigger>
             <TabsTrigger value="update">{t("settings.sectionUpdate")}</TabsTrigger>
             <TabsTrigger value="about">{t("settings.sectionAbout")}</TabsTrigger>
@@ -108,6 +117,16 @@ export default function SettingsApp() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {materialTabVisible && (
+          <TabsContent value="material" className="flex-1 overflow-y-auto m-0 p-6">
+            <Card>
+              <CardContent className="space-y-6 pt-6">
+                <MaterialTab config={config} setConfig={setConfig} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         <TabsContent value="hotkeys" className="flex-1 overflow-y-auto m-0 p-6">
           <Card>

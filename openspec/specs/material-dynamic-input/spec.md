@@ -2,9 +2,34 @@
 
 ## Purpose
 
-定义注入 Rhai 物料脚本的动态输入 host function 集合（实时时间、鼠标位置、键盘状态、随机数），及其数据来源、安全约束与可扩展性要求。物料脚本据此实现闪烁、跟随鼠标、按键提示等动态效果。
+定义注入 Rhai 物料脚本的动态输入 host function 集合（实时时间、鼠标位置、键盘状态、随机数），及其数据来源、安全约束与可扩展性要求。物料脚本据此实现闪烁、跟随鼠标、按键提示等动态效果。同时定义动态输入的整体停用开关（编译期总闸 + 运行时用户开关的双层与门）。
 
 ## Requirements
+
+### Requirement: 动态输入整体停用开关
+
+系统 SHALL 支持双层停用动态输入：
+
+1. **编译期总闸** `MATERIAL_DYNAMIC_INPUT_ENABLED = false`（Rust `crates/peregrine/src/lib.rs` + TS `src/lib/feature.ts` 成对）：整体停用动态输入与动态物料，所有门控点编译期折叠，「物料」Tab 隐藏。
+2. **运行时用户开关** `settings.material.dynamic_enabled = false`（默认 `true`）：用户侧软关闭，热生效（经配置保存 → overlay `UpdateConfig` 路径），无需重启。
+
+两层开关构成与门：动态链路（`poll_dynamic_context` 调用、动态物料选择器可见性、预览动态刷新、overlay 动态重绘调度）仅在两者均为真时活跃。任一层关闭时：运行时 MUST NOT 轮询时间 / 鼠标 / 键盘；物料求值 MUST 使用 `DynamicContext::static_context()`；overlay 重绘 MUST 保持纯事件驱动；物料选择器 MUST 隐藏 `is_dynamic = true` 的物料。
+
+#### Scenario: 编译期开关整体回退
+
+- **WHEN** 维护者将 `MATERIAL_DYNAMIC_INPUT_ENABLED` 改回 `false` 并重新构建
+- **THEN** 动态链路整体停用，「物料」Tab 隐藏，行为回到 `material-static-rendering` 时代
+
+#### Scenario: 运行时开关热生效
+
+- **WHEN** `MATERIAL_DYNAMIC_INPUT_ENABLED = true` 且用户在「物料」Tab 关闭动态物料开关
+- **THEN** 不重启的前提下，overlay 停止动态调度、求值改用 `static_context()`、选择器隐藏动态物料
+- **AND** 重新开启后即时恢复
+
+#### Scenario: 双开时动态物料可选
+
+- **WHEN** 编译期与运行时开关均开启
+- **THEN** `builtin.time` 出现在物料选择器，带动态徽章，可添加为图层
 
 ### Requirement: 物料脚本可读取实时时间
 

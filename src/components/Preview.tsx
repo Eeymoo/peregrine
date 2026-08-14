@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { BuiltShape, Element, Profile } from "@/types/config";
 import { useI18n } from "@/lib/i18n";
-import { buildShapes } from "@/lib/api";
+import { buildShapes, listMaterials } from "@/lib/api";
+import { MATERIAL_RUNTIME_ENABLED, dynamicInputEnabled } from "@/lib/feature";
 
 interface PreviewProps {
   /** 触发重绘的依赖键值，当图层列表或参数变化时由父组件传入新值来触发预览更新 */
@@ -14,6 +15,11 @@ interface PreviewProps {
    * 不传时后端回退到共享快照（适用于先写后端再刷新的多图层编辑器）。
    */
   profile?: Profile | null;
+  /**
+   * 动态物料运行时开关（settings.material.dynamic_enabled）：
+   * 与编译期总闸合取后决定预览是否启用 ~1s 定时刷新（design D8）。
+   */
+  dynamicMaterialEnabled?: boolean;
 }
 
 /**
@@ -21,14 +27,64 @@ interface PreviewProps {
  * 在 Canvas 上绘制。所有几何计算都在 Rust 侧（物料脚本），前端零几何逻辑。
  *
  * 调用节流 16ms（60fps）避免拖拽滑块时打爆 IPC。
+ *
+ * 动态物料实时刷新（design D8）：profile 含 `is_dynamic` 物料且动态开关双开时，
+ * 以 1s 间隔定时重拉 `build_shapes_ipc`（时钟等动态物料在预览中跳动）；
+ * 1s 是预览节拍（独立于后端 FPS 档位）——秒级足以表达「这是活的」。
+ * 条件不满足或组件卸载时清理定时器，维持事件驱动。
  */
-export function Preview({ previewKey, aspectRatio = 16 / 9, profile }: PreviewProps) {
+export function Preview({
+  previewKey,
+  aspectRatio = 16 / 9,
+  profile,
+  dynamicMaterialEnabled,
+}: PreviewProps) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [shapes, setShapes] = useState<BuiltShape[]>([]);
   const [loading, setLoading] = useState(false);
   const [sizeTick, setSizeTick] = useState(0);
+  const [dynamicTick, setDynamicTick] = useState(0);
+  // 物料 is_dynamic 缓存：供「profile 是否含动态物料」判定（任务 7.2）。
+  const [dynamicMaterialIds, setDynamicMaterialIds] = useState<Set<string>>(new Set());
+
+  // 拉取物料列表并缓存 is_dynamic 信息（监听热重载事件后重拉）。
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    const load = () => {
+      listMaterials()
+        .then((list) =>
+          setDynamicMaterialIds(new Set(list.filter((m) => m.is_dynamic).map((m) => m.id))),
+        )
+        .catch(() => {
+          // listMaterials 失败由 invoke 包装 toast；预览退化为不定时刷新。
+        });
+    };
+    load();
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen("peregrine:materials-changed", load);
+    })();
+    return () => unlisten?.();
+  }, []);
+
+  // profile 含可见动态图层且动态开关双开 → 1s 定时重拉（design D8）。
+  const dynamicActive =
+    MATERIAL_RUNTIME_ENABLED &&
+    dynamicInputEnabled(dynamicMaterialEnabled) &&
+    (profile?.layers ?? []).some(
+      (l) =>
+        l.visible &&
+        dynamicMaterialIds.has(
+          l.material.kind === "builtin" ? l.material.id : l.material.name,
+        ),
+    );
+  useEffect(() => {
+    if (!dynamicActive) return;
+    const timer = setInterval(() => setDynamicTick((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [dynamicActive]);
 
   // 监听容器尺寸变化。
   useEffect(() => {
@@ -69,7 +125,7 @@ export function Preview({ previewKey, aspectRatio = 16 / 9, profile }: PreviewPr
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [previewKey, aspectRatio, profile]);
+  }, [previewKey, aspectRatio, profile, dynamicTick]);
 
   // 在 Canvas 上绘制图元列表。
   useEffect(() => {

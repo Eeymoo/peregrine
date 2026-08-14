@@ -2,19 +2,27 @@
 /**
  * Starlight Header 覆写（本站点仅有的第二个组件覆写，第一个是 Hero）。
  *
- * 目的：在 site title 右侧插入顶部导航链接（AukCraft ↗ / Docs / Download）。
- * 除导航区（.header-nav）外完全复制 @astrojs/starlight@0.41 默认 Header 结构，
- * 保持覆盖物最小化；Starlight 升级时需对照默认 Header.astro 复核本文件。
+ * aukcraft 平铺头栏（header-aukcraft-nav）：
+ * - 品牌标识：图标 + 文字（SiteTitle，logo 配置见 astro.config.mjs）；
+ * - 核心导航移至右侧功能区：Docs / Download / GitHub 平铺文本链接（无图标、
+ *   无外链箭头），当前页 active 态仅变色；
+ * - 语言切换：EN / 中文 平铺切换（斜杠分隔，无下拉）；
+ * - 主题切换：图标按钮（sun/moon，lucide 线稿），点击在 dark/light 间翻转，
+ *   写入 localStorage `starlight-theme` 与 <html data-theme>（与 Starlight
+ *   ThemeProvider 协议一致）；
+ * - 搜索：沿用 Starlight Search 组件，图标按钮化由 starlight-polish.css 定点
+ *   覆写（隐藏文字与 ⌘K 提示，hover 与头栏链接同一过渡效果）；
+ * - AukCraft 外链移至落地页 Footer，不再出现在头栏。
  *
+ * 头栏链接 / 图标按钮共享 .header-item 同一 hover 过渡（颜色 200ms）。
  * 桌面端显示（md 断点以上），窄屏隐藏——移动端入口由 sidebar 顶层 link 项承担。
+ * 除上述功能区外保持 @astrojs/starlight@0.41 默认 Header 结构，Starlight 升级时
+ * 需对照默认 Header.astro 复核本文件。
  */
 import config from 'virtual:starlight/user-config';
 
-import LanguageSelect from 'virtual:starlight/components/LanguageSelect';
 import Search from 'virtual:starlight/components/Search';
 import SiteTitle from 'virtual:starlight/components/SiteTitle';
-import SocialIcons from 'virtual:starlight/components/SocialIcons';
-import ThemeSelect from 'virtual:starlight/components/ThemeSelect';
 
 import { lucideIcon } from '../lib/icons';
 import { localeBase } from '../lib/locale';
@@ -30,14 +38,14 @@ const shouldRenderSearch =
 const locale = localeBase(Astro);
 const prefix = locale ? `/${locale}` : '';
 const navLinks = [
-	{ label: 'AukCraft', href: 'https://www.aukcraft.org/', external: true },
 	{ label: locale ? '文档' : 'Docs', href: `${prefix}/guide/intro`, external: false },
 	{ label: locale ? '下载' : 'Download', href: `${prefix}/download`, external: false },
+	{ label: 'GitHub', href: 'https://github.com/eeymoo/peregrine', external: true },
 ];
-const externalIcon = lucideIcon('ExternalLink');
-// 现代化项 1：当前页 active 态。路由判定最小化——pathname 去掉可选 .html 后缀与尾斜杠后前缀比较。
+// 当前页 active 态。路由判定最小化——pathname 去掉可选 .html 后缀与尾斜杠后前缀比较。
 // 注意 build.format: 'file' 下 Astro.url.pathname 形如 /guide/usage.html，必须先剥 .html。
-const normalize = (p: string) => p.replace(/\.html$/, '').replace(/\/$/, '') || '/';
+const normalize = (p: string) =>
+	p.replace(/\.html$/, '').replace(/\/index$/, '/').replace(/\/$/, '') || '/';
 const pathname = normalize(Astro.url.pathname);
 const isActive = (href: string) => {
 	if (href.startsWith('http')) return false;
@@ -46,59 +54,92 @@ const isActive = (href: string) => {
 	const firstSeg = h.match(/^\/[^/]+/)?.[0] ?? h;
 	return pathname === h || pathname === h + '/index' || pathname.startsWith(firstSeg + '/');
 };
+
+// 语言平铺切换：当前路径在两种 locale 间互转。
+const isZh = pathname.startsWith('/zh-cn');
+const enHref = isZh ? normalize(pathname.replace(/^\/zh-cn/, '')) : pathname;
+const zhHref = isZh ? pathname : normalize(`/zh-cn${pathname === '/' ? '' : pathname}`);
+
+const sunIcon = lucideIcon('Sun');
+const moonIcon = lucideIcon('Moon');
+const themeLabel = locale ? '切换主题' : 'Toggle theme';
 ---
 
 <div class="header">
 	<div class="title-wrapper sl-flex">
 		<SiteTitle />
-		<nav class="header-nav hidden items-center gap-5 ms-6 md:flex" aria-label="Top">
+	</div>
+	<div class="search-slot sl-flex print:hidden">
+		{shouldRenderSearch && <Search />}
+	</div>
+	<div class="sl-hidden md:sl-flex print:hidden right-group">
+		<nav class="header-nav flex items-center gap-5" aria-label="Top">
 			{
 				navLinks.map((l) => {
 					const active = isActive(l.href);
 					return (
 						<a
 							class:list={[
-								'header-nav-link group relative inline-flex items-center gap-1 text-[0.9375rem] font-medium whitespace-nowrap no-underline transition-colors duration-200 ease-out',
+								'header-nav-link header-item inline-flex items-center text-[0.9375rem] font-medium whitespace-nowrap no-underline transition-colors duration-200 ease-out',
 								'focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-600 dark:focus-visible:outline-accent-200',
 								active
 									? 'is-active text-gray-900 dark:text-gray-50'
-									: 'text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white',
+									: 'text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50',
 							]}
 							href={l.href}
 							{...(active ? { 'aria-current': 'page' } : {})}
 							{...(l.external ? { target: '_blank', rel: 'noopener' } : {})}
 						>
 							{l.label}
-							{l.external && (
-								<span class="header-nav-icon inline-flex [&_svg]:size-3.5" aria-hidden="true" set:html={externalIcon} />
-							)}
-							{/* 现代化项 2：hover 下划线 scaleX 动画；active 态常显（现代化项 1 的指示）。reduced-motion 塌缩 */}
-							<span
-								class:list={[
-									'pointer-events-none absolute inset-x-0 -bottom-0.5 h-px origin-left transition-transform duration-200 ease-out motion-reduce:transition-none',
-									active
-										? 'scale-x-100 bg-accent-600 dark:bg-accent-200'
-										: 'scale-x-0 bg-gray-400 group-hover:scale-x-100 dark:bg-gray-500',
-								]}
-								aria-hidden="true"
-							/>
 						</a>
 					);
 				})
 			}
 		</nav>
-	</div>
-	<div class="sl-flex print:hidden">
-		{shouldRenderSearch && <Search />}
-	</div>
-	<div class="sl-hidden md:sl-flex print:hidden right-group">
-		<div class="sl-flex social-icons">
-			<SocialIcons />
-		</div>
-		<ThemeSelect />
-		<LanguageSelect />
+		{/* 语言平铺切换：EN / 中文，当前语言高亮为 ink、另一语言为可点链接。 */}
+		<span class="lang-toggle flex items-center gap-1.5 font-mono text-[0.8125rem] tracking-[0.08em]">
+			{
+				isZh ? (
+					<a class="header-item text-gray-700 no-underline transition-colors duration-200 ease-out hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50" href={enHref}>EN</a>
+				) : (
+					<span class="font-semibold text-gray-900 dark:text-gray-50" aria-current="true">EN</span>
+				)
+			}
+			<span class="text-gray-400 dark:text-gray-600" aria-hidden="true">/</span>
+			{
+				isZh ? (
+					<span class="font-semibold text-gray-900 dark:text-gray-50" aria-current="true">中文</span>
+				) : (
+					<a class="header-item text-gray-700 no-underline transition-colors duration-200 ease-out hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50" href={zhHref}>中文</a>
+				)
+			}
+		</span>
+		{/* 主题平铺切换：图标按钮，dark ↔ light 翻转；dark 下显示 sun（点击转 light），反之显示 moon。 */}
+		<button
+			type="button"
+			class="theme-toggle header-item inline-flex items-center p-1 text-gray-700 transition-colors duration-200 ease-out hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-50"
+			data-theme-toggle
+			aria-label={themeLabel}
+		>
+			<span class="theme-icon-sun hidden [&_svg]:size-4 dark:inline-flex" aria-hidden="true" set:html={sunIcon} />
+			<span class="theme-icon-moon inline-flex [&_svg]:size-4 dark:hidden" aria-hidden="true" set:html={moonIcon} />
+		</button>
 	</div>
 </div>
+
+<script>
+	// 主题平铺切换：与 Starlight ThemeProvider 同一协议（localStorage `starlight-theme` + <html data-theme>）。
+	document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach((btn) => {
+		btn.addEventListener('click', () => {
+			const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+			localStorage.setItem('starlight-theme', next);
+			document.documentElement.dataset.theme = next;
+			// 同步移动端菜单里的 Starlight 原生主题选择器（若存在）。
+			(window as { StarlightThemeProvider?: { updatePickers?: (t: string) => void } })
+				.StarlightThemeProvider?.updatePickers?.(next);
+		});
+	});
+</script>
 
 <style>
 	@layer starlight.core {
@@ -119,15 +160,14 @@ const isActive = (href: string) => {
 			min-width: 0;
 		}
 
-		.right-group,
-		.social-icons {
+		.right-group {
 			gap: 1rem;
 			align-items: center;
 		}
-		.social-icons::after {
-			content: '';
-			height: 2rem;
-			border-inline-end: 1px solid var(--sl-color-gray-5);
+
+		/* 搜索图标按钮贴右侧功能区（中间 1fr 列仅作留白）。 */
+		.search-slot {
+			justify-content: flex-end;
 		}
 
 		@media (min-width: 50rem) {

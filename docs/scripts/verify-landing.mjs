@@ -168,8 +168,8 @@ for (const theme of ['dark', 'light']) {
       JSON.stringify(r.hwGrid),
     );
     check(
-      `${t} hw 步骤发丝线`,
-      r.hwStep?.borderTopWidth === '1px' && r.hwStep?.borderTopStyle === 'solid' && r.hwStep?.paddingTop === '20px',
+      `${t} hw 步骤无额外线（仅标题后一条）`,
+      r.hwStep?.borderTopWidth === '0px' && r.hwStep?.paddingTop === '20px',
       JSON.stringify(r.hwStep),
     );
     check(

@@ -18,7 +18,8 @@
  * 静态无 hover 浮起）、圆角收紧 ≤4px（D3）、标题 serif-italic 关键词强调（D8，
  * 经 frontmatter title 内嵌 <em> / <em class="serif-zh"> 承载）。
  */
-import { LinkButton } from '@astrojs/starlight/components';
+import { Icon } from '@astrojs/starlight/components';
+import FlightLine from '../FlightLine.astro';
 
 const { data, locale } = Astro.locals.starlightRoute.entry
   ? { data: Astro.locals.starlightRoute.entry.data, locale: Astro.locals.starlightRoute.locale }
@@ -76,9 +77,20 @@ const COPY_DELAYS = ['[animation-delay:0ms]', '[animation-delay:80ms]', '[animat
         actions.length > 0 && (
           <div class:list={['lh-actions mt-2 flex flex-wrap gap-3', 'motion-safe:animate-rise', COPY_DELAYS[3]]}>
             {actions.map(({ attrs = {}, icon, link: href, text, variant }) => (
-              <LinkButton {href} {variant} icon={icon?.name} {...attrs}>
+              // aukcraft 壳层（D6）：Hero CTA 与下载区 .flight 按钮同语言——
+              // 方形 hairline 描边 + FlightLine；primary 文字取品牌蓝
+              // （暗色 accent-400 亮阶保证对比度），secondary 取 ink。
+              <a
+                class:list={[
+                  'lh-cta flight inline-flex items-center gap-2 rounded border border-(--sl-color-hairline) bg-(--sl-color-bg-sidebar) px-6 py-2.5 text-[0.9375rem] font-semibold no-underline',
+                  variant === 'primary' ? 'text-accent-600 dark:text-accent-400' : 'text-gray-900 dark:text-gray-50',
+                ]}
+                href={href}
+              >
+                {icon?.name && <Icon name={icon.name as never} />}
                 {text}
-              </LinkButton>
+                <FlightLine />
+              </a>
             ))}
           </div>
         )
@@ -109,15 +121,11 @@ const COPY_DELAYS = ['[animation-delay:0ms]', '[animation-delay:80ms]', '[animat
 </section>
 
 <style>
-  /* Starlight LinkButton 形态统一（:global 选择器，豁免清单 D5-3）：
-     primary 实心品牌色，secondary 描边，统一为 4px 方形（D3）。 */
-  .lh-actions :global(.sl-link-button) {
-    border-radius: 4px;
-  }
-
   /* serif-italic 强调词（frontmatter title 中的 <em>）：Newsreader italic；
      中文关键词用 .serif-zh 系统 serif 栈（D8）。descender（y/g 等）由标题
-     leading-[1.08] + pb-1 预留空间防裁剪。 */
+     leading-[1.1] + pb-1 预留空间防裁剪。
+     （:global 选择器，豁免清单 D5-3：标题 HTML 由 frontmatter 注入，
+     无法在组件模板内以工具类表达。） */
   .lh-title :global(em) {
     font-family: 'Newsreader Variable', 'Newsreader', serif;
     font-style: italic;

@@ -133,13 +133,18 @@ for (const theme of ['dark', 'light']) {
           if (!el) return null;
           const s = getComputedStyle(el);
           const span = el.querySelector('span');
-          const kbd = el.querySelector('kbd');
+          const kbd = el.querySelector(':scope > kbd');
           return {
             borderWidth: s.borderWidth,
-            backgroundColor: s.backgroundColor,
-            iconVisible: !!el.querySelector('svg'),
+            borderRadius: s.borderRadius,
+            hasFlightClass: el.classList.contains('flight'),
+            hasFlightLine: !!el.querySelector('.flight-line'),
+            hasTrace: !!el.querySelector('.flight-line__trace'),
+            hasRing: !!el.querySelector('.flight-line__ring'),
+            iconVisible: !!el.querySelector('svg:not(.flight-line)'),
             labelHidden: !span || getComputedStyle(span).display === 'none',
-            kbdHidden: !kbd || getComputedStyle(kbd).display === 'none',
+            kbdVisible: !!kbd && getComputedStyle(kbd).display !== 'none',
+            ariaShortcuts: el.getAttribute('aria-keyshortcuts'),
           };
         })(),
         // 旧控件已移除（下拉主题/语言选择器、social 图标、AukCraft 头栏链接）
@@ -368,15 +373,21 @@ for (const theme of ['dark', 'light']) {
           : r.themeToggleBtn.moonDisplay !== 'none' && r.themeToggleBtn.sunDisplay === 'none'),
       JSON.stringify(r.themeToggleBtn),
     );
-    // 搜索图标按钮化：无边框无底色，文字标签与 kbd 隐藏，仅保留图标
+    // 搜索 .flight 按钮化：hairline 边框 + 4px + FlightLine 描边（与其他按钮同效），
+    // 图标 + kbd 快捷键提示可见，"Search" 文字标签隐藏
     check(
-      `${t} 搜索图标按钮（与头栏同效）`,
+      `${t} 搜索 .flight 按钮（描边动效 + 快捷键）`,
       r.searchIconBtn &&
-        r.searchIconBtn.borderWidth === '0px' &&
-        (r.searchIconBtn.backgroundColor === 'rgba(0, 0, 0, 0)' || r.searchIconBtn.backgroundColor === 'transparent') &&
+        r.searchIconBtn.borderWidth === '1px' &&
+        r.searchIconBtn.borderRadius === '4px' &&
+        r.searchIconBtn.hasFlightClass === true &&
+        r.searchIconBtn.hasFlightLine === true &&
+        r.searchIconBtn.hasTrace === true &&
+        r.searchIconBtn.hasRing === true &&
         r.searchIconBtn.iconVisible === true &&
         r.searchIconBtn.labelHidden === true &&
-        r.searchIconBtn.kbdHidden === true,
+        r.searchIconBtn.kbdVisible === true &&
+        !!r.searchIconBtn.ariaShortcuts,
       JSON.stringify(r.searchIconBtn),
     );
     // 首页无 active 链接（落地页不在导航项内）

@@ -179,44 +179,49 @@
  * 10. 控件覆写：搜索框 / 主题切换（D7）
  * --------------------------------------------------------- */
 
-/* 搜索触发按钮：图标按钮化（aukcraft 平铺头栏）——去边框/底色，隐藏文字标签
- * 与 ⌘K kbd，仅保留放大镜图标；hover 与头栏链接同一颜色过渡（200ms）。
+/* 搜索触发按钮：.flight 方形 hairline 按钮化（与其他按钮同一形态）——
+ * hairline 边框 + 4px 圆角 + FlightLine 描边动效（SVG 由 Header.astro 脚本注入
+ * .flight / .flight-line class，动画规则在 global.css 基元中，完全一致）。
+ * 显示放大镜图标 + 快捷键 kbd 提示，隐藏 "Search" 文字标签（保留 aria-label）。
  * 目标：@astrojs/starlight 0.41；内部 class：site-search button[data-open-modal]
  * （Search.astro 内联样式，桌面断点 50rem 下声明 border/background/width）。 */
 site-search button[data-open-modal] {
-  border: 0;
+  border: 1px solid var(--sl-color-hairline);
   border-radius: 4px;
-  background: transparent;
+  background: var(--sl-color-bg-sidebar);
   width: auto;
   max-width: none;
   height: auto;
-  padding: 0.25rem;
+  padding: 0.375rem 0.625rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   color: var(--sl-color-gray-2);
-  transition: color 200ms ease;
 }
 
 @media (min-width: 50rem) {
-  /* 桌面断点下 Starlight 默认声明了 border/background/padding，需同级覆写。 */
+  /* 桌面断点下 Starlight 默认声明了 border/background/padding/max-width，需同级覆写。 */
   site-search button[data-open-modal] {
-    border: 0;
-    background: transparent;
-    padding: 0.25rem;
+    border: 1px solid var(--sl-color-hairline);
+    background: var(--sl-color-bg-sidebar);
+    padding: 0.375rem 0.625rem;
+    max-width: none;
   }
 
   site-search button[data-open-modal]:hover {
-    border-color: transparent;
-    color: var(--sl-color-text-accent);
+    border-color: var(--sl-color-hairline);
+    color: var(--sl-color-gray-1);
   }
 }
 
-site-search button[data-open-modal]:hover {
-  color: var(--sl-color-text-accent);
+/* 隐藏 "Search" 文字标签（图标 + kbd 已足够表意）；kbd 快捷键提示保持可见。 */
+site-search button[data-open-modal] > span {
+  display: none;
 }
 
-/* 隐藏搜索按钮内的文字标签与快捷键提示（保留 aria-label 无障碍语义）。 */
-site-search button[data-open-modal] > span,
+/* kbd 快捷键提示：行内小元素 2px 圆角（全站圆角体系）。 */
 site-search button[data-open-modal] > kbd {
-  display: none;
+  border-radius: 2px;
 }
 
 /* 搜索对话框：阴影已由 --sl-shadow-lg: none 清零，此处将 Pagefind 结果区圆角

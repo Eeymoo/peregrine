@@ -141,6 +141,21 @@ const themeLabel = locale ? '切换主题' : 'Toggle theme';
 				.StarlightThemeProvider?.updatePickers?.(next);
 		});
 	});
+
+	// 搜索按钮 .flight 化：注入 FlightLine SVG（与 FlightLine.astro 输出完全一致），
+	// 使 hover/focus 的边框描边动效与落地页其他 .flight 按钮保持同一实现。
+	// （Search 是 Starlight 内部组件，不能新增组件覆写，故用注入方式。）
+	document.querySelectorAll('site-search button[data-open-modal]').forEach((btn) => {
+		if (btn.querySelector('.flight-line')) return;
+		btn.classList.add('flight');
+		btn.insertAdjacentHTML(
+			'beforeend',
+			'<svg class="flight-line" aria-hidden="true" focusable="false">' +
+				'<rect class="flight-line__ring" pathLength="1"></rect>' +
+				'<rect class="flight-line__trace" pathLength="1"></rect>' +
+				'</svg>',
+		);
+	});
 </script>
 
 <style>

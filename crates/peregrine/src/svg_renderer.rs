@@ -41,10 +41,8 @@ pub fn render_shapes_to_buffer(
 
 /// 把 SVG 字符串光栅化到像素缓冲区。
 fn render_svg_to_buffer(buffer: &mut [u32], pixel_w: u32, pixel_h: u32, svg: &str) -> bool {
-    // 解析 SVG 为 usvg Tree，并加载系统字体以支持 <text> 元素。
-    let mut options = usvg::Options::default();
-    options.fontdb_mut().load_system_fonts();
-    let tree = match usvg::Tree::from_str(svg, &options) {
+    // 解析 SVG 为 usvg Tree（字体库全局加载一次，见 FONT_OPTIONS）。
+    let tree = match usvg::Tree::from_str(svg, &FONT_OPTIONS) {
         Ok(t) => t,
         Err(e) => {
             tracing::warn!("SVG 解析失败: {}", e);
@@ -52,44 +50,68 @@ fn render_svg_to_buffer(buffer: &mut [u32], pixel_w: u32, pixel_h: u32, svg: &st
         }
     };
 
-    // 用 tiny-skia 光栅化。
-    let mut pixmap = match tiny_skia::Pixmap::new(pixel_w, pixel_h) {
-        Some(pm) => pm,
-        None => {
-            tracing::warn!("pixmap 创建失败 ({}x{})", pixel_w, pixel_h);
-            return false;
-        }
-    };
-    // tiny-skia 的 transform 是逻辑→物理的缩放。
-    // 但 SVG 中已经乘了 scale（见 build_svg），所以这里用 identity。
-    resvg::render(
-        &tree,
-        tiny_skia::Transform::identity(),
-        &mut pixmap.as_mut(),
-    );
-
-    // 将 tiny-skia 的非预乘 RGBA 像素转为 softbuffer 的预乘 0xAARRGGBB。
-    // 只写入 alpha > 0 的像素，保留 buffer 中已有内容（用于与 CPU 光栅化结果叠加）。
-    let data = pixmap.data();
-    let len = data.len() / 4;
-    let buf_len = buffer.len().min(len);
-    for i in 0..buf_len {
-        let r = data[i * 4] as f32 / 255.0;
-        let g = data[i * 4 + 1] as f32 / 255.0;
-        let b = data[i * 4 + 2] as f32 / 255.0;
-        let a = data[i * 4 + 3] as f32 / 255.0;
-        // 预乘 alpha。
-        let pr = (r * a * 255.0).round() as u32;
-        let pg = (g * a * 255.0).round() as u32;
-        let pb = (b * a * 255.0).round() as u32;
-        let pa = (a * 255.0).round() as u32;
-        if pa > 0 {
-            buffer[i] = (pa << 24) | (pr << 16) | (pg << 8) | pb;
-        }
+    // 复用线程局部的 tiny-skia Pixmap：按需重建，同尺寸直接复用，
+    // 消除每次渲染 8MB（1080p）的分配/释放波动。
+    thread_local! {
+        static PIXMAP: std::cell::RefCell<Option<tiny_skia::Pixmap>> =
+            const { std::cell::RefCell::new(None) };
     }
-
-    true
+    PIXMAP.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let need_new = slot
+            .as_ref()
+            .is_none_or(|pm| pm.width() != pixel_w || pm.height() != pixel_h);
+        if need_new {
+            match tiny_skia::Pixmap::new(pixel_w, pixel_h) {
+                Some(pm) => *slot = Some(pm),
+                None => {
+                    tracing::warn!("pixmap 创建失败 ({}x{})", pixel_w, pixel_h);
+                    return false;
+                }
+            }
+        }
+        let pixmap = slot.as_mut().expect("pixmap just ensured");
+        pixmap.data_mut().fill(0);
+        // tiny-skia 的 transform 是逻辑→物理的缩放。
+        // 但 SVG 中已经乘了 scale（见 build_svg），所以这里用 identity。
+        resvg::render(
+            &tree,
+            tiny_skia::Transform::identity(),
+            &mut pixmap.as_mut(),
+        );
+        // 将 tiny-skia 的非预乘 RGBA 像素转为 softbuffer 的预乘 0xAARRGGBB。
+        // 只写入 alpha > 0 的像素，保留 buffer 中已有内容（用于与 CPU 光栅化结果叠加）。
+        let data = pixmap.data();
+        let len = data.len() / 4;
+        let buf_len = buffer.len().min(len);
+        for i in 0..buf_len {
+            let r = data[i * 4] as f32 / 255.0;
+            let g = data[i * 4 + 1] as f32 / 255.0;
+            let b = data[i * 4 + 2] as f32 / 255.0;
+            let a = data[i * 4 + 3] as f32 / 255.0;
+            // 预乘 alpha。
+            let pr = (r * a * 255.0).round() as u32;
+            let pg = (g * a * 255.0).round() as u32;
+            let pb = (b * a * 255.0).round() as u32;
+            let pa = (a * 255.0).round() as u32;
+            if pa > 0 {
+                buffer[i] = (pa << 24) | (pr << 16) | (pg << 8) | pb;
+            }
+        }
+        true
+    })
 }
+
+/// usvg 解析选项（含系统字体库），进程内懒加载一次。
+///
+/// `load_system_fonts()` 会全量扫描系统字体目录（数百字体文件），
+/// 每帧调用会造成明显的 CPU 尖峰与分配波动（内存 35-60MB 摆动的主因）——
+/// 全局缓存后仅首次加载，后续渲染零开销复用。
+static FONT_OPTIONS: std::sync::LazyLock<usvg::Options> = std::sync::LazyLock::new(|| {
+    let mut options = usvg::Options::default();
+    options.fontdb_mut().load_system_fonts();
+    options
+});
 
 /// 把多图层图元列表（Element + color + opacity）光栅化到像素缓冲区。
 ///

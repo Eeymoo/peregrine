@@ -28,6 +28,13 @@ pub struct MaterialMetadata {
     ///
     /// `false` 时物料求值可永久缓存（version 永远为 0）。
     pub is_dynamic: bool,
+    /// 动态物料的最小刷新间隔（毫秒）。
+    ///
+    /// 从脚本可选导出的 `fn refresh_interval_ms() -> Int` 解析（缺失 = 0）。
+    /// 语义为「物料输出最快多久变一次」：调度层据此对唤醒节流——
+    /// 例如时钟声明 500ms，则 60FPS 配置下 Rhai 求值从每秒 60 次降到 2 次。
+    /// 仅对 `is_dynamic = true` 的物料生效；静态物料恒 0（无意义）。
+    pub refresh_interval_ms: u32,
 }
 
 /// 物料信息，通过 IPC 返回给前端用于物料选择与 UI 控件生成。
@@ -98,6 +105,14 @@ impl Material {
             .call_fn(&mut scope, &ast, "is_dynamic", ())
             .unwrap_or(false);
 
+        // 调用可选的 refresh_interval_ms()：动态物料声明最小刷新间隔。
+        // 缺失 / 非法（负数 / 溢出）时回退 0 = 不节流（每帧求值，兼容既有脚本）。
+        let refresh_interval_ms: u32 = engine
+            .call_fn::<i64>(&mut scope, &ast, "refresh_interval_ms", ())
+            .ok()
+            .and_then(|ms| u32::try_from(ms).ok())
+            .unwrap_or(0);
+
         let display_name = parse_display_name(source)
             .unwrap_or_else(|| id.rsplit('.').next().unwrap_or(&id).to_string());
 
@@ -105,6 +120,7 @@ impl Material {
             id,
             display_name,
             is_dynamic,
+            refresh_interval_ms,
         };
 
         Ok(Self {
@@ -655,6 +671,20 @@ mod tests {
         registry
             .get("builtin.time")
             .expect("builtin.time registered")
+    }
+
+    /// `refresh_interval_ms()` 可选导出：内置 time 声明 500ms；
+    /// 未声明的物料（cross）回退 0 = 不节流。
+    #[test]
+    fn refresh_interval_ms_parsed_from_script() {
+        assert_eq!(load_builtin_time().metadata().refresh_interval_ms, 500);
+
+        let registry = crate::registry::MaterialRegistry::new();
+        registry.load_builtin().expect("load builtin materials");
+        let cross = registry
+            .get("builtin.cross")
+            .expect("builtin.cross registered");
+        assert_eq!(cross.metadata().refresh_interval_ms, 0);
     }
 
     #[test]

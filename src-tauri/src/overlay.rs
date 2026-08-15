@@ -170,34 +170,63 @@ impl OverlayApp {
     ///
     /// 判定开销：一次配置锁 + 逐图层 registry 读锁查找 + 布尔与，微秒级。
     fn compute_is_animated(&self) -> bool {
+        self.animation_min_interval().is_some()
+    }
+
+    /// 计算持续重绘场景的最小唤醒间隔。
+    ///
+    /// 返回 `Some(interval)`：需要持续重绘，且唤醒节拍不快于该间隔
+    /// （物料声明的 `refresh_interval_ms` 对配置帧率节拍取 max 节流——
+    /// 时钟声明 500ms 时，60FPS 配置下 Rhai 求值从每秒 60 次降到 2 次，
+    /// 求值 / 哈希 / 光栅化整条链路都随唤醒一起消失）。
+    /// 返回 `None`：无需持续重绘（纯事件驱动）。
+    ///
+    /// 节流只作用于自动唤醒；外部事件（配置变更 / follower Invalidate /
+    /// 窗口事件）触发的重绘不受限，保证 WYSIWYG 即时性。
+    fn animation_min_interval(&self) -> Option<Duration> {
         let cfg = self.config.lock().expect("config lock");
         let Some(profile) = cfg.active_profile() else {
-            return false;
+            return None;
         };
-        // 旧格式 RandomOrb 分支（既有行为）。
+        // 旧格式 RandomOrb 分支（既有行为，不节流——随机球逐帧重排）。
         if profile
             .crosshair
             .as_ref()
             .is_some_and(|c| c.style == peregrine_config::CrosshairStyle::RandomOrb)
         {
-            return true;
+            return Some(self.frame_interval);
         }
         // MATERIAL_RUNTIME_ENABLED 门控：物料运行时软关闭时不查询图层物料。
         if !peregrine::MATERIAL_RUNTIME_ENABLED {
-            return false;
+            return None;
         }
         // 动态开关合取（design D2）：运行时关闭时 layers 分支恒 false。
         if !(peregrine::MATERIAL_DYNAMIC_INPUT_ENABLED && cfg.settings.material.dynamic_enabled) {
-            return false;
+            return None;
         }
         // layers 分支：任一可见图层物料 is_dynamic 即持续重绘。
-        profile.layers.iter().any(|layer| {
-            layer.visible
-                && self
-                    .material_registry
-                    .get(layer.material.material_id())
-                    .is_some_and(|m| m.metadata().is_dynamic)
-        })
+        // 有效唤醒间隔 = max(帧率节拍, 可见动态物料声明的最短刷新间隔)
+        //（多物料取最小声明，保证最快者不失真；未声明 = 0 不节流）。
+        let mut animated = false;
+        let mut min_declared_ms = u32::MAX;
+        for layer in profile.layers.iter().filter(|l| l.visible) {
+            if let Some(m) = self.material_registry.get(layer.material.material_id()) {
+                if m.metadata().is_dynamic {
+                    animated = true;
+                    min_declared_ms = min_declared_ms.min(m.metadata().refresh_interval_ms);
+                }
+            }
+        }
+        if !animated {
+            return None;
+        }
+        let interval = if min_declared_ms == u32::MAX || min_declared_ms == 0 {
+            self.frame_interval
+        } else {
+            let declared = Duration::from_millis(min_declared_ms as u64);
+            declared.max(self.frame_interval)
+        };
+        Some(interval)
     }
 
     fn handle_command(&mut self, event_loop: &ActiveEventLoop, cmd: OverlayCommand) {
@@ -604,15 +633,17 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
 
         // 判断当前配置是否需要持续重绘（RandomOrb 动画样式或动态物料图层）。
         // 判定开销极小（一次锁 + 枚举比较 / registry 查找），每轮 about_to_wait 直接计算。
-        let is_animated = self.compute_is_animated();
+        // 动画有效节拍 = max(配置帧率, 物料声明 refresh_interval_ms)——
+        // 时钟声明 500ms 时唤醒降到 2Hz，求值/光栅化整条链路随之消失。
+        let anim_interval = self.animation_min_interval();
 
-        if is_animated {
-            // 持续重绘：按配置帧率档位节拍（fps → 系统刷新率 → 60 兜底）。
+        if let Some(interval) = anim_interval {
+            // 持续重绘：按有效节拍唤醒（fps → 物料声明间隔 → 60 兜底，取 max）。
             let now = Instant::now();
             if let Some(last) = self.last_render {
                 let elapsed = now.saturating_duration_since(last);
-                if elapsed < self.frame_interval {
-                    event_loop.set_control_flow(ControlFlow::WaitUntil(last + self.frame_interval));
+                if elapsed < interval {
+                    event_loop.set_control_flow(ControlFlow::WaitUntil(last + interval));
                     return;
                 }
             }

@@ -31,6 +31,12 @@ fn is_dynamic() {
     true
 }
 
+// 最小刷新间隔（毫秒）：时钟输出最快每 500ms 变一次（秒级显示 + 防跳秒余量）。
+// 调度层据此对 Rhai 求值节流——60FPS 配置下从每秒 60 次求值降到 2 次。
+fn refresh_interval_ms() {
+    500
+}
+
 fn build(params, screen) {
     let font_size = params.font_size;
     let x = params.x;

@@ -2158,6 +2158,146 @@ fn build(params, screen) {
         );
     }
 
+    /// teardrop：玩家预设映射——灵敏度低/高档对同一运动输入响应不同、
+    /// 呼吸速度档位映射不同周期、遇动增强关闭时环宽恒定。
+    #[test]
+    fn builtin_teardrop_sensitivity_presets() {
+        let m = load_builtin("teardrop");
+        let screen = test_rect();
+        let base_r = 1080.0 * 0.05;
+
+        let outer_radius_at = |params: &serde_json::Value, ctx: &DynamicContext| -> f32 {
+            let els = m.evaluate(params, &screen, ctx).unwrap();
+            match &els[0] {
+                Element::Path { segments, .. } => {
+                    let cx = 960.0;
+                    let cy = 540.0;
+                    segments
+                        .iter()
+                        .filter_map(|s| {
+                            if let peregrine_config::PathSegment::Q { x1, y1, .. } = *s {
+                                Some(((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt())
+                            } else {
+                                None
+                            }
+                        })
+                        .fold(f32::MIN, f32::max)
+                }
+                other => panic!("expected Path, got {:?}", other),
+            }
+        };
+
+        // 中等运动（vel=300，acc=800）逐档对比：预设越灵敏呼吸熄灭越彻底
+        //（半径越接近定格基准值）。单调关系即语义正确——各档内部数值
+        //（阈值/满量程）映射见 motion_tuning，此处验证玩家可感知的排序。
+        let ctx_mid = DynamicContext {
+            time_ms: 2500, // 呼吸顶点
+            mouse_velocity: (300.0, 0.0),
+            mouse_acceleration: (800.0, 0.0),
+            ..DynamicContext::default()
+        };
+        let r_low = outer_radius_at(&serde_json::json!({"sensitivity_preset": "low"}), &ctx_mid);
+        let r_med = outer_radius_at(
+            &serde_json::json!({"sensitivity_preset": "medium"}),
+            &ctx_mid,
+        );
+        let r_high = outer_radius_at(&serde_json::json!({"sensitivity_preset": "high"}), &ctx_mid);
+        let r_full_breath = base_r * 1.03;
+        // 呼吸顶点基准：静止时应精确到 1.03 顶点（对照）。
+        let ctx_rest = DynamicContext {
+            time_ms: 2500,
+            ..DynamicContext::default()
+        };
+        let r_still = outer_radius_at(&serde_json::json!({"sensitivity_preset": "low"}), &ctx_rest);
+        assert!(
+            (r_still - r_full_breath).abs() < 1e-2,
+            "at rest all presets must breathe fully: {}",
+            r_still
+        );
+        // 同一运动下：high 比 medium 熄灭更彻底，medium 比 low 更彻底
+        //（半径更接近 base），且 low 相对静止已有部分响应。
+        assert!(
+            r_low < r_still - 1e-3,
+            "low preset should still respond to strong motion somewhat: {} vs {}",
+            r_low,
+            r_still
+        );
+        assert!(
+            r_med < r_low - 1e-3,
+            "medium preset must freeze more than low: {} vs {}",
+            r_med,
+            r_low
+        );
+        assert!(
+            r_high < r_med - 1e-3,
+            "high preset must freeze more than medium: {} vs {}",
+            r_high,
+            r_med
+        );
+        assert!(
+            (r_high - base_r).abs() < 1e-2,
+            "high preset must fully freeze moderate motion: {}",
+            r_high
+        );
+
+        // 呼吸速度预设 → 周期：静止、相位取样点 t=3500
+        // slow(14000) 处 sin(2π·0.25)=1（顶点，最大半径），
+        // normal(10000) 处 sin(2π·0.35)<1（已过顶点），
+        // fast(6000) 处相位 7/12（顶点后更远，接近半周期）。
+        let ctx_t3500 = DynamicContext {
+            time_ms: 3500,
+            ..DynamicContext::default()
+        };
+        let r_slow = outer_radius_at(&serde_json::json!({"breath_speed": "slow"}), &ctx_t3500);
+        let r_norm = outer_radius_at(&serde_json::json!({"breath_speed": "normal"}), &ctx_t3500);
+        let r_fast = outer_radius_at(&serde_json::json!({"breath_speed": "fast"}), &ctx_t3500);
+        // slow 在顶点（最大），normal 次之，fast 最小（收缩相）。
+        assert!(
+            r_slow > r_norm && r_norm > r_fast,
+            "breath speed presets must map to distinct periods: slow={} normal={} fast={}",
+            r_slow,
+            r_norm,
+            r_fast
+        );
+
+        // 遇动增强关闭（solid_boost=0）：满幅运动下环宽仍为基准 ring_width。
+        let width_at = |params: &serde_json::Value, ctx: &DynamicContext| -> f32 {
+            let els = m.evaluate(params, &screen, ctx).unwrap();
+            match &els[0] {
+                Element::Path { segments, .. } => {
+                    let cx = 960.0;
+                    let cy = 540.0;
+                    let mut outer = f32::MIN;
+                    let mut inner = f32::MAX;
+                    for s in segments {
+                        if let peregrine_config::PathSegment::Q { x1, y1, .. } = *s {
+                            let d = ((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt();
+                            if d > base_r * 0.9 {
+                                outer = outer.max(d);
+                            } else {
+                                inner = inner.min(d);
+                            }
+                        }
+                    }
+                    outer - inner
+                }
+                other => panic!("expected Path, got {:?}", other),
+            }
+        };
+        let ctx_full_motion = DynamicContext {
+            time_ms: 0,
+            mouse_velocity: (2000.0, 0.0),
+            mouse_acceleration: (-3000.0, 0.0),
+            ..DynamicContext::default()
+        };
+        let w_off = width_at(&serde_json::json!({"solid_boost": 0.0}), &ctx_full_motion);
+        assert!(
+            (w_off - 10.0).abs() < 1e-2,
+            "solid_boost=0 must keep ring width constant: {}",
+            w_off
+        );
+    }
+
     /// teardrop：运动检测双通道——速度单独超阈值（加速度为 0）也触发
     /// 定格与增实（匀速平移镜头场景）；纯静止时呼吸可见。
     #[test]
@@ -2265,32 +2405,33 @@ fn build(params, screen) {
         }
     }
 
-    /// teardrop：use_override_colors 开启时携带双色覆盖（元素级覆盖演示）。
+    /// teardrop：缺省不携带颜色覆盖（继承图层色，换色热键生效）——
+    /// 参数面板产品化后颜色覆盖演示已移除。
     #[test]
-    fn builtin_teardrop_override_colors_param() {
+    fn builtin_teardrop_inherits_layer_color_by_default() {
         let m = load_builtin("teardrop");
         let screen = test_rect();
         let ctx = DynamicContext::static_context();
-        let params = serde_json::json!({"use_override_colors": true});
-        let els = m.evaluate(&params, &screen, &ctx).unwrap();
+        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
         match &els[0] {
             Element::Path {
                 stroke_color,
                 fill_color,
                 ..
             } => {
-                assert!(stroke_color.is_some());
-                assert!(fill_color.is_some());
+                assert_eq!(stroke_color, &None);
+                assert_eq!(fill_color, &None);
             }
             other => panic!("expected Path, got {:?}", other),
         }
     }
 
-    /// path_showcase：静态物料，输出星形（M/L/Z）与贝塞尔花（C）两组 Path。
+    /// path_showcase（星花组合）：静态物料，缺省布局输出星形（M/L/Z）
+    /// 与贝塞尔花（C）左右成对两组 Path。
     #[test]
     fn builtin_path_showcase_static_outputs() {
         let m = load_builtin("path_showcase");
-        assert_eq!(m.metadata().display_name, "路径图元演示");
+        assert_eq!(m.metadata().display_name, "星花组合");
         assert!(!m.metadata().is_dynamic);
 
         let screen = test_rect();
@@ -2360,24 +2501,62 @@ fn build(params, screen) {
         assert_eq!(out_a, out_b);
     }
 
-    /// path_showcase：颜色覆盖参数生效（use_override_colors = true）。
+    /// path_showcase：布局参数——star / flower 单锚点居中，缺省 both 成对。
     #[test]
-    fn builtin_path_showcase_override_colors_param() {
+    fn builtin_path_showcase_layout_param() {
         let m = load_builtin("path_showcase");
         let screen = test_rect();
         let ctx = DynamicContext::static_context();
-        let params = serde_json::json!({"use_override_colors": true});
-        let els = m.evaluate(&params, &screen, &ctx).unwrap();
-        match &els[0] {
-            Element::Path {
-                stroke_color,
-                fill_color,
-                ..
-            } => {
-                assert!(stroke_color.is_some());
-                assert!(fill_color.is_some());
+
+        // 单星形：只输出一个 Path，仅含 M/L/Z，居中。
+        let star_only = m
+            .evaluate(&serde_json::json!({"layout": "star"}), &screen, &ctx)
+            .unwrap();
+        assert_eq!(star_only.len(), 1);
+        let cx = 960.0;
+        match &star_only[0] {
+            Element::Path { segments, .. } => {
+                assert!(
+                    segments
+                        .iter()
+                        .all(|s| !matches!(s, peregrine_config::PathSegment::C { .. }))
+                );
+                // 居中：所有锚点 x 距屏幕中心 < outer（65）。
+                for seg in segments {
+                    let x = match *seg {
+                        peregrine_config::PathSegment::M { x, .. }
+                        | peregrine_config::PathSegment::L { x, .. } => x,
+                        _ => continue,
+                    };
+                    assert!(
+                        (x - cx).abs() < 70.0,
+                        "star-only layout must center the star: x={}",
+                        x
+                    );
+                }
             }
             other => panic!("expected Path, got {:?}", other),
         }
+
+        // 单花朵：只输出一个 Path，含 C 段，居中。
+        let flower_only = m
+            .evaluate(&serde_json::json!({"layout": "flower"}), &screen, &ctx)
+            .unwrap();
+        assert_eq!(flower_only.len(), 1);
+        match &flower_only[0] {
+            Element::Path { segments, .. } => {
+                assert!(
+                    segments
+                        .iter()
+                        .any(|s| matches!(s, peregrine_config::PathSegment::C { .. })),
+                    "flower-only must contain C segments"
+                );
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+
+        // 缺省 both：两组 Path（对照上面单锚点布局）。
+        let both = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
+        assert_eq!(both.len(), 2);
     }
 }

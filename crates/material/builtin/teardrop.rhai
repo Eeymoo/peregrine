@@ -32,6 +32,11 @@
 // nonzero 填充规则下内圈环绕数相消（镂空）；采样点用「中点 Q 平滑」
 // 连接（端点取相邻采样点中点、控制点取采样点自身，C1 连续）。
 //
+// 参数面板（玩家语言）：反应灵敏度 / 呼吸速度 / 遇动增强均为
+// select 预设（低/中/高），内部映射到运动检测阈值组与呼吸周期——
+// 避免向玩家暴露 px/s² 等工程单位；预设数值经实机标定。
+// breath_amp 保持内部参数不暴露（3% 经验值，暴露易调出反效果）。
+//
 // 输入：mouse_velocity() / mouse_acceleration()（运动检测，平台层
 // 已做 EMA 平滑 + 死区归零）+ time_ms()（呼吸相位）。
 // 预览端速度/加速度恒为 0 → 预览只见呼吸（spec 已接受行为）。
@@ -41,40 +46,91 @@ fn defaults() {
     #{
         radius_pct: 0.05,
         ring_width: 10.0,
-        threshold: 150.0,
-        sensitivity: 900.0,
-        vel_threshold: 40.0,
-        vel_sensitivity: 1200.0,
-        samples: 24,
-        breath_period: 10000.0,
-        breath_amp: 0.03,
+        // 反应灵敏度预设 → 运动检测双通道（阈值起步 + 满量程封顶）。
+        // low：大动作才响应；medium：默认；high：轻微移动即响应。
+        sensitivity_preset: "medium",
+        // 呼吸速度预设 → 周期（ms）。
+        breath_speed: "normal",
+        // 遇动增强预设 → solid_boost 系数（0 = 形状完全不变）。
         solid_boost: 1.0,
+        samples: 24,
+        // 呼吸幅度（内部参数，未暴露 UI——3% 经验值，暴露后易调出
+        //「晃动锚点」反而促成晕动症的反效果）。
+        breath_amp: 0.03,
         thickness: 0.0,
         breathing: true,
-        use_override_colors: false,
     }
 }
 
 fn schema() {
     [
-        #{key: "radius_pct", label: "半径占比", widget: "slider", min: 0.01, max: 0.12, step: 0.005},
-        #{key: "ring_width", label: "环宽（像素）", widget: "slider", min: 2.0, max: 40.0, step: 1.0},
-        #{key: "threshold", label: "加速度触发阈值（px/s²）", widget: "slider", min: 0.0, max: 1000.0, step: 10.0},
-        #{key: "sensitivity", label: "加速度满量程（px/s²）", widget: "slider", min: 100.0, max: 3000.0, step: 50.0},
-        #{key: "vel_threshold", label: "速度触发阈值（px/s）", widget: "slider", min: 0.0, max: 300.0, step: 5.0},
-        #{key: "vel_sensitivity", label: "速度满量程（px/s）", widget: "slider", min: 100.0, max: 4000.0, step: 50.0},
-        #{key: "samples", label: "圆周采样数", widget: "slider", min: 8, max: 48, step: 1},
-        #{key: "breath_period", label: "呼吸周期（ms）", widget: "slider", min: 2000.0, max: 30000.0, step: 500.0},
-        #{key: "breath_amp", label: "呼吸幅度", widget: "slider", min: 0.0, max: 0.1, step: 0.005},
-        #{key: "solid_boost", label: "遇动增实倍率", widget: "slider", min: 0.0, max: 2.0, step: 0.1},
-        #{key: "thickness", label: "描边粗细（0 = 无描边）", widget: "slider", min: 0.0, max: 12.0, step: 0.5},
-        #{key: "breathing", label: "启用呼吸", widget: "toggle"},
-        #{key: "use_override_colors", label: "演示颜色覆盖（退出图层色）", widget: "toggle"},
+        // ===== 常用（开箱即用：默认即最佳，玩家只动这三样）=====
+        #{key: "radius_pct", label: "大小", widget: "slider", min: 0.01, max: 0.12, step: 0.005},
+        #{key: "ring_width", label: "环宽", widget: "slider", min: 2.0, max: 40.0, step: 1.0},
+        #{
+            key: "sensitivity_preset",
+            label: "反应灵敏度",
+            widget: "select",
+            options: [
+                #{value: "low", label: "低（大幅移动才定格）"},
+                #{value: "medium", label: "中（推荐）"},
+                #{value: "high", label: "高（轻微移动即定格）"},
+            ],
+        },
+        #{key: "breathing", label: "静止时呼吸", widget: "toggle"},
+        // ===== 进阶（有明确需求的用户才动）=====
+        #{key: "thickness", label: "描边粗细", widget: "slider", min: 0.0, max: 12.0, step: 0.5},
+        #{
+            key: "breath_speed",
+            label: "呼吸速度",
+            widget: "select",
+            options: [
+                #{value: "slow", label: "缓慢"},
+                #{value: "normal", label: "正常"},
+                #{value: "fast", label: "轻快"},
+            ],
+        },
+        #{
+            key: "solid_boost",
+            label: "遇动增强",
+            widget: "select",
+            options: [
+                #{value: 0.0, label: "关闭（形状不变）"},
+                #{value: 0.5, label: "轻微"},
+                #{value: 1.0, label: "明显（推荐）"},
+                #{value: 2.0, label: "强烈"},
+            ],
+        },
     ]
 }
 
 fn is_dynamic() {
     true
+}
+
+// 灵敏度预设 →（加速度阈值, 加速度满量程, 速度阈值, 速度满量程）。
+// 阈值起步滤手抖，满量程封顶防过度响应；数值经实机标定：
+// low = 大幅甩动才触发；medium = 常规玩法动作触发；high = 轻微移动即触发。
+fn motion_tuning(preset) {
+    if preset == "low" {
+        #{acc_th: 400.0, acc_full: 2500.0, vel_th: 150.0, vel_full: 3000.0}
+    } else if preset == "high" {
+        #{acc_th: 60.0, acc_full: 400.0, vel_th: 12.0, vel_full: 400.0}
+    } else {
+        #{acc_th: 150.0, acc_full: 900.0, vel_th: 40.0, vel_full: 1200.0}
+    }
+}
+
+// 呼吸速度预设 → 周期（ms）。slow ≈ 0.07Hz（接近放松呼吸节律），
+// normal ≈ 0.1Hz（6 次/分钟），fast ≈ 0.16Hz（轻快但不安）。
+fn breath_period_of(speed) {
+    if speed == "slow" {
+        14000.0
+    } else if speed == "fast" {
+        6000.0
+    } else {
+        10000.0
+    }
 }
 
 fn build(params, screen) {
@@ -88,20 +144,22 @@ fn build(params, screen) {
     // 各通道：阈值起步（滤手抖/EMA 残值）→ 满量程封顶（防过度响应）。
     // 平台层死区已保证静止时输入精确为 0（阈值以下亦然），
     // 因此静止时 motion 精确为 0，呼吸全幅。
+    let tuning = motion_tuning(params.sensitivity_preset);
     let vel = mouse_velocity();
     let vel_mag = (vel.x * vel.x + vel.y * vel.y).sqrt();
     let acc = mouse_acceleration();
     let acc_mag = (acc.x * acc.x + acc.y * acc.y).sqrt();
-    let m_acc = ((acc_mag - params.threshold) / params.sensitivity).min(1.0).max(0.0);
-    let m_vel = ((vel_mag - params.vel_threshold) / params.vel_sensitivity).min(1.0).max(0.0);
+    let m_acc = ((acc_mag - tuning.acc_th) / tuning.acc_full).min(1.0).max(0.0);
+    let m_vel = ((vel_mag - tuning.vel_th) / tuning.vel_full).min(1.0).max(0.0);
     let motion = if m_acc > m_vel { m_acc } else { m_vel };
 
     // ===== 呼吸相位（time_ms 驱动，运动时熄灭）=====
     // amp = breath_amp × (1 - motion)：motion=1 时精确为 0 →
     // 半径锁定基准值，帧指纹稳定（持续运动中回跳帧）。
     // breathing=false 时相位恒 0（输出与时间无关，稳态跳帧）。
+    let period = breath_period_of(params.breath_speed);
     let phase = if params.breathing {
-        tau * ((time_ms() * 1.0 % params.breath_period) / params.breath_period)
+        tau * ((time_ms() * 1.0 % period) / period)
     } else {
         0.0
     };
@@ -149,30 +207,16 @@ fn build(params, screen) {
     }
     segments.push(#{cmd: "Z"});
 
-    // 颜色：缺省不携带覆盖字段 = 继承图层基色（换色热键生效）；
-    // use_override_colors 开启时演示元素级双色覆盖（退出图层色）。
+    // 颜色：不携带覆盖字段 = 继承图层基色（换色热键生效）。
     // fill 恒为 true（环靠镂空填充实现，false 会被转换层拒绝）。
-    if params.use_override_colors {
-        [
-            #{
-                type: "path",
-                segments: segments,
-                fill: true,
-                thickness: params.thickness,
-                stroke_color: [0.4, 0.8, 1.0, 0.9],
-                fill_color: [0.2, 0.6, 1.0, 0.4],
-            },
-        ]
-    } else {
-        [
-            #{
-                type: "path",
-                segments: segments,
-                fill: true,
-                thickness: params.thickness,
-            },
-        ]
-    }
+    [
+        #{
+            type: "path",
+            segments: segments,
+            fill: true,
+            thickness: params.thickness,
+        },
+    ]
 }
 
 // 两点中点（build_ring 的辅助：Rhai 不支持闭包赋值，用顶层具名函数）。

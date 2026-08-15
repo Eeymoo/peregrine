@@ -1874,8 +1874,8 @@ fn build(params, screen) {
 
     // ===== 内置演示物料：teardrop / path_showcase（Path 图元） =====
 
-    /// teardrop（锚定环）：任何输入下都是正圆双圈（外圈 Q 平滑环 +
-    /// 内圈镂空），缺省不携带颜色覆盖（继承图层色，换色热键生效）。
+    /// teardrop（锚定环）：恒为正圆双圈（外圈 Q 平滑环 + 内圈镂空），
+    /// 缺省不携带颜色覆盖（继承图层色，换色热键生效）。
     #[test]
     fn builtin_teardrop_circle_at_zero_acceleration() {
         let m = load_builtin("teardrop");
@@ -1961,17 +1961,20 @@ fn build(params, screen) {
         }
     }
 
-    /// teardrop freeze 语义：运动（速度/加速度超阈值）时呼吸熄灭、
-    /// 半径锁回基准正圆；运动量越大环宽越大（遇动增实）；
-    /// 任何输入下都保持正圆（无不对称形变）。
+    /// teardrop 性能模型：鼠标跟随已移除（CPU 反馈）——任意鼠标输入
+    /// 不再影响输出；呼吸半径 0.5px 量化（同档帧指纹不变，跳过光栅化）；
+    /// 声明 refresh_interval_ms=100（唤醒 60Hz → 10Hz）。
     #[test]
-    fn builtin_teardrop_freezes_on_motion() {
+    fn builtin_teardrop_no_mouse_dependency_and_quantized_breathing() {
         let m = load_builtin("teardrop");
         let screen = test_rect();
         let defaults = m.defaults().clone();
 
-        let eval = |ctx: &DynamicContext, params: &serde_json::Value| {
-            m.evaluate(params, &screen, ctx)
+        // 声明节拍：10Hz（与 time.rhai 的 500ms 同一机制）。
+        assert_eq!(m.metadata().refresh_interval_ms, 100);
+
+        let eval = |ctx: &DynamicContext| {
+            m.evaluate(&defaults, &screen, ctx)
                 .unwrap()
                 .into_iter()
                 .map(|e| match e {
@@ -1981,136 +1984,79 @@ fn build(params, screen) {
                 .next()
                 .unwrap()
         };
-        // 半径组：返回（外圈半径集合, 内圈半径集合）——Q 控制点精确落
-        // 在采样半径上；正圆性 = 集合内全部等值。
-        let radii = |segs: &[peregrine_config::PathSegment]| -> (Vec<f32>, Vec<f32>) {
+        let outer_radius = |segs: &[peregrine_config::PathSegment]| -> f32 {
             let cx = 960.0;
             let cy = 540.0;
-            let base = 1080.0 * 0.05;
-            let mut outer = Vec::new();
-            let mut inner = Vec::new();
-            for seg in segs {
-                if let peregrine_config::PathSegment::Q { x1, y1, .. } = *seg {
-                    let d = ((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt();
-                    if d > base * 0.9 {
-                        outer.push(d);
+            segs.iter()
+                .filter_map(|s| {
+                    if let peregrine_config::PathSegment::Q { x1, y1, .. } = *s {
+                        Some(((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt())
                     } else {
-                        inner.push(d);
+                        None
                     }
-                }
-            }
-            (outer, inner)
+                })
+                .fold(f32::MIN, f32::max)
         };
-        let is_circle_at =
-            |segs: &[peregrine_config::PathSegment], outer_r: f32, width: f32| -> bool {
-                let (outer, inner) = radii(segs);
-                outer.iter().all(|d| (d - outer_r).abs() < 1e-2)
-                    && inner.iter().all(|d| (d - (outer_r - width)).abs() < 1e-2)
-            };
 
-        // 场景 1：静止（time_ms=2500，呼吸顶点）→ 半径 = base × 1.03
-        //（呼吸涨缩可见，防习惯化）。
-        let ctx_breath = DynamicContext {
-            time_ms: 1075, // 4300/4 → sin=1（呼吸顶点）
-            ..DynamicContext::default()
-        };
-        let segs_breath = eval(&ctx_breath, &defaults);
-        let base_r = 1080.0 * 0.05;
-        let breath_r = base_r * (1.0 + 0.03);
-        let (outer_breath, _) = radii(&segs_breath);
-        assert!(
-            outer_breath.iter().all(|d| (d - breath_r).abs() < 1e-2),
-            "breathing should expand radius at quarter period: {:?} vs {}",
-            outer_breath,
-            breath_r
-        );
-
-        // 场景 2：满幅运动（加速度封顶）+ 呼吸顶点时刻 → 呼吸熄灭，
-        // 半径精确锁回基准值（定格）。
-        let ctx_motion = DynamicContext {
+        // ===== 鼠标无关性 =====
+        // 任意大幅鼠标运动与静止输出逐段一致（运动检测已移除，
+        // 帧指纹不随鼠标变化——CPU 稳态回到近静态层水平的关键）。
+        let segs_still = eval(&DynamicContext {
             time_ms: 1075,
-            mouse_velocity: (2000.0, 0.0),
-            mouse_acceleration: (-3000.0, 0.0),
             ..DynamicContext::default()
-        };
-        let segs_motion = eval(&ctx_motion, &defaults);
-        assert!(
-            is_circle_at(&segs_motion, base_r, 20.0),
-            "full motion must freeze ring back to base circle (breath extinguished)"
-        );
-
-        // 场景 3：遇动增实——满幅运动时环宽 = ring_width × (1+solid_boost)
-        //= 20 > 静止时的 10。
-        let width_of = |segs: &[peregrine_config::PathSegment]| -> f32 {
-            let (outer, inner) = radii(segs);
-            let o = outer.iter().cloned().fold(f32::MIN, f32::max);
-            let i = inner.iter().cloned().fold(f32::MAX, f32::min);
-            o - i
-        };
-        let w_rest = width_of(&eval(
-            &DynamicContext {
-                time_ms: 0,
-                ..DynamicContext::default()
-            },
-            &defaults,
-        ));
-        let w_motion = width_of(&segs_motion);
-        assert!(
-            w_motion > w_rest + 5.0,
-            "motion should solidify ring: width {} > rest {}",
-            w_motion,
-            w_rest
-        );
-
-        // 场景 4：部分运动（motion=0.5）→ 环宽介于静止与满幅之间
-        //（单调调制，无方向性）。
-        let ctx_half = DynamicContext {
-            time_ms: 0,
-            mouse_velocity: (40.0 + 1200.0 * 0.5, 0.0), // vel 通道 motion=0.5
+        });
+        let segs_motion = eval(&DynamicContext {
+            time_ms: 1075,
+            mouse_velocity: (3000.0, 0.0),
+            mouse_acceleration: (-5000.0, 5000.0),
             ..DynamicContext::default()
-        };
-        let w_half = width_of(&eval(&ctx_half, &defaults));
-        assert!(
-            w_half > w_rest && w_half < w_motion,
-            "partial motion width should be between: {} in ({}, {})",
-            w_half,
-            w_rest,
-            w_motion
-        );
-
-        // 场景 5：阈值以下运动（手抖级）与静止输出完全一致——
-        // 帧指纹稳定，杜绝「轻微移动就响应」。
-        let segs_noise = eval(
-            &DynamicContext {
-                time_ms: 1075,
-                mouse_velocity: (20.0, 0.0),      // < vel_threshold 40
-                mouse_acceleration: (120.0, 0.0), // < threshold 150
-                ..DynamicContext::default()
-            },
-            &defaults,
-        );
+        });
         assert_eq!(
-            segs_noise, segs_breath,
-            "sub-threshold motion must not change output"
+            segs_still, segs_motion,
+            "mouse input must not affect output (follow removed)"
         );
 
-        // 场景 6：任意方向满幅运动（斜向）→ 输出与轴向满幅完全一致
-        //（对称原则：与运动方向无关）。
-        let ctx_diag = DynamicContext {
+        // ===== 0.5px 量化跳帧 =====
+        // 呼吸顶点附近相邻采样时刻（1075ms 与 1200ms）：正弦导数最大
+        // 处半径变化也仅 ~0.05px，落在同一 0.5px 档内 → 输出逐段一致
+        //（帧指纹不变 → 光栅化被跳过）。
+        let r1 = outer_radius(&eval(&DynamicContext {
             time_ms: 1075,
-            mouse_velocity: (1500.0, 1500.0),
-            mouse_acceleration: (-2100.0, 2100.0),
             ..DynamicContext::default()
-        };
-        let segs_diag = eval(&ctx_diag, &defaults);
-        assert!(
-            is_circle_at(&segs_diag, base_r, 20.0),
-            "diagonal motion must also freeze to base circle"
+        }));
+        let r2 = outer_radius(&eval(&DynamicContext {
+            time_ms: 1200,
+            ..DynamicContext::default()
+        }));
+        assert_eq!(
+            eval(&DynamicContext {
+                time_ms: 1075,
+                ..DynamicContext::default()
+            }),
+            eval(&DynamicContext {
+                time_ms: 1200,
+                ..DynamicContext::default()
+            }),
+            "sub-quantum time step must keep fingerprint (r1={} r2={})",
+            r1,
+            r2
         );
-        // 方向无关：与轴向满幅输出逐段一致。
-        assert_eq!(segs_diag, segs_motion, "output must be direction-agnostic");
-    }
 
+        // 量化不改呼吸幅度语义：顶点时刻半径 = base × 1.03 量化值
+        //（55.62 → 55.5），与基准半径可区分（呼吸可见）。
+        let base_r = 1080.0 * 0.05;
+        let breath_peak: f32 = base_r * 1.03;
+        let q_peak = (breath_peak * 2.0).floor() / 2.0;
+        assert!(
+            (r1 - q_peak).abs() < 1e-2,
+            "peak radius must be quantized 55.5: got {}",
+            r1
+        );
+        assert!(
+            q_peak > base_r,
+            "breathing must remain visible after quantization"
+        );
+    }
     /// teardrop：呼吸参数语义——周期平移不变（相隔整周期输出一致）、
     /// breathing=false 时输出与时间无关（回到稳态跳帧）。
     #[test]
@@ -2158,10 +2104,9 @@ fn build(params, screen) {
         );
     }
 
-    /// teardrop：玩家预设映射——灵敏度低/高档对同一运动输入响应不同、
-    /// 呼吸速度档位映射不同周期、遇动增强关闭时环宽恒定。
+    /// teardrop：呼吸速度预设 → 不同周期（对齐常见呼吸频率）。
     #[test]
-    fn builtin_teardrop_sensitivity_presets() {
+    fn builtin_teardrop_breath_speed_presets() {
         let m = load_builtin("teardrop");
         let screen = test_rect();
         let base_r = 1080.0 * 0.05;
@@ -2187,60 +2132,7 @@ fn build(params, screen) {
             }
         };
 
-        // 中等运动（vel=300，acc=800）逐档对比：预设越灵敏呼吸熄灭越彻底
-        //（半径越接近定格基准值）。单调关系即语义正确——各档内部数值
-        //（阈值/满量程）映射见 motion_tuning，此处验证玩家可感知的排序。
-        let ctx_mid = DynamicContext {
-            time_ms: 1075, // 呼吸顶点（4300/4）
-            mouse_velocity: (300.0, 0.0),
-            mouse_acceleration: (800.0, 0.0),
-            ..DynamicContext::default()
-        };
-        let r_low = outer_radius_at(&serde_json::json!({"sensitivity_preset": "low"}), &ctx_mid);
-        let r_med = outer_radius_at(
-            &serde_json::json!({"sensitivity_preset": "medium"}),
-            &ctx_mid,
-        );
-        let r_high = outer_radius_at(&serde_json::json!({"sensitivity_preset": "high"}), &ctx_mid);
-        let r_full_breath = base_r * 1.03;
-        // 呼吸顶点基准：静止时应精确到 1.03 顶点（对照）。
-        let ctx_rest = DynamicContext {
-            time_ms: 1075,
-            ..DynamicContext::default()
-        };
-        let r_still = outer_radius_at(&serde_json::json!({"sensitivity_preset": "low"}), &ctx_rest);
-        assert!(
-            (r_still - r_full_breath).abs() < 1e-2,
-            "at rest all presets must breathe fully: {}",
-            r_still
-        );
-        // 同一运动下：high 比 medium 熄灭更彻底，medium 比 low 更彻底
-        //（半径更接近 base），且 low 相对静止已有部分响应。
-        assert!(
-            r_low < r_still - 1e-3,
-            "low preset should still respond to strong motion somewhat: {} vs {}",
-            r_low,
-            r_still
-        );
-        assert!(
-            r_med < r_low - 1e-3,
-            "medium preset must freeze more than low: {} vs {}",
-            r_med,
-            r_low
-        );
-        assert!(
-            r_high < r_med - 1e-3,
-            "high preset must freeze more than medium: {} vs {}",
-            r_high,
-            r_med
-        );
-        assert!(
-            (r_high - base_r).abs() < 1e-2,
-            "high preset must fully freeze moderate motion: {}",
-            r_high
-        );
-
-        // 呼吸速度预设 → 周期（对齐常见呼吸频率），相位取样点 t=1700：
+        // 相位取样点 t=1700：
         // slow(7500ms=8 次/分) sin≈0.989（近顶点，最大半径）；
         // normal(4300ms≈14 次/分) sin≈0.611（扩张后段）；
         // fast(3000ms=20 次/分) sin≈-0.407（已入收缩相，最小半径）。
@@ -2251,7 +2143,7 @@ fn build(params, screen) {
         let r_slow = outer_radius_at(&serde_json::json!({"breath_speed": "slow"}), &ctx_t1700);
         let r_norm = outer_radius_at(&serde_json::json!({"breath_speed": "normal"}), &ctx_t1700);
         let r_fast = outer_radius_at(&serde_json::json!({"breath_speed": "fast"}), &ctx_t1700);
-        // slow 近顶点（最大），normal 次之， fast 已入收缩相（最小）。
+        // slow 近顶点（最大），normal 次之，fast 已入收缩相（最小）。
         assert!(
             r_slow > r_norm && r_norm > r_fast,
             "breath speed presets must map to distinct periods: slow={} normal={} fast={}",
@@ -2259,105 +2151,13 @@ fn build(params, screen) {
             r_norm,
             r_fast
         );
-        // slow 在近顶点处应接近满幅呼吸（对照 1.03 顶点）。
+        // slow 在近顶点处应接近满幅呼吸（对照 1.03 顶点，量化后 55.5）。
+        let peak: f32 = base_r * 1.03;
+        let q_peak: f32 = (peak * 2.0).floor() / 2.0;
         assert!(
-            (r_slow - base_r * 1.03).abs() < 0.05,
+            (r_slow - q_peak).abs() < 0.05,
             "slow preset near peak should be near full breath: {}",
             r_slow
-        );
-
-        // 遇动增强关闭（solid_boost=0）：满幅运动下环宽仍为基准 ring_width。
-        let width_at = |params: &serde_json::Value, ctx: &DynamicContext| -> f32 {
-            let els = m.evaluate(params, &screen, ctx).unwrap();
-            match &els[0] {
-                Element::Path { segments, .. } => {
-                    let cx = 960.0;
-                    let cy = 540.0;
-                    let mut outer = f32::MIN;
-                    let mut inner = f32::MAX;
-                    for s in segments {
-                        if let peregrine_config::PathSegment::Q { x1, y1, .. } = *s {
-                            let d = ((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt();
-                            if d > base_r * 0.9 {
-                                outer = outer.max(d);
-                            } else {
-                                inner = inner.min(d);
-                            }
-                        }
-                    }
-                    outer - inner
-                }
-                other => panic!("expected Path, got {:?}", other),
-            }
-        };
-        let ctx_full_motion = DynamicContext {
-            time_ms: 0,
-            mouse_velocity: (2000.0, 0.0),
-            mouse_acceleration: (-3000.0, 0.0),
-            ..DynamicContext::default()
-        };
-        let w_off = width_at(&serde_json::json!({"solid_boost": 0.0}), &ctx_full_motion);
-        assert!(
-            (w_off - 10.0).abs() < 1e-2,
-            "solid_boost=0 must keep ring width constant: {}",
-            w_off
-        );
-    }
-
-    /// teardrop：运动检测双通道——速度单独超阈值（加速度为 0）也触发
-    /// 定格与增实（匀速平移镜头场景）；纯静止时呼吸可见。
-    #[test]
-    fn builtin_teardrop_velocity_channel_triggers_freeze() {
-        let m = load_builtin("teardrop");
-        let screen = test_rect();
-        let defaults = m.defaults().clone();
-        let base_r = 1080.0 * 0.05;
-
-        let eval = |ctx: &DynamicContext| {
-            m.evaluate(&defaults, &screen, ctx)
-                .unwrap()
-                .into_iter()
-                .map(|e| match e {
-                    Element::Path { segments, .. } => segments,
-                    _ => panic!("expected Path"),
-                })
-                .next()
-                .unwrap()
-        };
-        let outer_radius = |segs: &[peregrine_config::PathSegment]| -> f32 {
-            let cx = 960.0;
-            let cy = 540.0;
-            segs.iter()
-                .filter_map(|s| {
-                    if let peregrine_config::PathSegment::Q { x1, y1, .. } = *s {
-                        Some(((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt())
-                    } else {
-                        None
-                    }
-                })
-                .fold(f32::MIN, f32::max)
-        };
-
-        // 呼吸顶点时刻（time_ms=1075，4300/4）：匀速运动（速度满幅、加速度 0）
-        // 也必须定格回基准半径。
-        let ctx_const_vel = DynamicContext {
-            time_ms: 1075,
-            mouse_velocity: (2000.0, 0.0),
-            ..DynamicContext::default()
-        };
-        assert!(
-            (outer_radius(&eval(&ctx_const_vel)) - base_r).abs() < 1e-2,
-            "constant velocity alone must freeze breathing to base radius"
-        );
-
-        // 同时刻纯静止：呼吸涨至 1.03 倍（对照，证明上面是速度通道触发的）。
-        let ctx_rest = DynamicContext {
-            time_ms: 1075,
-            ..DynamicContext::default()
-        };
-        assert!(
-            (outer_radius(&eval(&ctx_rest)) - base_r * 1.03).abs() < 1e-2,
-            "rest at breath peak should be expanded"
         );
     }
 

@@ -6,6 +6,29 @@ This page records every Peregrine release. Stable releases are listed first; pre
 
 ---
 
+## [v0.2.7] — 2026-08-16
+
+Preview release. Introduces the **Path element** — arbitrary vector geometry (Bézier curves) for materials — plus two new built-in anchor materials built on it, a new SVG-path parsing API for custom shapes, and a batch of rendering fixes and performance work driven by on-device feedback.
+
+### Added
+
+- **Path element**: materials can now emit `#{type: "path", segments, fill, thickness}` with segment commands `M` / `L` / `Q` / `C` / `Z` (absolute coordinates, snake_case tag). Smooth rings, petals, and any curved anchor shape are now expressible; rectangles/circles keep using the dedicated (cheaper) elements. Omitting `stroke_color` / `fill_color` inherits the layer color × layer opacity, so the color hotkey keeps working. @Eeymoo
+- **"Breathing Ring" built-in material** (`builtin.teardrop`, display name 「呼吸环」): a filled ring that gently expands and contracts ±3% at a human breathing rate (8 / 14 / 20 breaths-per-minute presets, default 14 = adult resting mid-range). Always a perfect circle — no asymmetric deformation ever. Steady-state cost is kept near the static baseline via a 10Hz declared refresh interval plus 0.5px output quantization (identical frames skip rasterization entirely). @Eeymoo
+- **"Path" built-in material** (`builtin.path_showcase`, display name 「路径」): paste any SVG path `d` string (from Figma / Illustrator / Inkscape) and it renders as an anchor. Arbitrary coordinate domains are auto-normalized (bounding-box scale + center); the default shape is a mathematically exact circle built from four 90° cubic Bézier segments; invalid `d` falls back to the built-in circle instead of vanishing. @Eeymoo
+- **`parse_svg_path(d)` host function** for material scripts: parses an SVG path data string into a segment array — supports absolute & relative commands (`M/L/Q/C/Z` and lowercase, auto-converted to absolute), `H/V` expansion, implicit command repetition, comma/minus separators; unsupported `A/S/T` return an empty array for script-side fallback. @Eeymoo
+- **Mouse kinematics API for scripts**: `mouse_velocity()` (logical px/s) and `mouse_acceleration()` (logical px/s²), platform-poll differentials with EMA smoothing and dead-zone zeroing (exactly 0 at rest — frame-stable). @Eeymoo
+- **Material scripting docs**: new Path element section (segment table, field semantics, selection guidance), the new dynamic-input functions, and a refresh-interval throttling section (`refresh_interval_ms()` + output quantization) in both EN and zh-CN. @Eeymoo
+
+### Fixed
+
+- **SVG backend dropped layer opacity for inherited-color Paths**: the layer-color branch emitted an opaque `rgb()` string, so a default Path ignored the layer transparency slider; both color paths now go through the same paint closure with alpha × layer opacity. @Eeymoo
+
+### Changed
+
+- **Breathing-ring performance**: an earlier design reacting to mouse motion (velocity/acceleration freeze) cost ~7% CPU on-device (60fps full-screen rasterization); mouse following was removed first (down to ~3%), then the remaining dynamic-pipeline overhead was attacked with the 10Hz declared interval + 0.5px quantized breathing radius — the visible breathing survives at a fraction of the cost. @Eeymoo
+- **Breath periods aligned to real breathing rates**: presets re-calibrated to 8 / 14 / 20 breaths per minute (previously 4.3–10, perceptibly slower than natural breathing). @Eeymoo
+- **Parameter panels rewritten in player language**: both new materials expose size / width / speed presets instead of engineering units (px/s² thresholds, millisecond periods); breath amplitude stays internal (a 3% tuned value — exposing it invites anti-productive "wobbling anchor" tuning). @Eeymoo
+
 ## [v0.2.6] — 2026-08-15
 
 Stable release. The dynamic material pipeline is restored end-to-end: the built-in clock (`builtin.time`) renders live on the overlay, preview refreshes in real time, and a new "Materials" settings tab exposes a runtime on/off switch and an animation FPS tier — with a tuned scheduler and font loading that keep a running dynamic overlay well under 1% CPU with flat memory usage.

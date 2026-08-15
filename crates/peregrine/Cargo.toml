@@ -17,6 +17,7 @@ winit = { workspace = true }
 softbuffer = { workspace = true }
 png = { workspace = true }
 resvg = { workspace = true }
+fontdb = { workspace = true }
 usvg = { workspace = true }
 tiny-skia = { workspace = true }
 serde = { workspace = true }

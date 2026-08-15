@@ -1975,7 +1975,7 @@ mod layer_tests {
             max_y: 1080.0,
         };
         // 直线段路径：包围盒 [100,150]²，中心精确为 (125,125)。
-        let center = elements_center(&[element.clone()]);
+        let center = elements_center(std::slice::from_ref(&element));
         assert!((center.0 - 125.0).abs() < 1e-4 && (center.1 - 125.0).abs() < 1e-4);
 
         let result = apply_transform(element, &transform, center, &screen);
@@ -2043,7 +2043,7 @@ mod layer_tests {
             max_y: 1080.0,
         };
         // 包围盒 [100,150]²，中心 (125,125)。
-        let center = elements_center(&[element.clone()]);
+        let center = elements_center(std::slice::from_ref(&element));
         let result = apply_transform(element, &transform, center, &screen);
         match &result[0] {
             Element::Path {

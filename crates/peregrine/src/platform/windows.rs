@@ -691,7 +691,7 @@ pub fn poll_dynamic_context(_screen_w: f32, _screen_h: f32) -> peregrine_materia
 /// 跨帧状态（上一采样位置/速度 EMA/加速度 EMA/采样时刻）收敛在此函数的
 /// `static` 中；`dt` 用 `Instant` 实测（MUST NOT 假设固定帧间隔）。
 /// 加速度层 EMA（α 更小 = 更平滑）消除差分放大的高频抖动，
-/// 让依赖加速度的物料（teardrop）形变有平滑过渡而非逐帧跳变。
+/// 让依赖加速度的动态物料形变有平滑过渡而非逐帧跳变。
 fn poll_mouse_kinematics(mouse_pos: (f32, f32)) -> ((f32, f32), (f32, f32)) {
     use std::sync::Mutex;
     use std::time::Instant;

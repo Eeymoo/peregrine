@@ -1874,13 +1874,13 @@ fn build(params, screen) {
 
     // ===== 内置演示物料：teardrop / path_showcase（Path 图元） =====
 
-    /// teardrop（锚定环）：恒为正圆双圈（外圈 Q 平滑环 + 内圈镂空），
-    /// 缺省不携带颜色覆盖（继承图层色，换色热键生效）。
+    /// teardrop（锚定环）：纯静态——is_dynamic=false；恒为正圆双圈
+    /// （外圈 Q 平滑环 + 内圈镂空），缺省不携带颜色覆盖（继承图层色）。
     #[test]
-    fn builtin_teardrop_circle_at_zero_acceleration() {
+    fn builtin_teardrop_static_ring_geometry() {
         let m = load_builtin("teardrop");
         assert_eq!(m.metadata().display_name, "锚定环");
-        assert!(m.metadata().is_dynamic);
+        assert!(!m.metadata().is_dynamic);
 
         let screen = test_rect();
         let ctx = DynamicContext::static_context(); // 加速度为 0
@@ -1927,8 +1927,8 @@ fn build(params, screen) {
                         .any(|s| matches!(s, peregrine_config::PathSegment::L { .. })),
                     "anchor ring must never contain corner L segments"
                 );
-                // 静止 + 呼吸相位 0（static_context time_ms=0）：
-                // 所有 Q 控制点距圆心等距（正圆），两档距离（外/内圈半径）。
+                // 纯静态：所有 Q 控制点距圆心等距（正圆），
+                // 两档距离（外/内圈半径）。
                 let cx = 960.0;
                 let cy = 540.0;
                 let outer_r = 1080.0 * 0.05;
@@ -1945,7 +1945,7 @@ fn build(params, screen) {
                     let on_inner = (d - inner_r).abs() < 1e-2;
                     assert!(
                         on_outer || on_inner,
-                        "at rest with phase 0 should be perfect circle: d={} (outer={} inner={})",
+                        "should be perfect circle: d={} (outer={} inner={})",
                         d,
                         outer_r,
                         inner_r
@@ -1961,208 +1961,8 @@ fn build(params, screen) {
         }
     }
 
-    /// teardrop 性能模型：鼠标跟随已移除（CPU 反馈）——任意鼠标输入
-    /// 不再影响输出；呼吸半径 0.5px 量化（同档帧指纹不变，跳过光栅化）；
-    /// 声明 refresh_interval_ms=100（唤醒 60Hz → 10Hz）。
-    #[test]
-    fn builtin_teardrop_no_mouse_dependency_and_quantized_breathing() {
-        let m = load_builtin("teardrop");
-        let screen = test_rect();
-        let defaults = m.defaults().clone();
-
-        // 声明节拍：10Hz（与 time.rhai 的 500ms 同一机制）。
-        assert_eq!(m.metadata().refresh_interval_ms, 100);
-
-        let eval = |ctx: &DynamicContext| {
-            m.evaluate(&defaults, &screen, ctx)
-                .unwrap()
-                .into_iter()
-                .map(|e| match e {
-                    Element::Path { segments, .. } => segments,
-                    _ => panic!("expected Path"),
-                })
-                .next()
-                .unwrap()
-        };
-        let outer_radius = |segs: &[peregrine_config::PathSegment]| -> f32 {
-            let cx = 960.0;
-            let cy = 540.0;
-            segs.iter()
-                .filter_map(|s| {
-                    if let peregrine_config::PathSegment::Q { x1, y1, .. } = *s {
-                        Some(((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt())
-                    } else {
-                        None
-                    }
-                })
-                .fold(f32::MIN, f32::max)
-        };
-
-        // ===== 鼠标无关性 =====
-        // 任意大幅鼠标运动与静止输出逐段一致（运动检测已移除，
-        // 帧指纹不随鼠标变化——CPU 稳态回到近静态层水平的关键）。
-        let segs_still = eval(&DynamicContext {
-            time_ms: 1075,
-            ..DynamicContext::default()
-        });
-        let segs_motion = eval(&DynamicContext {
-            time_ms: 1075,
-            mouse_velocity: (3000.0, 0.0),
-            mouse_acceleration: (-5000.0, 5000.0),
-            ..DynamicContext::default()
-        });
-        assert_eq!(
-            segs_still, segs_motion,
-            "mouse input must not affect output (follow removed)"
-        );
-
-        // ===== 0.5px 量化跳帧 =====
-        // 呼吸顶点附近相邻采样时刻（1075ms 与 1200ms）：正弦导数最大
-        // 处半径变化也仅 ~0.05px，落在同一 0.5px 档内 → 输出逐段一致
-        //（帧指纹不变 → 光栅化被跳过）。
-        let r1 = outer_radius(&eval(&DynamicContext {
-            time_ms: 1075,
-            ..DynamicContext::default()
-        }));
-        let r2 = outer_radius(&eval(&DynamicContext {
-            time_ms: 1200,
-            ..DynamicContext::default()
-        }));
-        assert_eq!(
-            eval(&DynamicContext {
-                time_ms: 1075,
-                ..DynamicContext::default()
-            }),
-            eval(&DynamicContext {
-                time_ms: 1200,
-                ..DynamicContext::default()
-            }),
-            "sub-quantum time step must keep fingerprint (r1={} r2={})",
-            r1,
-            r2
-        );
-
-        // 量化不改呼吸幅度语义：顶点时刻半径 = base × 1.03 量化值
-        //（55.62 → 55.5），与基准半径可区分（呼吸可见）。
-        let base_r = 1080.0 * 0.05;
-        let breath_peak: f32 = base_r * 1.03;
-        let q_peak = (breath_peak * 2.0).floor() / 2.0;
-        assert!(
-            (r1 - q_peak).abs() < 1e-2,
-            "peak radius must be quantized 55.5: got {}",
-            r1
-        );
-        assert!(
-            q_peak > base_r,
-            "breathing must remain visible after quantization"
-        );
-    }
-    /// teardrop：呼吸参数语义——周期平移不变（相隔整周期输出一致）、
-    /// breathing=false 时输出与时间无关（回到稳态跳帧）。
-    #[test]
-    fn builtin_teardrop_breathing_periodicity() {
-        let m = load_builtin("teardrop");
-        let screen = test_rect();
-        let defaults = m.defaults().clone();
-
-        let eval_at = |time_ms: u64, params: &serde_json::Value| {
-            m.evaluate(
-                params,
-                &screen,
-                &DynamicContext {
-                    time_ms,
-                    ..DynamicContext::default()
-                },
-            )
-            .unwrap()
-            .into_iter()
-            .map(|e| match e {
-                Element::Path { segments, .. } => segments,
-                _ => panic!("expected Path"),
-            })
-            .next()
-            .unwrap()
-        };
-
-        // 周期平移不变：相隔一个整周期（默认 normal = 4300ms）输出完全一致
-        //（呼吸是唯一时间依赖，帧指纹可周期性回归）。
-        assert_eq!(eval_at(0, &defaults), eval_at(4300, &defaults));
-        assert_eq!(eval_at(2100, &defaults), eval_at(6400, &defaults));
-
-        // 关闭呼吸：两个不同时刻输出完全一致（时间不再影响输出，
-        // 静止时回到稳态跳帧主路径）。
-        let off = serde_json::json!({"breathing": false});
-        assert_eq!(eval_at(0, &off), eval_at(2500, &off));
-        // 关闭后 breath_amp 不再参与（时间依赖被整体移除）。
-        assert_eq!(
-            eval_at(0, &off),
-            eval_at(
-                0,
-                &serde_json::json!({"breathing": false, "breath_amp": 0.05})
-            ),
-            "breathing off must ignore breath_amp"
-        );
-    }
-
-    /// teardrop：呼吸速度预设 → 不同周期（对齐常见呼吸频率）。
-    #[test]
-    fn builtin_teardrop_breath_speed_presets() {
-        let m = load_builtin("teardrop");
-        let screen = test_rect();
-        let base_r = 1080.0 * 0.05;
-
-        let outer_radius_at = |params: &serde_json::Value, ctx: &DynamicContext| -> f32 {
-            let els = m.evaluate(params, &screen, ctx).unwrap();
-            match &els[0] {
-                Element::Path { segments, .. } => {
-                    let cx = 960.0;
-                    let cy = 540.0;
-                    segments
-                        .iter()
-                        .filter_map(|s| {
-                            if let peregrine_config::PathSegment::Q { x1, y1, .. } = *s {
-                                Some(((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt())
-                            } else {
-                                None
-                            }
-                        })
-                        .fold(f32::MIN, f32::max)
-                }
-                other => panic!("expected Path, got {:?}", other),
-            }
-        };
-
-        // 相位取样点 t=1700：
-        // slow(7500ms=8 次/分) sin≈0.989（近顶点，最大半径）；
-        // normal(4300ms≈14 次/分) sin≈0.611（扩张后段）；
-        // fast(3000ms=20 次/分) sin≈-0.407（已入收缩相，最小半径）。
-        let ctx_t1700 = DynamicContext {
-            time_ms: 1700,
-            ..DynamicContext::default()
-        };
-        let r_slow = outer_radius_at(&serde_json::json!({"breath_speed": "slow"}), &ctx_t1700);
-        let r_norm = outer_radius_at(&serde_json::json!({"breath_speed": "normal"}), &ctx_t1700);
-        let r_fast = outer_radius_at(&serde_json::json!({"breath_speed": "fast"}), &ctx_t1700);
-        // slow 近顶点（最大），normal 次之，fast 已入收缩相（最小）。
-        assert!(
-            r_slow > r_norm && r_norm > r_fast,
-            "breath speed presets must map to distinct periods: slow={} normal={} fast={}",
-            r_slow,
-            r_norm,
-            r_fast
-        );
-        // slow 在近顶点处应接近满幅呼吸（对照 1.03 顶点，量化后 55.5）。
-        let peak: f32 = base_r * 1.03;
-        let q_peak: f32 = (peak * 2.0).floor() / 2.0;
-        assert!(
-            (r_slow - q_peak).abs() < 0.05,
-            "slow preset near peak should be near full breath: {}",
-            r_slow
-        );
-    }
-
-    /// teardrop：预览快照（速度/加速度为 0）呈正圆双圈环，
-    /// 且呼吸可见（time_ms 为真实时间，非 0）。
+    /// teardrop：预览快照呈正圆双圈环（静态物料与动态上下文无关，
+    /// 预览/overlay 任意快照下输出恒定）。
     #[test]
     fn builtin_teardrop_preview_snapshot_is_circle() {
         let m = load_builtin("teardrop");
@@ -2171,7 +1971,7 @@ fn build(params, screen) {
         let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
         match &els[0] {
             Element::Path { segments, .. } => {
-                // 预览快照速度/加速度为 0：正圆（呼吸叠加但保持圆形）。
+                // 纯静态：正圆（无呼吸叠加）。
                 let cx = 960.0;
                 let cy = 540.0;
                 let base = 1080.0 * 0.05;
@@ -2182,8 +1982,7 @@ fn build(params, screen) {
                     }
                 }
                 assert!(!dists.is_empty());
-                // 外圈集合等值、内圈集合等值（正圆），半径在
-                // [base × 0.97, base × 1.03] 呼吸区间内。
+                // 外圈集合等值、内圈集合等值（正圆），半径精确等于基准。
                 let outer: Vec<f32> = dists.iter().copied().filter(|d| *d > base * 0.9).collect();
                 let inner: Vec<f32> = dists.iter().copied().filter(|d| *d <= base * 0.9).collect();
                 assert!(!outer.is_empty() && !inner.is_empty());
@@ -2205,7 +2004,8 @@ fn build(params, screen) {
                         i0
                     );
                 }
-                assert!(o0 > base * 0.96 && o0 < base * 1.04);
+                // 静态语义：外径精确为 base（无呼吸涨缩）。
+                assert!((o0 - base).abs() < 1e-2);
             }
             other => panic!("expected Path, got {:?}", other),
         }

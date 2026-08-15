@@ -380,7 +380,7 @@ fn build_elements_svg(
                     *thickness,
                     stroke_color.as_ref(),
                     fill_color.as_ref(),
-                    fill.as_str(),
+                    *color,
                     *opacity,
                     scale,
                 );
@@ -450,13 +450,15 @@ fn build_path_d(segments: &[peregrine_config::PathSegment], scale: f32) -> Strin
 ///
 /// 最终颜色 = `(元素基色 ?? 图层基色) × 图层 opacity`——替换基色但保留
 /// 图层不透明度乘法（design D2）。纯描边 `fill="none"`、纯填充 `stroke="none"`。
-/// 覆盖色携带自身 alpha 分量，与图层 opacity 相乘后作为 rgba() 的 alpha。
+/// 覆盖与继承两个分支统一走 rgba(alpha × 图层 opacity)：继承图层色时
+/// 图层 opacity 同样生效（与其他图元的 `opacity` 属性语义一致，
+/// 与前端 `colorToCss` 的 `color[3] * opacity` 双端对齐）。
 fn make_path_paint(
     fill: bool,
     thickness: f32,
     stroke_color: Option<&[f32; 4]>,
     fill_color: Option<&[f32; 4]>,
-    layer_fill: &str,
+    layer_color: [f32; 4],
     layer_opacity: f32,
     scale: f32,
 ) -> (String, String, String) {
@@ -473,9 +475,7 @@ fn make_path_paint(
 
     let has_stroke = thickness > 0.0;
     let fill_attr = if fill {
-        let color = fill_color
-            .map(paint)
-            .unwrap_or_else(|| layer_fill.to_string());
+        let color = fill_color.map(paint).unwrap_or_else(|| paint(&layer_color));
         format!(r#" fill="{}""#, color)
     } else {
         r#" fill="none""#.to_string()
@@ -483,7 +483,7 @@ fn make_path_paint(
     let stroke_attr = if has_stroke {
         let color = stroke_color
             .map(paint)
-            .unwrap_or_else(|| layer_fill.to_string());
+            .unwrap_or_else(|| paint(&layer_color));
         format!(r#" stroke="{}""#, color)
     } else {
         r#" stroke="none""#.to_string()
@@ -686,7 +686,7 @@ fn build_svg(rect: &RectF, crosshair: &Crosshair, scale: f32) -> String {
                     *thickness,
                     stroke_color.as_ref(),
                     fill_color.as_ref(),
-                    &fill,
+                    crosshair.color,
                     opacity,
                     scale,
                 );
@@ -733,6 +733,7 @@ mod tests {
     }
 
     /// 纯描边：fill="none"、stroke 取图层色、stroke-width 为 thickness × scale。
+    /// 回归：继承图层色时 opacity 同样生效（alpha = 图层 alpha × opacity）。
     #[test]
     fn path_stroke_only_svg() {
         let svg = build_elements_svg(
@@ -756,8 +757,12 @@ mod tests {
             svg
         );
         assert!(svg.contains(r#" fill="none""#), "svg: {}", svg);
-        // 图层色 rgb(51,128,255)。
-        assert!(svg.contains(r#" stroke="rgb(51,128,255)""#), "svg: {}", svg);
+        // 图层色 rgb(51,128,255)，alpha 1.0 × opacity 0.8 = 0.8。
+        assert!(
+            svg.contains(r#" stroke="rgba(51,128,255,0.8)""#),
+            "svg: {}",
+            svg
+        );
         assert!(svg.contains(r#" stroke-width="6""#), "svg: {}", svg);
         assert!(svg.contains(r#" stroke-linecap="round""#), "svg: {}", svg);
         assert!(svg.contains(r#" stroke-linejoin="round""#), "svg: {}", svg);
@@ -815,9 +820,43 @@ mod tests {
             1.0,
         );
         assert!(svg.contains(r#" stroke="none""#), "svg: {}", svg);
-        assert!(svg.contains(r#" fill="rgb(0,255,0)""#), "svg: {}", svg);
+        // 图层色 alpha 1.0 × opacity 1.0 = 1.0（rgba 格式统一输出）。
+        assert!(svg.contains(r#" fill="rgba(0,255,0,1)""#), "svg: {}", svg);
         // 纯填充不输出 stroke-width。
         assert!(!svg.contains("stroke-width"), "svg: {}", svg);
+    }
+
+    /// 回归：继承图层色分支的 opacity 双乘法——图层色自身 alpha 与
+    /// 图层 opacity 同时 < 1 时，最终 alpha = 两者乘积（此前该分支
+    /// 直接复用无 alpha 的 rgb() 字符串，opacity 被完全丢弃）。
+    #[test]
+    fn path_inherited_color_multiplies_layer_opacity() {
+        let svg = build_elements_svg(
+            &test_rect(),
+            &[(
+                Element::Path {
+                    segments: sample_segments(),
+                    fill: true,
+                    thickness: 2.0,
+                    stroke_color: None,
+                    fill_color: None,
+                },
+                // 图层色 alpha 0.5，图层 opacity 0.4 → 0.2。
+                [1.0, 0.5, 0.25, 0.5],
+                0.4,
+            )],
+            1.0,
+        );
+        assert!(
+            svg.contains(r#" fill="rgba(255,128,64,0.2)""#),
+            "svg: {}",
+            svg
+        );
+        assert!(
+            svg.contains(r#" stroke="rgba(255,128,64,0.2)""#),
+            "svg: {}",
+            svg
+        );
     }
 
     /// d 属性拼接：C 段与 L 段的命令格式。

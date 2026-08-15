@@ -1946,34 +1946,6 @@ mod layer_tests {
 
     // ===== Path 图元：几何变换与包围盒测试 =====
 
-    fn teardrop_like_path() -> Element {
-        // 一个闭合水滴形路径：M + Q + C + Z，携带双色覆盖。
-        Element::Path {
-            segments: vec![
-                PathSegment::M { x: 100.0, y: 100.0 },
-                PathSegment::Q {
-                    x1: 150.0,
-                    y1: 100.0,
-                    x: 150.0,
-                    y: 150.0,
-                },
-                PathSegment::C {
-                    x1: 150.0,
-                    y1: 200.0,
-                    x2: 100.0,
-                    y2: 200.0,
-                    x: 100.0,
-                    y: 150.0,
-                },
-                PathSegment::Z,
-            ],
-            fill: true,
-            thickness: 2.0,
-            stroke_color: Some([1.0, 0.0, 0.0, 1.0]),
-            fill_color: Some([0.0, 0.0, 1.0, 0.5]),
-        }
-    }
-
     /// 旋转闭合路径：全部坐标绕内容中心旋转 90°，段结构与颜色字段不变。
     /// 使用直线段路径使轴心可精确手算（曲线展平会引入 <0.5px 的 bbox 容差）。
     #[test]

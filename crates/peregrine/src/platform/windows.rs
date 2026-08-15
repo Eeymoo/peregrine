@@ -601,9 +601,29 @@ const VK_MAP: &[(i32, &str)] = &[
     (0x09, "tab"),
 ];
 
+// ===== 鼠标速度 / 加速度差分采样常量（design D9） =====
+
+/// EMA 平滑系数：新采样权重。~0.4 在去轮询抖动与响应速度间取平衡。
+const MOUSE_EMA_ALPHA: f32 = 0.4;
+/// 速度死区（逻辑像素/秒）：EMA 值幅度低于此值直接置 0。
+///
+/// 死区归零是硬性要求：EMA 渐近衰减永不精确触零，若保留微小残值，
+/// 依赖速度/加速度的动态物料每帧输出微不同的坐标 → 帧指纹永远变化 →
+/// 稳态跳帧失效 → 全帧率空转。
+const MOUSE_VELOCITY_DEADZONE: f32 = 5.0;
+/// 加速度死区（逻辑像素/秒²）：语义同上。
+const MOUSE_ACCELERATION_DEADZONE: f32 = 50.0;
+/// 最小差分间隔（秒）：dt 过小（同帧重复调用 / 时钟精度）时跳过差分，
+/// 防止除零与脉冲噪声。
+const MOUSE_MIN_DT: f32 = 0.001;
+
 /// 读取当前动态输入上下文（Windows 实现）。
 ///
 /// - 鼠标位置：`GetCursorPos`（屏幕坐标）。
+/// - 鼠标速度/加速度：对位置做跨采样差分（`vel = Δpos / dt`、
+///   `acc = Δvel / dt`，dt 取 `Instant` 实测间隔），经 EMA 平滑后死区归零。
+///   跨帧状态收敛在函数级 `static`（先例：`frame_counter` 的 AtomicU64），
+///   `DynamicContext` 保持无状态快照语义。
 /// - 键盘状态：`GetAsyncKeyState` 查询 VK_MAP 中的按键。
 /// - 时间：自进程启动以来的毫秒数。
 ///
@@ -641,6 +661,9 @@ pub fn poll_dynamic_context(_screen_w: f32, _screen_h: f32) -> peregrine_materia
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0);
 
+    // 鼠标速度/加速度：差分采样 + EMA 平滑 + 死区归零。
+    let (mouse_velocity, mouse_acceleration) = poll_mouse_kinematics(mouse_pos);
+
     tracing::trace!(
         pressed_count,
         mouse_x = mouse_pos.0,
@@ -651,11 +674,90 @@ pub fn poll_dynamic_context(_screen_w: f32, _screen_h: f32) -> peregrine_materia
     peregrine_material::DynamicContext {
         time_ms,
         mouse_pos,
+        mouse_velocity,
+        mouse_acceleration,
         key_state,
         // 种子：基于时间戳 + 一次计数器，确保每帧不同。
         rng_seed: time_ms.wrapping_add(frame_counter()),
         version: time_ms,
     }
+}
+
+/// 鼠标运动学差分采样器：位置差分 → 速度 → 加速度，EMA 平滑 + 死区归零。
+///
+/// 跨帧状态（上一采样位置/速度/EMA 累积值/采样时刻）收敛在此函数的
+/// `static` 中；`dt` 用 `Instant` 实测（MUST NOT 假设固定帧间隔）。
+fn poll_mouse_kinematics(mouse_pos: (f32, f32)) -> ((f32, f32), (f32, f32)) {
+    use std::sync::Mutex;
+    use std::time::Instant;
+
+    /// 上一采样的完整状态。
+    struct PrevSample {
+        instant: Instant,
+        pos: (f32, f32),
+        vel_ema: (f32, f32),
+    }
+    static PREV: Mutex<Option<PrevSample>> = Mutex::new(None);
+
+    let mut prev = PREV.lock().expect("mouse kinematics state lock");
+    let Some(sample) = prev.take() else {
+        // 首次采样：无差分基础，速度/加速度为 0，仅记录状态。
+        *prev = Some(PrevSample {
+            instant: Instant::now(),
+            pos: mouse_pos,
+            vel_ema: (0.0, 0.0),
+        });
+        return ((0.0, 0.0), (0.0, 0.0));
+    };
+
+    let now = Instant::now();
+    let dt = now.duration_since(sample.instant).as_secs_f32();
+    if dt < MOUSE_MIN_DT {
+        // 间隔过小：保留旧 EMA 值，仅刷新采样时刻（防除零/脉冲噪声）。
+        *prev = Some(PrevSample {
+            instant: now,
+            pos: mouse_pos,
+            vel_ema: sample.vel_ema,
+        });
+        return (sample.vel_ema, (0.0, 0.0));
+    }
+
+    // 差分：vel = Δpos / dt，acc = Δvel / dt。
+    let vel = (
+        (mouse_pos.0 - sample.pos.0) / dt,
+        (mouse_pos.1 - sample.pos.1) / dt,
+    );
+    let acc = (
+        (vel.0 - sample.vel_ema.0) / dt,
+        (vel.1 - sample.vel_ema.1) / dt,
+    );
+
+    // EMA 平滑（抑制轮询抖动）。
+    let a = MOUSE_EMA_ALPHA;
+    let vel_ema = (
+        a * vel.0 + (1.0 - a) * sample.vel_ema.0,
+        a * vel.1 + (1.0 - a) * sample.vel_ema.1,
+    );
+    // 加速度不单独维护 EMA 状态：以平滑后的速度差分近似（噪声已被速度层吸收）。
+    let acc_smooth = acc;
+
+    // 死区归零（硬性要求，见常量注释）：幅度低于阈值直接置 0。
+    let deadzone = |v: f32, zone: f32| if v.abs() < zone { 0.0 } else { v };
+    let vel_out = (
+        deadzone(vel_ema.0, MOUSE_VELOCITY_DEADZONE),
+        deadzone(vel_ema.1, MOUSE_VELOCITY_DEADZONE),
+    );
+    let acc_out = (
+        deadzone(acc_smooth.0, MOUSE_ACCELERATION_DEADZONE),
+        deadzone(acc_smooth.1, MOUSE_ACCELERATION_DEADZONE),
+    );
+
+    *prev = Some(PrevSample {
+        instant: now,
+        pos: mouse_pos,
+        vel_ema,
+    });
+    (vel_out, acc_out)
 }
 
 /// 简单的帧计数器（用于派生 RNG 种子）。

@@ -15,8 +15,8 @@ pub use rng::SimpleRng;
 pub use schema::{
     Anchor, AppConfig, AppSettings, BlendMode, BorderFrameStyle, Crosshair, CrosshairStyle,
     Element, GridAlignment, HotkeyAction, Layer, LayerStyle, MaterialRef, MaterialSettings,
-    OrbPosition, Profile, RandomOrbMode, Rect, RendererBackend, RingStyle, Transform2D,
-    TriggerRule,
+    OrbPosition, PathSegment, Profile, RandomOrbMode, Rect, RendererBackend, RingStyle,
+    Transform2D, TriggerRule,
 };
 pub use storage::ConfigStorage;
 pub use watcher::ConfigWatcher;

@@ -271,6 +271,26 @@ fn make_engine_with_dynamic(ctx: &DynamicContext) -> Engine {
         m
     });
 
+    // mouse_velocity() -> Map { x: Float, y: Float }：鼠标速度（逻辑像素/秒）。
+    // 由平台轮询器差分采样 + EMA 平滑 + 死区归零提供；同一快照内多次调用同值。
+    let (vx, vy) = ctx.mouse_velocity;
+    engine.register_fn("mouse_velocity", move || {
+        let mut m = Map::new();
+        m.insert("x".into(), (vx as f64).into());
+        m.insert("y".into(), (vy as f64).into());
+        m
+    });
+
+    // mouse_acceleration() -> Map { x: Float, y: Float }：鼠标加速度（逻辑像素/秒²）。
+    // 与 mouse_velocity 同风格；死区归零保证静止/匀速时精确为 0（稳态跳帧保障）。
+    let (ax, ay) = ctx.mouse_acceleration;
+    engine.register_fn("mouse_acceleration", move || {
+        let mut m = Map::new();
+        m.insert("x".into(), (ax as f64).into());
+        m.insert("y".into(), (ay as f64).into());
+        m
+    });
+
     // key_down(code: &str) -> Bool
     let key_state = ctx.key_state.clone();
     engine.register_fn("key_down", move |code: ImmutableString| {
@@ -613,11 +633,179 @@ fn dynamic_to_element(material_id: &str, d: Dynamic) -> MaterialResult<Element> 
             w: get_f32("w")?,
             h: get_f32("h")?,
         }),
+        "path" => parse_path_element(material_id, &m, &get_f32),
         other => Err(MaterialError::UnknownElementType {
             id: material_id.to_string(),
             element_type: other.to_string(),
         }),
     }
+}
+
+/// 解析 path 元素的 segments 数组与可选颜色字段，并做结构校验。
+///
+/// 段对象为 Map 风格（`#{cmd: "M", x: .., y: ..}`），坐标接受 float/int
+/// （与 polygon points 的解析先例一致）。校验规则（design D3）：
+/// - `segments` 非空且首段必须为 `M`；
+/// - `fill=false && thickness=0` 的不可见组合拒绝；
+/// - `thickness >= 0`；
+/// - 颜色分量为 `0..=1` 的数值且数组长度为 4。
+fn parse_path_element(
+    material_id: &str,
+    m: &Map,
+    get_f32: &dyn Fn(&str) -> MaterialResult<f32>,
+) -> MaterialResult<Element> {
+    use peregrine_config::PathSegment;
+
+    let field_err = |detail: String| MaterialError::ElementField {
+        id: material_id.to_string(),
+        detail,
+    };
+
+    // 可选颜色数组字段：[r, g, b, a]，分量 0..=1，长度必须为 4。
+    let parse_color = |key: &str| -> MaterialResult<Option<[f32; 4]>> {
+        let Some(v) = m.get(key) else {
+            return Ok(None);
+        };
+        if v.is_unit() {
+            return Ok(None);
+        }
+        let arr = v
+            .clone()
+            .into_array()
+            .map_err(|_| field_err(format!("field '{}' must be Array", key)))?;
+        if arr.len() != 4 {
+            return Err(field_err(format!(
+                "field '{}' must have 4 elements, got {}",
+                key,
+                arr.len()
+            )));
+        }
+        let mut out = [0.0f32; 4];
+        for (i, c) in arr.iter().enumerate() {
+            let f = c
+                .as_float()
+                .ok()
+                .or_else(|| c.as_int().ok().map(|i| i as f64))
+                .ok_or_else(|| {
+                    field_err(format!("field '{}' element {} must be number", key, i))
+                })?;
+            if !(0.0..=1.0).contains(&f) {
+                return Err(field_err(format!(
+                    "field '{}' element {} must be in 0..=1, got {}",
+                    key, i, f
+                )));
+            }
+            out[i] = f as f32;
+        }
+        Ok(Some(out))
+    };
+
+    // 解析单个段 Map 的坐标字段（float/int 皆可）。
+    let seg_f32 = |seg: &Map, key: &str| -> MaterialResult<f32> {
+        let v = seg
+            .get(key)
+            .ok_or_else(|| field_err(format!("path segment missing field '{}'", key)))?;
+        if let Ok(f) = v.as_float() {
+            Ok(f as f32)
+        } else if let Ok(i) = v.as_int() {
+            Ok(i as f32)
+        } else {
+            Err(field_err(format!(
+                "path segment field '{}' must be number",
+                key
+            )))
+        }
+    };
+
+    let thickness = get_f32("thickness")?;
+    let fill = match m.get("fill") {
+        Some(v) => v
+            .as_bool()
+            .map_err(|_| field_err("field 'fill' must be bool".to_string()))?,
+        None => false,
+    };
+
+    // segments 必须为非空数组。
+    let segs_val = m
+        .get("segments")
+        .ok_or_else(|| field_err("missing 'segments' field".to_string()))?;
+    let seg_arr = segs_val
+        .clone()
+        .into_array()
+        .map_err(|_| field_err("'segments' must be Array".to_string()))?;
+    if seg_arr.is_empty() {
+        return Err(field_err("'segments' must not be empty".to_string()));
+    }
+
+    let mut segments = Vec::with_capacity(seg_arr.len());
+    for (idx, sv) in seg_arr.into_iter().enumerate() {
+        let seg = sv
+            .as_map_ref()
+            .map_err(|_| field_err(format!("path segment {} must be Map", idx)))?;
+        let cmd = seg
+            .get("cmd")
+            .and_then(|c| c.as_immutable_string_ref().ok().map(|s| s.to_string()))
+            .ok_or_else(|| field_err(format!("path segment {} missing 'cmd'", idx)))?;
+        let segment = match cmd.as_str() {
+            "M" => PathSegment::M {
+                x: seg_f32(&seg, "x")?,
+                y: seg_f32(&seg, "y")?,
+            },
+            "L" => PathSegment::L {
+                x: seg_f32(&seg, "x")?,
+                y: seg_f32(&seg, "y")?,
+            },
+            "Q" => PathSegment::Q {
+                x1: seg_f32(&seg, "x1")?,
+                y1: seg_f32(&seg, "y1")?,
+                x: seg_f32(&seg, "x")?,
+                y: seg_f32(&seg, "y")?,
+            },
+            "C" => PathSegment::C {
+                x1: seg_f32(&seg, "x1")?,
+                y1: seg_f32(&seg, "y1")?,
+                x2: seg_f32(&seg, "x2")?,
+                y2: seg_f32(&seg, "y2")?,
+                x: seg_f32(&seg, "x")?,
+                y: seg_f32(&seg, "y")?,
+            },
+            "Z" => PathSegment::Z,
+            other => {
+                return Err(field_err(format!(
+                    "path segment {} has unknown cmd '{}' (expected M/L/Q/C/Z)",
+                    idx, other
+                )));
+            }
+        };
+        segments.push(segment);
+    }
+
+    // 结构校验：首段必须为 M。
+    if !matches!(segments.first(), Some(PathSegment::M { .. })) {
+        return Err(field_err(
+            "path segments must start with an 'M' command".to_string(),
+        ));
+    }
+    // 不可见组合拒绝：fill=false && thickness=0。
+    if !fill && thickness == 0.0 {
+        return Err(field_err(
+            "path is invisible: fill=false and thickness=0".to_string(),
+        ));
+    }
+    if thickness < 0.0 {
+        return Err(field_err("field 'thickness' must be >= 0".to_string()));
+    }
+
+    let stroke_color = parse_color("stroke_color")?;
+    let fill_color = parse_color("fill_color")?;
+
+    Ok(Element::Path {
+        segments,
+        fill,
+        thickness,
+        stroke_color,
+        fill_color,
+    })
 }
 
 /// 合并默认参数与传入参数（传入值优先，深度合并）。
@@ -965,6 +1153,270 @@ fn build(params, screen) {
                 assert_eq!(element_type, "ellipse");
             }
             other => panic!("expected UnknownElementType, got {:?}", other),
+        }
+    }
+
+    // ===== Path 图元转换层测试 =====
+
+    /// 构造一个按给定 build 体输出 path 元素的测试物料。
+    fn load_path_material(build_body: &str) -> Material {
+        let src = format!(
+            r#"fn defaults() {{ #{{}} }}
+fn schema() {{ [] }}
+fn build(params, screen) {{
+    {build_body}
+}}"#
+        );
+        Material::load("test.path".to_string(), &src, false).expect("load path material")
+    }
+
+    /// 完整 path 解析：segments（float/int 混用）+ fill + 双色覆盖。
+    #[test]
+    fn path_element_full_parse() {
+        let m = load_path_material(
+            r#"[#{type: "path",
+    segments: [
+        #{cmd: "M", x: 100, y: 100},
+        #{cmd: "L", x: 200.5, y: 100},
+        #{cmd: "Q", x1: 10, y1: 20, x: 30, y: 40},
+        #{cmd: "C", x1: 0.0, y1: 1.0, x2: 2.0, y2: 3.0, x: 4.0, y: 5.0},
+        #{cmd: "Z"},
+    ],
+    thickness: 2.0,
+    fill: true,
+    fill_color: [0.3, 0.5, 1.0, 0.2],
+    stroke_color: [1.0, 0.0, 0.0, 1.0],
+}]"#,
+        );
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let els = m
+            .evaluate(&serde_json::json!({}), &screen, &ctx)
+            .expect("path element must parse");
+        match &els[0] {
+            Element::Path {
+                segments,
+                fill,
+                thickness,
+                stroke_color,
+                fill_color,
+            } => {
+                assert_eq!(segments.len(), 5);
+                assert!(matches!(
+                    segments[0],
+                    peregrine_config::PathSegment::M { x: 100.0, y: 100.0 }
+                ));
+                assert!(matches!(
+                    segments[1],
+                    peregrine_config::PathSegment::L { x: 200.5, y: 100.0 }
+                ));
+                assert!(matches!(
+                    segments[2],
+                    peregrine_config::PathSegment::Q { .. }
+                ));
+                assert!(matches!(
+                    segments[3],
+                    peregrine_config::PathSegment::C { .. }
+                ));
+                assert!(matches!(segments[4], peregrine_config::PathSegment::Z));
+                assert!(*fill);
+                assert_eq!(*thickness, 2.0);
+                assert_eq!(*stroke_color, Some([1.0, 0.0, 0.0, 1.0]));
+                assert_eq!(*fill_color, Some([0.3, 0.5, 1.0, 0.2]));
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+    }
+
+    /// 未知 cmd 拒绝：错误信息包含未知命令名。
+    #[test]
+    fn path_element_unknown_cmd_rejected() {
+        let m = load_path_material(
+            r#"[#{type: "path", segments: [#{cmd: "M", x: 0.0, y: 0.0}, #{cmd: "a", x: 1.0, y: 1.0}], thickness: 2.0}]"#,
+        );
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let err = m
+            .evaluate(&serde_json::json!({}), &screen, &ctx)
+            .expect_err("unknown cmd must be rejected");
+        match err {
+            MaterialError::ElementField { detail, .. } => {
+                assert!(
+                    detail.contains('a'),
+                    "detail should name the cmd: {}",
+                    detail
+                );
+            }
+            other => panic!("expected ElementField, got {:?}", other),
+        }
+    }
+
+    /// Q 段缺控制点拒绝：错误信息指明缺失字段。
+    #[test]
+    fn path_element_q_missing_control_point_rejected() {
+        let m = load_path_material(
+            r#"[#{type: "path", segments: [#{cmd: "M", x: 0.0, y: 0.0}, #{cmd: "Q", x: 10.0, y: 10.0}], thickness: 2.0}]"#,
+        );
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let err = m
+            .evaluate(&serde_json::json!({}), &screen, &ctx)
+            .expect_err("Q without control point must be rejected");
+        match err {
+            MaterialError::ElementField { detail, .. } => {
+                assert!(
+                    detail.contains("x1"),
+                    "detail should name the field: {}",
+                    detail
+                );
+            }
+            other => panic!("expected ElementField, got {:?}", other),
+        }
+    }
+
+    /// 不可见组合拒绝：fill=false && thickness=0。
+    #[test]
+    fn path_element_invisible_combo_rejected() {
+        let m = load_path_material(
+            r#"[#{type: "path", segments: [#{cmd: "M", x: 0.0, y: 0.0}, #{cmd: "L", x: 1.0, y: 1.0}], thickness: 0.0}]"#,
+        );
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        assert!(m.evaluate(&serde_json::json!({}), &screen, &ctx).is_err());
+    }
+
+    /// 纯填充合法：fill=true && thickness=0。
+    #[test]
+    fn path_element_fill_only_accepted() {
+        let m = load_path_material(
+            r#"[#{type: "path", segments: [#{cmd: "M", x: 0.0, y: 0.0}, #{cmd: "L", x: 1.0, y: 1.0}, #{cmd: "Z"}], thickness: 0.0, fill: true}]"#,
+        );
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let els = m
+            .evaluate(&serde_json::json!({}), &screen, &ctx)
+            .expect("fill-only path must be accepted");
+        assert!(matches!(
+            &els[0],
+            Element::Path {
+                fill: true,
+                thickness: 0.0,
+                ..
+            }
+        ));
+    }
+
+    /// 首段非 M 拒绝。
+    #[test]
+    fn path_element_first_segment_not_m_rejected() {
+        let m = load_path_material(
+            r#"[#{type: "path", segments: [#{cmd: "L", x: 0.0, y: 0.0}], thickness: 2.0}]"#,
+        );
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let err = m
+            .evaluate(&serde_json::json!({}), &screen, &ctx)
+            .expect_err("first segment must be M");
+        match err {
+            MaterialError::ElementField { detail, .. } => {
+                assert!(detail.contains('M'), "detail should explain: {}", detail);
+            }
+            other => panic!("expected ElementField, got {:?}", other),
+        }
+    }
+
+    /// 空段数组拒绝。
+    #[test]
+    fn path_element_empty_segments_rejected() {
+        let m = load_path_material(r#"[#{type: "path", segments: [], thickness: 2.0}]"#);
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        assert!(m.evaluate(&serde_json::json!({}), &screen, &ctx).is_err());
+    }
+
+    /// 颜色分量越界拒绝。
+    #[test]
+    fn path_element_color_out_of_range_rejected() {
+        let m = load_path_material(
+            r#"[#{type: "path", segments: [#{cmd: "M", x: 0.0, y: 0.0}, #{cmd: "L", x: 1.0, y: 1.0}], thickness: 2.0, stroke_color: [1.5, 0.0, 0.0, 1.0]}]"#,
+        );
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        assert!(m.evaluate(&serde_json::json!({}), &screen, &ctx).is_err());
+    }
+
+    /// 颜色数组长度错误拒绝。
+    #[test]
+    fn path_element_color_wrong_length_rejected() {
+        let m = load_path_material(
+            r#"[#{type: "path", segments: [#{cmd: "M", x: 0.0, y: 0.0}, #{cmd: "L", x: 1.0, y: 1.0}], thickness: 2.0, fill_color: [1.0, 0.0, 0.0]}]"#,
+        );
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        assert!(m.evaluate(&serde_json::json!({}), &screen, &ctx).is_err());
+    }
+
+    /// thickness 为负拒绝。
+    #[test]
+    fn path_element_negative_thickness_rejected() {
+        let m = load_path_material(
+            r#"[#{type: "path", segments: [#{cmd: "M", x: 0.0, y: 0.0}, #{cmd: "L", x: 1.0, y: 1.0}], thickness: -1.0}]"#,
+        );
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        assert!(m.evaluate(&serde_json::json!({}), &screen, &ctx).is_err());
+    }
+
+    // ===== 鼠标速度 / 加速度 host function 测试 =====
+
+    /// host function 返回 Map {x, y} 结构；同一次求值内多次调用返回同值。
+    #[test]
+    fn mouse_velocity_acceleration_host_functions() {
+        let m = Material::load(
+            "test.dyninput".to_string(),
+            r#"fn defaults() { #{} }
+fn schema() { [] }
+fn build(params, screen) {
+    let v = mouse_velocity();
+    let a = mouse_acceleration();
+    let v2 = mouse_velocity();
+    // Rhai 的 == 对 Map 做逐键比较：同快照内重复调用返回同值。
+    let stable = v == v2;
+    [#{type: "rect", x: v.x, y: v.y, w: a.x, h: a.y},
+     #{type: "circle", cx: if stable { 1.0 } else { 0.0 }, cy: 0.0, radius: 1.0}]
+}"#,
+            false,
+        )
+        .unwrap();
+
+        let screen = test_rect();
+        let ctx = DynamicContext {
+            mouse_velocity: (120.0, -40.0),
+            mouse_acceleration: (-500.0, 250.0),
+            ..DynamicContext::default()
+        };
+        let els = m.evaluate(&serde_json::json!({}), &screen, &ctx).unwrap();
+        match (&els[0], &els[1]) {
+            (Element::Rect { x, y, w, h, .. }, Element::Circle { cx, .. }) => {
+                assert_eq!(*x, 120.0);
+                assert_eq!(*y, -40.0);
+                assert_eq!(*w, -500.0);
+                assert_eq!(*h, 250.0);
+                // 同快照内重复调用返回同值。
+                assert_eq!(*cx, 1.0);
+            }
+            other => panic!("unexpected elements: {:?}", other),
+        }
+
+        // 默认上下文（速度/加速度为 0）不报错，返回 0。
+        let els = m
+            .evaluate(&serde_json::json!({}), &screen, &DynamicContext::default())
+            .unwrap();
+        match &els[0] {
+            Element::Rect { x, y, w, h, .. } => {
+                assert_eq!((*x, *y, *w, *h), (0.0, 0.0, 0.0, 0.0));
+            }
+            other => panic!("expected Rect, got {:?}", other),
         }
     }
 
@@ -1328,6 +1780,8 @@ fn build(params, screen) {
         let ctx = DynamicContext {
             time_ms: fixed_ms,
             mouse_pos: (0.0, 0.0),
+            mouse_velocity: (0.0, 0.0),
+            mouse_acceleration: (0.0, 0.0),
             key_state: crate::context::KeyState::new(),
             rng_seed: 1,
             version: fixed_ms,
@@ -1407,6 +1861,8 @@ fn build(params, screen) {
         let ctx_dyn = DynamicContext {
             time_ms: 0,
             mouse_pos: (0.0, 0.0),
+            mouse_velocity: (0.0, 0.0),
+            mouse_acceleration: (0.0, 0.0),
             key_state,
             rng_seed: 1,
             version: 1,
@@ -1417,5 +1873,240 @@ fn build(params, screen) {
         assert_eq!(elements.len(), 2);
         assert!(matches!(&elements[0], Element::Circle { .. }));
         assert!(matches!(&elements[1], Element::CircleStroke { .. }));
+    }
+
+    // ===== 内置演示物料：teardrop / path_showcase（Path 图元） =====
+
+    /// teardrop：动态物料，is_dynamic = true；零加速度 = 正圆（各采样点半径一致）。
+    #[test]
+    fn builtin_teardrop_circle_at_zero_acceleration() {
+        let m = load_builtin("teardrop");
+        assert_eq!(m.metadata().display_name, "水滴环");
+        assert!(m.metadata().is_dynamic);
+
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context(); // 加速度为 0
+        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
+        assert_eq!(els.len(), 1);
+        match &els[0] {
+            Element::Path {
+                segments,
+                fill,
+                thickness,
+                stroke_color,
+                fill_color,
+            } => {
+                // 闭合 Path：首段 M、末段 Z；fill=true + 双色覆盖。
+                assert!(matches!(
+                    segments.first(),
+                    Some(peregrine_config::PathSegment::M { .. })
+                ));
+                assert!(matches!(
+                    segments.last(),
+                    Some(peregrine_config::PathSegment::Z)
+                ));
+                assert!(*fill);
+                assert!(*thickness > 0.0);
+                assert!(stroke_color.is_some());
+                assert!(fill_color.is_some());
+                // 零加速度：所有采样点距圆心等距（正圆）。
+                let cx = 960.0;
+                let cy = 540.0;
+                let radius = 1080.0 * 0.05;
+                let mut dists = Vec::new();
+                for seg in segments {
+                    if let peregrine_config::PathSegment::L { x, y } = seg {
+                        dists.push(((x - cx).powi(2) + (y - cy).powi(2)).sqrt());
+                    }
+                }
+                assert!(!dists.is_empty());
+                for d in &dists {
+                    assert!(
+                        (d - radius).abs() < 1e-2,
+                        "zero acc should be perfect circle: d={} r={}",
+                        d,
+                        radius
+                    );
+                }
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+    }
+
+    /// teardrop：非零加速度 = 重心向加速度方向偏移；强度与幅度成正比。
+    #[test]
+    fn builtin_teardrop_deforms_with_acceleration() {
+        let m = load_builtin("teardrop");
+        let screen = test_rect();
+
+        let mk_ctx = |acc: (f32, f32)| DynamicContext {
+            mouse_acceleration: acc,
+            ..DynamicContext::default()
+        };
+        let eval = |ctx: &DynamicContext| {
+            m.evaluate(&m.defaults().clone(), &screen, ctx)
+                .unwrap()
+                .into_iter()
+                .map(|e| match e {
+                    Element::Path { segments, .. } => segments,
+                    _ => panic!("expected Path"),
+                })
+                .next()
+                .unwrap()
+        };
+
+        let segs_small = eval(&mk_ctx((-100.0, 0.0)));
+        let segs_large = eval(&mk_ctx((-500.0, 0.0)));
+
+        // 偏移幅度：采样点沿 -x 方向的最大半径偏移。
+        let extent = |segs: &[peregrine_config::PathSegment]| -> f32 {
+            let mut max_r = f32::MIN;
+            for seg in segs {
+                if let peregrine_config::PathSegment::L { x, .. } = seg {
+                    max_r = max_r.max(960.0 - x); // 朝 -x 的拉伸量
+                }
+            }
+            max_r
+        };
+        let base = 1080.0 * 0.05;
+        let ext_small = extent(&segs_small);
+        let ext_large = extent(&segs_large);
+        // 大加速度的偏离幅度 > 小加速度的偏离幅度（均 > 正圆半径）。
+        assert!(
+            ext_small > base,
+            "small acc should deform: {} > {}",
+            ext_small,
+            base
+        );
+        assert!(
+            ext_large > ext_small,
+            "large acc should deform more: {} > {}",
+            ext_large,
+            ext_small
+        );
+        // 段数与语义结构一致。
+        assert_eq!(segs_small.len(), segs_large.len());
+    }
+
+    /// teardrop：预览快照（速度/加速度为 0）呈正圆。
+    #[test]
+    fn builtin_teardrop_preview_snapshot_is_circle() {
+        let m = load_builtin("teardrop");
+        let screen = test_rect();
+        let ctx = DynamicContext::preview_snapshot(1920.0, 1080.0);
+        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
+        match &els[0] {
+            Element::Path { segments, .. } => {
+                // 预览快照加速度为 0：所有 L 段等距（正圆形态）。
+                let cx = 960.0;
+                let cy = 540.0;
+                let mut dists = Vec::new();
+                for seg in segments {
+                    if let peregrine_config::PathSegment::L { x, y } = seg {
+                        dists.push(((x - cx).powi(2) + (y - cy).powi(2)).sqrt());
+                    }
+                }
+                let first = dists[0];
+                for d in &dists {
+                    assert!((d - first).abs() < 1e-2, "preview should be circle");
+                }
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+    }
+
+    /// path_showcase：静态物料，输出星形（M/L/Z）与贝塞尔花（C）两组 Path。
+    #[test]
+    fn builtin_path_showcase_static_outputs() {
+        let m = load_builtin("path_showcase");
+        assert_eq!(m.metadata().display_name, "路径图元演示");
+        assert!(!m.metadata().is_dynamic);
+
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
+        assert_eq!(els.len(), 2);
+
+        // 第一个 Path：仅含 M/L/Z（星形）。
+        match &els[0] {
+            Element::Path {
+                segments,
+                fill,
+                stroke_color,
+                ..
+            } => {
+                assert!(*fill);
+                // 缺省参数不携带颜色覆盖（继承图层色）。
+                assert_eq!(stroke_color, &None);
+                for seg in segments {
+                    assert!(
+                        matches!(
+                            seg,
+                            peregrine_config::PathSegment::M { .. }
+                                | peregrine_config::PathSegment::L { .. }
+                                | peregrine_config::PathSegment::Z
+                        ),
+                        "star should only contain M/L/Z, got {:?}",
+                        seg
+                    );
+                }
+            }
+            other => panic!("expected Path (star), got {:?}", other),
+        }
+        // 第二个 Path：含 C 段（贝塞尔花）。
+        match &els[1] {
+            Element::Path { segments, .. } => {
+                assert!(
+                    segments
+                        .iter()
+                        .any(|s| matches!(s, peregrine_config::PathSegment::C { .. })),
+                    "flower should contain C segments"
+                );
+            }
+            other => panic!("expected Path (flower), got {:?}", other),
+        }
+    }
+
+    /// path_showcase：纯静态——仅 mouse_pos/time_ms 不同的两上下文输出完全相同。
+    #[test]
+    fn builtin_path_showcase_output_independent_of_dynamic_input() {
+        let m = load_builtin("path_showcase");
+        let screen = test_rect();
+        let params = m.defaults().clone();
+
+        let ctx_a = DynamicContext {
+            time_ms: 1000,
+            mouse_pos: (100.0, 200.0),
+            ..DynamicContext::default()
+        };
+        let ctx_b = DynamicContext {
+            time_ms: 999999,
+            mouse_pos: (800.0, 100.0),
+            ..DynamicContext::default()
+        };
+        let out_a = m.evaluate(&params, &screen, &ctx_a).unwrap();
+        let out_b = m.evaluate(&params, &screen, &ctx_b).unwrap();
+        assert_eq!(out_a, out_b);
+    }
+
+    /// path_showcase：颜色覆盖参数生效（use_override_colors = true）。
+    #[test]
+    fn builtin_path_showcase_override_colors_param() {
+        let m = load_builtin("path_showcase");
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let params = serde_json::json!({"use_override_colors": true});
+        let els = m.evaluate(&params, &screen, &ctx).unwrap();
+        match &els[0] {
+            Element::Path {
+                stroke_color,
+                fill_color,
+                ..
+            } => {
+                assert!(stroke_color.is_some());
+                assert!(fill_color.is_some());
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
     }
 }

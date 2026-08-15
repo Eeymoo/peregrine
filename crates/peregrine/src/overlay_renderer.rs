@@ -593,6 +593,61 @@ fn hash_element<H: std::hash::Hasher>(h: &mut H, e: &peregrine_config::Element) 
             fb!(*w);
             fb!(*ih);
         }
+        // Path：判别值 + fill + thickness + 逐段（cmd 判别值 + 坐标位模式）
+        // + 两个 Option 覆盖色逐分量位模式。静止输入 → 指纹不变 → 跳帧。
+        Element::Path {
+            segments,
+            fill,
+            thickness,
+            stroke_color,
+            fill_color,
+        } => {
+            h.write_u8(*fill as u8);
+            fb!(*thickness);
+            for seg in segments {
+                std::mem::discriminant(seg).hash(h);
+                match *seg {
+                    peregrine_config::PathSegment::M { x, y }
+                    | peregrine_config::PathSegment::L { x, y } => {
+                        fb!(x);
+                        fb!(y);
+                    }
+                    peregrine_config::PathSegment::Q { x1, y1, x, y } => {
+                        fb!(x1);
+                        fb!(y1);
+                        fb!(x);
+                        fb!(y);
+                    }
+                    peregrine_config::PathSegment::C {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        x,
+                        y,
+                    } => {
+                        fb!(x1);
+                        fb!(y1);
+                        fb!(x2);
+                        fb!(y2);
+                        fb!(x);
+                        fb!(y);
+                    }
+                    peregrine_config::PathSegment::Z => {}
+                }
+            }
+            for color in [stroke_color.as_ref(), fill_color.as_ref()] {
+                match color {
+                    Some(c) => {
+                        h.write_u8(1);
+                        for ch in c {
+                            fb!(*ch);
+                        }
+                    }
+                    None => h.write_u8(0),
+                }
+            }
+        }
     }
 }
 
@@ -774,6 +829,12 @@ fn rasterize_shape(
             // 旧 crosshair 路径下的 CustomImage 由上层专门分支处理；
             // 此处仅记录路径，不直接 blit。
             let _ = (x, y, w, h, path);
+        }
+        // Path 不实现 CPU softbuffer 直绘（与 Text/Polygon/Line 同策略）：
+        // 新格式路径中 Path 已在上游分流到 SVG 后端图元集合，
+        // 此 arm 仅满足穷尽性，到达即为路由错误，记录 warn。
+        Shape::Path { .. } => {
+            tracing::warn!("rasterize_shape: Path element reached CPU path (expected SVG backend)");
         }
     }
 }

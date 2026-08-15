@@ -2011,7 +2011,7 @@ fn build(params, screen) {
         // 场景 1：静止（time_ms=2500，呼吸顶点）→ 半径 = base × 1.03
         //（呼吸涨缩可见，防习惯化）。
         let ctx_breath = DynamicContext {
-            time_ms: 2500, // 10000/4 → sin=1
+            time_ms: 1075, // 4300/4 → sin=1（呼吸顶点）
             ..DynamicContext::default()
         };
         let segs_breath = eval(&ctx_breath, &defaults);
@@ -2028,7 +2028,7 @@ fn build(params, screen) {
         // 场景 2：满幅运动（加速度封顶）+ 呼吸顶点时刻 → 呼吸熄灭，
         // 半径精确锁回基准值（定格）。
         let ctx_motion = DynamicContext {
-            time_ms: 2500,
+            time_ms: 1075,
             mouse_velocity: (2000.0, 0.0),
             mouse_acceleration: (-3000.0, 0.0),
             ..DynamicContext::default()
@@ -2082,7 +2082,7 @@ fn build(params, screen) {
         // 帧指纹稳定，杜绝「轻微移动就响应」。
         let segs_noise = eval(
             &DynamicContext {
-                time_ms: 2500,
+                time_ms: 1075,
                 mouse_velocity: (20.0, 0.0),      // < vel_threshold 40
                 mouse_acceleration: (120.0, 0.0), // < threshold 150
                 ..DynamicContext::default()
@@ -2097,7 +2097,7 @@ fn build(params, screen) {
         // 场景 6：任意方向满幅运动（斜向）→ 输出与轴向满幅完全一致
         //（对称原则：与运动方向无关）。
         let ctx_diag = DynamicContext {
-            time_ms: 2500,
+            time_ms: 1075,
             mouse_velocity: (1500.0, 1500.0),
             mouse_acceleration: (-2100.0, 2100.0),
             ..DynamicContext::default()
@@ -2138,10 +2138,10 @@ fn build(params, screen) {
             .unwrap()
         };
 
-        // 周期平移不变：相隔一个整周期（10000ms）输出完全一致
+        // 周期平移不变：相隔一个整周期（默认 normal = 4300ms）输出完全一致
         //（呼吸是唯一时间依赖，帧指纹可周期性回归）。
-        assert_eq!(eval_at(0, &defaults), eval_at(10000, &defaults));
-        assert_eq!(eval_at(2500, &defaults), eval_at(12500, &defaults));
+        assert_eq!(eval_at(0, &defaults), eval_at(4300, &defaults));
+        assert_eq!(eval_at(2100, &defaults), eval_at(6400, &defaults));
 
         // 关闭呼吸：两个不同时刻输出完全一致（时间不再影响输出，
         // 静止时回到稳态跳帧主路径）。
@@ -2191,7 +2191,7 @@ fn build(params, screen) {
         //（半径越接近定格基准值）。单调关系即语义正确——各档内部数值
         //（阈值/满量程）映射见 motion_tuning，此处验证玩家可感知的排序。
         let ctx_mid = DynamicContext {
-            time_ms: 2500, // 呼吸顶点
+            time_ms: 1075, // 呼吸顶点（4300/4）
             mouse_velocity: (300.0, 0.0),
             mouse_acceleration: (800.0, 0.0),
             ..DynamicContext::default()
@@ -2205,7 +2205,7 @@ fn build(params, screen) {
         let r_full_breath = base_r * 1.03;
         // 呼吸顶点基准：静止时应精确到 1.03 顶点（对照）。
         let ctx_rest = DynamicContext {
-            time_ms: 2500,
+            time_ms: 1075,
             ..DynamicContext::default()
         };
         let r_still = outer_radius_at(&serde_json::json!({"sensitivity_preset": "low"}), &ctx_rest);
@@ -2240,24 +2240,30 @@ fn build(params, screen) {
             r_high
         );
 
-        // 呼吸速度预设 → 周期：静止、相位取样点 t=3500
-        // slow(14000) 处 sin(2π·0.25)=1（顶点，最大半径），
-        // normal(10000) 处 sin(2π·0.35)<1（已过顶点），
-        // fast(6000) 处相位 7/12（顶点后更远，接近半周期）。
-        let ctx_t3500 = DynamicContext {
-            time_ms: 3500,
+        // 呼吸速度预设 → 周期（对齐常见呼吸频率），相位取样点 t=1700：
+        // slow(7500ms=8 次/分) sin≈0.989（近顶点，最大半径）；
+        // normal(4300ms≈14 次/分) sin≈0.611（扩张后段）；
+        // fast(3000ms=20 次/分) sin≈-0.407（已入收缩相，最小半径）。
+        let ctx_t1700 = DynamicContext {
+            time_ms: 1700,
             ..DynamicContext::default()
         };
-        let r_slow = outer_radius_at(&serde_json::json!({"breath_speed": "slow"}), &ctx_t3500);
-        let r_norm = outer_radius_at(&serde_json::json!({"breath_speed": "normal"}), &ctx_t3500);
-        let r_fast = outer_radius_at(&serde_json::json!({"breath_speed": "fast"}), &ctx_t3500);
-        // slow 在顶点（最大），normal 次之，fast 最小（收缩相）。
+        let r_slow = outer_radius_at(&serde_json::json!({"breath_speed": "slow"}), &ctx_t1700);
+        let r_norm = outer_radius_at(&serde_json::json!({"breath_speed": "normal"}), &ctx_t1700);
+        let r_fast = outer_radius_at(&serde_json::json!({"breath_speed": "fast"}), &ctx_t1700);
+        // slow 近顶点（最大），normal 次之， fast 已入收缩相（最小）。
         assert!(
             r_slow > r_norm && r_norm > r_fast,
             "breath speed presets must map to distinct periods: slow={} normal={} fast={}",
             r_slow,
             r_norm,
             r_fast
+        );
+        // slow 在近顶点处应接近满幅呼吸（对照 1.03 顶点）。
+        assert!(
+            (r_slow - base_r * 1.03).abs() < 0.05,
+            "slow preset near peak should be near full breath: {}",
+            r_slow
         );
 
         // 遇动增强关闭（solid_boost=0）：满幅运动下环宽仍为基准 ring_width。
@@ -2332,10 +2338,10 @@ fn build(params, screen) {
                 .fold(f32::MIN, f32::max)
         };
 
-        // 呼吸顶点时刻（time_ms=2500）：匀速运动（速度满幅、加速度 0）
+        // 呼吸顶点时刻（time_ms=1075，4300/4）：匀速运动（速度满幅、加速度 0）
         // 也必须定格回基准半径。
         let ctx_const_vel = DynamicContext {
-            time_ms: 2500,
+            time_ms: 1075,
             mouse_velocity: (2000.0, 0.0),
             ..DynamicContext::default()
         };
@@ -2346,7 +2352,7 @@ fn build(params, screen) {
 
         // 同时刻纯静止：呼吸涨至 1.03 倍（对照，证明上面是速度通道触发的）。
         let ctx_rest = DynamicContext {
-            time_ms: 2500,
+            time_ms: 1075,
             ..DynamicContext::default()
         };
         assert!(

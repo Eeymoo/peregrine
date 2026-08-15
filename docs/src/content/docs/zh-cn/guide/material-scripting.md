@@ -6,7 +6,7 @@ title: "物料脚本创作"
 
 本指南按 **五步创作流程** 组织，并完整记录 API。文中代码片段取自 `crates/material/examples/` 下可直接运行并通过测试的示例，复制到用户物料目录即可加载。
 
-> **状态说明**：当前构建中静态物料正常渲染。动态输入（`time_ms()` / `mouse_pos()` / `key_down()` / `rand()`）默认软关闭 —— 函数仍可解析但返回冻结快照，动态物料以单帧静态图渲染。详见下文 [动态输入 API](#动态输入-api)。
+> **状态说明**：当前构建中静态与动态物料均已启用。动态输入（`time_ms()` / `mouse_pos()` / `mouse_velocity()` / `mouse_acceleration()` / `key_down()` / `rand()`）默认开启，由设置 → 物料页的运行时开关门控。详见下文 [动态输入 API](#动态输入-api)。
 
 ## 五步创作流程
 
@@ -71,7 +71,7 @@ fn build(params, screen) {
 若物料读取任意 [动态输入](#动态输入-api)（`time_ms` / `mouse_pos` / `key_down` / `rand`），声明 `true`。缺失时默认 `false`。
 
 - `false`（或缺失）→ 渲染器对结果 **永久缓存**（相同参数永远输出相同结果）。适合静态锚点。
-- `true` → 渲染器在动态上下文变化时重新求值。动态输入软关闭期间，物料选择器会隐藏动态物料。
+- `true` → 渲染器在动态上下文变化时重新求值。设置 → 物料页关闭动态输入时，物料选择器会隐藏动态物料。
 
 ## 参数 widget 类型
 
@@ -104,8 +104,51 @@ fn build(params, screen) {
 | `line` | `x1`, `y1`, `x2`, `y2`, `thickness` | 带粗细的线段 |
 | `text` | `x`, `y`, `content`, `font_size`，可选 `font_weight` | 文本；`font_weight` 取 100..=900 的百位整数倍，省略或 `()` 表示默认 |
 | `image` | `path`, `x`, `y`, `w`, `h` | PNG 文件；解码由渲染器单独处理 |
+| `path` | `segments`, `fill`, `thickness`, 可选 `stroke_color`, `fill_color` | 矢量路径；见下文 [路径图元](#路径图元) |
 
 其他值会在求值时返回 `MaterialError::UnknownElementType`。
+
+## 路径图元
+
+`path` 图元以段列表输出任意矢量几何——唯一支持曲线的图元类型，经 SVG 后端渲染。
+
+```rhai
+fn build(params, screen) {
+    let cx = (screen.min_x + screen.max_x) / 2.0;
+    let cy = (screen.min_y + screen.max_y) / 2.0;
+    let r = params.radius;
+    [
+        #{
+            type: "path",
+            segments: [
+                #{cmd: "M", x: cx, y: cy - r},
+                #{cmd: "Q", x1: cx + r, y1: cy - r, x: cx, y: cy + r},
+                #{cmd: "Z"},
+            ],
+            fill: true,
+            thickness: 0.0,
+        },
+    ]
+}
+```
+
+段命令（`cmd`，snake_case）：
+
+| `cmd` | 字段 | 含义 |
+|---|---|---|
+| `M` | `x`, `y` | 移动到；开启新子路径 |
+| `L` | `x`, `y` | 直线到 |
+| `Q` | `x1`, `y1`, `x`, `y` | 二次贝塞尔（控制点 + 终点） |
+| `C` | `x1`, `y1`, `x2`, `y2`, `x`, `y` | 三次贝塞尔（两个控制点 + 终点） |
+| `Z` | _(无)_ | 闭合子路径 |
+
+字段语义：
+
+- 当前转换层要求 `fill: true`（圆环依赖反向内圈子路径的镂空填充实现）。
+- `thickness` 为描边宽度（0 = 无描边）。
+- 省略 `stroke_color` / `fill_color`（各为 0..=1 的 `[r, g, b, a]`）时，元素继承 **图层基色 × 图层不透明度**——推荐缺省，换色热键保持生效；显式颜色覆盖图层色。
+
+平滑圆环、花瓣及任何曲线锚点形状用 `path`。纯矩形/圆形请用专用图元（CPU 光栅直连，无 SVG 往返，更便宜）。
 
 ## `screen` 参数
 
@@ -127,6 +170,8 @@ let radius = (screen.max_y - screen.min_y) * params.ring_radius_pct;
 | `now_ms()` | `int` | 当前 Unix 时间戳（毫秒，真实时钟）。配合 `format_time` 使用。 |
 | `format_time(ms, fmt)` | `string` | 把毫秒时间戳格式化为本地时间字符串，支持 `yyyy` `MM` `dd` `HH` `hh` `mm` `ss` `a` 占位符。 |
 | `mouse_pos()` | `Map {x, y}` | 当前鼠标位置（逻辑屏幕坐标）。 |
+| `mouse_velocity()` | `Map {x, y}` | 鼠标速度（逻辑像素/秒）。平台层差分采样 + EMA 平滑 + 死区归零（静止时精确为 0，帧稳定）。 |
+| `mouse_acceleration()` | `Map {x, y}` | 鼠标加速度（逻辑像素/秒²）。同上管线；静止或匀速时精确为 0。 |
 | `key_down(code)` | `bool` | 指定按键是否按下。键码：`"shift"` `"ctrl"` `"a"`..`"z"` `"0"`..`"9"` `"f1"`..`"f12"` `"space"` 等（大小写不敏感） |
 | `rand()` | `float` | 确定性伪随机数 `[0, 1)`；内部计数器在每次调用时前进。 |
 | `rand_range(min, max)` | `float` | `[min, max)` 内的随机浮点。 |
@@ -137,9 +182,19 @@ let radius = (screen.max_y - screen.min_y) * params.ring_radius_pct;
 - **静态物料**（`is_dynamic() == false`）按参数集 **求值一次**，永久缓存（缓存键忽略动态上下文）。静态物料读取动态输入会得到冻结值，请不要这样做。
 - **动态物料** 在动态上下文 `version` 变化时重新求值（动态输入启用时每帧一次）。RNG 种子派生自 `(material_id, params_hash, frame_count)`，因此同一参数的两个同类物料在一帧内产生相同随机序列，而一次求值内多次 `rand()` 返回不同值。
 
-### 当前软关闭状态
+### 刷新间隔节流
 
-发布构建默认禁用动态输入路径（`MATERIAL_DYNAMIC_INPUT_ENABLED = false`，见 `crates/peregrine/src/lib.rs` 与 `src/lib/feature.ts`）。host function 仍可解析（动态物料能正常加载和求值，不报错），但传入的 `DynamicContext` 是 `static_context()` —— `time_ms` 返回 0，`mouse_pos` 返回屏幕中心，`key_down` 返回 false，`version` 固定为 0，所以缓存是永久的。动态物料因此渲染为单帧静态图。要恢复实时更新，把两个 `MATERIAL_DYNAMIC_INPUT_ENABLED` 常量都翻到 `true`。详见 `AGENTS.md`（搜索常量名）了解完整门控。
+可选的第四个导出函数让动态物料保持低开销：
+
+```rhai
+fn refresh_interval_ms() {
+    100  // 最小唤醒间隔（ms）
+}
+```
+
+调度器把唤醒节流到 `max(配置帧率, 可见动态物料声明的最短间隔)`——内置时钟声明 500ms，唤醒从 60Hz 降到 2Hz；锚定环声明 100ms。外部事件（配置变更、窗口移动）触发的重绘不受限、即时生效。未声明该函数的物料按配置帧率运行。
+
+第二个开销杠杆是 **输出量化**：两次求值若产生字节级相同的元素，帧指纹一致，光栅化被整体跳过。内置锚定环把呼吸半径量化到 0.5px，大多数唤醒完全不产生光栅化。
 
 ## 沙箱限制
 

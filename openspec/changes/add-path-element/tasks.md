@@ -44,4 +44,4 @@
 
 - [x] 7.1 `cargo test -p peregrine_config -p peregrine_material -p peregrine` 全绿；`cargo fmt --check` + `cargo clippy -- -D warnings` 通过
 - [x] 7.2 `npm run build`（tsc 类型检查 + Vite 构建）通过
-- [ ] 7.3 手动验证：teardrop 图层在 overlay 中随鼠标急转变形、静止回正且回到跳帧；path_showcase 图层预览与 overlay 双端一致（WYSIWYG）、静止帧不重光栅化
+- [ ] 7.3 手动验证：teardrop（锚定环）静止时呼吸可见（周期 ~4.3s）、鼠标移动不影响输出、稳态 CPU 接近静态层（<0.5%，对照修复前 7%）；path_showcase（星花组合）布局参数三态正确、预览与 overlay 双端一致（WYSIWYG）

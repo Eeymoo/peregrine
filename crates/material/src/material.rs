@@ -2087,6 +2087,118 @@ fn build(params, screen) {
         }
     }
 
+    /// teardrop v3：等宽形变——形变时同方向的内外圈 Q 控制点半径差
+    /// 恒等于 ring_width（等宽偏移），尖端不再变宽。
+    #[test]
+    fn builtin_teardrop_constant_ring_width_when_deformed() {
+        let m = load_builtin("teardrop");
+        let screen = test_rect();
+        let ctx = DynamicContext {
+            mouse_acceleration: (-1500.0, 0.0),
+            ..DynamicContext::default()
+        };
+        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
+        match &els[0] {
+            Element::Path { segments, .. } => {
+                let cx = 960.0;
+                let cy = 540.0;
+                // 只取 Q 控制点（= 精确采样半径，mid 端点/L 尖角点剔除）。
+                let mut buckets: std::collections::HashMap<i32, Vec<f32>> =
+                    std::collections::HashMap::new();
+                for seg in segments {
+                    if let peregrine_config::PathSegment::Q { x1, y1, .. } = *seg {
+                        let angle = (y1 - cy).atan2(x1 - cx);
+                        let angle_deg = angle.to_degrees();
+                        // 排除尖端方向 ±30°（插入的尖角区无配对语义）。
+                        let mut diff = (angle_deg - 180.0).abs();
+                        if diff > 180.0 {
+                            diff = 360.0 - diff;
+                        }
+                        if diff < 30.0 {
+                            continue;
+                        }
+                        let bucket = (angle_deg / 10.0).round() as i32;
+                        let r = ((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt();
+                        buckets.entry(bucket).or_default().push(r);
+                    }
+                }
+                let mut checked = 0;
+                for (bucket, radii) in &buckets {
+                    if radii.len() >= 2 {
+                        let max = radii.iter().cloned().fold(f32::MIN, f32::max);
+                        let min = radii.iter().cloned().fold(f32::MAX, f32::min);
+                        // 锥形区的桶（cos³ 渐变）内外圈差仍应为 10；
+                        // 只排除尖端插入区（±20°，含插入点邻桶）。
+                        let bucket_deg = *bucket as f32 * 10.0;
+                        let mut diff = (bucket_deg - 180.0).abs();
+                        if diff > 180.0 {
+                            diff = 360.0 - diff;
+                        }
+                        if diff < 20.0 {
+                            continue;
+                        }
+                        assert!(
+                            (max - min - 10.0).abs() < 1e-2,
+                            "ring width must stay 10 at bucket {}, got {} (radii {:?})",
+                            bucket,
+                            max - min,
+                            radii
+                        );
+                        checked += 1;
+                    }
+                }
+                assert!(checked >= 10, "should check enough buckets: {}", checked);
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+    }
+
+    /// teardrop v3：尖端方向连续——尖角点精确落在加速度方向射线上
+    /// （无 15° 采样量化跳变）。
+    #[test]
+    fn builtin_teardrop_tip_follows_exact_acceleration_direction() {
+        let m = load_builtin("teardrop");
+        let screen = test_rect();
+        // 任意非轴向角度（~140°）：尖端点必须在 atan2(1, -1.2) 方向上。
+        // 幅度 2500（> threshold 150 + sensitivity 900 → strength 封顶）。
+        let acc: (f32, f32) = (-2500.0 * 0.768, 2500.0 * 0.640);
+        let ctx = DynamicContext {
+            mouse_acceleration: acc,
+            ..DynamicContext::default()
+        };
+        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
+        match &els[0] {
+            Element::Path { segments, .. } => {
+                let cx = 960.0;
+                let cy = 540.0;
+                // 找 L 角点（尖端）：形变封顶后尖端伸长 ~半径 50%+，
+                // 以 outer_r × 1.2 为阈值筛出最远 L 点。
+                let outer_r = 1080.0 * 0.05;
+                let mut tip = None;
+                for seg in segments {
+                    if let peregrine_config::PathSegment::L { x, y } = *seg {
+                        let r = ((x - cx).powi(2) + (y - cy).powi(2)).sqrt();
+                        if r > outer_r * 1.2 {
+                            tip = Some((x, y));
+                            break;
+                        }
+                    }
+                }
+                let (tx, ty) = tip.expect("deformed ring should have an L tip corner");
+                // 尖端方向 = 加速度方向（角度差 < 1°，远小于 15° 量化档）。
+                let tip_angle = (ty - cy).atan2(tx - cx);
+                let acc_angle = acc.1.atan2(acc.0);
+                let diff = (tip_angle - acc_angle).abs().to_degrees();
+                assert!(
+                    diff < 1.0 || diff > 359.0,
+                    "tip should follow exact acc direction: diff={}°",
+                    diff
+                );
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+    }
+
     /// path_showcase：静态物料，输出星形（M/L/Z）与贝塞尔花（C）两组 Path。
     #[test]
     fn builtin_path_showcase_static_outputs() {

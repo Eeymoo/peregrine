@@ -1,0 +1,41 @@
+/* aukcraft 桌面端暗色主题 — 由 generate_theme.py 生成
+ * 中性色核心原样落地；accent 为产品色，暗色界面统一使用 400 浅阶。
+ * 注意：border/input 是 8% 白发丝线叠加在 raised 上的不透明近似值，
+ * 因为 shadcn 的 hsl(var(--border)) 语法不带 alpha 通道。
+ * 固定暗色：直接使用 :root，不提供 .light。
+ */
+@layer base {
+  :root {
+    --background: 210 21.4% 5.5%;
+    --foreground: 0 0.0% 92.9%;
+    --card: 213 18.4% 9.6%;
+    --card-foreground: 0 0.0% 92.9%;
+    --popover: 213 18.4% 9.6%;
+    --popover-foreground: 0 0.0% 92.9%;
+    --primary: 213 93.9% 67.8%;
+    --primary-foreground: 210 21.4% 5.5%;
+    --secondary: 213 18.4% 9.6%;
+    --secondary-foreground: 0 0.0% 92.9%;
+    --muted: 213 18.4% 9.6%;
+    --muted-foreground: 212 6.8% 57.1%;
+    /* shadcn 的 accent 槽位是悬停底色，保持中性，不放品牌色 */
+    --accent: 213 18.4% 9.6%;
+    --accent-foreground: 0 0.0% 92.9%;
+    --destructive: 0 62.8% 50.6%;
+    --destructive-foreground: 0 0.0% 92.9%;
+    --border: 218 9.3% 16.9%;
+    --input: 218 9.3% 16.9%;
+    --ring: 213 93.9% 67.8%;
+    --radius: 4px;
+
+    /* aukcraft 原始 token，组件外直接使用 */
+    --color-base: #0B0E11;
+    --color-raised: #14181D;
+    --color-hairline: rgba(255, 255, 255, 0.08);
+    --color-ink: #EDEDED;
+    --color-muted: #8A9199;
+    --color-accent: #2563EB;
+    --color-accent-soft: #60A5FA;
+    --ease-lock: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}

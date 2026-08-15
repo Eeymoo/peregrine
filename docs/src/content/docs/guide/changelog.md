@@ -6,6 +6,30 @@ This page records every Peregrine release. Stable releases are listed first; pre
 
 ---
 
+## [v0.2.6] — 2026-08-15
+
+Stable release. The dynamic material pipeline is restored end-to-end: the built-in clock (`builtin.time`) renders live on the overlay, preview refreshes in real time, and a new "Materials" settings tab exposes a runtime on/off switch and an animation FPS tier — with a tuned scheduler and font loading that keep a running dynamic overlay well under 1% CPU with flat memory usage.
+
+### Added
+
+- **Dynamic materials restored**: the end-to-end dynamic pipeline (input polling → Rhai evaluation → continuous redraw) is live again under a two-layer AND gate — the compile-time master switch plus a runtime user switch `settings.material.dynamic_enabled` (default on, hot-applies without restart). The built-in clock material `builtin.time` is back in the picker (with a "dynamic" badge) and uses the context-snapshot `time_ms()` so preview and overlay stay in sync. @Eeymoo
+- **"Materials" settings tab**: new tab with the dynamic-materials switch and an animation FPS tier (System / 30 / 60 / 120; "System" follows the primary monitor refresh rate, falling back to 60 when unavailable). FPS is a scheduling cap — purely static profiles stay fully event-driven regardless of the setting; both apply hot. Old configs upgrade silently via serde defaults (switch on, FPS follows system). @Eeymoo
+- **Live preview for dynamic materials**: when the active profile contains a dynamic material and the runtime switch is on, the editor preview re-polls the backend about once per second so the clock ticks in the canvas (±1s of the overlay). @Eeymoo
+- **Material hot-reload wiring**: after the user-materials directory reloads, the overlay now swaps in the fresh registry handle (no restart) and the frontend re-pulls the material list via the new `peregrine:materials-changed` event. @Eeymoo
+- **Per-material refresh interval**: materials may declare an optional `fn refresh_interval_ms()`; the scheduler throttles wake-ups to `max(FPS tier, shortest declared interval)` — the clock declares 500ms, cutting wake-ups from 60Hz to 2Hz while external events (config changes, window moves) still redraw immediately. @Eeymoo
+
+### Fixed
+
+- **Full-UI freeze on click**: `build_shapes_ipc` re-locked the shared config mutex while already holding it (the new dynamic-switch lookup), dead-locking the main thread whenever the layers-editor preview omitted the profile — the entire window stopped responding to any click. The switch is now read before the fallback lock is taken. @Eeymoo
+
+### Changed
+
+- **Steady-state CPU / memory of dynamic overlays**: evaluation runs once per frame instead of twice, identical frames are skipped via an output fingerprint (no clear/rasterize/present), the usvg font database is no longer rebuilt every frame, the tiny-skia pixmap is reused, and fonts load via targeted mmap of specific files (Segoe UI by default; Microsoft YaHei only when non-ASCII text appears — full font-directory scan only as a last-resort fallback). A running clock overlay now sits well under 1% CPU with flat memory. @Eeymoo
+- **RandomOrb pacing** now follows the configured FPS tier instead of the fixed 60FPS tick. @Eeymoo
+- The "⚡ dynamic material (follows input)" hint row was removed from the layer parameter panel (it carried no actionable information); the picker's "Dynamic" badge stays. @Eeymoo
+
+---
+
 ## [v0.2.5] — 2026-08-14
 
 This release makes an empty layer list a legal configuration state and hardens the render invariant so a running overlay never renders blank by accident — the "delete all layers" path no longer bricks the editor.

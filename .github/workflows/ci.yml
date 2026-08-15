@@ -13,13 +13,16 @@ env:
 
 jobs:
   # 跨平台编译检查（不打包，只确保能 build）。
+  # 测试矩阵对齐发布架构（openspec/changes/enforce-test-gates）：
+  # release 发布 i686 / x86_64 / aarch64 三架构，库测试必须三架构全跑，
+  # 不允许"发布但未测试"的目标存在。
   build:
     name: Build & Test (${{ matrix.target }})
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64-pc-windows-msvc]
+        target: [i686-pc-windows-msvc, x86_64-pc-windows-msvc, aarch64-pc-windows-msvc]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,16 +40,22 @@ jobs:
         run: cargo test -p peregrine_config -p peregrine_material -p peregrine
 
       # 新 Tauri 入口：安装 Node 依赖、构建前端、验证 Rust 后端可编译。
+      # 仅在 x86_64 跑（前端产物与 NSIS 打包由 release/snapshot 工作流覆盖三架构，
+      # 此处验 Rust 侧一次即可，避免三份重复的前端构建）。
       # CI 不打包 NSIS（避免签名密钥缺失导致 Windows 构建失败），由 release.yml 负责产物签名发布。
       - name: Setup Node
+        if: matrix.target == 'x86_64-pc-windows-msvc'
         uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Install frontend dependencies
+        if: matrix.target == 'x86_64-pc-windows-msvc'
         run: npm ci
       - name: Build frontend
+        if: matrix.target == 'x86_64-pc-windows-msvc'
         run: npm run build
       - name: Build Tauri binary
+        if: matrix.target == 'x86_64-pc-windows-msvc'
         run: cargo build --manifest-path src-tauri/Cargo.toml --bins --features tauri/custom-protocol --release --target ${{ matrix.target }}
 
   # 完整测试套件（Windows runner）：生成 JUnit XML 测试报告
@@ -71,10 +80,11 @@ jobs:
 
       # 运行全部测试并生成 JUnit XML 报告
       # nextest profile ci 在 .config/nextest.toml 中定义，输出 junit.xml
+      # 门禁规则（openspec/changes/enforce-test-gates）：测试失败必须使 job 失败，
+      # 禁止 continue-on-error 类绕过；如需临时绕过，必须开 change 记录原因与到期条件。
       - name: Run all tests with JUnit report
         run: |
           cargo nextest run --workspace --profile ci
-        continue-on-error: true
 
       # 上传测试报告到 GitHub
       - name: Publish Test Report
@@ -84,7 +94,7 @@ jobs:
           report_paths: 'target/nextest/ci/junit.xml'
           check_name: 'Rust Test Results'
           comment: true
-          fail_on_failure: false
+          fail_on_failure: true
 
       # 生成测试摘要
       - name: Generate Test Summary

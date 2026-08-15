@@ -1617,6 +1617,13 @@ fn build_shapes_ipc(
     screen_h: f32,
     profile: Option<peregrine_config::Profile>,
 ) -> Result<Vec<BuiltShape>, String> {
+    // 动态开关判定必须先于下方 profile 回退的 config 加锁：
+    // dynamic_enabled_pref 内部也会 lock state.config，若在 config_guard
+    // 持有期间调用会构成 std::sync::Mutex 重入死锁（同步 command 在主线程
+    // 执行，一次死锁即冻结整个 UI）。此处先行短锁读出并释放。
+    let dynamic_input_active =
+        peregrine::MATERIAL_DYNAMIC_INPUT_ENABLED && dynamic_enabled_pref(&state);
+
     // 前端传入的 Profile 是未持久化的内存态，校验失败时回退快照而不是报错，
     // 避免拖动过程中的瞬时非法值（如超出范围的滑块）打断预览。
     let provided = profile.filter(|p| p.validate().is_ok());
@@ -1649,8 +1656,6 @@ fn build_shapes_ipc(
     let shapes = if peregrine::MATERIAL_RUNTIME_ENABLED {
         // 动态上下文选择：编译期总闸 AND 运行时用户开关（与 overlay 一致）。
         // 运行时关闭时用 static_context()（动态物料冻结渲染）。
-        let dynamic_input_active =
-            peregrine::MATERIAL_DYNAMIC_INPUT_ENABLED && dynamic_enabled_pref(&state);
         let ctx = if dynamic_input_active {
             DynamicContext::preview_snapshot(screen_w, screen_h)
         } else {

@@ -95,6 +95,39 @@
           },
           "visible": true,
           "locked": false
+        },
+        {
+          "id": "layer-time-test",
+          "name": "时钟",
+          "visible": true,
+          "locked": false,
+          "material": {
+            "kind": "builtin",
+            "id": "builtin.time"
+          },
+          "params": {
+            "font_size": 24.0,
+            "x": 960.0,
+            "y": 540.0,
+            "format": "HH:mm:ss",
+            "bold": false
+          },
+          "style": {
+            "color": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "opacity": 0.9,
+            "blend_mode": "normal"
+          },
+          "transform": {
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "scale": 1.0,
+            "rotation_deg": 0.0
+          }
         }
       ],
       "trigger": {
@@ -155,6 +188,9 @@
       ]
     ],
     "telemetry_enabled": false,
-    "developer_mode": false
+    "developer_mode": false,
+    "material": {
+      "dynamic_enabled": true
+    }
   }
 }

@@ -2153,6 +2153,89 @@ fn build(params, screen) {
         }
     }
 
+    /// teardrop v4：制动门控——加速度与速度反向（刹车）不形变；
+    /// 同向（加速）正常形变。
+    #[test]
+    fn builtin_teardrop_braking_suppressed_accelerating_shown() {
+        let m = load_builtin("teardrop");
+        let screen = test_rect();
+        let defaults = m.defaults().clone();
+
+        // 圆度判定：所有 Q 控制点落在两档基准半径（正圆）上 = 无形变。
+        let is_circle = |els: &[Element]| -> bool {
+            match &els[0] {
+                Element::Path { segments, .. } => {
+                    let cx = 960.0;
+                    let cy = 540.0;
+                    let outer_r = 1080.0 * 0.05;
+                    let inner_r = outer_r - 10.0;
+                    for seg in segments {
+                        if let peregrine_config::PathSegment::Q { x1, y1, .. } = *seg {
+                            let d = ((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt();
+                            if (d - outer_r).abs() > 1e-2 && (d - inner_r).abs() > 1e-2 {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                }
+                _ => panic!("expected Path"),
+            }
+        };
+
+        // 制动：向左移动（vel.x < 0）+ 向右减速度（acc.x > 0）→ 无形变（正圆）。
+        let braking = m
+            .evaluate(
+                &defaults,
+                &screen,
+                &DynamicContext {
+                    mouse_velocity: (-800.0, 0.0),
+                    mouse_acceleration: (1200.0, 0.0),
+                    ..DynamicContext::default()
+                },
+            )
+            .unwrap();
+        assert!(
+            is_circle(&braking),
+            "braking (acc opposite to vel) must not deform"
+        );
+
+        // 加速：向左移动 + 向左加速度 → 形变（非正圆，朝 -x 尖刺）。
+        let accelerating = m
+            .evaluate(
+                &defaults,
+                &screen,
+                &DynamicContext {
+                    mouse_velocity: (-800.0, 0.0),
+                    mouse_acceleration: (-1200.0, 0.0),
+                    ..DynamicContext::default()
+                },
+            )
+            .unwrap();
+        assert!(
+            !is_circle(&accelerating),
+            "accelerating (acc along vel) should deform"
+        );
+
+        // 静止 + 任意加速度（点积 0 → 放行）：急转弯场景（速度死区内
+        // 速度为 0 时轮询器已强制 acc=0，此分支为纯快照语义验证）。
+        let turn_from_rest = m
+            .evaluate(
+                &defaults,
+                &screen,
+                &DynamicContext {
+                    mouse_velocity: (0.0, 0.0),
+                    mouse_acceleration: (0.0, -1500.0),
+                    ..DynamicContext::default()
+                },
+            )
+            .unwrap();
+        assert!(
+            !is_circle(&turn_from_rest),
+            "acc with zero vel should still deform (turn case)"
+        );
+    }
+
     /// teardrop v3：尖端方向连续——尖角点精确落在加速度方向射线上
     /// （无 15° 采样量化跳变）。
     #[test]

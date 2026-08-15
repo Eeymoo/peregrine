@@ -760,17 +760,36 @@ fn poll_mouse_kinematics(mouse_pos: (f32, f32)) -> ((f32, f32), (f32, f32)) {
         deadzone(vel_ema.0, MOUSE_VELOCITY_DEADZONE),
         deadzone(vel_ema.1, MOUSE_VELOCITY_DEADZONE),
     );
-    let acc_out = (
-        deadzone(acc_ema.0, MOUSE_ACCELERATION_DEADZONE),
-        deadzone(acc_ema.1, MOUSE_ACCELERATION_DEADZONE),
-    );
+    // 加速度死区 + 速度静止强制归零：速度死区触发 = 鼠标已静止，
+    // 此时加速度 EMA 残值是滤波尾迹而非真实运动（「向左移动最后一下
+    // 向右甩一下」的幻影尾巴，实机反馈），必须连带清零；
+    // 同时清空内部 EMA 状态，静止结束后从干净的 0 重新起步。
+    let mouse_still = vel_out == (0.0, 0.0);
+    let acc_out = if mouse_still {
+        (0.0, 0.0)
+    } else {
+        (
+            deadzone(acc_ema.0, MOUSE_ACCELERATION_DEADZONE),
+            deadzone(acc_ema.1, MOUSE_ACCELERATION_DEADZONE),
+        )
+    };
 
-    *prev = Some(PrevSample {
-        instant: now,
-        pos: mouse_pos,
-        vel_ema,
-        acc_ema,
-    });
+    let next_state = if mouse_still {
+        PrevSample {
+            instant: now,
+            pos: mouse_pos,
+            vel_ema: (0.0, 0.0),
+            acc_ema: (0.0, 0.0),
+        }
+    } else {
+        PrevSample {
+            instant: now,
+            pos: mouse_pos,
+            vel_ema,
+            acc_ema,
+        }
+    };
+    *prev = Some(next_state);
     (vel_out, acc_out)
 }
 

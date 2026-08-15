@@ -1679,15 +1679,12 @@ fn build(params, screen) {
         let mut has_vertical = false; // 竖线：w 小、h 大
         let mut has_horizontal = false; // 横线：h 小、w 大
         for e in &elements {
-            match e {
-                Element::Rect { w, h, .. } => {
-                    if *h >= screen_h && *w < screen_w {
-                        has_vertical = true;
-                    } else if *w >= screen_w && *h < screen_h {
-                        has_horizontal = true;
-                    }
+            if let Element::Rect { w, h, .. } = e {
+                if *h >= screen_h && *w < screen_w {
+                    has_vertical = true;
+                } else if *w >= screen_w && *h < screen_h {
+                    has_horizontal = true;
                 }
-                _ => {}
             }
         }
         assert!(has_vertical, "center 模式应有铺满屏幕高度的竖线");
@@ -1877,12 +1874,12 @@ fn build(params, screen) {
 
     // ===== 内置演示物料：teardrop / path_showcase（Path 图元） =====
 
-    /// teardrop：动态物料；零加速度 = 正圆双圈（外圈 Q 平滑环 + 内圈镂空），
-    /// 缺省不携带颜色覆盖（继承图层色，换色热键生效）。
+    /// teardrop（锚定环）：任何输入下都是正圆双圈（外圈 Q 平滑环 +
+    /// 内圈镂空），缺省不携带颜色覆盖（继承图层色，换色热键生效）。
     #[test]
     fn builtin_teardrop_circle_at_zero_acceleration() {
         let m = load_builtin("teardrop");
-        assert_eq!(m.metadata().display_name, "水滴环");
+        assert_eq!(m.metadata().display_name, "锚定环");
         assert!(m.metadata().is_dynamic);
 
         let screen = test_rect();
@@ -1923,8 +1920,15 @@ fn build(params, screen) {
                         .any(|s| matches!(s, peregrine_config::PathSegment::Q { .. })),
                     "ring should use Q smoothing"
                 );
-                // 零加速度：所有 Q 控制点距圆心等距（正圆），
-                // 且存在两档距离（外圈半径 / 内圈半径）。
+                // 无角点：freeze 重设计后永不产生 L 段（对称原则）。
+                assert!(
+                    !segments
+                        .iter()
+                        .any(|s| matches!(s, peregrine_config::PathSegment::L { .. })),
+                    "anchor ring must never contain corner L segments"
+                );
+                // 静止 + 呼吸相位 0（static_context time_ms=0）：
+                // 所有 Q 控制点距圆心等距（正圆），两档距离（外/内圈半径）。
                 let cx = 960.0;
                 let cy = 540.0;
                 let outer_r = 1080.0 * 0.05;
@@ -1941,7 +1945,7 @@ fn build(params, screen) {
                     let on_inner = (d - inner_r).abs() < 1e-2;
                     assert!(
                         on_outer || on_inner,
-                        "zero acc should be perfect circle: d={} (outer={} inner={})",
+                        "at rest with phase 0 should be perfect circle: d={} (outer={} inner={})",
                         d,
                         outer_r,
                         inner_r
@@ -1957,19 +1961,17 @@ fn build(params, screen) {
         }
     }
 
-    /// teardrop：阈值以下（含手抖级噪声）零形变 = 与正圆输出完全一致；
-    /// 阈值以上形变，尖头偏移幅度与加速度幅度成正比。
+    /// teardrop freeze 语义：运动（速度/加速度超阈值）时呼吸熄灭、
+    /// 半径锁回基准正圆；运动量越大环宽越大（遇动增实）；
+    /// 任何输入下都保持正圆（无不对称形变）。
     #[test]
-    fn builtin_teardrop_deforms_with_acceleration() {
+    fn builtin_teardrop_freezes_on_motion() {
         let m = load_builtin("teardrop");
         let screen = test_rect();
+        let defaults = m.defaults().clone();
 
-        let mk_ctx = |acc: (f32, f32)| DynamicContext {
-            mouse_acceleration: acc,
-            ..DynamicContext::default()
-        };
-        let eval = |ctx: &DynamicContext| {
-            m.evaluate(&m.defaults().clone(), &screen, ctx)
+        let eval = |ctx: &DynamicContext, params: &serde_json::Value| {
+            m.evaluate(params, &screen, ctx)
                 .unwrap()
                 .into_iter()
                 .map(|e| match e {
@@ -1979,59 +1981,242 @@ fn build(params, screen) {
                 .next()
                 .unwrap()
         };
-
-        // 阈值（默认 150）以下的微小加速度：输出与零加速度完全一致（不变形）。
-        let segs_zero = eval(&mk_ctx((0.0, 0.0)));
-        let segs_noise = eval(&mk_ctx((120.0, 0.0)));
-        assert_eq!(segs_zero, segs_noise, "sub-threshold acc must not deform");
-
-        // 阈值以上：朝 -x 方向的拉伸量随幅度增长。
-        let extent = |segs: &[peregrine_config::PathSegment]| -> f32 {
-            let mut min_x = f32::MAX;
+        // 半径组：返回（外圈半径集合, 内圈半径集合）——Q 控制点精确落
+        // 在采样半径上；正圆性 = 集合内全部等值。
+        let radii = |segs: &[peregrine_config::PathSegment]| -> (Vec<f32>, Vec<f32>) {
+            let cx = 960.0;
+            let cy = 540.0;
+            let base = 1080.0 * 0.05;
+            let mut outer = Vec::new();
+            let mut inner = Vec::new();
             for seg in segs {
-                let (x, y) = match *seg {
-                    peregrine_config::PathSegment::L { x, y }
-                    | peregrine_config::PathSegment::M { x, y }
-                    | peregrine_config::PathSegment::Q { x, y, .. }
-                    | peregrine_config::PathSegment::C { x, y, .. } => (x, y),
-                    peregrine_config::PathSegment::Z => continue,
-                };
-                // 只统计圆心 y 附近的点（尖头在 -x 轴上）。
-                if (y - 540.0).abs() < 30.0 {
-                    min_x = min_x.min(x);
+                if let peregrine_config::PathSegment::Q { x1, y1, .. } = *seg {
+                    let d = ((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt();
+                    if d > base * 0.9 {
+                        outer.push(d);
+                    } else {
+                        inner.push(d);
+                    }
                 }
             }
-            960.0 - min_x
+            (outer, inner)
         };
-        let segs_small = eval(&mk_ctx((-400.0, 0.0)));
-        let segs_large = eval(&mk_ctx((-2000.0, 0.0)));
-        let base = 1080.0 * 0.05;
-        let ext_small = extent(&segs_small);
-        let ext_large = extent(&segs_large);
+        let is_circle_at =
+            |segs: &[peregrine_config::PathSegment], outer_r: f32, width: f32| -> bool {
+                let (outer, inner) = radii(segs);
+                outer.iter().all(|d| (d - outer_r).abs() < 1e-2)
+                    && inner.iter().all(|d| (d - (outer_r - width)).abs() < 1e-2)
+            };
+
+        // 场景 1：静止（time_ms=2500，呼吸顶点）→ 半径 = base × 1.03
+        //（呼吸涨缩可见，防习惯化）。
+        let ctx_breath = DynamicContext {
+            time_ms: 2500, // 10000/4 → sin=1
+            ..DynamicContext::default()
+        };
+        let segs_breath = eval(&ctx_breath, &defaults);
+        let base_r = 1080.0 * 0.05;
+        let breath_r = base_r * (1.0 + 0.03);
+        let (outer_breath, _) = radii(&segs_breath);
         assert!(
-            ext_small > base,
-            "supra-threshold acc should deform: {} > {}",
-            ext_small,
-            base
+            outer_breath.iter().all(|d| (d - breath_r).abs() < 1e-2),
+            "breathing should expand radius at quarter period: {:?} vs {}",
+            outer_breath,
+            breath_r
         );
+
+        // 场景 2：满幅运动（加速度封顶）+ 呼吸顶点时刻 → 呼吸熄灭，
+        // 半径精确锁回基准值（定格）。
+        let ctx_motion = DynamicContext {
+            time_ms: 2500,
+            mouse_velocity: (2000.0, 0.0),
+            mouse_acceleration: (-3000.0, 0.0),
+            ..DynamicContext::default()
+        };
+        let segs_motion = eval(&ctx_motion, &defaults);
         assert!(
-            ext_large > ext_small,
-            "larger acc should deform more: {} > {}",
-            ext_large,
-            ext_small
+            is_circle_at(&segs_motion, base_r, 20.0),
+            "full motion must freeze ring back to base circle (breath extinguished)"
         );
-        // 尖头合成：非零形变时出现 L 角点段（Q 平滑序列被打破）。
+
+        // 场景 3：遇动增实——满幅运动时环宽 = ring_width × (1+solid_boost)
+        //= 20 > 静止时的 10。
+        let width_of = |segs: &[peregrine_config::PathSegment]| -> f32 {
+            let (outer, inner) = radii(segs);
+            let o = outer.iter().cloned().fold(f32::MIN, f32::max);
+            let i = inner.iter().cloned().fold(f32::MAX, f32::min);
+            o - i
+        };
+        let w_rest = width_of(&eval(
+            &DynamicContext {
+                time_ms: 0,
+                ..DynamicContext::default()
+            },
+            &defaults,
+        ));
+        let w_motion = width_of(&segs_motion);
         assert!(
-            segs_small
-                .iter()
-                .any(|s| matches!(s, peregrine_config::PathSegment::L { .. })),
-            "deformed output should contain corner L segments"
+            w_motion > w_rest + 5.0,
+            "motion should solidify ring: width {} > rest {}",
+            w_motion,
+            w_rest
         );
-        // 段数与语义结构一致（同一形变场，只有幅度不同）。
-        assert_eq!(segs_small.len(), segs_large.len());
+
+        // 场景 4：部分运动（motion=0.5）→ 环宽介于静止与满幅之间
+        //（单调调制，无方向性）。
+        let ctx_half = DynamicContext {
+            time_ms: 0,
+            mouse_velocity: (40.0 + 1200.0 * 0.5, 0.0), // vel 通道 motion=0.5
+            ..DynamicContext::default()
+        };
+        let w_half = width_of(&eval(&ctx_half, &defaults));
+        assert!(
+            w_half > w_rest && w_half < w_motion,
+            "partial motion width should be between: {} in ({}, {})",
+            w_half,
+            w_rest,
+            w_motion
+        );
+
+        // 场景 5：阈值以下运动（手抖级）与静止输出完全一致——
+        // 帧指纹稳定，杜绝「轻微移动就响应」。
+        let segs_noise = eval(
+            &DynamicContext {
+                time_ms: 2500,
+                mouse_velocity: (20.0, 0.0),      // < vel_threshold 40
+                mouse_acceleration: (120.0, 0.0), // < threshold 150
+                ..DynamicContext::default()
+            },
+            &defaults,
+        );
+        assert_eq!(
+            segs_noise, segs_breath,
+            "sub-threshold motion must not change output"
+        );
+
+        // 场景 6：任意方向满幅运动（斜向）→ 输出与轴向满幅完全一致
+        //（对称原则：与运动方向无关）。
+        let ctx_diag = DynamicContext {
+            time_ms: 2500,
+            mouse_velocity: (1500.0, 1500.0),
+            mouse_acceleration: (-2100.0, 2100.0),
+            ..DynamicContext::default()
+        };
+        let segs_diag = eval(&ctx_diag, &defaults);
+        assert!(
+            is_circle_at(&segs_diag, base_r, 20.0),
+            "diagonal motion must also freeze to base circle"
+        );
+        // 方向无关：与轴向满幅输出逐段一致。
+        assert_eq!(segs_diag, segs_motion, "output must be direction-agnostic");
     }
 
-    /// teardrop：预览快照（速度/加速度为 0）呈正圆双圈环。
+    /// teardrop：呼吸参数语义——周期平移不变（相隔整周期输出一致）、
+    /// breathing=false 时输出与时间无关（回到稳态跳帧）。
+    #[test]
+    fn builtin_teardrop_breathing_periodicity() {
+        let m = load_builtin("teardrop");
+        let screen = test_rect();
+        let defaults = m.defaults().clone();
+
+        let eval_at = |time_ms: u64, params: &serde_json::Value| {
+            m.evaluate(
+                params,
+                &screen,
+                &DynamicContext {
+                    time_ms,
+                    ..DynamicContext::default()
+                },
+            )
+            .unwrap()
+            .into_iter()
+            .map(|e| match e {
+                Element::Path { segments, .. } => segments,
+                _ => panic!("expected Path"),
+            })
+            .next()
+            .unwrap()
+        };
+
+        // 周期平移不变：相隔一个整周期（10000ms）输出完全一致
+        //（呼吸是唯一时间依赖，帧指纹可周期性回归）。
+        assert_eq!(eval_at(0, &defaults), eval_at(10000, &defaults));
+        assert_eq!(eval_at(2500, &defaults), eval_at(12500, &defaults));
+
+        // 关闭呼吸：两个不同时刻输出完全一致（时间不再影响输出，
+        // 静止时回到稳态跳帧主路径）。
+        let off = serde_json::json!({"breathing": false});
+        assert_eq!(eval_at(0, &off), eval_at(2500, &off));
+        // 关闭后 breath_amp 不再参与（时间依赖被整体移除）。
+        assert_eq!(
+            eval_at(0, &off),
+            eval_at(
+                0,
+                &serde_json::json!({"breathing": false, "breath_amp": 0.05})
+            ),
+            "breathing off must ignore breath_amp"
+        );
+    }
+
+    /// teardrop：运动检测双通道——速度单独超阈值（加速度为 0）也触发
+    /// 定格与增实（匀速平移镜头场景）；纯静止时呼吸可见。
+    #[test]
+    fn builtin_teardrop_velocity_channel_triggers_freeze() {
+        let m = load_builtin("teardrop");
+        let screen = test_rect();
+        let defaults = m.defaults().clone();
+        let base_r = 1080.0 * 0.05;
+
+        let eval = |ctx: &DynamicContext| {
+            m.evaluate(&defaults, &screen, ctx)
+                .unwrap()
+                .into_iter()
+                .map(|e| match e {
+                    Element::Path { segments, .. } => segments,
+                    _ => panic!("expected Path"),
+                })
+                .next()
+                .unwrap()
+        };
+        let outer_radius = |segs: &[peregrine_config::PathSegment]| -> f32 {
+            let cx = 960.0;
+            let cy = 540.0;
+            segs.iter()
+                .filter_map(|s| {
+                    if let peregrine_config::PathSegment::Q { x1, y1, .. } = *s {
+                        Some(((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt())
+                    } else {
+                        None
+                    }
+                })
+                .fold(f32::MIN, f32::max)
+        };
+
+        // 呼吸顶点时刻（time_ms=2500）：匀速运动（速度满幅、加速度 0）
+        // 也必须定格回基准半径。
+        let ctx_const_vel = DynamicContext {
+            time_ms: 2500,
+            mouse_velocity: (2000.0, 0.0),
+            ..DynamicContext::default()
+        };
+        assert!(
+            (outer_radius(&eval(&ctx_const_vel)) - base_r).abs() < 1e-2,
+            "constant velocity alone must freeze breathing to base radius"
+        );
+
+        // 同时刻纯静止：呼吸涨至 1.03 倍（对照，证明上面是速度通道触发的）。
+        let ctx_rest = DynamicContext {
+            time_ms: 2500,
+            ..DynamicContext::default()
+        };
+        assert!(
+            (outer_radius(&eval(&ctx_rest)) - base_r * 1.03).abs() < 1e-2,
+            "rest at breath peak should be expanded"
+        );
+    }
+
+    /// teardrop：预览快照（速度/加速度为 0）呈正圆双圈环，
+    /// 且呼吸可见（time_ms 为真实时间，非 0）。
     #[test]
     fn builtin_teardrop_preview_snapshot_is_circle() {
         let m = load_builtin("teardrop");
@@ -2040,9 +2225,10 @@ fn build(params, screen) {
         let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
         match &els[0] {
             Element::Path { segments, .. } => {
-                // 预览快照加速度为 0：Q 控制点全部落在两档等距半径上。
+                // 预览快照速度/加速度为 0：正圆（呼吸叠加但保持圆形）。
                 let cx = 960.0;
                 let cy = 540.0;
+                let base = 1080.0 * 0.05;
                 let mut dists = Vec::new();
                 for seg in segments {
                     if let peregrine_config::PathSegment::Q { x1, y1, .. } = seg {
@@ -2050,17 +2236,30 @@ fn build(params, screen) {
                     }
                 }
                 assert!(!dists.is_empty());
-                let first = dists[0];
-                for d in &dists {
+                // 外圈集合等值、内圈集合等值（正圆），半径在
+                // [base × 0.97, base × 1.03] 呼吸区间内。
+                let outer: Vec<f32> = dists.iter().copied().filter(|d| *d > base * 0.9).collect();
+                let inner: Vec<f32> = dists.iter().copied().filter(|d| *d <= base * 0.9).collect();
+                assert!(!outer.is_empty() && !inner.is_empty());
+                let o0 = outer[0];
+                for d in &outer {
                     assert!(
-                        (d - first).abs() < 1e-2
-                            || (d - (first - 10.0)).abs() < 1e-2
-                            || (d - (first + 10.0)).abs() < 1e-2,
-                        "preview should be circle ring: d={} first={}",
+                        (d - o0).abs() < 1e-2,
+                        "preview outer ring must be circle: {} vs {}",
                         d,
-                        first
+                        o0
                     );
                 }
+                let i0 = inner[0];
+                for d in &inner {
+                    assert!(
+                        (d - i0).abs() < 1e-2,
+                        "preview inner ring must be circle: {} vs {}",
+                        d,
+                        i0
+                    );
+                }
+                assert!(o0 > base * 0.96 && o0 < base * 1.04);
             }
             other => panic!("expected Path, got {:?}", other),
         }
@@ -2082,201 +2281,6 @@ fn build(params, screen) {
             } => {
                 assert!(stroke_color.is_some());
                 assert!(fill_color.is_some());
-            }
-            other => panic!("expected Path, got {:?}", other),
-        }
-    }
-
-    /// teardrop v3：等宽形变——形变时同方向的内外圈 Q 控制点半径差
-    /// 恒等于 ring_width（等宽偏移），尖端不再变宽。
-    #[test]
-    fn builtin_teardrop_constant_ring_width_when_deformed() {
-        let m = load_builtin("teardrop");
-        let screen = test_rect();
-        let ctx = DynamicContext {
-            mouse_acceleration: (-1500.0, 0.0),
-            ..DynamicContext::default()
-        };
-        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
-        match &els[0] {
-            Element::Path { segments, .. } => {
-                let cx = 960.0;
-                let cy = 540.0;
-                // 只取 Q 控制点（= 精确采样半径，mid 端点/L 尖角点剔除）。
-                let mut buckets: std::collections::HashMap<i32, Vec<f32>> =
-                    std::collections::HashMap::new();
-                for seg in segments {
-                    if let peregrine_config::PathSegment::Q { x1, y1, .. } = *seg {
-                        let angle = (y1 - cy).atan2(x1 - cx);
-                        let angle_deg = angle.to_degrees();
-                        // 排除尖端方向 ±30°（插入的尖角区无配对语义）。
-                        let mut diff = (angle_deg - 180.0).abs();
-                        if diff > 180.0 {
-                            diff = 360.0 - diff;
-                        }
-                        if diff < 30.0 {
-                            continue;
-                        }
-                        let bucket = (angle_deg / 10.0).round() as i32;
-                        let r = ((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt();
-                        buckets.entry(bucket).or_default().push(r);
-                    }
-                }
-                let mut checked = 0;
-                for (bucket, radii) in &buckets {
-                    if radii.len() >= 2 {
-                        let max = radii.iter().cloned().fold(f32::MIN, f32::max);
-                        let min = radii.iter().cloned().fold(f32::MAX, f32::min);
-                        // 锥形区的桶（cos³ 渐变）内外圈差仍应为 10；
-                        // 只排除尖端插入区（±20°，含插入点邻桶）。
-                        let bucket_deg = *bucket as f32 * 10.0;
-                        let mut diff = (bucket_deg - 180.0).abs();
-                        if diff > 180.0 {
-                            diff = 360.0 - diff;
-                        }
-                        if diff < 20.0 {
-                            continue;
-                        }
-                        assert!(
-                            (max - min - 10.0).abs() < 1e-2,
-                            "ring width must stay 10 at bucket {}, got {} (radii {:?})",
-                            bucket,
-                            max - min,
-                            radii
-                        );
-                        checked += 1;
-                    }
-                }
-                assert!(checked >= 10, "should check enough buckets: {}", checked);
-            }
-            other => panic!("expected Path, got {:?}", other),
-        }
-    }
-
-    /// teardrop v4：制动门控——加速度与速度反向（刹车）不形变；
-    /// 同向（加速）正常形变。
-    #[test]
-    fn builtin_teardrop_braking_suppressed_accelerating_shown() {
-        let m = load_builtin("teardrop");
-        let screen = test_rect();
-        let defaults = m.defaults().clone();
-
-        // 圆度判定：所有 Q 控制点落在两档基准半径（正圆）上 = 无形变。
-        let is_circle = |els: &[Element]| -> bool {
-            match &els[0] {
-                Element::Path { segments, .. } => {
-                    let cx = 960.0;
-                    let cy = 540.0;
-                    let outer_r = 1080.0 * 0.05;
-                    let inner_r = outer_r - 10.0;
-                    for seg in segments {
-                        if let peregrine_config::PathSegment::Q { x1, y1, .. } = *seg {
-                            let d = ((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt();
-                            if (d - outer_r).abs() > 1e-2 && (d - inner_r).abs() > 1e-2 {
-                                return false;
-                            }
-                        }
-                    }
-                    true
-                }
-                _ => panic!("expected Path"),
-            }
-        };
-
-        // 制动：向左移动（vel.x < 0）+ 向右减速度（acc.x > 0）→ 无形变（正圆）。
-        let braking = m
-            .evaluate(
-                &defaults,
-                &screen,
-                &DynamicContext {
-                    mouse_velocity: (-800.0, 0.0),
-                    mouse_acceleration: (1200.0, 0.0),
-                    ..DynamicContext::default()
-                },
-            )
-            .unwrap();
-        assert!(
-            is_circle(&braking),
-            "braking (acc opposite to vel) must not deform"
-        );
-
-        // 加速：向左移动 + 向左加速度 → 形变（非正圆，朝 -x 尖刺）。
-        let accelerating = m
-            .evaluate(
-                &defaults,
-                &screen,
-                &DynamicContext {
-                    mouse_velocity: (-800.0, 0.0),
-                    mouse_acceleration: (-1200.0, 0.0),
-                    ..DynamicContext::default()
-                },
-            )
-            .unwrap();
-        assert!(
-            !is_circle(&accelerating),
-            "accelerating (acc along vel) should deform"
-        );
-
-        // 静止 + 任意加速度（点积 0 → 放行）：急转弯场景（速度死区内
-        // 速度为 0 时轮询器已强制 acc=0，此分支为纯快照语义验证）。
-        let turn_from_rest = m
-            .evaluate(
-                &defaults,
-                &screen,
-                &DynamicContext {
-                    mouse_velocity: (0.0, 0.0),
-                    mouse_acceleration: (0.0, -1500.0),
-                    ..DynamicContext::default()
-                },
-            )
-            .unwrap();
-        assert!(
-            !is_circle(&turn_from_rest),
-            "acc with zero vel should still deform (turn case)"
-        );
-    }
-
-    /// teardrop v3：尖端方向连续——尖角点精确落在加速度方向射线上
-    /// （无 15° 采样量化跳变）。
-    #[test]
-    fn builtin_teardrop_tip_follows_exact_acceleration_direction() {
-        let m = load_builtin("teardrop");
-        let screen = test_rect();
-        // 任意非轴向角度（~140°）：尖端点必须在 atan2(1, -1.2) 方向上。
-        // 幅度 2500（> threshold 150 + sensitivity 900 → strength 封顶）。
-        let acc: (f32, f32) = (-2500.0 * 0.768, 2500.0 * 0.640);
-        let ctx = DynamicContext {
-            mouse_acceleration: acc,
-            ..DynamicContext::default()
-        };
-        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
-        match &els[0] {
-            Element::Path { segments, .. } => {
-                let cx = 960.0;
-                let cy = 540.0;
-                // 找 L 角点（尖端）：形变封顶后尖端伸长 ~半径 50%+，
-                // 以 outer_r × 1.2 为阈值筛出最远 L 点。
-                let outer_r = 1080.0 * 0.05;
-                let mut tip = None;
-                for seg in segments {
-                    if let peregrine_config::PathSegment::L { x, y } = *seg {
-                        let r = ((x - cx).powi(2) + (y - cy).powi(2)).sqrt();
-                        if r > outer_r * 1.2 {
-                            tip = Some((x, y));
-                            break;
-                        }
-                    }
-                }
-                let (tx, ty) = tip.expect("deformed ring should have an L tip corner");
-                // 尖端方向 = 加速度方向（角度差 < 1°，远小于 15° 量化档）。
-                let tip_angle = (ty - cy).atan2(tx - cx);
-                let acc_angle = acc.1.atan2(acc.0);
-                let diff = (tip_angle - acc_angle).abs().to_degrees();
-                assert!(
-                    diff < 1.0 || diff > 359.0,
-                    "tip should follow exact acc direction: diff={}°",
-                    diff
-                );
             }
             other => panic!("expected Path, got {:?}", other),
         }

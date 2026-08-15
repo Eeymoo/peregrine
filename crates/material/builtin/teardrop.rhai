@@ -1,50 +1,56 @@
-// Name: 水滴环
-// 动态演示物料：以屏幕中心为圆心的圆环锚点，形变由鼠标加速度驱动——
-// 加速度方向合成尖头（如水滴朝运动方向甩出的尖端），
-// 背侧（反加速度方向）保持正圆弧不参与形变；
-// 静止/匀速移动（加速度 ≈ 0）时退化为正圆。
+// Name: 锚定环
+// 动态锚点物料（id 保留 "teardrop"：PR 未合入前的历史名，行为已重设计）。
 //
-// 为什么用加速度而非位置：位置驱动的形变在鼠标停在任何非中心点时永久保持
-// 变形；加速度驱动只在「正在变速」时形变，静止/匀速回正（design D7）。
+// 核心语义：「呼吸 → 遇动定格」（下锚隐喻）。
+// - 静止时缓慢呼吸：半径以 breath_amp（±3%）对称涨缩，~0.1Hz
+//   （10 秒/周期 ≈ 6 次呼吸/分钟）。缓慢呼吸节律对缓解 cybersickness
+//   有循证支持（呼吸 pacing），持续微动也防止锚点被视觉系统
+//   习惯化而失效（rest-frame 持续再捕获）。
+// - 检测到鼠标运动（速度或加速度超阈值）立即定格：呼吸熄灭、
+//   半径锁回基准值、环宽随运动量加宽变实——「世界乱了，锚钉死」。
 //
-// 形变几何（v4，实机反馈修正）：
-// - 制动门控：加速度与速度反向（点积 < 0）= 刹车 → 不形变。
-//   松手急停会产生与运动方向相反的减速度脉冲，若不过滤，
-//   「向左移动的最后一下」会朝右甩尖刺（假动作，实机反馈）。
-//   加速与转弯（点积 ≥ 0）才是水滴的正信号。
-// - 等宽形变：径向偏移量只算一次（基于外径），内圈叠加同一绝对偏移——
-//   环宽在任意方向恒等于 ring_width，形变是「圆管弯折」而非「比例缩放」
-//   （v2 内外圈各自按比例缩放，尖端方向环变宽，视觉是铲子不是尖刺）。
-// - 尖端连续：尖角点按精确的加速度方向角插入采样序列（在最近两个采样点
-//   之间），方向连续旋转时尖端平滑跟随（v2 尖角吸附到最近采样点，
-//   24 采样下以 15° 一档跳变——旋转时「不和谐」的根因）。
-// - 前侧（与加速度同向）：偏移按 cos³ 锥形增长至尖端；尖端点再乘 1.15
-//   略过锥顶形成尖刺，用 L 直连角点（导数不连续 = 尖角）。
-// - 背侧（反向半圆）：偏移恒为 0，保持正圆弧。
+// 为什么放弃 v4 的加速度尖刺（实机反馈不符合预期的根因）：
+// 锚点对晕 3D 人群的全部价值 = 镜头运动时提供稳定参照系（rest frame）。
+// 尖刺是不对称的方向性运动信号——恰在玩家甩视角（最易晕的时刻）
+// 模拟运动感、参与叠加 vection，与锚点存在的意义竞争；且形变时
+// 环上没有任何像素保持稳定，眼睛无处可锁。
+// 重设计遵循的原则：
+// - 永不产生不对称/方向性形变，任何时刻都是完美正圆；
+// - 只做对称调制：整体涨缩（呼吸）+ 环宽增实（遇动）；
+// - 中心凹注视的环孔区域像素级稳定；
+// - 「世界静止时它是活的，世界运动时它死死钉住」。
 //
-// 环的实现（真实圆环，非多边形填充）：
-// - 单条 Path 双圈绕行：外圈 + 内圈（逆序绕行）+ Z 闭合，
-//   nonzero 填充规则下内圈以内环绕数相消（镂空）。
-// - 采样点用「中点 Q 平滑」连接：以相邻采样点的中点为 Q 段端点、
-//   采样点自身为控制点，轮廓为 C1 连续曲线。
+// 运动量 motion ∈ [0,1] = max(归一化速度, 归一化加速度)，各自
+// 「阈值起步 + 满量程封顶」（阈值滤手抖，封顶防过度响应）：
+// - breath = 1 - motion：呼吸幅度随运动量线性熄灭，motion=1 时
+//   精确为 0（半径锁定基准值，帧指纹稳定，持续运动中可回跳帧）；
+// - 环宽 = ring_width × (1 + solid_boost × motion)：遇动变实变宽。
+// 速度通道让匀速平移镜头（加速度≈0）也能触发定格；制动门控不再
+// 需要——没有方向性形变就没有「假动作」可言。
 //
-// 颜色语义：缺省不携带颜色覆盖 = 继承图层基色（乘图层 opacity），
-// quick_colors / 换色热键正常生效；「双色覆盖」作为可选参数暴露
-// 以演示元素级覆盖机制（显式覆盖 = 主动退出图层色）。
+// 环的实现（与 v4 相同）：单条 Path 双圈绕行（外圈 + 内圈逆序 + Z），
+// nonzero 填充规则下内圈环绕数相消（镂空）；采样点用「中点 Q 平滑」
+// 连接（端点取相邻采样点中点、控制点取采样点自身，C1 连续）。
 //
-// 驱动量仅来自 mouse_acceleration()（DynamicContext 快照），
-// 不使用墙钟直读、不依赖 mouse_pos() 位置量。
-// 预览端速度/加速度恒为 0，预览呈正圆（spec 已接受行为）。
+// 输入：mouse_velocity() / mouse_acceleration()（运动检测，平台层
+// 已做 EMA 平滑 + 死区归零）+ time_ms()（呼吸相位）。
+// 预览端速度/加速度恒为 0 → 预览只见呼吸（spec 已接受行为）。
+// breathing=false 关闭呼吸后，静止输出与时间无关（回到稳态跳帧）。
 
 fn defaults() {
     #{
         radius_pct: 0.05,
         ring_width: 10.0,
-        sensitivity: 900.0,
         threshold: 150.0,
+        sensitivity: 900.0,
+        vel_threshold: 40.0,
+        vel_sensitivity: 1200.0,
         samples: 24,
-        tip_scale: 0.8,
+        breath_period: 10000.0,
+        breath_amp: 0.03,
+        solid_boost: 1.0,
         thickness: 0.0,
+        breathing: true,
         use_override_colors: false,
     }
 }
@@ -53,11 +59,16 @@ fn schema() {
     [
         #{key: "radius_pct", label: "半径占比", widget: "slider", min: 0.01, max: 0.12, step: 0.005},
         #{key: "ring_width", label: "环宽（像素）", widget: "slider", min: 2.0, max: 40.0, step: 1.0},
-        #{key: "sensitivity", label: "形变灵敏度", widget: "slider", min: 100.0, max: 3000.0, step: 50.0},
-        #{key: "threshold", label: "触发阈值（px/s²）", widget: "slider", min: 0.0, max: 1000.0, step: 10.0},
+        #{key: "threshold", label: "加速度触发阈值（px/s²）", widget: "slider", min: 0.0, max: 1000.0, step: 10.0},
+        #{key: "sensitivity", label: "加速度满量程（px/s²）", widget: "slider", min: 100.0, max: 3000.0, step: 50.0},
+        #{key: "vel_threshold", label: "速度触发阈值（px/s）", widget: "slider", min: 0.0, max: 300.0, step: 5.0},
+        #{key: "vel_sensitivity", label: "速度满量程（px/s）", widget: "slider", min: 100.0, max: 4000.0, step: 50.0},
         #{key: "samples", label: "圆周采样数", widget: "slider", min: 8, max: 48, step: 1},
-        #{key: "tip_scale", label: "尖头长度系数", widget: "slider", min: 0.2, max: 2.0, step: 0.1},
+        #{key: "breath_period", label: "呼吸周期（ms）", widget: "slider", min: 2000.0, max: 30000.0, step: 500.0},
+        #{key: "breath_amp", label: "呼吸幅度", widget: "slider", min: 0.0, max: 0.1, step: 0.005},
+        #{key: "solid_boost", label: "遇动增实倍率", widget: "slider", min: 0.0, max: 2.0, step: 0.1},
         #{key: "thickness", label: "描边粗细（0 = 无描边）", widget: "slider", min: 0.0, max: 12.0, step: 0.5},
+        #{key: "breathing", label: "启用呼吸", widget: "toggle"},
         #{key: "use_override_colors", label: "演示颜色覆盖（退出图层色）", widget: "toggle"},
     ]
 }
@@ -66,61 +77,47 @@ fn is_dynamic() {
     true
 }
 
-// 等宽径向偏移量：前侧（与加速度方向同向）cos³ 锥形增长，背侧恒为 0。
-// 偏移量基于外径 outer_r 计算，内圈叠加同一绝对值 → 环宽处处恒定。
-// strength = 0（含阈值以下）时偏移恒 0（正圆）。
-fn teardrop_offset(ux, uy, dir_x, dir_y, strength, outer_r, tip_scale) {
-    let align = ux * dir_x + uy * dir_y;
-    if align <= 0.0 || strength <= 0.0 {
-        0.0
-    } else {
-        // cos³ 锥形（缓慢起步、快速收尖，水滴轮廓惯例）。
-        outer_r * strength * tip_scale * align * align * align
-    }
-}
-
 fn build(params, screen) {
     let cx = (screen.min_x + screen.max_x) / 2.0;
     let cy = (screen.min_y + screen.max_y) / 2.0;
-    let radius = (screen.max_y - screen.min_y) * params.radius_pct;
-    let inner = radius - params.ring_width;
+    let base = (screen.max_y - screen.min_y) * params.radius_pct;
     let samples = params.samples;
-    let tip_scale = params.tip_scale;
     let tau = 3.141592653589793 * 2.0;
 
-    // 加速度驱动量：方向 = 加速度方向。
-    // 触发阈值（threshold）：幅度低于阈值视为噪声（手抖/慢移），
-    // 精确取 0 = 正圆——配合调度层死区，静止时帧指纹稳定（跳帧）。
-    // 阈值以上部分做灵敏度归一 + 上限截断。
+    // ===== 运动量归一（速度 + 加速度双通道，取大者）=====
+    // 各通道：阈值起步（滤手抖/EMA 残值）→ 满量程封顶（防过度响应）。
+    // 平台层死区已保证静止时输入精确为 0（阈值以下亦然），
+    // 因此静止时 motion 精确为 0，呼吸全幅。
+    let vel = mouse_velocity();
+    let vel_mag = (vel.x * vel.x + vel.y * vel.y).sqrt();
     let acc = mouse_acceleration();
     let acc_mag = (acc.x * acc.x + acc.y * acc.y).sqrt();
-    let effective = if acc_mag < params.threshold {
-        0.0
-    } else {
-        acc_mag - params.threshold
-    };
-    // 制动门控（v4）：加速度与速度反向（dot < 0）= 减速/刹车——
-    // 松手急停必然产生与运动方向相反的加速度脉冲，若不加过滤，
-    // 「向左移动最后一下」会朝右甩一下尖刺（实机反馈的假动作）。
-    // 水滴的语义是「运动冲击指示」：加速与转弯才是正信号，制动丢弃。
-    // 速度死区归零后速度精确为 (0,0)，点积为 0 → 自然放行（由阈值接管）。
-    let vel = mouse_velocity();
-    let braking = acc.x * vel.x + acc.y * vel.y < 0.0;
-    // 归一化形变系数 ∈ [0, 1]：大加速度封顶。
-    // 注意 strength × tip_scale × 1.15 是尖端相对半径的最大伸长率，
-    // 缺省 0.8 × 1.15 ≈ 0.92 过长（实机观感「不和谐」）——
-    // 整体封顶到 0.5：最大形变时尖端伸长不超过半径的 ~58%，轮廓仍属「环」。
-    let strength = if braking {
-        0.0
-    } else {
-        ((effective / params.sensitivity).min(1.0))
-            .min(0.5 / params.tip_scale.max(0.1) / 1.15)
-    };
-    // 加速度方向单位向量（零加速度时取 (0, 0)，形变自然退化为正圆）。
-    let dir_x = if acc_mag > 0.0 { acc.x / acc_mag } else { 0.0 };
-    let dir_y = if acc_mag > 0.0 { acc.y / acc_mag } else { 0.0 };
+    let m_acc = ((acc_mag - params.threshold) / params.sensitivity).min(1.0).max(0.0);
+    let m_vel = ((vel_mag - params.vel_threshold) / params.vel_sensitivity).min(1.0).max(0.0);
+    let motion = if m_acc > m_vel { m_acc } else { m_vel };
 
-    // 圆周采样：外圈/内圈叠加同一偏移（等宽形变）。
+    // ===== 呼吸相位（time_ms 驱动，运动时熄灭）=====
+    // amp = breath_amp × (1 - motion)：motion=1 时精确为 0 →
+    // 半径锁定基准值，帧指纹稳定（持续运动中回跳帧）。
+    // breathing=false 时相位恒 0（输出与时间无关，稳态跳帧）。
+    let phase = if params.breathing {
+        tau * ((time_ms() * 1.0 % params.breath_period) / params.breath_period)
+    } else {
+        0.0
+    };
+    let amp = params.breath_amp * (1.0 - motion);
+    let outer = base * (1.0 + amp * phase.sin());
+
+    // ===== 遇动增实（对称环宽调制，无方向性）=====
+    let width = params.ring_width * (1.0 + params.solid_boost * motion);
+    // 内径保护：极端参数（大环宽 × 小半径）下不允许内圈翻转或贴死圆心。
+    let inner = if outer - width < outer * 0.25 {
+        outer * 0.25
+    } else {
+        outer - width
+    };
+
+    // ===== 正圆环采样（中点 Q 平滑双圈 + nonzero 镂空）=====
     let outer_pts = [];
     let inner_pts = [];
     let i = 0;
@@ -128,78 +125,22 @@ fn build(params, screen) {
         let theta = tau * i / samples;
         let ux = theta.cos();
         let uy = theta.sin();
-        let off = teardrop_offset(ux, uy, dir_x, dir_y, strength, radius, tip_scale);
-        outer_pts.push(#{x: cx + ux * (radius + off), y: cy + uy * (radius + off)});
-        inner_pts.push(#{x: cx + ux * (inner + off), y: cy + uy * (inner + off)});
+        outer_pts.push(#{x: cx + ux * outer, y: cy + uy * outer});
+        inner_pts.push(#{x: cx + ux * inner, y: cy + uy * inner});
         i += 1;
     }
 
-    // 尖端插入（strength > 0 时）：按精确加速度方向角在最近两个采样点之间
-    // 插入尖角点（外圈角点 + 内圈同偏移点），方向连续旋转时尖端平滑跟随
-    // （无 15° 量化跳变）。尖端偏移在 cos³ 锥顶（=strength·tip_scale）上
-    // 再乘 1.15 略过锥顶，配合 L 直连形成尖刺。
-    let corners = [];
-    let c = 0;
-    while c < samples {
-        corners.push(false);
-        c += 1;
-    }
-    if strength > 0.0 {
-        // 找与加速度方向点积最大的采样点 k*。
-        let k_star = 0;
-        let best = -2.0;
-        let k = 0;
-        while k < samples {
-            let theta = tau * k / samples;
-            let align = theta.cos() * dir_x + theta.sin() * dir_y;
-            if align > best {
-                best = align;
-                k_star = k;
-            }
-            k += 1;
-        }
-        // 加速度方向在 k* 的哪一侧：叉积符号决定插入位置。
-        let theta = tau * k_star / samples;
-        let cross = theta.cos() * dir_y - theta.sin() * dir_x;
-        let insert_at = if cross > 0.0 { k_star + 1 } else { k_star };
-
-        // 尖角点：方向 = (dir_x, dir_y)（精确连续），偏移乘 1.15 过锥顶。
-        let tip_off = radius * strength * tip_scale * 1.15;
-        let outer_tip = #{
-            x: cx + dir_x * (radius + tip_off),
-            y: cy + dir_y * (radius + tip_off),
-        };
-        let inner_tip = #{
-            x: cx + dir_x * (inner + tip_off),
-            y: cy + dir_y * (inner + tip_off),
-        };
-        outer_pts.insert(insert_at, outer_tip);
-        inner_pts.insert(insert_at, inner_tip);
-        corners.insert(insert_at, true);
-    }
-
-    // 中点 Q 平滑闭合曲线 + 角点 L 直连。
-    // 普通点：端点取相邻采样点中点、控制点取采样点（C1 连续）。
-    // 角点：直接 L 到采样点、L 离开（导数不连续 = 尖角）。
-    let outer_segs = build_ring(outer_pts, corners);
-
-    // 内圈逆序绕行（nonzero 镂空的关键）；内圈不做尖角（环内缘平滑即可）。
-    let inner_flat = [];
-    let f = 0;
-    while f < inner_pts.len() {
-        inner_flat.push(false);
-        f += 1;
-    }
+    // 内圈逆序绕行（nonzero 镂空的关键）。
     let reversed_inner = [];
     let r = inner_pts.len() - 1;
     while r >= 0 {
         reversed_inner.push(inner_pts[r]);
         r -= 1;
     }
-    let inner_segs = build_ring(reversed_inner, inner_flat);
 
     // 单条 Path：外圈 + 内圈（M 开启新子路径）+ Z 闭合。
-    let segments = outer_segs;
+    let segments = build_ring(outer_pts);
+    let inner_segs = build_ring(reversed_inner);
     segments.push(#{cmd: "M", x: inner_segs[0].x, y: inner_segs[0].y});
     let s = 1;
     while s < inner_segs.len() {
@@ -239,8 +180,10 @@ fn mid(a, b) {
     #{x: (a.x + b.x) / 2.0, y: (a.y + b.y) / 2.0}
 }
 
-// 构建一圈平滑闭合曲线段序列（中点 Q + 角点 L）。
-fn build_ring(pts, corners) {
+// 构建一圈中点 Q 平滑闭合曲线段序列。
+// 普通点：端点取相邻采样点中点、控制点取采样点自身（C1 连续）。
+// 无角点逻辑——锚定环永不产生尖角（对称原则）。
+fn build_ring(pts) {
     let n = pts.len();
     let first = mid(pts[n - 1], pts[0]);
     let segs = [#{cmd: "M", x: first.x, y: first.y}];
@@ -249,20 +192,13 @@ fn build_ring(pts, corners) {
         let cur = pts[k];
         let next = pts[(k + 1) % n];
         let next_mid = mid(cur, next);
-        if corners[k] {
-            // 角点：直线连入连出（与前后中点各一段 L），合成尖角。
-            segs.push(#{cmd: "L", x: cur.x, y: cur.y});
-            segs.push(#{cmd: "L", x: next_mid.x, y: next_mid.y});
-        } else {
-            // 平滑点：Q 以 cur 为控制点弯到下一段中点。
-            segs.push(#{
-                cmd: "Q",
-                x1: cur.x,
-                y1: cur.y,
-                x: next_mid.x,
-                y: next_mid.y,
-            });
-        }
+        segs.push(#{
+            cmd: "Q",
+            x1: cur.x,
+            y1: cur.y,
+            x: next_mid.x,
+            y: next_mid.y,
+        });
         k += 1;
     }
     segs

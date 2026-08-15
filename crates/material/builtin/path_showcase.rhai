@@ -1,41 +1,48 @@
-// Name: 星花组合
-// 静态锚点物料：左右对称的双锚点组合——
-//   1) 星形（尖角锚点，直线段构成）；
-//   2) 贝塞尔花（圆润锚点，曲线段构成）。
-// 两个锚点分列屏幕中心两侧，为视野提供左右对称的参照标记，
-// 适合开阔场景（驾驶/飞行/滑翔）中辅助方向感。
-// 纯静态（不调用任何动态输入 host function），静止配置下帧指纹不变，
-// 参与稳态跳帧（ControlFlow::Wait 事件驱动渲染）。
+// Name: 自定义路径
+// 静态锚点物料：用户输入 SVG path 数据（d 字符串），自动解析为
+// 路径图元渲染。适合从设计工具（Figma/Illustrator/Inkscape）复制
+// 锚点形状——把导出的 path d 值贴进参数即可。
 //
-// 参数面板（玩家语言）：数量 / 大小 / 线宽；形状风格二选一。
+// 解析由 host function parse_svg_path() 提供（Rust 侧实现）：
+// - 支持 M/L/Q/C/Z（绝对）与 m/l/q/c/z（相对，自动换算绝对坐标）；
+// - H/V/h/v 展开为等价 L；
+// - 隐式重复（"M 1 2 3 4" = M + L）与逗号/负号分隔符；
+// - A/S/T 不支持（返回空数组，转换层对空 segments 报错可见）。
+//
+// 归一化：以 d 字符串自身的包围盒为基准缩放 + 居中——用户贴入的
+// 任何坐标域（0..24 图标网格、0..512 设计稿）都能正确铺满目标
+// 大小，无需手动换算。
+//
+// 内置默认形状：四叶花环（Q 段构成，圆润无尖角）——不输入 d 时
+// 也是一个开箱即用的呼吸感锚点。
+// 纯静态（无动态输入），静止配置下帧指纹不变（稳态跳帧）。
+//
 // 颜色继承图层基色（换色热键生效）。
 
 fn defaults() {
     #{
-        petals: 5,
-        outer_pct: 0.06,
-        ratio: 0.45,
+        // 默认形状：四叶花环（100×100 域，两个正交 Q 闭环）。
+        // 用户可贴入任意 SVG path d 值替换。
+        d: "M 50 5 Q 95 50 50 95 Q 5 50 50 5 Z",
+        // 目标大小（逻辑像素，短边基准）。
+        size_pct: 0.08,
+        // 填充（false = 仅描边）。
+        fill: true,
         thickness: 2.0,
-        layout: "both",
+        // 线帽/转角圆润度由 SVG 后端默认处理。
     }
 }
 
 fn schema() {
     [
         #{
-            key: "layout",
-            label: "布局",
-            widget: "select",
-            options: [
-                #{value: "both", label: "星 + 花（左右成对）"},
-                #{value: "star", label: "仅星形（居中）"},
-                #{value: "flower", label: "仅花朵（居中）"},
-            ],
+            key: "d",
+            label: "路径数据（SVG path d，如从设计工具复制）",
+            widget: "text",
         },
-        #{key: "petals", label: "角数 / 花瓣数", widget: "slider", min: 3, max: 12, step: 1},
-        #{key: "outer_pct", label: "大小", widget: "slider", min: 0.02, max: 0.15, step: 0.005},
-        #{key: "ratio", label: "内径比例", widget: "slider", min: 0.2, max: 0.9, step: 0.05},
-        #{key: "thickness", label: "线宽", widget: "slider", min: 0.5, max: 12.0, step: 0.5},
+        #{key: "size_pct", label: "大小", widget: "slider", min: 0.01, max: 0.3, step: 0.005},
+        #{key: "fill", label: "填充（关闭则仅描边）", widget: "toggle"},
+        #{key: "thickness", label: "描边粗细", widget: "slider", min: 0.5, max: 12.0, step: 0.5},
     ]
 }
 
@@ -44,84 +51,137 @@ fn is_dynamic() {
 }
 
 fn build(params, screen) {
+    let segs_in = parse_svg_path(params.d);
+    if segs_in.len() == 0 {
+        // 解析失败（A/S/T 或语法错误）：回退默认形状，保证物料
+        // 永不渲染空输出（图层突然消失比回退更迷惑）。
+        return build_fallback(screen, params);
+    }
+
     let cx = (screen.min_x + screen.max_x) / 2.0;
     let cy = (screen.min_y + screen.max_y) / 2.0;
-    let screen_h = screen.max_y - screen.min_y;
-    let screen_w = screen.max_x - screen.min_x;
-    let outer = screen_h * params.outer_pct;
-    let inner = outer * params.ratio;
-    let petals = params.petals;
-    let thickness = params.thickness;
-    let tau = 3.141592653589793 * 2.0;
+    let target = (screen.max_y - screen.min_y) * params.size_pct;
 
-    // 星形（M/L 直线段 + Z 闭合）：外径/内径顶点交替。
-    // both 布局放左半，单独布局居中。
-    let star_cx = if params.layout == "both" {
-        cx - screen_w * 0.12
-    } else {
-        cx
-    };
-    let star = [#{cmd: "M", x: star_cx, y: cy - outer}];
-    let i = 1;
-    while i < petals * 2 {
-        let theta = -tau * i / (petals * 2) + tau * 0.25;
-        let r = if i % 2 == 0 { outer } else { inner };
-        star.push(#{cmd: "L", x: star_cx + theta.sin() * r, y: cy - theta.cos() * r});
-        i += 1;
+    // ===== 包围盒归一化 =====
+    // 找 d 字符串所有坐标的 min/max（Q/C 控制点参与保守估计——
+    // 控制点在包围盒外的曲线会略微溢出，锚点用途可接受）。
+    let bx1 = 1e9;
+    let by1 = 1e9;
+    let bx2 = -1e9;
+    let by2 = -1e9;
+    let k = 0;
+    while k < segs_in.len() {
+        let s = segs_in[k];
+        if s.cmd == "M" || s.cmd == "L" {
+            bx1 = if s.x < bx1 { s.x } else { bx1 };
+            by1 = if s.y < by1 { s.y } else { by1 };
+            bx2 = if s.x > bx2 { s.x } else { bx2 };
+            by2 = if s.y > by2 { s.y } else { by2 };
+        } else if s.cmd == "Q" {
+            bx1 = if s.x1 < bx1 { s.x1 } else { bx1 };
+            by1 = if s.y1 < by1 { s.y1 } else { by1 };
+            bx2 = if s.x1 > bx2 { s.x1 } else { bx2 };
+            by2 = if s.y1 > by2 { s.y1 } else { by2 };
+            bx1 = if s.x < bx1 { s.x } else { bx1 };
+            by1 = if s.y < by1 { s.y } else { by1 };
+            bx2 = if s.x > bx2 { s.x } else { bx2 };
+            by2 = if s.y > by2 { s.y } else { by2 };
+        } else if s.cmd == "C" {
+            bx1 = if s.x1 < bx1 { s.x1 } else { bx1 };
+            by1 = if s.y1 < by1 { s.y1 } else { by1 };
+            bx2 = if s.x1 > bx2 { s.x1 } else { bx2 };
+            by2 = if s.y1 > by2 { s.y1 } else { by2 };
+            bx1 = if s.x2 < bx1 { s.x2 } else { bx1 };
+            by1 = if s.y2 < by1 { s.y2 } else { by1 };
+            bx2 = if s.x2 > bx2 { s.x2 } else { bx2 };
+            by2 = if s.y2 > by2 { s.y2 } else { by2 };
+            bx1 = if s.x < bx1 { s.x } else { bx1 };
+            by1 = if s.y < by1 { s.y } else { by1 };
+            bx2 = if s.x > bx2 { s.x } else { bx2 };
+            by2 = if s.y > by2 { s.y } else { by2 };
+        }
+        k += 1;
     }
-    star.push(#{cmd: "Z"});
 
-    // 贝塞尔花（C 三次曲线段花瓣）。每片花瓣用一段 C 段从花心出发，
-    // 控制点外张形成饱满花瓣，末段回到花心。
-    // both 布局放右半，单独布局居中。
-    let flower_cx = if params.layout == "both" {
-        cx + screen_w * 0.12
-    } else {
-        cx
-    };
-    let flower = [#{cmd: "M", x: flower_cx, y: cy}];
+    // 退化保护：零宽/零高（单点或直线）时用 1 避免除零。
+    let bw = if bx2 - bx1 < 0.001 { 1.0 } else { bx2 - bx1 };
+    let bh = if by2 - by1 < 0.001 { 1.0 } else { by2 - by1 };
+    // 等比缩放（取短边基准铺满 target），保持宽高比。
+    let scale = target / (if bw > bh { bw } else { bh });
+    // 包围盒中心映射到屏幕中心。
+    let bcx = (bx1 + bx2) / 2.0;
+    let bcy = (by1 + by2) / 2.0;
+
+    // ===== 坐标变换 + 重建段数组 =====
+    let segs_out = [];
     let j = 0;
-    while j < petals {
-        // 花瓣中角与两侧控制角。
-        let mid_a = tau * j / petals - tau * 0.25;
-        let a0 = mid_a - tau / (petals * 2);
-        let a1 = mid_a + tau / (petals * 2);
-        let tip = flower_outer(outer, mid_a);
-        let c0 = flower_ctrl(inner * 1.6, a0);
-        let c1 = flower_ctrl(inner * 1.6, a1);
-        flower.push(#{
-            cmd: "C",
-            x1: flower_cx + c0.x,
-            y1: cy + c0.y,
-            x2: flower_cx + c1.x,
-            y2: cy + c1.y,
-            x: flower_cx + tip.x,
-            y: cy + tip.y,
-        });
+    while j < segs_in.len() {
+        let s = segs_in[j];
+        if s.cmd == "M" {
+            segs_out.push(#{
+                cmd: "M",
+                x: cx + (s.x - bcx) * scale,
+                y: cy + (s.y - bcy) * scale,
+            });
+        } else if s.cmd == "L" {
+            segs_out.push(#{
+                cmd: "L",
+                x: cx + (s.x - bcx) * scale,
+                y: cy + (s.y - bcy) * scale,
+            });
+        } else if s.cmd == "Q" {
+            segs_out.push(#{
+                cmd: "Q",
+                x1: cx + (s.x1 - bcx) * scale,
+                y1: cy + (s.y1 - bcy) * scale,
+                x: cx + (s.x - bcx) * scale,
+                y: cy + (s.y - bcy) * scale,
+            });
+        } else if s.cmd == "C" {
+            segs_out.push(#{
+                cmd: "C",
+                x1: cx + (s.x1 - bcx) * scale,
+                y1: cy + (s.y1 - bcy) * scale,
+                x2: cx + (s.x2 - bcx) * scale,
+                y2: cy + (s.y2 - bcy) * scale,
+                x: cx + (s.x - bcx) * scale,
+                y: cy + (s.y - bcy) * scale,
+            });
+        } else {
+            segs_out.push(#{cmd: "Z"});
+        }
         j += 1;
     }
-    flower.push(#{cmd: "Z"});
 
-    // 按布局输出：both = 星 + 花；star / flower = 单锚点居中。
-    // 颜色继承图层基色（不携带覆盖字段，换色热键生效）。
-    if params.layout == "star" {
-        [#{type: "path", segments: star, fill: true, thickness: thickness}]
-    } else if params.layout == "flower" {
-        [#{type: "path", segments: flower, fill: true, thickness: thickness}]
-    } else {
-        [
-            #{type: "path", segments: star, fill: true, thickness: thickness},
-            #{type: "path", segments: flower, fill: true, thickness: thickness},
-        ]
-    }
+    [
+        #{
+            type: "path",
+            segments: segs_out,
+            fill: params.fill,
+            thickness: params.thickness,
+        },
+    ]
 }
 
-// 花瓣尖端坐标（相对花心）。
-fn flower_outer(outer, angle) {
-    #{x: angle.sin() * outer, y: -angle.cos() * outer}
-}
+// 解析失败回退：内置四叶花环（与 defaults.d 相同形状）。
+fn build_fallback(screen, params) {
+    let cx = (screen.min_x + screen.max_x) / 2.0;
+    let cy = (screen.min_y + screen.max_y) / 2.0;
+    let r = (screen.max_y - screen.min_y) * params.size_pct / 2.0;
 
-// 花瓣控制点坐标（相对花心）。
-fn flower_ctrl(ctrl_r, angle) {
-    #{x: angle.sin() * ctrl_r, y: -angle.cos() * ctrl_r}
+    // 四叶花环：两个正交的 Q 闭环（尖角圆润的花瓣环）。
+    let segs = [
+        #{cmd: "M", x: cx, y: cy - r},
+        #{cmd: "Q", x1: cx + r, y1: cy, x: cx, y: cy + r},
+        #{cmd: "Q", x1: cx - r, y1: cy, x: cx, y: cy - r},
+        #{cmd: "Z"},
+    ];
+    [
+        #{
+            type: "path",
+            segments: segs,
+            fill: params.fill,
+            thickness: params.thickness,
+        },
+    ]
 }

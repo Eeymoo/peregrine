@@ -6,8 +6,8 @@
 
 use crate::context::DynamicContext;
 use crate::error::{MaterialError, MaterialResult};
-use peregrine_config::{Element, Rect, SimpleRng};
-use rhai::{AST, Dynamic, Engine, ImmutableString, Map, Scope};
+use peregrine_config::{Element, PathSegment, Rect, SimpleRng};
+use rhai::{AST, Array, Dynamic, Engine, ImmutableString, Map, Scope};
 
 /// 物料 id（如 `"builtin.cross"` 或 `"user.my_material"`）。
 pub type MaterialId = String;
@@ -325,7 +325,237 @@ fn make_engine_with_dynamic(ctx: &DynamicContext) -> Engine {
         (r * max.max(1) as f64) as i64
     });
 
+    // parse_svg_path(d) -> Array of #{cmd, x, y, ...}：
+    // 把 SVG path 的 d 字符串解析为段数组（绝对坐标）。
+    // 支持 M/L/Q/C/Z 与相对 m/l/q/c/z、H/V/h/v（换算为绝对 L）；
+    // 相对坐标基于「上一段终点」累加，隐式重复命令（"M 1 2 3 4" = M+L）、
+    // 数值分隔符（空格/逗号/符号前缀）均按 SVG 语法处理。
+    // H/V 展开为 L（PathSegment 无专命令）；A/S/T 不支持（报运行时错误）。
+    // 注意：必须返回裸 Array——Rhai 不会自动解包 Result，
+    // 脚本侧拿到包装值会破坏元素转换（segments must be Array）。
+    // 解析失败通过 `panic` 关键字路径不可用，改为返回空数组
+    // 让脚本显式判空（转换层对空 segments 会报错，问题可见）。
+    engine.register_fn("parse_svg_path", |d: ImmutableString| -> Array {
+        match parse_svg_path_d(&d) {
+            Ok(segs) => segs.into_iter().map(segment_to_dynamic).collect(),
+            Err(_) => Array::new(),
+        }
+    });
+
     engine
+}
+
+/// PathSegment → Rhai Map（`parse_svg_path` 的输出格式，
+/// 与脚本文本手写段一致：`#{cmd: "M", x, y}` 等）。
+fn segment_to_dynamic(seg: PathSegment) -> Dynamic {
+    let mut m = Map::new();
+    match seg {
+        PathSegment::M { x, y } => {
+            m.insert("cmd".into(), "M".into());
+            m.insert("x".into(), (x as f64).into());
+            m.insert("y".into(), (y as f64).into());
+        }
+        PathSegment::L { x, y } => {
+            m.insert("cmd".into(), "L".into());
+            m.insert("x".into(), (x as f64).into());
+            m.insert("y".into(), (y as f64).into());
+        }
+        PathSegment::Q { x1, y1, x, y } => {
+            m.insert("cmd".into(), "Q".into());
+            m.insert("x1".into(), (x1 as f64).into());
+            m.insert("y1".into(), (y1 as f64).into());
+            m.insert("x".into(), (x as f64).into());
+            m.insert("y".into(), (y as f64).into());
+        }
+        PathSegment::C {
+            x1,
+            y1,
+            x2,
+            y2,
+            x,
+            y,
+        } => {
+            m.insert("cmd".into(), "C".into());
+            m.insert("x1".into(), (x1 as f64).into());
+            m.insert("y1".into(), (y1 as f64).into());
+            m.insert("x2".into(), (x2 as f64).into());
+            m.insert("y2".into(), (y2 as f64).into());
+            m.insert("x".into(), (x as f64).into());
+            m.insert("y".into(), (y as f64).into());
+        }
+        PathSegment::Z => {
+            m.insert("cmd".into(), "Z".into());
+        }
+    }
+    Dynamic::from(m)
+}
+
+/// SVG path `d` 字符串 → 绝对坐标段序列。
+///
+/// 为 `parse_svg_path` host function 的实现。语法子集：
+/// - 命令：`M` `L` `Q` `C` `Z` 大写（绝对）与小写 `m` `l` `q` `c` `z`（相对）；
+/// - `H`/`V`/`h`/`v` 展开为等价的 `L`（PathSegment 无专命令）；
+/// - 隐式重复：`M 1 2 3 4` 等价 `M 1 2 L 3 4`（首个 M 后、其余按 L）；
+///   `m` 同理（首个 m 后按 l）；其它命令直接重复自身；
+/// - 分隔符：空格 / 逗号 / 负号与前缀符号（`1-2` = 1, -2）；
+/// - 指数记法（`1e2`）不支持——锚点坐标用不到。
+///
+/// `A`（圆弧）/`S`/`T`（平滑简写）不支持：返回 `Err`（含位置信息），
+/// 脚本作者可用 Q/C 显式展开。相对坐标基于上一段终点累加，输出恒绝对。
+fn parse_svg_path_d(d: &str) -> Result<Vec<PathSegment>, String> {
+    let mut segs = Vec::new();
+    let bytes: Vec<char> = d.chars().collect();
+    let n = bytes.len();
+    let mut i = 0usize;
+
+    // 当前点（相对坐标基准）与子路径起点（Z 的回退目标）。
+    let (mut cx, mut cy) = (0.0f32, 0.0f32);
+    let (mut sx, mut sy) = (0.0f32, 0.0f32);
+    // 当前命令：显式字母或隐式重复（implicit_cmd 记录上一显式命令
+    // 对应的重复形式——M/m 后续坐标按 L/l 处理，其它命令重复自身）。
+    #[allow(clippy::needless_late_init)]
+    let mut last_cmd;
+    let mut implicit_cmd = ' ';
+
+    // 分隔符：SVG 语法允许空格与逗号（含尾随逗号）任意混用。
+    let skip_ws = |i: &mut usize| {
+        while *i < n && (bytes[*i].is_whitespace() || bytes[*i] == ',') {
+            *i += 1;
+        }
+    };
+    let read_number = |i: &mut usize| -> Result<f32, String> {
+        skip_ws(i);
+        let start = *i;
+        if *i < n && (bytes[*i] == '-' || bytes[*i] == '+') {
+            *i += 1;
+        }
+        while *i < n && (bytes[*i].is_ascii_digit() || bytes[*i] == '.') {
+            *i += 1;
+        }
+        if *i == start {
+            return Err(format!("数值缺失于位置 {}", start));
+        }
+        bytes[start..*i]
+            .iter()
+            .collect::<String>()
+            .parse::<f32>()
+            .map_err(|_| format!("非法数值于位置 {}", start))
+    };
+
+    while {
+        skip_ws(&mut i);
+        i < n
+    } {
+        let c = bytes[i];
+        if c.is_ascii_alphabetic() {
+            i += 1;
+            last_cmd = c;
+            // M/m 的隐式重复是 L/l，其它命令重复自身。
+            implicit_cmd = match c {
+                'M' | 'm' => {
+                    if c == 'M' {
+                        'L'
+                    } else {
+                        'l'
+                    }
+                }
+                other => other,
+            };
+        } else {
+            // 隐式重复：沿用 implicit_cmd。
+            last_cmd = implicit_cmd;
+        }
+
+        let is_rel = last_cmd.is_ascii_lowercase();
+        // 大写化统一处理。
+        let cmd = last_cmd.to_ascii_uppercase();
+
+        match cmd {
+            'M' => {
+                let x = read_number(&mut i)?;
+                let y = read_number(&mut i)?;
+                let (ax, ay) = if is_rel { (cx + x, cy + y) } else { (x, y) };
+                segs.push(PathSegment::M { x: ax, y: ay });
+                cx = ax;
+                cy = ay;
+                sx = ax;
+                sy = ay;
+            }
+            'L' => {
+                let x = read_number(&mut i)?;
+                let y = read_number(&mut i)?;
+                let (ax, ay) = if is_rel { (cx + x, cy + y) } else { (x, y) };
+                segs.push(PathSegment::L { x: ax, y: ay });
+                cx = ax;
+                cy = ay;
+            }
+            'H' => {
+                let x = read_number(&mut i)?;
+                let ax = if is_rel { cx + x } else { x };
+                segs.push(PathSegment::L { x: ax, y: cy });
+                cx = ax;
+            }
+            'V' => {
+                let y = read_number(&mut i)?;
+                let ay = if is_rel { cy + y } else { y };
+                segs.push(PathSegment::L { x: cx, y: ay });
+                cy = ay;
+            }
+            'Q' => {
+                let x1 = read_number(&mut i)?;
+                let y1 = read_number(&mut i)?;
+                let x = read_number(&mut i)?;
+                let y = read_number(&mut i)?;
+                let (ax1, ay1) = if is_rel { (cx + x1, cy + y1) } else { (x1, y1) };
+                let (ax, ay) = if is_rel { (cx + x, cy + y) } else { (x, y) };
+                segs.push(PathSegment::Q {
+                    x1: ax1,
+                    y1: ay1,
+                    x: ax,
+                    y: ay,
+                });
+                cx = ax;
+                cy = ay;
+            }
+            'C' => {
+                let (x1, y1) = (read_number(&mut i)?, read_number(&mut i)?);
+                let (x2, y2) = (read_number(&mut i)?, read_number(&mut i)?);
+                let (x, y) = (read_number(&mut i)?, read_number(&mut i)?);
+                let (ax1, ay1, ax2, ay2, ax, ay) = if is_rel {
+                    (cx + x1, cy + y1, cx + x2, cy + y2, cx + x, cy + y)
+                } else {
+                    (x1, y1, x2, y2, x, y)
+                };
+                segs.push(PathSegment::C {
+                    x1: ax1,
+                    y1: ay1,
+                    x2: ax2,
+                    y2: ay2,
+                    x: ax,
+                    y: ay,
+                });
+                cx = ax;
+                cy = ay;
+            }
+            'Z' => {
+                segs.push(PathSegment::Z);
+                // SVG 语义：Z 后当前点回到子路径起点。
+                cx = sx;
+                cy = sy;
+            }
+            'A' | 'S' | 'T' => {
+                return Err(format!(
+                    "不支持的命令 '{}' 于位置 {}（A/S/T 请用 Q/C 显式展开）",
+                    cmd, i
+                ));
+            }
+            _ => {
+                return Err(format!("未知命令 '{}' 于位置 {}", cmd, i));
+            }
+        }
+    }
+
+    Ok(segs)
 }
 
 thread_local! {
@@ -1369,6 +1599,140 @@ fn build(params, screen) {{
 
     // ===== 鼠标速度 / 加速度 host function 测试 =====
 
+    // ===== parse_svg_path host function 测试 =====
+
+    /// 解析器核心：绝对/相对坐标、H/V 展开、隐式重复、Z 子路径回退。
+    #[test]
+    fn parse_svg_path_d_core_grammar() {
+        use peregrine_config::PathSegment as PS;
+
+        // 绝对 M + L + Z。
+        assert_eq!(
+            parse_svg_path_d("M 0 0 L 10 20 Z").unwrap(),
+            vec![PS::M { x: 0.0, y: 0.0 }, PS::L { x: 10.0, y: 20.0 }, PS::Z]
+        );
+
+        // 相对坐标累加：m 10 10 l 5 0 → M(10,10) L(15,10)。
+        assert_eq!(
+            parse_svg_path_d("m 10 10 l 5 0").unwrap(),
+            vec![PS::M { x: 10.0, y: 10.0 }, PS::L { x: 15.0, y: 10.0 }]
+        );
+
+        // H/V（绝对与相对）展开为 L。
+        assert_eq!(
+            parse_svg_path_d("M 0 0 H 30 V 20 h -10 v -5").unwrap(),
+            vec![
+                PS::M { x: 0.0, y: 0.0 },
+                PS::L { x: 30.0, y: 0.0 },
+                PS::L { x: 30.0, y: 20.0 },
+                PS::L { x: 20.0, y: 20.0 },
+                PS::L { x: 20.0, y: 15.0 },
+            ]
+        );
+
+        // 隐式重复：M 后续坐标对按 L；其它命令重复自身。
+        assert_eq!(
+            parse_svg_path_d("M 1 2 3 4").unwrap(),
+            vec![PS::M { x: 1.0, y: 2.0 }, PS::L { x: 3.0, y: 4.0 }]
+        );
+        assert_eq!(
+            parse_svg_path_d("M 0 0 L 1 1 2 2").unwrap(),
+            vec![
+                PS::M { x: 0.0, y: 0.0 },
+                PS::L { x: 1.0, y: 1.0 },
+                PS::L { x: 2.0, y: 2.0 },
+            ]
+        );
+
+        // Q/C 相对形式。
+        assert_eq!(
+            parse_svg_path_d("M 0 0 q 10 10 20 0").unwrap(),
+            vec![
+                PS::M { x: 0.0, y: 0.0 },
+                PS::Q {
+                    x1: 10.0,
+                    y1: 10.0,
+                    x: 20.0,
+                    y: 0.0,
+                },
+            ]
+        );
+        assert_eq!(
+            parse_svg_path_d("M 0 0 c 1 2 3 4 5 6").unwrap(),
+            vec![
+                PS::M { x: 0.0, y: 0.0 },
+                PS::C {
+                    x1: 1.0,
+                    y1: 2.0,
+                    x2: 3.0,
+                    y2: 4.0,
+                    x: 5.0,
+                    y: 6.0,
+                },
+            ]
+        );
+
+        // Z 后当前点回到子路径起点（相对坐标基准复位）。
+        assert_eq!(
+            parse_svg_path_d("M 10 10 L 20 20 Z l 5 5").unwrap(),
+            vec![
+                PS::M { x: 10.0, y: 10.0 },
+                PS::L { x: 20.0, y: 20.0 },
+                PS::Z,
+                PS::L { x: 15.0, y: 15.0 },
+            ]
+        );
+
+        // 分隔符：逗号与负号前缀（无空格）。
+        assert_eq!(
+            parse_svg_path_d("M0,0L10-5").unwrap(),
+            vec![PS::M { x: 0.0, y: 0.0 }, PS::L { x: 10.0, y: -5.0 }]
+        );
+    }
+
+    /// 解析器错误路径：不支持命令、缺数值、垃圾输入。
+    #[test]
+    fn parse_svg_path_d_errors() {
+        assert!(parse_svg_path_d("M 0 0 A 5 5 0 0 1 10 10").is_err());
+        assert!(parse_svg_path_d("M 0 0 S 10 10 20 20").is_err());
+        assert!(parse_svg_path_d("M 0 0 T 10 10").is_err());
+        assert!(parse_svg_path_d("M 0").is_err());
+        assert!(parse_svg_path_d("M x y").is_err());
+        assert!(parse_svg_path_d("").is_ok()); // 空路径 = 空段数组
+    }
+
+    /// host function 通路：脚本调用 parse_svg_path 得到段数组，
+    /// 可直接作为 path 图元的 segments（端到端）。
+    #[test]
+    fn parse_svg_path_host_function_end_to_end() {
+        let m = Material::load(
+            "test.parsepath".to_string(),
+            r#"fn defaults() { #{d: "M 0 0 L 100 0 L 100 50 Z"} }
+fn schema() { [] }
+fn build(params, screen) {
+    let segs = parse_svg_path(params.d);
+    [#{type: "path", segments: segs, fill: true, thickness: 0.0}]
+}"#,
+            false,
+        )
+        .unwrap();
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
+        match &els[0] {
+            Element::Path { segments, fill, .. } => {
+                assert!(*fill);
+                assert_eq!(segments.len(), 4);
+                assert!(matches!(
+                    segments[0],
+                    peregrine_config::PathSegment::M { x, y } if (x - 0.0).abs() < 1e-5 && (y - 0.0).abs() < 1e-5
+                ));
+                assert!(matches!(segments[3], peregrine_config::PathSegment::Z));
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+    }
+
     /// host function 返回 Map {x, y} 结构；同一次求值内多次调用返回同值。
     #[test]
     fn mouse_velocity_acceleration_host_functions() {
@@ -1874,13 +2238,13 @@ fn build(params, screen) {
 
     // ===== 内置演示物料：teardrop / path_showcase（Path 图元） =====
 
-    /// teardrop（锚定环）：纯静态——is_dynamic=false；恒为正圆双圈
+    /// teardrop（呼吸环）：动态物料（10Hz 节流）；恒为正圆双圈
     /// （外圈 Q 平滑环 + 内圈镂空），缺省不携带颜色覆盖（继承图层色）。
     #[test]
     fn builtin_teardrop_static_ring_geometry() {
         let m = load_builtin("teardrop");
-        assert_eq!(m.metadata().display_name, "锚定环");
-        assert!(!m.metadata().is_dynamic);
+        assert_eq!(m.metadata().display_name, "呼吸环");
+        assert!(m.metadata().is_dynamic);
 
         let screen = test_rect();
         let ctx = DynamicContext::static_context(); // 加速度为 0
@@ -2004,11 +2368,122 @@ fn build(params, screen) {
                         i0
                     );
                 }
-                // 静态语义：外径精确为 base（无呼吸涨缩）。
-                assert!((o0 - base).abs() < 1e-2);
+                // 呼吸语义：外径在 base × [0.97, 1.03] 区间内。
+                assert!(o0 > base * 0.96 && o0 < base * 1.04);
             }
             other => panic!("expected Path, got {:?}", other),
         }
+    }
+
+    /// teardrop：呼吸性能与节拍声明——refresh_interval_ms=100（10Hz）、
+    /// 0.5px 量化（相邻亚档采样指纹不变，跳过光栅化）、呼吸周期可区分
+    ///（slow/normal/fast 三档相位取样单调）。
+    #[test]
+    fn builtin_teardrop_breath_throttling_and_quantization() {
+        let m = load_builtin("teardrop");
+        let screen = test_rect();
+        let defaults = m.defaults().clone();
+
+        // 节拍声明：10Hz。
+        assert_eq!(m.metadata().refresh_interval_ms, 100);
+
+        let eval_segs = |ctx: &DynamicContext| {
+            m.evaluate(&defaults, &screen, ctx)
+                .unwrap()
+                .into_iter()
+                .map(|e| match e {
+                    Element::Path { segments, .. } => segments,
+                    _ => panic!("expected Path"),
+                })
+                .next()
+                .unwrap()
+        };
+        let outer_radius = |segs: &[peregrine_config::PathSegment]| -> f32 {
+            let cx = 960.0;
+            let cy = 540.0;
+            segs.iter()
+                .filter_map(|s| {
+                    if let peregrine_config::PathSegment::Q { x1, y1, .. } = *s {
+                        Some(((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt())
+                    } else {
+                        None
+                    }
+                })
+                .fold(f32::MIN, f32::max)
+        };
+
+        // 量化跳帧：顶点附近相邻 125ms 采样（1075 与 1200）半径差
+        // < 0.5px → 同一量化档 → 输出逐段一致（帧指纹不变）。
+        assert_eq!(
+            eval_segs(&DynamicContext {
+                time_ms: 1075,
+                ..DynamicContext::default()
+            }),
+            eval_segs(&DynamicContext {
+                time_ms: 1200,
+                ..DynamicContext::default()
+            }),
+            "sub-quantum time step must keep fingerprint"
+        );
+
+        // 量化不改呼吸可见性：顶点（t=1075）半径 = 量化后的 1.03 峰值
+        //（55.5），显著大于基准 54。
+        let base_r = 1080.0 * 0.05;
+        let r_peak = outer_radius(&eval_segs(&DynamicContext {
+            time_ms: 1075,
+            ..DynamicContext::default()
+        }));
+        let peak: f32 = base_r * 1.03;
+        let q_peak: f32 = (peak * 2.0).floor() / 2.0;
+        assert!(
+            (r_peak - q_peak).abs() < 1e-2,
+            "peak should quantize to 55.5: {}",
+            r_peak
+        );
+        assert!(q_peak > base_r, "breathing must stay visible");
+
+        // 呼吸速度三档 → 周期可区分（t=1700 相位取样单调）：
+        // slow(7500) sin≈0.989 近顶点；normal(4300) sin≈0.611；
+        // fast(3000) sin≈-0.407 收缩相。
+        let radius_at = |params: &serde_json::Value| -> f32 {
+            let ctx = DynamicContext {
+                time_ms: 1700,
+                ..DynamicContext::default()
+            };
+            let segs = m
+                .evaluate(params, &screen, &ctx)
+                .unwrap()
+                .into_iter()
+                .map(|e| match e {
+                    Element::Path { segments, .. } => segments,
+                    _ => panic!("expected Path"),
+                })
+                .next()
+                .unwrap();
+            outer_radius(&segs)
+        };
+        let r_slow = radius_at(&serde_json::json!({"breath_speed": "slow"}));
+        let r_norm = radius_at(&serde_json::json!({"breath_speed": "normal"}));
+        let r_fast = radius_at(&serde_json::json!({"breath_speed": "fast"}));
+        assert!(
+            r_slow > r_norm && r_norm > r_fast,
+            "breath speeds must map to distinct periods: {} {} {}",
+            r_slow,
+            r_norm,
+            r_fast
+        );
+
+        // 周期平移不变：相隔整周期输出逐段一致（呼吸是唯一时间依赖）。
+        assert_eq!(
+            eval_segs(&DynamicContext {
+                time_ms: 0,
+                ..DynamicContext::default()
+            }),
+            eval_segs(&DynamicContext {
+                time_ms: 4300,
+                ..DynamicContext::default()
+            })
+        );
     }
 
     /// teardrop：缺省不携带颜色覆盖（继承图层色，换色热键生效）——
@@ -2032,20 +2507,22 @@ fn build(params, screen) {
         }
     }
 
-    /// path_showcase（星花组合）：静态物料，缺省布局输出星形（M/L/Z）
-    /// 与贝塞尔花（C）左右成对两组 Path。
+    /// path_showcase（自定义路径）：静态物料，d 参数解析为单条 Path，
+    /// 包围盒归一化居中；缺省形状为 Q 段花环（开箱即用）。
     #[test]
-    fn builtin_path_showcase_static_outputs() {
+    fn builtin_path_showcase_parses_d_param() {
         let m = load_builtin("path_showcase");
-        assert_eq!(m.metadata().display_name, "星花组合");
+        assert_eq!(m.metadata().display_name, "自定义路径");
         assert!(!m.metadata().is_dynamic);
 
         let screen = test_rect();
         let ctx = DynamicContext::static_context();
-        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
-        assert_eq!(els.len(), 2);
 
-        // 第一个 Path：仅含 M/L/Z（星形）。
+        // 缺省 d：四叶花环（Q 段闭环），单 Path 居中。
+        let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
+        assert_eq!(els.len(), 1);
+        let cx = 960.0;
+        let cy = 540.0;
         match &els[0] {
             Element::Path {
                 segments,
@@ -2056,32 +2533,64 @@ fn build(params, screen) {
                 assert!(*fill);
                 // 缺省参数不携带颜色覆盖（继承图层色）。
                 assert_eq!(stroke_color, &None);
-                for seg in segments {
-                    assert!(
-                        matches!(
-                            seg,
-                            peregrine_config::PathSegment::M { .. }
-                                | peregrine_config::PathSegment::L { .. }
-                                | peregrine_config::PathSegment::Z
-                        ),
-                        "star should only contain M/L/Z, got {:?}",
-                        seg
-                    );
-                }
-            }
-            other => panic!("expected Path (star), got {:?}", other),
-        }
-        // 第二个 Path：含 C 段（贝塞尔花）。
-        match &els[1] {
-            Element::Path { segments, .. } => {
+                // 缺省形状是 Q 闭环。
                 assert!(
                     segments
                         .iter()
-                        .any(|s| matches!(s, peregrine_config::PathSegment::C { .. })),
-                    "flower should contain C segments"
+                        .any(|s| matches!(s, peregrine_config::PathSegment::Q { .. })),
+                    "default flower should contain Q segments"
+                );
+                // 归一化居中：所有坐标点距屏幕中心 < target/2 + 余量。
+                // target = 1080 × 0.08 = 86.4 → 半径 < 50（Q 控制点可在
+                // 包围盒外少许），断言 < 60。
+                for seg in segments {
+                    let (x, y) = match *seg {
+                        peregrine_config::PathSegment::M { x, y } => (x, y),
+                        peregrine_config::PathSegment::L { x, y } => (x, y),
+                        peregrine_config::PathSegment::Q { x, y, .. } => (x, y),
+                        peregrine_config::PathSegment::C { x, y, .. } => (x, y),
+                        peregrine_config::PathSegment::Z => continue,
+                    };
+                    assert!(
+                        ((x - cx).abs() < 60.0) && ((y - cy).abs() < 60.0),
+                        "normalized shape must center on screen: ({}, {})",
+                        x,
+                        y
+                    );
+                }
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+
+        // 自定义 d（相对坐标 + H/V）：三角形，坐标域 0..10（任意域）。
+        // 验证归一化把小坐标域放大到目标大小。
+        let tri = m
+            .evaluate(
+                &serde_json::json!({"d": "M 0 0 h 10 v 10 h -10 Z"}),
+                &screen,
+                &ctx,
+            )
+            .unwrap();
+        match &tri[0] {
+            Element::Path { segments, .. } => {
+                // H/V 展开为 L；共 5 段（M + 3L + Z）。
+                assert_eq!(segments.len(), 5);
+                // 归一化放大：宽/高从 10 放大到 ~86（1080×0.08）。
+                let mut max_x = f32::MIN;
+                let mut min_x = f32::MAX;
+                for seg in segments {
+                    if let peregrine_config::PathSegment::L { x, .. } = *seg {
+                        max_x = max_x.max(x);
+                        min_x = min_x.min(x);
+                    }
+                }
+                assert!(
+                    (max_x - min_x - 86.4).abs() < 1.0,
+                    "normalization should scale to target size: got width {}",
+                    max_x - min_x
                 );
             }
-            other => panic!("expected Path (flower), got {:?}", other),
+            other => panic!("expected Path, got {:?}", other),
         }
     }
 
@@ -2107,62 +2616,31 @@ fn build(params, screen) {
         assert_eq!(out_a, out_b);
     }
 
-    /// path_showcase：布局参数——star / flower 单锚点居中，缺省 both 成对。
+    /// path_showcase：非法 d（A 圆弧不支持）回退内置花环——
+    /// 物料永不渲染空输出（图层突然消失比回退更迷惑）。
     #[test]
-    fn builtin_path_showcase_layout_param() {
+    fn builtin_path_showcase_invalid_d_falls_back() {
         let m = load_builtin("path_showcase");
         let screen = test_rect();
         let ctx = DynamicContext::static_context();
-
-        // 单星形：只输出一个 Path，仅含 M/L/Z，居中。
-        let star_only = m
-            .evaluate(&serde_json::json!({"layout": "star"}), &screen, &ctx)
+        let els = m
+            .evaluate(
+                &serde_json::json!({"d": "M 0 0 A 5 5 0 0 1 10 10"}),
+                &screen,
+                &ctx,
+            )
             .unwrap();
-        assert_eq!(star_only.len(), 1);
-        let cx = 960.0;
-        match &star_only[0] {
+        // 回退形状仍是一条有效 Path（含 Q 段）。
+        match &els[0] {
             Element::Path { segments, .. } => {
                 assert!(
                     segments
                         .iter()
-                        .all(|s| !matches!(s, peregrine_config::PathSegment::C { .. }))
-                );
-                // 居中：所有锚点 x 距屏幕中心 < outer（65）。
-                for seg in segments {
-                    let x = match *seg {
-                        peregrine_config::PathSegment::M { x, .. }
-                        | peregrine_config::PathSegment::L { x, .. } => x,
-                        _ => continue,
-                    };
-                    assert!(
-                        (x - cx).abs() < 70.0,
-                        "star-only layout must center the star: x={}",
-                        x
-                    );
-                }
-            }
-            other => panic!("expected Path, got {:?}", other),
-        }
-
-        // 单花朵：只输出一个 Path，含 C 段，居中。
-        let flower_only = m
-            .evaluate(&serde_json::json!({"layout": "flower"}), &screen, &ctx)
-            .unwrap();
-        assert_eq!(flower_only.len(), 1);
-        match &flower_only[0] {
-            Element::Path { segments, .. } => {
-                assert!(
-                    segments
-                        .iter()
-                        .any(|s| matches!(s, peregrine_config::PathSegment::C { .. })),
-                    "flower-only must contain C segments"
+                        .any(|s| matches!(s, peregrine_config::PathSegment::Q { .. })),
+                    "fallback should be the built-in flower ring"
                 );
             }
             other => panic!("expected Path, got {:?}", other),
         }
-
-        // 缺省 both：两组 Path（对照上面单锚点布局）。
-        let both = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
-        assert_eq!(both.len(), 2);
     }
 }

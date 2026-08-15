@@ -1,20 +1,23 @@
-// Name: 锚定环
-// 静态锚点物料（id 保留 "teardrop"：PR 未合入前的历史名，行为已重设计）。
+// Name: 呼吸环
+// 动态锚点物料（id 保留 "teardrop"：PR 未合入前的历史名，行为已重设计）。
 //
-// 定位：填充式圆环锚点（rest-frame 参照物）。与 builtin.ring 的
-// 描边环观感不同：镂空填充的「实心环」，视觉存在感更强，
-// 适合需要醒目锚点的场景。
+// 核心语义：半径以 ±3% 对称涨缩的填充环，周期对齐常见呼吸频率
+// （默认 14 次/分，成人静息中段）。缓慢呼吸节律对缓解 cybersickness
+// 有循证支持（呼吸 pacing），持续微动也防止锚点被视觉系统习惯化
+// 而失效（rest-frame 持续再捕获）。
 //
-// 演进史（实机反馈驱动，三轮收敛）：
-// 1. v4 加速度尖刺：不对称方向性形变，恰在玩家甩视角（最易晕的
-//    时刻）模拟运动感、参与叠加 vection，与 rest-frame 语义相反
-//    ——移除；
-// 2. 呼吸 + 遇动定格（鼠标跟随）：静止呼吸、运动定格。实机 CPU 7%
-//    （60fps 全屏光栅）→ 降频 + 量化后仍 3%——动态管线的固有成本
-//    （唤醒节拍 + 每次求值重建 Rhai Engine + 指纹哈希）与呼吸的
-//    观感价值不成正比 ——移除鼠标跟随，再移除呼吸；
-// 3. 最终形态：纯静态填充环。is_dynamic=false → 求值一次、光栅
-//    一次、零唤醒（纯事件驱动），稳态 CPU 与静态层同级（~0.1%）。
+// 演进史（实机反馈驱动）：
+// 1. v4 加速度尖刺 → 移除（不对称方向性形变，反向 rest-frame）；
+// 2. 呼吸 + 鼠标遇动定格 → 移除鼠标跟随（CPU 7%：60fps 全屏光栅）；
+// 3. 纯静态 → 按反馈恢复呼吸（用户明确需要），但保留全部性能手段。
+//
+// ===== 性能模型（10Hz 节流 + 量化跳帧）=====
+// 呼吸是本物料唯一的动态输入，两条正交手段压稳态开销：
+// 1. refresh_interval_ms() = 100：唤醒 60Hz → 10Hz，求值 + 指纹 +
+//    光栅整条链路随唤醒降频；
+// 2. 半径 0.5px 量化：同一量化档内 24 个采样点坐标完全相同 →
+//    帧指纹不变 → 光栅化被整体跳过。呼吸一周期（4300ms）半径只跨
+//    ~2 个量化档，实际光栅 <4 次/秒；档间跳变亚像素级不可见。
 //
 // 设计原则（全程不变）：
 // - 永远是完美正圆，无不对称/方向性形变；
@@ -25,14 +28,18 @@
 // 填充规则下内圈环绕数相消（镂空）；采样点用「中点 Q 平滑」连接
 // （端点取相邻采样点中点、控制点取采样点自身，C1 连续）。
 //
-// 输入：无（纯静态）。参数变更 / 屏幕尺寸变更时由外部事件触发
-// 重新求值，静止配置下帧指纹恒定（稳态跳帧）。
+// 输入：time_ms()（呼吸相位）。预览端恒静止 → 预览只见呼吸。
 
 fn defaults() {
     #{
         radius_pct: 0.05,
         ring_width: 10.0,
+        // 呼吸速度预设 → 周期（ms）。
+        breath_speed: "normal",
         samples: 24,
+        // 呼吸幅度（内部参数，未暴露 UI——3% 经验值，暴露易调出
+        //「晃动锚点」反而促成晕动症的反效果）。
+        breath_amp: 0.03,
         thickness: 0.0,
     }
 }
@@ -41,12 +48,43 @@ fn schema() {
     [
         #{key: "radius_pct", label: "大小", widget: "slider", min: 0.01, max: 0.12, step: 0.005},
         #{key: "ring_width", label: "环宽", widget: "slider", min: 2.0, max: 40.0, step: 1.0},
+        #{
+            key: "breath_speed",
+            label: "呼吸速度",
+            widget: "select",
+            options: [
+                #{value: "slow", label: "舒缓（8 次/分）"},
+                #{value: "normal", label: "自然（14 次/分）"},
+                #{value: "fast", label: "快节奏（20 次/分）"},
+            ],
+        },
         #{key: "thickness", label: "描边粗细", widget: "slider", min: 0.0, max: 12.0, step: 0.5},
     ]
 }
 
 fn is_dynamic() {
-    false
+    true
+}
+
+// 最小重绘节拍（ms）：唤醒从 fps 节拍（60Hz）降到 10Hz。
+// 呼吸周期最短 3000ms、0.5px 量化档间跳变亚像素级不可见，
+// 10Hz 采样相位精度已无视觉损失（Nyquist 余量充足）。
+fn refresh_interval_ms() {
+    100
+}
+
+// 呼吸速度预设 → 周期（ms），对齐常见人类呼吸频率：
+// slow = 8 次/分（7.5s）——经典放松呼吸引导节律（慢呼吸放松）；
+// normal = 14 次/分（~4.3s）——成人静息呼吸中段（12–20 次/分）；
+// fast = 20 次/分（3s）——静息呼吸上限（再快是运动/紧张态，不安）。
+fn breath_period_of(speed) {
+    if speed == "slow" {
+        7500.0
+    } else if speed == "fast" {
+        3000.0
+    } else {
+        4300.0
+    }
 }
 
 fn build(params, screen) {
@@ -56,8 +94,15 @@ fn build(params, screen) {
     let samples = params.samples;
     let tau = 3.141592653589793 * 2.0;
 
-    let outer = base;
+    // ===== 呼吸相位（time_ms 驱动，恒开启）=====
+    let period = breath_period_of(params.breath_speed);
+    let phase = tau * ((time_ms() * 1.0 % period) / period);
+    // 0.5px 量化：同一量化档内帧指纹不变（跳过光栅化），档间跳变
+    // 亚像素级不可见——呼吸平滑感不受影响。
+    let outer_raw = base * (1.0 + params.breath_amp * phase.sin());
+    let outer = (outer_raw * 2.0).floor() / 2.0;
     let width = params.ring_width;
+
     // 内径保护：极端参数（大环宽 × 小半径）下不允许内圈翻转或贴死圆心。
     let inner = if outer - width < outer * 0.25 {
         outer * 0.25
@@ -116,7 +161,7 @@ fn mid(a, b) {
 
 // 构建一圈中点 Q 平滑闭合曲线段序列。
 // 普通点：端点取相邻采样点中点、控制点取采样点自身（C1 连续）。
-// 无角点逻辑——锚定环永不产生尖角（对称原则）。
+// 无角点逻辑——呼吸环永不产生尖角（对称原则）。
 fn build_ring(pts) {
     let n = pts.len();
     let first = mid(pts[n - 1], pts[0]);

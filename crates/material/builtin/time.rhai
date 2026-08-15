@@ -20,8 +20,8 @@ fn defaults() {
 fn schema() {
     [
         #{key: "font_size", label: "字体大小", widget: "slider", min: 8.0, max: 200.0, step: 1.0},
-        #{key: "x", label: "X 坐标", widget: "number", min: 0.0, max: 4000.0, step: 1.0},
-        #{key: "y", label: "Y 坐标", widget: "number", min: 0.0, max: 4000.0, step: 1.0},
+        #{key: "x", label: "X 坐标", widget: "slider", min: 0.0, max: 4000.0, step: 1.0},
+        #{key: "y", label: "Y 坐标", widget: "slider", min: 0.0, max: 4000.0, step: 1.0},
         #{key: "format", label: "展示格式（如 HH:mm:ss / yyyy-MM-dd HH:mm:ss）", widget: "text"},
         #{key: "bold", label: "加粗", widget: "toggle"},
     ]

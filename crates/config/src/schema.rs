@@ -499,7 +499,7 @@ pub enum Anchor {
 }
 
 /// 覆盖层渲染后端。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum RendererBackend {
     /// 手写 CPU 像素光栅化（默认，零额外依赖）。

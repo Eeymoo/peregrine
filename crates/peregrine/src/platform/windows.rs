@@ -605,6 +605,9 @@ const VK_MAP: &[(i32, &str)] = &[
 
 /// EMA 平滑系数：新采样权重。~0.4 在去轮询抖动与响应速度间取平衡。
 const MOUSE_EMA_ALPHA: f32 = 0.4;
+/// 加速度层 EMA 平滑系数：比速度层更小（更平滑）——差分会放大高频噪声，
+/// 该层吸收后 teardrop 等物料的形变呈平滑过渡而非逐帧跳变。
+const MOUSE_ACC_EMA_ALPHA: f32 = 0.25;
 /// 速度死区（逻辑像素/秒）：EMA 值幅度低于此值直接置 0。
 ///
 /// 死区归零是硬性要求：EMA 渐近衰减永不精确触零，若保留微小残值，
@@ -683,10 +686,12 @@ pub fn poll_dynamic_context(_screen_w: f32, _screen_h: f32) -> peregrine_materia
     }
 }
 
-/// 鼠标运动学差分采样器：位置差分 → 速度 → 加速度，EMA 平滑 + 死区归零。
+/// 鼠标运动学差分采样器：位置差分 → 速度 → 加速度，双层 EMA 平滑 + 死区归零。
 ///
-/// 跨帧状态（上一采样位置/速度/EMA 累积值/采样时刻）收敛在此函数的
+/// 跨帧状态（上一采样位置/速度 EMA/加速度 EMA/采样时刻）收敛在此函数的
 /// `static` 中；`dt` 用 `Instant` 实测（MUST NOT 假设固定帧间隔）。
+/// 加速度层 EMA（α 更小 = 更平滑）消除差分放大的高频抖动，
+/// 让依赖加速度的物料（teardrop）形变有平滑过渡而非逐帧跳变。
 fn poll_mouse_kinematics(mouse_pos: (f32, f32)) -> ((f32, f32), (f32, f32)) {
     use std::sync::Mutex;
     use std::time::Instant;
@@ -696,6 +701,7 @@ fn poll_mouse_kinematics(mouse_pos: (f32, f32)) -> ((f32, f32), (f32, f32)) {
         instant: Instant,
         pos: (f32, f32),
         vel_ema: (f32, f32),
+        acc_ema: (f32, f32),
     }
     static PREV: Mutex<Option<PrevSample>> = Mutex::new(None);
 
@@ -706,6 +712,7 @@ fn poll_mouse_kinematics(mouse_pos: (f32, f32)) -> ((f32, f32), (f32, f32)) {
             instant: Instant::now(),
             pos: mouse_pos,
             vel_ema: (0.0, 0.0),
+            acc_ema: (0.0, 0.0),
         });
         return ((0.0, 0.0), (0.0, 0.0));
     };
@@ -718,11 +725,13 @@ fn poll_mouse_kinematics(mouse_pos: (f32, f32)) -> ((f32, f32), (f32, f32)) {
             instant: now,
             pos: mouse_pos,
             vel_ema: sample.vel_ema,
+            acc_ema: sample.acc_ema,
         });
-        return (sample.vel_ema, (0.0, 0.0));
+        return (sample.vel_ema, sample.acc_ema);
     }
 
-    // 差分：vel = Δpos / dt，acc = Δvel / dt。
+    // 差分：vel = Δpos / dt，acc = Δvel_ema / dt（对平滑后速度差分，
+    // 速度层 EMA 已吸收一阶噪声，加速度差分的残留抖动由加速度层 EMA 吸收）。
     let vel = (
         (mouse_pos.0 - sample.pos.0) / dt,
         (mouse_pos.1 - sample.pos.1) / dt,
@@ -732,14 +741,18 @@ fn poll_mouse_kinematics(mouse_pos: (f32, f32)) -> ((f32, f32), (f32, f32)) {
         (vel.1 - sample.vel_ema.1) / dt,
     );
 
-    // EMA 平滑（抑制轮询抖动）。
-    let a = MOUSE_EMA_ALPHA;
+    // 双层 EMA 平滑：速度层 α=0.4（响应快），加速度层 α=0.25（更平滑，
+    // 差分放大的高频抖动在此吸收——形变过渡的关键）。
+    let av = MOUSE_EMA_ALPHA;
     let vel_ema = (
-        a * vel.0 + (1.0 - a) * sample.vel_ema.0,
-        a * vel.1 + (1.0 - a) * sample.vel_ema.1,
+        av * vel.0 + (1.0 - av) * sample.vel_ema.0,
+        av * vel.1 + (1.0 - av) * sample.vel_ema.1,
     );
-    // 加速度不单独维护 EMA 状态：以平滑后的速度差分近似（噪声已被速度层吸收）。
-    let acc_smooth = acc;
+    let aa = MOUSE_ACC_EMA_ALPHA;
+    let acc_ema = (
+        aa * acc.0 + (1.0 - aa) * sample.acc_ema.0,
+        aa * acc.1 + (1.0 - aa) * sample.acc_ema.1,
+    );
 
     // 死区归零（硬性要求，见常量注释）：幅度低于阈值直接置 0。
     let deadzone = |v: f32, zone: f32| if v.abs() < zone { 0.0 } else { v };
@@ -748,14 +761,15 @@ fn poll_mouse_kinematics(mouse_pos: (f32, f32)) -> ((f32, f32), (f32, f32)) {
         deadzone(vel_ema.1, MOUSE_VELOCITY_DEADZONE),
     );
     let acc_out = (
-        deadzone(acc_smooth.0, MOUSE_ACCELERATION_DEADZONE),
-        deadzone(acc_smooth.1, MOUSE_ACCELERATION_DEADZONE),
+        deadzone(acc_ema.0, MOUSE_ACCELERATION_DEADZONE),
+        deadzone(acc_ema.1, MOUSE_ACCELERATION_DEADZONE),
     );
 
     *prev = Some(PrevSample {
         instant: now,
         pos: mouse_pos,
         vel_ema,
+        acc_ema,
     });
     (vel_out, acc_out)
 }

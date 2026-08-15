@@ -1877,7 +1877,8 @@ fn build(params, screen) {
 
     // ===== 内置演示物料：teardrop / path_showcase（Path 图元） =====
 
-    /// teardrop：动态物料，is_dynamic = true；零加速度 = 正圆（各采样点半径一致）。
+    /// teardrop：动态物料；零加速度 = 正圆双圈（外圈 Q 平滑环 + 内圈镂空），
+    /// 缺省不携带颜色覆盖（继承图层色，换色热键生效）。
     #[test]
     fn builtin_teardrop_circle_at_zero_acceleration() {
         let m = load_builtin("teardrop");
@@ -1896,7 +1897,12 @@ fn build(params, screen) {
                 stroke_color,
                 fill_color,
             } => {
-                // 闭合 Path：首段 M、末段 Z；fill=true + 双色覆盖。
+                // 闭合 Path：两个 M（外圈子路径 + 内圈子路径）+ 末段 Z；fill=true。
+                let m_count = segments
+                    .iter()
+                    .filter(|s| matches!(s, peregrine_config::PathSegment::M { .. }))
+                    .count();
+                assert_eq!(m_count, 2, "ring = outer + inner subpaths");
                 assert!(matches!(
                     segments.first(),
                     Some(peregrine_config::PathSegment::M { .. })
@@ -1906,34 +1912,53 @@ fn build(params, screen) {
                     Some(peregrine_config::PathSegment::Z)
                 ));
                 assert!(*fill);
-                assert!(*thickness > 0.0);
-                assert!(stroke_color.is_some());
-                assert!(fill_color.is_some());
-                // 零加速度：所有采样点距圆心等距（正圆）。
+                // 缺省 thickness=0（纯填充环）且不携带颜色覆盖（继承图层色）。
+                assert_eq!(*thickness, 0.0);
+                assert_eq!(stroke_color, &None);
+                assert_eq!(fill_color, &None);
+                // 曲线环：Q 段存在（中点平滑，非直线多边形）。
+                assert!(
+                    segments
+                        .iter()
+                        .any(|s| matches!(s, peregrine_config::PathSegment::Q { .. })),
+                    "ring should use Q smoothing"
+                );
+                // 零加速度：所有 Q 控制点距圆心等距（正圆），
+                // 且存在两档距离（外圈半径 / 内圈半径）。
                 let cx = 960.0;
                 let cy = 540.0;
-                let radius = 1080.0 * 0.05;
+                let outer_r = 1080.0 * 0.05;
+                let inner_r = outer_r - 10.0;
                 let mut dists = Vec::new();
                 for seg in segments {
-                    if let peregrine_config::PathSegment::L { x, y } = seg {
-                        dists.push(((x - cx).powi(2) + (y - cy).powi(2)).sqrt());
+                    if let peregrine_config::PathSegment::Q { x1, y1, .. } = seg {
+                        dists.push(((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt());
                     }
                 }
                 assert!(!dists.is_empty());
                 for d in &dists {
+                    let on_outer = (d - outer_r).abs() < 1e-2;
+                    let on_inner = (d - inner_r).abs() < 1e-2;
                     assert!(
-                        (d - radius).abs() < 1e-2,
-                        "zero acc should be perfect circle: d={} r={}",
+                        on_outer || on_inner,
+                        "zero acc should be perfect circle: d={} (outer={} inner={})",
                         d,
-                        radius
+                        outer_r,
+                        inner_r
                     );
                 }
+                assert!(
+                    dists.iter().any(|d| (d - outer_r).abs() < 1e-2)
+                        && dists.iter().any(|d| (d - inner_r).abs() < 1e-2),
+                    "should have both outer and inner ring"
+                );
             }
             other => panic!("expected Path, got {:?}", other),
         }
     }
 
-    /// teardrop：非零加速度 = 重心向加速度方向偏移；强度与幅度成正比。
+    /// teardrop：阈值以下（含手抖级噪声）零形变 = 与正圆输出完全一致；
+    /// 阈值以上形变，尖头偏移幅度与加速度幅度成正比。
     #[test]
     fn builtin_teardrop_deforms_with_acceleration() {
         let m = load_builtin("teardrop");
@@ -1955,40 +1980,58 @@ fn build(params, screen) {
                 .unwrap()
         };
 
-        let segs_small = eval(&mk_ctx((-100.0, 0.0)));
-        let segs_large = eval(&mk_ctx((-500.0, 0.0)));
+        // 阈值（默认 150）以下的微小加速度：输出与零加速度完全一致（不变形）。
+        let segs_zero = eval(&mk_ctx((0.0, 0.0)));
+        let segs_noise = eval(&mk_ctx((120.0, 0.0)));
+        assert_eq!(segs_zero, segs_noise, "sub-threshold acc must not deform");
 
-        // 偏移幅度：采样点沿 -x 方向的最大半径偏移。
+        // 阈值以上：朝 -x 方向的拉伸量随幅度增长。
         let extent = |segs: &[peregrine_config::PathSegment]| -> f32 {
-            let mut max_r = f32::MIN;
+            let mut min_x = f32::MAX;
             for seg in segs {
-                if let peregrine_config::PathSegment::L { x, .. } = seg {
-                    max_r = max_r.max(960.0 - x); // 朝 -x 的拉伸量
+                let (x, y) = match *seg {
+                    peregrine_config::PathSegment::L { x, y }
+                    | peregrine_config::PathSegment::M { x, y }
+                    | peregrine_config::PathSegment::Q { x, y, .. }
+                    | peregrine_config::PathSegment::C { x, y, .. } => (x, y),
+                    peregrine_config::PathSegment::Z => continue,
+                };
+                // 只统计圆心 y 附近的点（尖头在 -x 轴上）。
+                if (y - 540.0).abs() < 30.0 {
+                    min_x = min_x.min(x);
                 }
             }
-            max_r
+            960.0 - min_x
         };
+        let segs_small = eval(&mk_ctx((-400.0, 0.0)));
+        let segs_large = eval(&mk_ctx((-2000.0, 0.0)));
         let base = 1080.0 * 0.05;
         let ext_small = extent(&segs_small);
         let ext_large = extent(&segs_large);
-        // 大加速度的偏离幅度 > 小加速度的偏离幅度（均 > 正圆半径）。
         assert!(
             ext_small > base,
-            "small acc should deform: {} > {}",
+            "supra-threshold acc should deform: {} > {}",
             ext_small,
             base
         );
         assert!(
             ext_large > ext_small,
-            "large acc should deform more: {} > {}",
+            "larger acc should deform more: {} > {}",
             ext_large,
             ext_small
         );
-        // 段数与语义结构一致。
+        // 尖头合成：非零形变时出现 L 角点段（Q 平滑序列被打破）。
+        assert!(
+            segs_small
+                .iter()
+                .any(|s| matches!(s, peregrine_config::PathSegment::L { .. })),
+            "deformed output should contain corner L segments"
+        );
+        // 段数与语义结构一致（同一形变场，只有幅度不同）。
         assert_eq!(segs_small.len(), segs_large.len());
     }
 
-    /// teardrop：预览快照（速度/加速度为 0）呈正圆。
+    /// teardrop：预览快照（速度/加速度为 0）呈正圆双圈环。
     #[test]
     fn builtin_teardrop_preview_snapshot_is_circle() {
         let m = load_builtin("teardrop");
@@ -1997,19 +2040,48 @@ fn build(params, screen) {
         let els = m.evaluate(&m.defaults().clone(), &screen, &ctx).unwrap();
         match &els[0] {
             Element::Path { segments, .. } => {
-                // 预览快照加速度为 0：所有 L 段等距（正圆形态）。
+                // 预览快照加速度为 0：Q 控制点全部落在两档等距半径上。
                 let cx = 960.0;
                 let cy = 540.0;
                 let mut dists = Vec::new();
                 for seg in segments {
-                    if let peregrine_config::PathSegment::L { x, y } = seg {
-                        dists.push(((x - cx).powi(2) + (y - cy).powi(2)).sqrt());
+                    if let peregrine_config::PathSegment::Q { x1, y1, .. } = seg {
+                        dists.push(((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt());
                     }
                 }
+                assert!(!dists.is_empty());
                 let first = dists[0];
                 for d in &dists {
-                    assert!((d - first).abs() < 1e-2, "preview should be circle");
+                    assert!(
+                        (d - first).abs() < 1e-2
+                            || (d - (first - 10.0)).abs() < 1e-2
+                            || (d - (first + 10.0)).abs() < 1e-2,
+                        "preview should be circle ring: d={} first={}",
+                        d,
+                        first
+                    );
                 }
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+    }
+
+    /// teardrop：use_override_colors 开启时携带双色覆盖（元素级覆盖演示）。
+    #[test]
+    fn builtin_teardrop_override_colors_param() {
+        let m = load_builtin("teardrop");
+        let screen = test_rect();
+        let ctx = DynamicContext::static_context();
+        let params = serde_json::json!({"use_override_colors": true});
+        let els = m.evaluate(&params, &screen, &ctx).unwrap();
+        match &els[0] {
+            Element::Path {
+                stroke_color,
+                fill_color,
+                ..
+            } => {
+                assert!(stroke_color.is_some());
+                assert!(fill_color.is_some());
             }
             other => panic!("expected Path, got {:?}", other),
         }

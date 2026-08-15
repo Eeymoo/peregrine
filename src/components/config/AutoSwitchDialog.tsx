@@ -30,7 +30,7 @@ export function AutoSwitchDialog({
       tabIndex={-1}
       autoFocus
     >
-      <div className="bg-card border rounded-lg shadow-lg p-6 max-w-sm w-full mx-4 space-y-4">
+      <div className="bg-card border rounded-lg p-6 max-w-sm w-full mx-4 space-y-4">
         <h2 className="text-base font-semibold">{t("overlay.autoSwitchTitle")}</h2>
         <p className="text-sm text-muted-foreground">{t("overlay.autoSwitchDesc")}</p>
         <div className="flex items-center gap-2">

@@ -17,7 +17,7 @@ export function UpdateDialog({ version, body, onUpdate, onLater }: UpdateDialogP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-card border rounded-lg shadow-lg p-4 max-w-sm w-full mx-4 space-y-2">
+      <div className="bg-card border rounded-lg p-4 max-w-sm w-full mx-4 space-y-2">
         <div className="flex items-start justify-between gap-2">
           <p className="text-sm font-medium">
             {t("settings.updateAvailable")}：v{version}

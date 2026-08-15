@@ -2,50 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+/* aukcraft 桌面端暗色主题（generate_theme.py 生成，accent = 品牌蓝 #2563EB）
+ * 中性色核心原样落地：#0B0E11 / #14181D / 8% 白发丝线 / #EDEDED / #8A9199
+ * 固定暗色：直接使用 :root，不提供 .light。border/input 为发丝线在 raised 上的不透明近似值
+ * （shadcn 的 hsl(var(--border)) 语法不带 alpha 通道）。
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
-  }
+    --background: 210 21.4% 5.5%;
+    --foreground: 0 0% 92.9%;
+    --card: 213 18.4% 9.6%;
+    --card-foreground: 0 0% 92.9%;
+    --popover: 213 18.4% 9.6%;
+    --popover-foreground: 0 0% 92.9%;
+    --primary: 213 93.9% 67.8%;
+    --primary-foreground: 210 21.4% 5.5%;
+    --secondary: 213 18.4% 9.6%;
+    --secondary-foreground: 0 0% 92.9%;
+    --muted: 213 18.4% 9.6%;
+    --muted-foreground: 212 6.8% 57.1%;
+    /* shadcn 的 accent 槽位是悬停底色，保持中性，不放品牌色 */
+    --accent: 213 18.4% 9.6%;
+    --accent-foreground: 0 0% 92.9%;
+    --destructive: 0 62.8% 50.6%;
+    --destructive-foreground: 0 0% 92.9%;
+    --border: 218 9.3% 16.9%;
+    --input: 218 9.3% 16.9%;
+    --ring: 213 93.9% 67.8%;
+    --radius: 4px;
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    /* aukcraft 原始 token，组件外直接使用 */
+    --color-base: #0B0E11;
+    --color-raised: #14181D;
+    --color-hairline: rgba(255, 255, 255, 0.08);
+    --color-ink: #EDEDED;
+    --color-muted: #8A9199;
+    --color-accent: #2563EB;
+    --color-accent-soft: #60A5FA;
+    --ease-lock: cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
@@ -58,6 +52,20 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* 交互过渡统一 ease-lock 缓动 */
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  [role="button"],
+  [role="switch"],
+  [role="tab"],
+  [role="checkbox"],
+  [role="radio"] {
+    transition-timing-function: var(--ease-lock);
   }
 
   /* 自定义滚动条：默认透明，悬停时淡入。不预留空间，不占布局。 */
@@ -89,5 +97,28 @@
   }
   *::-webkit-scrollbar-corner {
     background: transparent;
+  }
+
+  /* reduced-motion：降级为直接变色，禁用缩放动画 */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* micro 标签：分组标题与状态文字（JetBrains Mono → 系统等宽栈、全大写、宽字距、muted 色） */
+  .micro-label {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+      monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-muted);
   }
 }

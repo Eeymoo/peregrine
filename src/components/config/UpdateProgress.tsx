@@ -7,7 +7,7 @@ interface UpdateProgressProps {
 export function UpdateProgress({ progress }: UpdateProgressProps) {
   const { t } = useI18n();
   return (
-    <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-xs space-y-2">
+    <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg p-4 max-w-xs space-y-2">
       <p className="text-xs text-blue-500">{t("settings.updating")}</p>
       <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
         <div

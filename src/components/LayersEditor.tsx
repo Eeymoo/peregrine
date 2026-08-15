@@ -237,7 +237,7 @@ export function LayersEditor({
           {/* 切换到单图层按钮：与单图层模式的切换按钮位置一致 */}
           <button
             onClick={onSwitchSingleLayer}
-            className="absolute top-6 right-6 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded shadow hover:bg-primary/90 z-10"
+            className="absolute top-6 right-6 text-xs px-3 py-1.5 bg-primary text-primary-foreground roundedhover:bg-primary/90 z-10"
           >
             {t("layers.backToLegacy")}
           </button>

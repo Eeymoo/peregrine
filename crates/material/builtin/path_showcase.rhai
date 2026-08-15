@@ -1,4 +1,4 @@
-// Name: 自定义路径
+// Name: 路径
 // 静态锚点物料：用户输入 SVG path 数据（d 字符串），自动解析为
 // 路径图元渲染。适合从设计工具（Figma/Illustrator/Inkscape）复制
 // 锚点形状——把导出的 path d 值贴进参数即可。
@@ -13,17 +13,17 @@
 // 任何坐标域（0..24 图标网格、0..512 设计稿）都能正确铺满目标
 // 大小，无需手动换算。
 //
-// 内置默认形状：四叶花环（Q 段构成，圆润无尖角）——不输入 d 时
-// 也是一个开箱即用的呼吸感锚点。
+// 内置默认形状：正圆（四个 90° C 段构成）——最中性的锚点，开箱即用。
 // 纯静态（无动态输入），静止配置下帧指纹不变（稳态跳帧）。
 //
 // 颜色继承图层基色（换色热键生效）。
 
 fn defaults() {
     #{
-        // 默认形状：四叶花环（100×100 域，两个正交 Q 闭环）。
+        // 默认形状：正圆（圆心 50,50 半径 45，四个 90° C 段，
+        // 控制点切向长度 r×0.5523 为圆弧标准贝塞尔近似）。
         // 用户可贴入任意 SVG path d 值替换。
-        d: "M 50 5 Q 95 50 50 95 Q 5 50 50 5 Z",
+        d: "M 50 5 C 74.85 5 95 25.15 95 50 C 95 74.85 74.85 95 50 95 C 25.15 95 5 74.85 5 50 C 5 25.15 25.15 5 50 5 Z",
         // 目标大小（逻辑像素，短边基准）。
         size_pct: 0.08,
         // 填充（false = 仅描边）。
@@ -163,17 +163,21 @@ fn build(params, screen) {
     ]
 }
 
-// 解析失败回退：内置四叶花环（与 defaults.d 相同形状）。
+// 解析失败回退：程序化正圆（与 defaults.d 相同形状——四个 90°
+// C 段，切向控制点长度 k = r × 0.5523 为 90° 圆弧的标准贝塞尔近似）。
 fn build_fallback(screen, params) {
     let cx = (screen.min_x + screen.max_x) / 2.0;
     let cy = (screen.min_y + screen.max_y) / 2.0;
     let r = (screen.max_y - screen.min_y) * params.size_pct / 2.0;
+    let k = r * 0.5523;
 
-    // 四叶花环：两个正交的 Q 闭环（尖角圆润的花瓣环）。
+    // 正圆：从顶部起四个 90° C 段（右上/右下/左下/左上象限）。
     let segs = [
         #{cmd: "M", x: cx, y: cy - r},
-        #{cmd: "Q", x1: cx + r, y1: cy, x: cx, y: cy + r},
-        #{cmd: "Q", x1: cx - r, y1: cy, x: cx, y: cy - r},
+        #{cmd: "C", x1: cx + k, y1: cy - r, x2: cx + r, y2: cy - k, x: cx + r, y: cy},
+        #{cmd: "C", x1: cx + r, y1: cy + k, x2: cx + k, y2: cy + r, x: cx, y: cy + r},
+        #{cmd: "C", x1: cx - k, y1: cy + r, x2: cx - r, y2: cy + k, x: cx - r, y: cy},
+        #{cmd: "C", x1: cx - r, y1: cy - k, x2: cx - k, y2: cy - r, x: cx, y: cy - r},
         #{cmd: "Z"},
     ];
     [

@@ -2507,12 +2507,12 @@ fn build(params, screen) {
         }
     }
 
-    /// path_showcase（自定义路径）：静态物料，d 参数解析为单条 Path，
-    /// 包围盒归一化居中；缺省形状为 Q 段花环（开箱即用）。
+    /// path_showcase（路径）：静态物料，d 参数解析为单条 Path，
+    /// 包围盒归一化居中；缺省形状为四个 90° C 段构成的正圆（开箱即用）。
     #[test]
     fn builtin_path_showcase_parses_d_param() {
         let m = load_builtin("path_showcase");
-        assert_eq!(m.metadata().display_name, "自定义路径");
+        assert_eq!(m.metadata().display_name, "路径");
         assert!(!m.metadata().is_dynamic);
 
         let screen = test_rect();
@@ -2533,13 +2533,28 @@ fn build(params, screen) {
                 assert!(*fill);
                 // 缺省参数不携带颜色覆盖（继承图层色）。
                 assert_eq!(stroke_color, &None);
-                // 缺省形状是 Q 闭环。
+                // 缺省形状是 C 段正圆（四个 90° 象限段）。
                 assert!(
                     segments
                         .iter()
-                        .any(|s| matches!(s, peregrine_config::PathSegment::Q { .. })),
-                    "default flower should contain Q segments"
+                        .any(|s| matches!(s, peregrine_config::PathSegment::C { .. })),
+                    "default circle should contain C segments"
                 );
+                // 正圆验证：所有 C 段终点距屏幕中心等距（= 归一化半径）。
+                let mut end_dists = Vec::new();
+                for seg in segments {
+                    if let peregrine_config::PathSegment::C { x, y, .. } = *seg {
+                        end_dists.push(((x - 960.0).powi(2) + (y - 540.0).powi(2)).sqrt());
+                    }
+                }
+                assert_eq!(end_dists.len(), 4);
+                for d in &end_dists {
+                    assert!(
+                        (d - end_dists[0]).abs() < 1e-3,
+                        "circle endpoints must be equidistant: {:?}",
+                        end_dists
+                    );
+                }
                 // 归一化居中：所有坐标点距屏幕中心 < target/2 + 余量。
                 // target = 1080 × 0.08 = 86.4 → 半径 < 50（Q 控制点可在
                 // 包围盒外少许），断言 < 60。
@@ -2616,7 +2631,7 @@ fn build(params, screen) {
         assert_eq!(out_a, out_b);
     }
 
-    /// path_showcase：非法 d（A 圆弧不支持）回退内置花环——
+    /// path_showcase：非法 d（A 圆弧不支持）回退内置正圆——
     /// 物料永不渲染空输出（图层突然消失比回退更迷惑）。
     #[test]
     fn builtin_path_showcase_invalid_d_falls_back() {
@@ -2636,8 +2651,8 @@ fn build(params, screen) {
                 assert!(
                     segments
                         .iter()
-                        .any(|s| matches!(s, peregrine_config::PathSegment::Q { .. })),
-                    "fallback should be the built-in flower ring"
+                        .any(|s| matches!(s, peregrine_config::PathSegment::C { .. })),
+                    "fallback should be the built-in circle"
                 );
             }
             other => panic!("expected Path, got {:?}", other),

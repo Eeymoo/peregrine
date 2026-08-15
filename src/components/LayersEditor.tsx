@@ -278,11 +278,6 @@ export function LayersEditor({
                   <div className="text-xs text-muted-foreground">
                     {selectedMaterial.display_name} ({selectedMaterial.id})
                   </div>
-                  {selectedMaterial.is_dynamic && (
-                    <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
-                      ⚡ {t("layers.dynamicHint")}
-                    </div>
-                  )}
                 </div>
 
                 <div className="space-y-1">

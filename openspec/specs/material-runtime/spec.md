@@ -163,6 +163,29 @@ schema 返回值的每个条目 MUST 包含字段：
 - **THEN** 物料脚本 SHALL 返回单个 `Element::Image` 图元
 - **AND** 渲染器 MUST 复用现有 PNG 加载/缓存逻辑（`overlay_renderer.rs::ensure_image_loaded`）
 
+### Requirement: 内置时间物料 builtin.time
+
+内置物料清单 MUST 包含时间显示物料 `builtin.time`（动态物料，`is_dynamic = true`）：显示当前时间，参数含字号、位置、格式串（占位符 yyyy/MM/dd/HH/hh/mm/ss/a）、加粗开关。其 `build()` 实现遵循「内置时间物料使用上下文时间」要求（见 `overlay-dynamic-rendering` 规格）。默认配置与迁移逻辑 MUST NOT 引用 `builtin.time`（归位零迁移成本）。
+
+#### Scenario: 开箱即得时钟物料
+
+- **WHEN** 全新安装后打开图层编辑器的物料选择器（动态开关双开）
+- **THEN** 列表包含 `builtin.time`（显示名「时间显示」），带动态徽章，可直接添加
+
+#### Scenario: 求值走注册表
+
+- **WHEN** `MaterialRegistry::load_builtin()` 后以 `DynamicContext::static_context()` 求值 `builtin.time`
+- **THEN** 求值成功，输出 Text 图元序列；时间值为上下文时间（static 上下文下为 0 时刻对应值）
+
+### Requirement: 内置时间物料使用上下文时间
+
+`builtin.time` 的 `build()` MUST 通过 `time_ms()`（`DynamicContext` 快照）获取时间，MUST NOT 使用 `now_ms()` 直读墙钟——保证 overlay（每帧轮询时刻）与预览（请求时刻）的时间来源一致受调度约束。`now_ms()` host function 保留注册以兼容既有用户脚本，但文档标注为不推荐。
+
+#### Scenario: 时间物料随注入上下文求值
+
+- **WHEN** 以固定 `DynamicContext { time_ms: T, .. }` 求值 `builtin.time`
+- **THEN** 输出文本对应的时刻为 T，而非求值发生的真实墙钟时刻
+
 ### Requirement: 物料创作遵循标准化流程（元素 → 物料）
 
 系统 SHALL 为"从基础图元到可复用物料"提供标准化创作流程。物料创作 MUST 遵循五步：选图元 → 定布局 → 抽参数 → 声明 `defaults()`/`schema()` → 验证。

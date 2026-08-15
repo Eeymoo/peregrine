@@ -1,11 +1,11 @@
 // Name: 示例·时钟
 // 创作流程：① 选图元 = text；② 定布局 = 屏幕中心；③ 抽参数 = font_size / format；
-// ④ 声明 defaults/schema + is_dynamic=true；⑤ 验证（本文件由 cargo test 加载，动态输入软关闭下渲染为静态快照）。
+// ④ 声明 defaults/schema + is_dynamic=true；⑤ 验证（本文件由 cargo test 加载）。
 //
 // 时间动态物料示例：屏幕中心显示当前时间，每秒刷新。
-// 动态输入：time_ms() / now_ms() / format_time()。
-// 注意：当前发布构建默认软关闭动态输入，本物料会渲染为启动瞬间的静态时间；
-//       在构建启用动态输入后会实时刷新。
+// 动态输入：time_ms() / format_time()。
+// 时间来源用 time_ms()（上下文快照），不要用 now_ms()（直读墙钟，
+// 会绕过上下文快照导致预览/overlay 漂移）。
 // 参数：
 //   font_size — 字体像素大小
 //   format    — 时间格式（占位符 yyyy MM dd HH hh mm ss a）
@@ -31,7 +31,7 @@ fn is_dynamic() {
 fn build(params, screen) {
     let cx = (screen.min_x + screen.max_x) / 2.0;
     let cy = (screen.min_y + screen.max_y) / 2.0;
-    let content = format_time(now_ms(), params.format);
+    let content = format_time(time_ms(), params.format);
 
     [
         #{type: "text", x: cx, y: cy, content: content, font_size: params.font_size},

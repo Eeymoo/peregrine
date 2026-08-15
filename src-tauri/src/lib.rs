@@ -231,6 +231,17 @@ fn current_locale(state: &AppState) -> &'static str {
     }
 }
 
+/// 从共享快照读取动态物料运行时开关（`settings.material.dynamic_enabled`）。
+///
+/// 仅用于预览 IPC 的合取门控；overlay 线程直接读自己的快照，不经此函数。
+fn dynamic_enabled_pref(state: &AppState) -> bool {
+    state
+        .config
+        .lock()
+        .map(|cfg| cfg.as_ref().settings.material.dynamic_enabled)
+        .unwrap_or(true)
+}
+
 /// 全局应用状态，跨 commands 共享。
 pub struct AppState {
     /// 配置存储。
@@ -431,7 +442,7 @@ pub fn run() {
     // 注意：延迟到 tauri setup 钩子里 spawn，避免在 tokio runtime 启动前 spawn 导致任务丢失。
     let materials_dir_for_setup = materials_dir.clone();
     let registry_for_setup = material_registry.clone();
-    // 物料热重载后通知 overlay 线程刷新动态性判定缓存。
+    // 物料热重载后通知 overlay 线程替换 registry 句柄并重绘。
     let materials_overlay_cmd_tx = overlay_cmd_tx.clone();
     // 启动 watcher 任务，把 notifier 变更同步到共享快照。
     let watcher_storage = storage.clone();
@@ -528,9 +539,11 @@ pub fn run() {
             if let Some(ref materials_dir) = materials_dir_for_setup {
                 let watcher_registry = registry_for_setup.clone();
                 let materials_dir_clone = materials_dir.clone();
+                let watcher_app = app.handle().clone();
                 let watcher_overlay_cmd_tx = materials_overlay_cmd_tx.clone();
                 tauri::async_runtime::spawn(async move {
                     spawn_material_watcher(
+                        watcher_app,
                         watcher_registry,
                         materials_dir_clone,
                         watcher_overlay_cmd_tx,
@@ -641,6 +654,7 @@ pub fn run() {
                                     hotkey_bindings: None,
                                     telemetry_enabled: None,
                                     developer_mode: None,
+                                    material: None,
                                 },
                             )
                             .await;
@@ -1170,6 +1184,8 @@ struct PreferencesPatch {
     hotkey_bindings: Option<Vec<(HotkeyAction, String)>>,
     telemetry_enabled: Option<bool>,
     developer_mode: Option<bool>,
+    /// 物料运行时设置（动态开关 / 帧率档位）：整体替换 `settings.material`。
+    material: Option<peregrine_config::MaterialSettings>,
 }
 
 /// 更新偏好设置的共享逻辑，供 Tauri command 和托盘菜单事件复用。
@@ -1243,6 +1259,9 @@ async fn update_preferences_inner(
     if let Some(dev_mode) = preferences.developer_mode {
         config.settings.developer_mode = dev_mode;
     }
+    if let Some(material) = &preferences.material {
+        config.settings.material = material.clone();
+    }
 
     config.validate().map_err(|e| e.to_string())?;
     crate::safe_try!(
@@ -1312,6 +1331,7 @@ async fn update_preferences_inner(
         "hotkey_bindings": snapshot.as_ref().settings.hotkey_bindings,
         "telemetry_enabled": snapshot.as_ref().settings.telemetry_enabled,
         "developer_mode": snapshot.as_ref().settings.developer_mode,
+        "material": snapshot.as_ref().settings.material,
     });
     app.emit("peregrine:settings-changed", &settings_json)
         .map_err(|e| e.to_string())?;
@@ -1597,6 +1617,13 @@ fn build_shapes_ipc(
     screen_h: f32,
     profile: Option<peregrine_config::Profile>,
 ) -> Result<Vec<BuiltShape>, String> {
+    // 动态开关判定必须先于下方 profile 回退的 config 加锁：
+    // dynamic_enabled_pref 内部也会 lock state.config，若在 config_guard
+    // 持有期间调用会构成 std::sync::Mutex 重入死锁（同步 command 在主线程
+    // 执行，一次死锁即冻结整个 UI）。此处先行短锁读出并释放。
+    let dynamic_input_active =
+        peregrine::MATERIAL_DYNAMIC_INPUT_ENABLED && dynamic_enabled_pref(&state);
+
     // 前端传入的 Profile 是未持久化的内存态，校验失败时回退快照而不是报错，
     // 避免拖动过程中的瞬时非法值（如超出范围的滑块）打断预览。
     let provided = profile.filter(|p| p.validate().is_ok());
@@ -1627,9 +1654,9 @@ fn build_shapes_ipc(
     // MATERIAL_RUNTIME_ENABLED 门控：物料运行时启用时走 layers 求值（与 overlay 一致）；
     // 软关闭时强制走旧版 Crosshair 路径（crosshair 缺失时回退默认准星）。
     let shapes = if peregrine::MATERIAL_RUNTIME_ENABLED {
-        // MATERIAL_DYNAMIC_INPUT_ENABLED 门控：动态输入停用时用 static_context()
-        // （version=0，静态物料永久缓存，动态物料冻结渲染），与 overlay 保持一致。
-        let ctx = if peregrine::MATERIAL_DYNAMIC_INPUT_ENABLED {
+        // 动态上下文选择：编译期总闸 AND 运行时用户开关（与 overlay 一致）。
+        // 运行时关闭时用 static_context()（动态物料冻结渲染）。
+        let ctx = if dynamic_input_active {
             DynamicContext::preview_snapshot(screen_w, screen_h)
         } else {
             DynamicContext::static_context()
@@ -2276,11 +2303,14 @@ fn uuid_like_id() -> String {
 /// 重载策略：去抖 500ms 后调用 `registry.load_user(dir)`，
 /// registry 内部会先清空旧 user.* 物料再插入新物料。
 ///
-/// 重载后通过 app.emit 广播 `peregrine:materials-changed` 事件（待 AppHandle 接入）。
+/// 重载后做两件事（design D9）：
+/// 1. 经命令通道向 overlay 线程发送携带新 registry 句柄的 `RefreshMaterials`；
+/// 2. 向前端广播 `peregrine:materials-changed` 事件（刷新物料列表）。
 async fn spawn_material_watcher(
+    app: tauri::AppHandle,
     registry: MaterialRegistry,
     materials_dir: std::path::PathBuf,
-    _overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
+    overlay_cmd_tx: mpsc::Sender<overlay::OverlayCommand>,
 ) {
     use notify::{Config as NotifyConfig, Event, RecommendedWatcher, RecursiveMode, Watcher};
     use std::time::Duration;
@@ -2349,10 +2379,16 @@ async fn spawn_material_watcher(
                             count = registry.len(),
                             "user materials reloaded"
                         );
-                        // MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，
-                        // overlay 不再消费物料动态性变化，无需通知 overlay 刷新。
-                        // 仍广播事件供前端将来接入（预留）。
-                        // TODO: 接入 app.emit("peregrine:materials-changed", &())
+                        // 通知 overlay 线程：整体替换 registry 句柄 + 触发重绘。
+                        // 热重载不改配置，不触发 follower 重启逻辑；
+                        // 动态性判定每轮直接计算，下一轮自动反映新 is_dynamic。
+                        let _ = overlay_cmd_tx.send(overlay::OverlayCommand::RefreshMaterials(
+                            Arc::new(registry.clone()),
+                        ));
+                        // 通知前端：刷新物料列表（选择器 / 参数面板）。
+                        if let Err(e) = app.emit("peregrine:materials-changed", ()) {
+                            tracing::warn!(error = %e, "emit materials-changed failed");
+                        }
                     }
                 }
             }

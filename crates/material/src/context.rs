@@ -7,7 +7,8 @@
 //! 设计目标：
 //! - 物料求值无全局可变状态；同一输入产生同一输出（除了显式声明的动态输入）。
 //! - 动态输入集可扩展：新增输入源只需在本结构体新增字段 + 新注册一个 host function。
-//! - `version` 字段用于缓存失效：静态物料永远 version=0；动态物料每帧递增。
+//! - `version` 字段为将来的求值缓存失效预留（当前无消费者：`build_layers_shapes`
+//!   每帧全量求值，见 change `restore-dynamic-material` D5 记账）。
 
 use std::collections::HashSet;
 
@@ -22,9 +23,9 @@ pub struct DynamicContext {
     pub key_state: KeyState,
     /// 随机数种子，派生自 `(material_id, params_hash, frame_count)`。
     pub rng_seed: u64,
-    /// 动态上下文版本号，用于物料缓存失效。
+    /// 动态上下文版本号，为将来的求值缓存失效预留。
     ///
-    /// 静态物料（`is_dynamic = false`）永远为 0；动态物料每帧递增。
+    /// 当前无消费者（每帧全量求值）；做缓存时应以单调时间源驱动此字段。
     pub version: u64,
 }
 
@@ -43,8 +44,8 @@ impl Default for DynamicContext {
 impl DynamicContext {
     /// 创建一个用于静态物料求值的上下文（所有动态输入为默认值，version=0）。
     ///
-    /// 静态物料不调用任何动态输入 host function，因此上下文内容无关紧要，
-    /// 但必须保证 version 固定为 0 以启用永久缓存。
+    /// 静态物料不调用任何动态输入 host function，因此上下文内容无关紧要；
+    /// 动态物料在此上下文下求值则渲染为冻结快照（运行时软关闭的语义基础）。
     pub fn static_context() -> Self {
         Self::default()
     }

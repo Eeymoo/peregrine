@@ -3718,6 +3718,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 name = "peregrine"
 version = "0.2.5"
 dependencies = [
+ "fontdb",
  "peregrine_config",
  "peregrine_material",
  "png 0.17.16",

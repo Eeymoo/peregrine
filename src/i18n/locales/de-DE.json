@@ -216,7 +216,8 @@
     "devToolsHint": "Wenn aktiviert, stehen Rechtsklick „Inspizieren“ und Strg+Umschalt+I zur Verfügung. Deaktivieren spart Speicher. Wirkt nach erneutem Öffnen des Fensters.",
     "devToolsRestartTitle": "DevTools-Einstellung geändert",
     "devToolsRestartDesc": "DevTools benötigt einen Neustart der App, um wirksam zu werden. Jetzt neu starten?",
-    "devOpenDevToolsFailed": "DevTools konnte nicht geöffnet werden"
+    "devOpenDevToolsFailed": "DevTools konnte nicht geöffnet werden",
+    "sectionMaterial": "Materialien"
   },
   "styles": {
     "edge_rect": "Kanten-Rechteck",
@@ -336,5 +337,14 @@
     "no_renderable_content": "Overlay kann nicht gestartet werden: keine sichtbaren Ebenen oder Fadenkreuz",
     "overlay_active_remove_last_visible": "Die letzte sichtbare Ebene kann während das Overlay läuft nicht gelöscht werden",
     "overlay_active_hide_last_visible": "Die letzte sichtbare Ebene kann während das Overlay läuft nicht ausgeblendet werden"
+  },
+  "material": {
+    "dynamicEnabled": "Dynamische Materialien",
+    "dynamicEnabledHint": "Aus: Dynamische Materialien (z. B. die Uhr) werden eingefroren; sofort wirksam ohne Neustart",
+    "fps": "Animations-Bildrate",
+    "fpsHint": "Maximale Aktualisierungsrate dynamischer Materialien; rein statische Profile sind nicht betroffen",
+    "fpsSystem": "System folgen",
+    "statusActive": "Dynamische Pipeline aktiv: Dynamische Materialien aktualisieren sich mit der eingestellten Rate",
+    "statusFrozen": "Dynamische Pipeline aus: Dynamische Materialien eingefroren; statische Ebenen nicht betroffen"
   }
 }

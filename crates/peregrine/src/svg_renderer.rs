@@ -41,10 +41,13 @@ pub fn render_shapes_to_buffer(
 
 /// 把 SVG 字符串光栅化到像素缓冲区。
 fn render_svg_to_buffer(buffer: &mut [u32], pixel_w: u32, pixel_h: u32, svg: &str) -> bool {
-    // 解析 SVG 为 usvg Tree，并加载系统字体以支持 <text> 元素。
-    let mut options = usvg::Options::default();
-    options.fontdb_mut().load_system_fonts();
-    let tree = match usvg::Tree::from_str(svg, &options) {
+    // 解析 SVG：默认字体集（Segoe UI）或含非 ASCII 文本时的 CJK 全量兜底。
+    let options = if svg_needs_cjk(svg) {
+        &*FONT_OPTIONS_CJK
+    } else {
+        &*FONT_OPTIONS
+    };
+    let tree = match usvg::Tree::from_str(svg, options) {
         Ok(t) => t,
         Err(e) => {
             tracing::warn!("SVG 解析失败: {}", e);
@@ -52,43 +55,121 @@ fn render_svg_to_buffer(buffer: &mut [u32], pixel_w: u32, pixel_h: u32, svg: &st
         }
     };
 
-    // 用 tiny-skia 光栅化。
-    let mut pixmap = match tiny_skia::Pixmap::new(pixel_w, pixel_h) {
-        Some(pm) => pm,
-        None => {
-            tracing::warn!("pixmap 创建失败 ({}x{})", pixel_w, pixel_h);
-            return false;
+    // 复用线程局部的 tiny-skia Pixmap：按需重建，同尺寸直接复用，
+    // 消除每次渲染 8MB（1080p）的分配/释放波动。
+    thread_local! {
+        static PIXMAP: std::cell::RefCell<Option<tiny_skia::Pixmap>> =
+            const { std::cell::RefCell::new(None) };
+    }
+    PIXMAP.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let need_new = slot
+            .as_ref()
+            .is_none_or(|pm| pm.width() != pixel_w || pm.height() != pixel_h);
+        if need_new {
+            match tiny_skia::Pixmap::new(pixel_w, pixel_h) {
+                Some(pm) => *slot = Some(pm),
+                None => {
+                    tracing::warn!("pixmap 创建失败 ({}x{})", pixel_w, pixel_h);
+                    return false;
+                }
+            }
         }
-    };
-    // tiny-skia 的 transform 是逻辑→物理的缩放。
-    // 但 SVG 中已经乘了 scale（见 build_svg），所以这里用 identity。
-    resvg::render(
-        &tree,
-        tiny_skia::Transform::identity(),
-        &mut pixmap.as_mut(),
-    );
+        let pixmap = slot.as_mut().expect("pixmap just ensured");
+        pixmap.data_mut().fill(0);
+        // tiny-skia 的 transform 是逻辑→物理的缩放。
+        // 但 SVG 中已经乘了 scale（见 build_svg），所以这里用 identity。
+        resvg::render(
+            &tree,
+            tiny_skia::Transform::identity(),
+            &mut pixmap.as_mut(),
+        );
+        // 将 tiny-skia 的非预乘 RGBA 像素转为 softbuffer 的预乘 0xAARRGGBB。
+        // 只写入 alpha > 0 的像素，保留 buffer 中已有内容（用于与 CPU 光栅化结果叠加）。
+        let data = pixmap.data();
+        let len = data.len() / 4;
+        let buf_len = buffer.len().min(len);
+        for i in 0..buf_len {
+            let r = data[i * 4] as f32 / 255.0;
+            let g = data[i * 4 + 1] as f32 / 255.0;
+            let b = data[i * 4 + 2] as f32 / 255.0;
+            let a = data[i * 4 + 3] as f32 / 255.0;
+            // 预乘 alpha。
+            let pr = (r * a * 255.0).round() as u32;
+            let pg = (g * a * 255.0).round() as u32;
+            let pb = (b * a * 255.0).round() as u32;
+            let pa = (a * 255.0).round() as u32;
+            if pa > 0 {
+                buffer[i] = (pa << 24) | (pr << 16) | (pg << 8) | pb;
+            }
+        }
+        true
+    })
+}
 
-    // 将 tiny-skia 的非预乘 RGBA 像素转为 softbuffer 的预乘 0xAARRGGBB。
-    // 只写入 alpha > 0 的像素，保留 buffer 中已有内容（用于与 CPU 光栅化结果叠加）。
-    let data = pixmap.data();
-    let len = data.len() / 4;
-    let buf_len = buffer.len().min(len);
-    for i in 0..buf_len {
-        let r = data[i * 4] as f32 / 255.0;
-        let g = data[i * 4 + 1] as f32 / 255.0;
-        let b = data[i * 4 + 2] as f32 / 255.0;
-        let a = data[i * 4 + 3] as f32 / 255.0;
-        // 预乘 alpha。
-        let pr = (r * a * 255.0).round() as u32;
-        let pg = (g * a * 255.0).round() as u32;
-        let pb = (b * a * 255.0).round() as u32;
-        let pa = (a * 255.0).round() as u32;
-        if pa > 0 {
-            buffer[i] = (pa << 24) | (pr << 16) | (pg << 8) | pb;
+/// usvg 解析选项（默认字体集），按需懒加载。
+///
+/// 内存预算（<30MB）不允许驻留全量系统字体库（`load_system_fonts` 全量
+/// 扫描并保留数百字体文件 ≈ 25MB+）。策略：
+/// - **默认**只加载 Segoe UI 常规 + 粗体两个文件（各 <1MB，Windows 自带），
+///   `font_family` 指向 Segoe UI——数字/拉丁/时钟场景全覆盖；
+/// - **兜底**：文本图元含非 ASCII 字符（中文等 CJK，Segoe UI 无字形）时，
+///   懒加载一次雅黑定向字体集（`FONT_OPTIONS_CJK`），豆腐块兜底。
+///
+/// 两条路径都进程内只加载一次，稳态零分配零重复扫描。
+static FONT_OPTIONS: std::sync::LazyLock<usvg::Options> = std::sync::LazyLock::new(|| {
+    let mut options = usvg::Options {
+        font_family: "Segoe UI".to_string(),
+        ..Default::default()
+    };
+    let mut db = fontdb::Database::new();
+    // Segoe UI 家族（Windows 系统字体，始终存在；缺失时静默跳过，
+    // 后续 resvg 回退 usvg 内置默认字体）。
+    let fonts_dir = std::path::PathBuf::from(r"C:\Windows\Fonts");
+    for font in ["segoeui.ttf", "segoeuib.ttf"] {
+        let p = fonts_dir.join(font);
+        if let Err(e) = db.load_font_file(&p) {
+            tracing::debug!(path = %p.display(), error = %e, "optional font not loaded");
         }
     }
+    *options.fontdb_mut() = db;
+    options
+});
 
-    true
+/// CJK 兜底选项，仅在文本含非 ASCII 字符时懒加载一次。
+///
+/// 零遍历策略：定向 mmap 微软雅黑（`msyh.ttc`，Windows Vista+ 自带，
+/// 含简中日韩字形），命中则零字体目录扫描；仅当文件缺失（精简系统 /
+/// 非常规环境）才退回 `load_system_fonts()` 全量遍历兜底。
+static FONT_OPTIONS_CJK: std::sync::LazyLock<usvg::Options> = std::sync::LazyLock::new(|| {
+    let mut options = usvg::Options {
+        font_family: "Microsoft YaHei".to_string(),
+        ..Default::default()
+    };
+    let mut db = fontdb::Database::new();
+    let fonts_dir = std::path::PathBuf::from(r"C:\Windows\Fonts");
+    // msyh.ttc 常规 + msyhbd.ttc 粗体；任一命中即不遍历。
+    let mut loaded = false;
+    for font in ["msyh.ttc", "msyhbd.ttc"] {
+        let p = fonts_dir.join(font);
+        if db.load_font_file(&p).is_ok() {
+            loaded = true;
+        }
+    }
+    if !loaded {
+        tracing::info!("msyh not found, fallback to full system font scan");
+        db.load_system_fonts();
+    }
+    *options.fontdb_mut() = db;
+    options
+});
+
+/// 判断 SVG 文本是否包含非 ASCII 字符（需要 CJK 字形兜底）。
+///
+/// 只扫 `<text>` 内容太琐碎，直接扫整个 SVG 字符串：坐标数字/标签全是
+/// ASCII，命中非 ASCII 字节即视为含 CJK 文本，走全量字体库。
+fn svg_needs_cjk(svg: &str) -> bool {
+    svg.bytes().any(|b| b > 0x7F)
 }
 
 /// 把多图层图元列表（Element + color + opacity）光栅化到像素缓冲区。

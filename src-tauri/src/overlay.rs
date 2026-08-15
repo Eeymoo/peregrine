@@ -20,7 +20,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
 /// 发送给 overlay 管理线程的命令。
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum OverlayCommand {
     /// 启动 overlay 并跟随指定标题的目标窗口。
     Start(String),
@@ -34,10 +34,11 @@ pub enum OverlayCommand {
     QueryActive,
     /// 标记需要重绘（follower 调整窗口位置后触发）。
     Invalidate,
-    /// 用户物料热重载完成：请求重绘一帧。
-    /// MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，渲染路径不消费物料，
-    /// 此命令仅保留以兼容发送方，语义退化为普通重绘请求。
-    RefreshMaterials,
+    /// 用户物料热重载完成：携带重建后的 registry 句柄。
+    ///
+    /// overlay 侧替换自身持有的 `material_registry`（旧渲染器随下次创建消费新句柄）
+    /// 并触发重绘；动态性判定因每轮直接计算，下一轮自动反映新物料的 `is_dynamic`。
+    RefreshMaterials(Arc<peregrine_material::MaterialRegistry>),
 }
 
 /// 内部自定义事件：把外部命令转发进 winit 事件循环。
@@ -96,6 +97,18 @@ fn run_overlay_loop_windows(
         .expect("run overlay event loop");
 }
 
+/// 从 FPS 档位与系统刷新率推导目标帧间隔（design D3）。
+///
+/// - `Some(30/60/120)`：固定节拍 `1s / fps`；
+/// - `None`（跟随系统）：用缓存的刷新率，未探测到（None）回退 60。
+///
+/// 帧率档位由 `AppConfig::validate()` 限定枚举集，此处无需重复校验。
+#[cfg(windows)]
+fn frame_interval_for(fps: Option<u32>, monitor_refresh_hz: Option<u32>) -> Duration {
+    let hz = fps.or(monitor_refresh_hz).unwrap_or(60).max(1);
+    Duration::from_nanos(1_000_000_000u64 / hz as u64)
+}
+
 #[cfg(windows)]
 struct OverlayApp {
     config: Arc<Mutex<ConfigSnapshot>>,
@@ -110,8 +123,12 @@ struct OverlayApp {
     redraw_proxy: winit::event_loop::EventLoopProxy<UserEvent>,
     /// 上一帧渲染时间，用于限制 overlay 帧率避免空转占 CPU。
     last_render: Option<Instant>,
-    /// 目标帧间隔（60 FPS ≈ 16.6 ms）。
+    /// 目标帧间隔：从 `settings.material.fps` 推导（None = 系统刷新率，回退 60），
+    /// `UpdateConfig` 时热更新。
     frame_interval: Duration,
+    /// 主屏刷新率（Hz）：overlay 窗口创建后探测一次并缓存，
+    /// 供「跟随系统」档解析帧间隔；异常值（<24 或 >480）回退 60。
+    monitor_refresh_hz: Option<u32>,
     /// 静态准心脏标记：仅在配置变化/窗口尺寸变化时为 true，渲染后清除。
     needs_redraw: bool,
 }
@@ -123,6 +140,12 @@ impl OverlayApp {
         material_registry: Arc<peregrine_material::MaterialRegistry>,
         redraw_proxy: winit::event_loop::EventLoopProxy<UserEvent>,
     ) -> Self {
+        // 启动时从配置快照解析帧间隔（fps 档位 → 60 兜底；
+        // 系统刷新率在窗口创建后探测补齐，见 create_overlay）。
+        let fps = {
+            let cfg = config.lock().expect("config lock");
+            cfg.as_ref().settings.material.fps
+        };
         Self {
             config,
             material_registry,
@@ -133,20 +156,77 @@ impl OverlayApp {
             follower_stop: None,
             redraw_proxy,
             last_render: None,
-            frame_interval: Duration::from_nanos(16_666_667),
+            frame_interval: frame_interval_for(fps, None),
+            monitor_refresh_hz: None,
             needs_redraw: false,
         }
     }
 
-    /// 判断当前配置是否需要持续重绘。
-    /// MATERIAL_RUNTIME_ENABLED 门控：物料运行时已软关闭，不再查询图层物料的
-    /// `is_dynamic`；仅保留旧格式 RandomOrb 样式的持续重绘判定。
+    /// 判断当前配置是否需要持续重绘（每轮 about_to_wait 直接计算，无缓存）。
+    ///
+    /// - 旧格式：RandomOrb 样式（不随动态开关门控，保持既有行为）；
+    /// - 新格式：任一可见图层引用的物料 `is_dynamic`（经 registry 查找）
+    ///   且动态开关合取为真（编译期总闸 AND 运行时用户开关）。
+    ///
+    /// 判定开销：一次配置锁 + 逐图层 registry 读锁查找 + 布尔与，微秒级。
     fn compute_is_animated(&self) -> bool {
+        self.animation_min_interval().is_some()
+    }
+
+    /// 计算持续重绘场景的最小唤醒间隔。
+    ///
+    /// 返回 `Some(interval)`：需要持续重绘，且唤醒节拍不快于该间隔
+    /// （物料声明的 `refresh_interval_ms` 对配置帧率节拍取 max 节流——
+    /// 时钟声明 500ms 时，60FPS 配置下 Rhai 求值从每秒 60 次降到 2 次，
+    /// 求值 / 哈希 / 光栅化整条链路都随唤醒一起消失）。
+    /// 返回 `None`：无需持续重绘（纯事件驱动）。
+    ///
+    /// 节流只作用于自动唤醒；外部事件（配置变更 / follower Invalidate /
+    /// 窗口事件）触发的重绘不受限，保证 WYSIWYG 即时性。
+    fn animation_min_interval(&self) -> Option<Duration> {
         let cfg = self.config.lock().expect("config lock");
-        cfg.active_profile()
-            .and_then(|p| p.crosshair.as_ref())
-            .map(|c| c.style == peregrine_config::CrosshairStyle::RandomOrb)
-            .unwrap_or(false)
+        let Some(profile) = cfg.active_profile() else {
+            return None;
+        };
+        // 旧格式 RandomOrb 分支（既有行为，不节流——随机球逐帧重排）。
+        if profile
+            .crosshair
+            .as_ref()
+            .is_some_and(|c| c.style == peregrine_config::CrosshairStyle::RandomOrb)
+        {
+            return Some(self.frame_interval);
+        }
+        // MATERIAL_RUNTIME_ENABLED 门控：物料运行时软关闭时不查询图层物料。
+        if !peregrine::MATERIAL_RUNTIME_ENABLED {
+            return None;
+        }
+        // 动态开关合取（design D2）：运行时关闭时 layers 分支恒 false。
+        if !(peregrine::MATERIAL_DYNAMIC_INPUT_ENABLED && cfg.settings.material.dynamic_enabled) {
+            return None;
+        }
+        // layers 分支：任一可见图层物料 is_dynamic 即持续重绘。
+        // 有效唤醒间隔 = max(帧率节拍, 可见动态物料声明的最短刷新间隔)
+        //（多物料取最小声明，保证最快者不失真；未声明 = 0 不节流）。
+        let mut animated = false;
+        let mut min_declared_ms = u32::MAX;
+        for layer in profile.layers.iter().filter(|l| l.visible) {
+            if let Some(m) = self.material_registry.get(layer.material.material_id()) {
+                if m.metadata().is_dynamic {
+                    animated = true;
+                    min_declared_ms = min_declared_ms.min(m.metadata().refresh_interval_ms);
+                }
+            }
+        }
+        if !animated {
+            return None;
+        }
+        let interval = if min_declared_ms == u32::MAX || min_declared_ms == 0 {
+            self.frame_interval
+        } else {
+            let declared = Duration::from_millis(min_declared_ms as u64);
+            declared.max(self.frame_interval)
+        };
+        Some(interval)
     }
 
     fn handle_command(&mut self, event_loop: &ActiveEventLoop, cmd: OverlayCommand) {
@@ -184,6 +264,14 @@ impl OverlayApp {
 
                 *self.config.lock().expect("config lock") = snap;
 
+                // 帧率档位热更新：fps 变化时重解析帧间隔
+                //（None = 跟随系统档使用缓存的刷新率）。
+                let fps = {
+                    let cfg = self.config.lock().expect("config lock");
+                    cfg.as_ref().settings.material.fps
+                };
+                self.frame_interval = frame_interval_for(fps, self.monitor_refresh_hz);
+
                 // 配置变化，静态准心需要重绘。
                 // 必须主动 request_redraw：事件驱动模型下没有事件就不会有下一帧，
                 // 否则配置变更要等任意后续事件才上屏（表现为"慢一拍"）。
@@ -199,9 +287,18 @@ impl OverlayApp {
                 }
             }
             OverlayCommand::QueryActive => {}
-            OverlayCommand::RefreshMaterials => {
-                // 物料运行时已软关闭，渲染路径不消费物料；退化为普通重绘请求。
+            OverlayCommand::RefreshMaterials(registry) => {
+                // 物料热重载：整体替换 registry 句柄（沿用「整体替换 + RwLock」模式，
+                // 无部分更新窗口）。运行中的渲染器同步替换句柄，无需重建 overlay；
+                // 动态性判定因每轮直接计算，下一轮自动反映新物料的 is_dynamic。
+                self.material_registry = registry.clone();
+                if let Some(renderer) = self.renderer.as_mut() {
+                    renderer.update_material_registry(registry);
+                }
                 self.needs_redraw = true;
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
             }
             OverlayCommand::Invalidate => {
                 // follower 调整了窗口位置，需要重绘一帧。
@@ -268,6 +365,32 @@ impl OverlayApp {
         };
 
         let _ = window.set_cursor_hittest(false);
+
+        // 系统刷新率探测（design D3）：窗口创建后探测一次并缓存，
+        // 供「跟随系统」档解析帧间隔；不逐帧查询。
+        // 探测失败或异常值（<24 或 >480 Hz）由 frame_interval_for 回退 60。
+        if self.monitor_refresh_hz.is_none() {
+            if let Some(hz) = window
+                .current_monitor()
+                .and_then(|m| m.refresh_rate_millihertz())
+            {
+                let hz = (hz + 500) / 1000; // 毫赫兹 → Hz（四舍五入）
+                if (24..=480).contains(&hz) {
+                    tracing::debug!(hz, "detected monitor refresh rate");
+                    self.monitor_refresh_hz = Some(hz);
+                } else {
+                    tracing::warn!(hz, "abnormal monitor refresh rate, fallback to 60");
+                }
+            }
+            // 「跟随系统」档下用探测结果刷新帧间隔。
+            let fps = {
+                let cfg = self.config.lock().expect("config lock");
+                cfg.as_ref().settings.material.fps
+            };
+            if fps.is_none() {
+                self.frame_interval = frame_interval_for(None, self.monitor_refresh_hz);
+            }
+        }
 
         #[cfg(windows)]
         {
@@ -508,17 +631,19 @@ impl ApplicationHandler<UserEvent> for OverlayApp {
             return;
         };
 
-        // 判断当前配置是否需要持续重绘（旧格式 RandomOrb 动画样式）。
-        // 判定开销极小（一次锁 + 枚举比较），每轮 about_to_wait 直接计算。
-        let is_animated = self.compute_is_animated();
+        // 判断当前配置是否需要持续重绘（RandomOrb 动画样式或动态物料图层）。
+        // 判定开销极小（一次锁 + 枚举比较 / registry 查找），每轮 about_to_wait 直接计算。
+        // 动画有效节拍 = max(配置帧率, 物料声明 refresh_interval_ms)——
+        // 时钟声明 500ms 时唤醒降到 2Hz，求值/光栅化整条链路随之消失。
+        let anim_interval = self.animation_min_interval();
 
-        if is_animated {
-            // RandomOrb 保持 60FPS 持续重绘。
+        if let Some(interval) = anim_interval {
+            // 持续重绘：按有效节拍唤醒（fps → 物料声明间隔 → 60 兜底，取 max）。
             let now = Instant::now();
             if let Some(last) = self.last_render {
                 let elapsed = now.saturating_duration_since(last);
-                if elapsed < self.frame_interval {
-                    event_loop.set_control_flow(ControlFlow::WaitUntil(last + self.frame_interval));
+                if elapsed < interval {
+                    event_loop.set_control_flow(ControlFlow::WaitUntil(last + interval));
                     return;
                 }
             }

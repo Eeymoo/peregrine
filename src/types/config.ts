@@ -267,4 +267,16 @@ export interface AppSettings {
    * true = 已解锁（重开窗口后 DevTools 可用，「开发」Tab 可见）。
    */
   developer_mode?: boolean;
+  /**
+   * 物料运行时设置（「物料」Tab）。缺失 = 默认值（动态开、帧率跟随系统）。
+   */
+  material?: MaterialSettings;
+}
+
+/** 物料运行时设置（与 Rust `MaterialSettings` 对应）。 */
+export interface MaterialSettings {
+  /** 动态物料总开关（运行时层，默认 true）。与编译期总闸构成与门。 */
+  dynamic_enabled: boolean;
+  /** 动画帧率档位（FPS 上限节拍）。缺失/null = 跟随系统主屏刷新率（回退 60）。 */
+  fps?: 30 | 60 | 120 | null;
 }

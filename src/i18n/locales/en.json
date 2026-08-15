@@ -216,7 +216,8 @@
     "devToolsHint": "When enabled, right-click \"Inspect\" and Ctrl+Shift+I are available. Disabling saves memory. Takes effect after reopening the window.",
     "devToolsRestartTitle": "DevTools setting changed",
     "devToolsRestartDesc": "DevTools requires an app restart to take effect. Restart now?",
-    "devOpenDevToolsFailed": "Failed to open DevTools"
+    "devOpenDevToolsFailed": "Failed to open DevTools",
+    "sectionMaterial": "Materials"
   },
   "styles": {
     "edge_rect": "Edge Rectangle",
@@ -336,5 +337,14 @@
     "no_renderable_content": "Cannot start overlay: no visible layers or crosshair configured",
     "overlay_active_remove_last_visible": "Cannot delete the last visible layer while the overlay is running",
     "overlay_active_hide_last_visible": "Cannot hide the last visible layer while the overlay is running"
+  },
+  "material": {
+    "dynamicEnabled": "Dynamic materials",
+    "dynamicEnabledHint": "When off, dynamic materials (e.g. the clock) render frozen; applies live without restart",
+    "fps": "Animation frame rate",
+    "fpsHint": "Refresh cap for dynamic materials; purely static profiles are unaffected",
+    "fpsSystem": "Follow system",
+    "statusActive": "Dynamic pipeline enabled: dynamic materials refresh at the configured rate",
+    "statusFrozen": "Dynamic pipeline off: dynamic materials render frozen; static layers unaffected"
   }
 }

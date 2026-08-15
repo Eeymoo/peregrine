@@ -32,6 +32,15 @@ pub struct OverlayRenderer {
     material_registry: Arc<peregrine_material::MaterialRegistry>,
     /// PNG 图片缓存：路径 → 解码后的 RGBA 像素。
     image_cache: Option<CachedImage>,
+    /// 上一帧渲染指纹：求值输出 + 尺寸 + 抗锯齿 + 渲染后端 + 图片路径缓存纪元。
+    ///
+    /// 动态物料（如时钟）每秒才改变一次输出，而调度节拍可达 60/120FPS——
+    /// 指纹相同的帧直接跳过全部光栅化（清屏 / Rhai 已在上游跳过 / resvg），
+    /// 把「持续重绘」的稳态成本压到一次指纹比较。任一影响像素的输入
+    /// （shapes 输出 / 窗口尺寸 / 设置 / 图片内容）变化都会改变指纹。
+    last_frame_fingerprint: u64,
+    /// 图片缓存纪元：图片（重）加载时递增，参与指纹防止「路径相同但内容变了」漏重绘。
+    image_cache_epoch: u64,
 }
 
 /// 已解码的 PNG 图片，包含原始像素数据和尺寸。
@@ -65,12 +74,25 @@ impl OverlayRenderer {
             config,
             material_registry,
             image_cache: None,
+            last_frame_fingerprint: 0,
+            image_cache_epoch: 0,
         }
     }
 
     /// 窗口大小变化时调用（softbuffer 在 render 时自动 resize，此处空实现）。
     pub fn resize(&mut self, _new_size: winit::dpi::PhysicalSize<u32>) {
         // softbuffer 的 resize 在 render_overlay 中按当前窗口尺寸自动处理。
+    }
+
+    /// 物料热重载后替换 registry 句柄（整体替换，无部分更新窗口）。
+    ///
+    /// 供 overlay 线程在 `RefreshMaterials` 命令中调用，
+    /// 使运行中的渲染器无需重建即感知新物料（含新的 `is_dynamic`）。
+    pub fn update_material_registry(
+        &mut self,
+        material_registry: Arc<peregrine_material::MaterialRegistry>,
+    ) {
+        self.material_registry = material_registry;
     }
 
     /// 渲染一帧遮盖层。
@@ -109,6 +131,11 @@ impl OverlayRenderer {
         let profile = config.active_profile();
         let antialiasing = config.settings.antialiasing;
         let renderer_backend = config.settings.renderer_backend;
+        // 动态链路合取判定（design D2）：编译期总闸 AND 运行时用户开关。
+        // 运行时关闭时为用户侧软关闭——求值走 static_context()，
+        // 与预览 IPC、动态性判定三处门控语义一致。
+        let dynamic_input_active =
+            crate::MATERIAL_DYNAMIC_INPUT_ENABLED && config.settings.material.dynamic_enabled;
 
         // 判断走新格式（layers）还是旧格式（crosshair）：
         // - 新格式：迁移后的 profile `crosshair` 恒为 None（见 migration.rs），
@@ -161,37 +188,72 @@ impl OverlayRenderer {
             self.ensure_image_loaded(&legacy_crosshair.image_path);
         }
 
-        // 新格式路径：扫描 layers 中所有 Image 图元的路径，预加载到缓存。
+        // 新格式路径：求值一次，供「指纹比对 + 图片预加载 + 光栅化」共用。
         // MATERIAL_RUNTIME_ENABLED 门控：仅在物料运行时启用时才进入此分支，
         // 软关闭时 use_new_format 编译期为 false，此分支不可达。
+        //
+        // 帧指纹跳绘：shapes 输出 + 尺寸 + 抗锯齿 + 后端 + 图片纪元的哈希与上一帧
+        // 相同 → 本次帧内容必然与上帧逐像素一致，直接返回（不清屏 / 不光栅化）。
+        // 时钟等低频动态物料的稳态成本由「每帧全量光栅化」降为「一次求值 + 一次
+        // 哈希比较」。
+        let mut new_format_shapes: Option<Vec<(peregrine_config::Element, [f32; 4], f32)>> = None;
         if use_new_format {
-            if let Some(ref profile) = profile_clone {
-                // 动态上下文选择：MATERIAL_DYNAMIC_INPUT_ENABLED 门控。
-                // 启用时轮询真实动态输入（Win32 鼠标键盘 / 时间）；
-                // 停用时用 static_context()（version=0，静态物料永久缓存，动态物料冻结渲染）。
-                let ctx = if crate::MATERIAL_DYNAMIC_INPUT_ENABLED {
-                    crate::platform::poll_dynamic_context(logical_w, logical_h)
-                } else {
-                    peregrine_material::DynamicContext::static_context()
-                };
-                let shapes = crate::shapes::build_layers_shapes(
-                    &rect,
-                    profile,
-                    &self.material_registry,
-                    &ctx,
-                );
-                // 收集需要预加载的 image path。
-                let image_paths: Vec<String> = shapes
-                    .iter()
-                    .filter_map(|(e, _, _)| match e {
-                        peregrine_config::Element::Image { path, .. } => Some(path.clone()),
-                        _ => None,
-                    })
-                    .collect();
-                for path in image_paths {
-                    self.ensure_image_loaded(&path);
-                }
+            let Some(ref profile) = profile_clone else {
+                return Ok(());
+            };
+            // 动态上下文选择：MATERIAL_DYNAMIC_INPUT_ENABLED 门控。
+            // 启用时轮询真实动态输入（Win32 鼠标键盘 / 时间）；
+            // 停用时用 static_context()（动态物料冻结渲染）。
+            let ctx = if dynamic_input_active {
+                crate::platform::poll_dynamic_context(logical_w, logical_h)
+            } else {
+                peregrine_material::DynamicContext::static_context()
+            };
+            let shapes =
+                crate::shapes::build_layers_shapes(&rect, profile, &self.material_registry, &ctx);
+
+            // 图片预加载在指纹比对之前：路径首次出现时纪元递增会改变指纹，
+            // 保证「首帧图片已就绪」参与判定，不会把缺图帧误判为可跳过。
+            let image_paths: Vec<String> = shapes
+                .iter()
+                .filter_map(|(e, _, _)| match e {
+                    peregrine_config::Element::Image { path, .. } => Some(path.clone()),
+                    _ => None,
+                })
+                .collect();
+            let epoch_before = self.image_cache_epoch;
+            for path in image_paths {
+                self.ensure_image_loaded(&path);
             }
+
+            // 指纹：shapes 逐项哈希（Element 含全部几何/文本字段）+ 帧级输入。
+            // f32 不实现 Hash（存在 NaN 语义问题），统一经 to_bits() 压成 u32。
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            for (element, color, opacity) in &shapes {
+                hash_element(&mut hasher, element);
+                hasher.write_u32(color[0].to_bits());
+                hasher.write_u32(color[1].to_bits());
+                hasher.write_u32(color[2].to_bits());
+                hasher.write_u32(color[3].to_bits());
+                hasher.write_u32(opacity.to_bits());
+            }
+            hasher.write_u32(width);
+            hasher.write_u32(height);
+            hasher.write_u32(scale.to_bits());
+            antialiasing.hash(&mut hasher);
+            renderer_backend.hash(&mut hasher);
+            hasher.write_u64(self.image_cache_epoch);
+            let fingerprint = hasher.finish();
+
+            if fingerprint == self.last_frame_fingerprint && epoch_before == self.image_cache_epoch
+            {
+                // 与上一帧完全一致：跳过全部光栅化（稳态帧的主路径）。
+                tracing::trace!("overlay frame skipped: identical fingerprint");
+                return Ok(());
+            }
+            self.last_frame_fingerprint = fingerprint;
+            new_format_shapes = Some(shapes);
         }
 
         let mut buffer = match self.surface.buffer_mut() {
@@ -215,20 +277,10 @@ impl OverlayRenderer {
         );
 
         if use_new_format {
-            // ===== 新格式路径：遍历图层 =====
-            let Some(ref profile) = profile_clone else {
+            // ===== 新格式路径：遍历图层（shapes 已在上游求值一次，此处直接消费） =====
+            let Some(shapes) = new_format_shapes else {
                 return Ok(());
             };
-            // 动态上下文选择：MATERIAL_DYNAMIC_INPUT_ENABLED 门控。
-            // 启用时轮询真实动态输入；停用时用 static_context()（version=0，
-            // 静态物料永久缓存，动态物料冻结渲染）。
-            let ctx = if crate::MATERIAL_DYNAMIC_INPUT_ENABLED {
-                crate::platform::poll_dynamic_context(logical_w, logical_h)
-            } else {
-                peregrine_material::DynamicContext::static_context()
-            };
-            let shapes =
-                crate::shapes::build_layers_shapes(&rect, profile, &self.material_registry, &ctx);
 
             // 分离 Image 图元、CPU 光栅化图元、SVG 后端图元。
             // Image 由 CPU 直接 blit；Rect/Circle/Triangle 等由 CPU 光栅化；Text/Polygon/Line 由 SVG 后端光栅化。
@@ -365,12 +417,16 @@ impl OverlayRenderer {
         }
 
         // 诊断：统计非透明像素数量。
-        let non_transparent = buffer.iter().filter(|&&p| p != 0x00000000).count();
-        tracing::debug!(
-            non_transparent,
-            total = buffer.len(),
-            "overlay pixel stats after drawing"
-        );
+        // tracing::debug! 的参数是惰性求值——enabled 为 false 时整段扫描不执行，
+        // 消除稳态每帧一次的 8MB 全缓冲遍历。
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            let non_transparent = buffer.iter().filter(|&&p| p != 0x00000000).count();
+            tracing::debug!(
+                non_transparent,
+                total = buffer.len(),
+                "overlay pixel stats after drawing"
+            );
+        }
 
         if let Err(e) = buffer.present() {
             tracing::error!("softbuffer present failed: {}", e);
@@ -382,6 +438,8 @@ impl OverlayRenderer {
     /// 确保 image_cache 中缓存的是当前路径的图片。
     ///
     /// 如果路径为空或加载失败，清空缓存并记录警告。
+    /// 图片（重）加载成功时递增 `image_cache_epoch`（帧指纹输入，
+    /// 保证「路径相同但内容变化」的帧不被跳绘）。
     fn ensure_image_loaded(&mut self, path: &str) {
         // 路径未变且有缓存 → 无需重新加载。
         if let Some(cache) = &self.image_cache {
@@ -404,11 +462,136 @@ impl OverlayRenderer {
                     width: w,
                     height: h,
                 });
+                self.image_cache_epoch += 1;
             }
             Err(e) => {
                 tracing::warn!(path, error = %e, "failed to load crosshair PNG");
                 self.image_cache = None;
             }
+        }
+    }
+}
+
+/// 把 Element 的全部影响像素的字段喂入哈希器（帧指纹输入）。
+///
+/// `Element` 含 f32 字段而 f32 未实现 `Hash`（NaN 语义），故逐变体
+/// 手写哈希：几何坐标统一 `to_bits()`（位模式稳定，NaN 也产生稳定指纹）。
+/// 新增 Element 变体时必须同步补分支（漏字段 → 指纹漏变 → 漏重绘）。
+fn hash_element<H: std::hash::Hasher>(h: &mut H, e: &peregrine_config::Element) {
+    use peregrine_config::Element;
+    use std::hash::Hash;
+    // 变体判别值：不同变体即使字段相同指纹也必须不同。
+    std::mem::discriminant(e).hash(h);
+    // f32 → u32 位模式（f32 未实现 Hash；位模式稳定，NaN 也产生稳定指纹）。
+    macro_rules! fb {
+        ($v:expr) => {
+            h.write_u32(($v).to_bits())
+        };
+    }
+    match e {
+        Element::Rect {
+            x,
+            y,
+            w,
+            h: rh,
+            corner_radius,
+        } => {
+            fb!(*x);
+            fb!(*y);
+            fb!(*w);
+            fb!(*rh);
+            corner_radius.map(|v| v.to_bits()).hash(h);
+        }
+        Element::Circle { cx, cy, radius } => {
+            fb!(*cx);
+            fb!(*cy);
+            fb!(*radius);
+        }
+        Element::CircleStroke {
+            cx,
+            cy,
+            radius,
+            thickness,
+        } => {
+            fb!(*cx);
+            fb!(*cy);
+            fb!(*radius);
+            fb!(*thickness);
+        }
+        Element::DashedCircle {
+            cx,
+            cy,
+            radius,
+            thickness,
+            dash_len,
+            gap_len,
+        } => {
+            fb!(*cx);
+            fb!(*cy);
+            fb!(*radius);
+            fb!(*thickness);
+            fb!(*dash_len);
+            fb!(*gap_len);
+        }
+        Element::Triangle {
+            x1,
+            y1,
+            x2,
+            y2,
+            x3,
+            y3,
+        } => {
+            fb!(*x1);
+            fb!(*y1);
+            fb!(*x2);
+            fb!(*y2);
+            fb!(*x3);
+            fb!(*y3);
+        }
+        Element::Polygon { points } => {
+            for p in points {
+                fb!(p[0]);
+                fb!(p[1]);
+            }
+        }
+        Element::Line {
+            x1,
+            y1,
+            x2,
+            y2,
+            thickness,
+        } => {
+            fb!(*x1);
+            fb!(*y1);
+            fb!(*x2);
+            fb!(*y2);
+            fb!(*thickness);
+        }
+        Element::Text {
+            x,
+            y,
+            content,
+            font_size,
+            font_weight,
+        } => {
+            fb!(*x);
+            fb!(*y);
+            content.hash(h);
+            fb!(*font_size);
+            font_weight.hash(h);
+        }
+        Element::Image {
+            path,
+            x,
+            y,
+            w,
+            h: ih,
+        } => {
+            path.hash(h);
+            fb!(*x);
+            fb!(*y);
+            fb!(*w);
+            fb!(*ih);
         }
     }
 }

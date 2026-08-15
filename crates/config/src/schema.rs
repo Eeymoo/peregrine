@@ -87,6 +87,41 @@ pub struct AppSettings {
     /// 解锁状态持久化到配置文件，重启后保持。
     #[serde(default)]
     pub developer_mode: bool,
+    /// 物料运行时设置（「物料」Tab：动态物料开关 / 动画帧率档位）。
+    #[serde(default)]
+    pub material: MaterialSettings,
+}
+
+/// 物料运行时设置（「物料」Tab）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MaterialSettings {
+    /// 动态物料总开关（运行时层，默认 true）。
+    ///
+    /// 与编译期总闸 `MATERIAL_DYNAMIC_INPUT_ENABLED` 构成与门：
+    /// 两者均为真时动态链路（动态输入轮询 / 动态物料求值上下文 /
+    /// 动态重绘调度 / 选择器动态物料可见性）才活跃。
+    /// 关闭时表现为用户侧软关闭：求值走 `static_context()`，
+    /// overlay 对 layers 的动态性判定恒 false，热生效无需重启。
+    pub dynamic_enabled: bool,
+    /// 动画帧率档位（FPS 上限节拍）。
+    ///
+    /// - `None`（默认）= 跟随系统主屏刷新率（探测失败回退 60）；
+    /// - `Some(fps)` = 固定节拍，仅接受 30 / 60 / 120（校验强制）。
+    ///
+    /// 语义为「动画最高帧率节拍（cap）」：纯静态 profile 保持事件驱动，
+    /// 不因 FPS 设置产生周期性唤醒。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fps: Option<u32>,
+}
+
+impl Default for MaterialSettings {
+    fn default() -> Self {
+        Self {
+            dynamic_enabled: true,
+            fps: None,
+        }
+    }
 }
 
 fn default_auto_switch_on_overlay() -> String {
@@ -147,6 +182,7 @@ impl Default for AppSettings {
             hotkey_bindings: default_hotkey_bindings(),
             telemetry_enabled: None,
             developer_mode: false,
+            material: MaterialSettings::default(),
         }
     }
 }
@@ -463,7 +499,7 @@ pub enum Anchor {
 }
 
 /// 覆盖层渲染后端。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum RendererBackend {
     /// 手写 CPU 像素光栅化（默认，零额外依赖）。
@@ -675,7 +711,8 @@ impl AppConfig {
     /// 检查项：
     /// - active_profile 必须存在；
     /// - 至少包含一个 Profile；
-    /// - 每个 Profile 单独校验通过。
+    /// - 每个 Profile 单独校验通过；
+    /// - `settings.material.fps` 仅接受 30 / 60 / 120。
     pub fn validate(&self) -> crate::Result<()> {
         if self.profiles.is_empty() {
             return Err(crate::ConfigError::Validation(
@@ -692,6 +729,16 @@ impl AppConfig {
             profile.validate().map_err(|e| {
                 crate::ConfigError::Validation(format!("profile '{}': {}", name, e))
             })?;
+        }
+        // 物料动画帧率档位枚举集校验：缺失（None = 跟随系统）与 30/60/120 合法，
+        // 其余值视为损坏配置（走备份 .bak + 回退默认流程）。
+        if let Some(fps) = self.settings.material.fps {
+            if !matches!(fps, 30 | 60 | 120) {
+                return Err(crate::ConfigError::Validation(format!(
+                    "settings.material.fps must be one of 30/60/120, got {}",
+                    fps
+                )));
+            }
         }
         Ok(())
     }
@@ -1413,6 +1460,58 @@ mod tests {
         assert!(cfg.validate().is_err());
     }
 
+    /// 物料设置默认值：dynamic_enabled = true、fps = None（跟随系统）。
+    #[test]
+    fn material_settings_defaults() {
+        let cfg = AppConfig::default_config();
+        assert!(cfg.settings.material.dynamic_enabled);
+        assert_eq!(cfg.settings.material.fps, None);
+        assert!(cfg.validate().is_ok());
+        // 独立 Default 实现与 AppSettings::default 内嵌值一致。
+        assert_eq!(cfg.settings.material, MaterialSettings::default());
+    }
+
+    /// 旧配置（无 material 字段）serde 反序列化后取默认值，往返保持等价。
+    #[test]
+    fn material_settings_old_config_defaults() {
+        let old = serde_json::json!({
+            "active_profile": "default",
+            "profiles": {
+                "default": {
+                    "layers": [],
+                    "trigger": { "enabled": false, "process_names": [] },
+                    "settings_hotkey": "F10"
+                }
+            },
+            "settings": {
+                "auto_switch_on_overlay": "ask",
+                "locale": "auto"
+            }
+        });
+        let cfg: AppConfig = serde_json::from_value(old).expect("old config should parse");
+        assert!(cfg.settings.material.dynamic_enabled);
+        assert_eq!(cfg.settings.material.fps, None);
+        assert!(cfg.validate().is_ok());
+        // 往返：保存后重新加载等价（fps = None 不写出，重载仍为 None）。
+        let round: AppConfig = serde_json::from_str(&serde_json::to_string(&cfg).unwrap()).unwrap();
+        assert_eq!(round.settings.material, cfg.settings.material);
+    }
+
+    /// 非法 fps 档位被校验拒绝；合法三档通过。
+    #[test]
+    fn material_settings_fps_enum_validation() {
+        for fps in [30u32, 60, 120] {
+            let mut cfg = AppConfig::default_config();
+            cfg.settings.material.fps = Some(fps);
+            assert!(cfg.validate().is_ok(), "fps {} should be valid", fps);
+        }
+        for fps in [0u32, 45, 90, 144, 240] {
+            let mut cfg = AppConfig::default_config();
+            cfg.settings.material.fps = Some(fps);
+            assert!(cfg.validate().is_err(), "fps {} should be rejected", fps);
+        }
+    }
+
     #[test]
     fn negative_size_fails() {
         let mut cfg = AppConfig::legacy_default_config();
@@ -1889,6 +1988,7 @@ mod tests {
             hotkey_bindings: default_hotkey_bindings(),
             telemetry_enabled: Some(true),
             developer_mode: false,
+            material: MaterialSettings::default(),
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -2085,6 +2185,7 @@ mod tests {
             hotkey_bindings: default_hotkey_bindings(),
             telemetry_enabled: Some(true),
             developer_mode: false,
+            material: MaterialSettings::default(),
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();
@@ -2137,6 +2238,7 @@ mod tests {
             hotkey_bindings: bindings.clone(),
             telemetry_enabled: None,
             developer_mode: false,
+            material: MaterialSettings::default(),
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();

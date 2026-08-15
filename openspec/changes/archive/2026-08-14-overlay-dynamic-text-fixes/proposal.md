@@ -1,5 +1,7 @@
 # Overlay 动态物料刷新修复与文本加粗
 
+> **取代说明**：本 change 已由 `restore-dynamic-material`（2026-08-14）收编并取代——与本 change 范围重叠的未竟事项已并入该 change 的 What Changes，其余宣告放弃。随该 change 归档，详见 `openspec/changes/restore-dynamic-material/proposal.md` 头部取代关系说明。
+
 ## Why
 
 Windows 实机走查（`docs/manual-test-checklist.md` B4 区）发现两个 overlay 渲染问题：

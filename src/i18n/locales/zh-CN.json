@@ -37,7 +37,8 @@
     "offsetY": "垂直偏移",
     "scale": "缩放",
     "rotation": "旋转",
-    "lastVisibleLocked": "覆盖层运行期间需至少保留一个可见图层"
+    "lastVisibleLocked": "覆盖层运行期间需至少保留一个可见图层",
+    "comingSoonSuffix": "（开发中）"
   },
   "common": {
     "add": "添加",
@@ -312,6 +313,10 @@
     "placeholder": "请选择 PNG 文件",
     "rendering": "渲染中…"
   },
+  "window": {
+    "configTitle": "Peregrine 配置",
+    "settingsTitle": "Peregrine 设置"
+  },
   "tray": {
     "config": "配置",
     "settings": "设置",
@@ -346,5 +351,188 @@
     "fpsSystem": "跟随系统",
     "statusActive": "动态链路已启用：动态物料将按帧率节拍持续刷新",
     "statusFrozen": "动态链路已关闭：动态物料冻结渲染，静态图层不受影响"
+  },
+  "materials": {
+    "border_frame": {
+      "name": "边框",
+      "params": {
+        "thickness": "粗细",
+        "offset": "距边缘距离",
+        "frame_style": "样式",
+        "inset": "位于屏幕内侧"
+      },
+      "options": {
+        "frame_style": {
+          "solid": "实线",
+          "gap": "中间留空"
+        }
+      }
+    },
+    "corner_dots": {
+      "name": "定位球",
+      "params": {
+        "count": "点数",
+        "offset": "距边缘距离",
+        "radius": "半径"
+      },
+      "options": {
+        "count": {
+          "4": "4 点（四角）",
+          "6": "6 点（四角+上下中）",
+          "8": "8 点（四角+四边中）"
+        }
+      }
+    },
+    "cross": {
+      "name": "准星",
+      "params": {
+        "size": "臂长",
+        "thickness": "粗细",
+        "gap": "中心间隙"
+      }
+    },
+    "custom_orb": {
+      "name": "自定义定位球",
+      "params": {
+        "radius": "半径",
+        "offset": "距边缘距离",
+        "orb_positions": "启用边缘",
+        "top_count": "上边球数",
+        "bottom_count": "下边球数",
+        "left_count": "左边球数",
+        "right_count": "右边球数"
+      }
+    },
+    "edge_arrows": {
+      "name": "箭头",
+      "params": {
+        "size": "箭头大小",
+        "distance": "距边缘距离",
+        "width": "尾巴宽度（0=默认）",
+        "tail_per_edge": "每边单独尾巴长度",
+        "tail_top": "上尾巴长度",
+        "tail_bottom": "下尾巴长度",
+        "tail_left": "左尾巴长度",
+        "tail_right": "右尾巴长度",
+        "positions_mask": "启用边缘"
+      }
+    },
+    "edge_rect": {
+      "name": "贴边矩形",
+      "params": {
+        "size": "宽度",
+        "secondary_size": "高度",
+        "anchor": "位置",
+        "margin": "边距"
+      },
+      "options": {
+        "anchor": {
+          "top": "顶部",
+          "bottom": "底部",
+          "left": "左侧",
+          "right": "右侧",
+          "center": "中心"
+        }
+      }
+    },
+    "grid": {
+      "name": "网格",
+      "params": {
+        "grid_size": "单格宽度",
+        "thickness": "线条粗细",
+        "alignment": "对齐方式"
+      },
+      "options": {
+        "alignment": {
+          "center": "居中",
+          "edge": "贴边"
+        }
+      }
+    },
+    "image": {
+      "name": "自定义图片",
+      "params": {
+        "path": "图片路径",
+        "scale": "缩放",
+        "offset_x": "水平偏移",
+        "offset_y": "垂直偏移",
+        "width": "原始宽度（显示用）",
+        "height": "原始高度（显示用）"
+      }
+    },
+    "large_cross": {
+      "name": "大准星",
+      "params": {
+        "thickness": "粗细"
+      }
+    },
+    "path_showcase": {
+      "name": "路径",
+      "params": {
+        "d": "路径数据（SVG path d，如从设计工具复制）",
+        "size_pct": "大小",
+        "fill": "填充（关闭则仅描边）",
+        "thickness": "描边粗细"
+      }
+    },
+    "random_orb": {
+      "name": "随机球",
+      "params": {
+        "orb_count": "每边球数",
+        "offset": "距边缘距离",
+        "jitter": "随机扰动",
+        "radius_min": "最小半径",
+        "radius_max": "最大半径",
+        "center_deviation": "中心偏离",
+        "mode": "模式"
+      },
+      "options": {
+        "mode": {
+          "lock_on_start": "锁定随机位置",
+          "reshuffle": "每次重新随机"
+        }
+      }
+    },
+    "ring": {
+      "name": "中心环",
+      "params": {
+        "thickness": "粗细",
+        "ring_radius_pct": "半径占比",
+        "ring_style": "线型"
+      },
+      "options": {
+        "ring_style": {
+          "solid": "实线",
+          "dashed": "虚线",
+          "double": "双环"
+        }
+      }
+    },
+    "teardrop": {
+      "name": "呼吸环",
+      "params": {
+        "radius_pct": "大小",
+        "ring_width": "环宽",
+        "breath_speed": "呼吸速度",
+        "thickness": "描边粗细"
+      },
+      "options": {
+        "breath_speed": {
+          "slow": "舒缓（8 次/分）",
+          "normal": "自然（14 次/分）",
+          "fast": "快节奏（20 次/分）"
+        }
+      }
+    },
+    "time": {
+      "name": "时间显示",
+      "params": {
+        "font_size": "字体大小",
+        "x": "X 坐标",
+        "y": "Y 坐标",
+        "format": "展示格式（如 HH:mm:ss / yyyy-MM-dd HH:mm:ss）",
+        "bold": "加粗"
+      }
+    }
   }
 }

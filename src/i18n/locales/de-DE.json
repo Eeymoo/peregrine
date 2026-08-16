@@ -37,7 +37,8 @@
     "offsetY": "Versatz Y",
     "scale": "Skalierung",
     "rotation": "Rotation",
-    "lastVisibleLocked": "Mindestens eine sichtbare Ebene beibehalten, während das Overlay läuft"
+    "lastVisibleLocked": "Mindestens eine sichtbare Ebene beibehalten, während das Overlay läuft",
+    "comingSoonSuffix": " (in Entwicklung)"
   },
   "common": {
     "add": "Hinzufügen",
@@ -312,6 +313,10 @@
     "placeholder": "Bitte eine PNG-Datei auswählen",
     "rendering": "Wird gerendert…"
   },
+  "window": {
+    "configTitle": "Peregrine Konfiguration",
+    "settingsTitle": "Peregrine Einstellungen"
+  },
   "tray": {
     "config": "Konfiguration",
     "settings": "Einstellungen",
@@ -346,5 +351,188 @@
     "fpsSystem": "System folgen",
     "statusActive": "Dynamische Pipeline aktiv: Dynamische Materialien aktualisieren sich mit der eingestellten Rate",
     "statusFrozen": "Dynamische Pipeline aus: Dynamische Materialien eingefroren; statische Ebenen nicht betroffen"
+  },
+  "materials": {
+    "border_frame": {
+      "name": "Rahmen",
+      "params": {
+        "thickness": "Dicke",
+        "offset": "Kantenabstand",
+        "frame_style": "Stil",
+        "inset": "Innerhalb des Bildschirms"
+      },
+      "options": {
+        "frame_style": {
+          "solid": "Durchgehend",
+          "gap": "Lücke"
+        }
+      }
+    },
+    "corner_dots": {
+      "name": "Eckpunkte",
+      "params": {
+        "count": "Punktanzahl",
+        "offset": "Kantenabstand",
+        "radius": "Radius"
+      },
+      "options": {
+        "count": {
+          "4": "4 Punkte (Ecken)",
+          "6": "6 Punkte (Ecken + O/U Mitte)",
+          "8": "8 Punkte (Ecken + Kantenmitten)"
+        }
+      }
+    },
+    "cross": {
+      "name": "Fadenkreuz",
+      "params": {
+        "size": "Armlänge",
+        "thickness": "Dicke",
+        "gap": "Mittlere Lücke"
+      }
+    },
+    "custom_orb": {
+      "name": "Benutzerdefinierte Kugel",
+      "params": {
+        "radius": "Radius",
+        "offset": "Kantenabstand",
+        "orb_positions": "Aktive Kanten",
+        "top_count": "Anzahl oben",
+        "bottom_count": "Anzahl unten",
+        "left_count": "Anzahl links",
+        "right_count": "Anzahl rechts"
+      }
+    },
+    "edge_arrows": {
+      "name": "Kanten-Pfeile",
+      "params": {
+        "size": "Pfeilgröße",
+        "distance": "Kantenabstand",
+        "width": "Schwanzbreite (0 = Standard)",
+        "tail_per_edge": "Schwanzlänge pro Kante",
+        "tail_top": "Obere Schwanzlänge",
+        "tail_bottom": "Untere Schwanzlänge",
+        "tail_left": "Linke Schwanzlänge",
+        "tail_right": "Rechte Schwanzlänge",
+        "positions_mask": "Aktive Kanten"
+      }
+    },
+    "edge_rect": {
+      "name": "Kanten-Rechteck",
+      "params": {
+        "size": "Breite",
+        "secondary_size": "Höhe",
+        "anchor": "Position",
+        "margin": "Randabstand"
+      },
+      "options": {
+        "anchor": {
+          "top": "Oben",
+          "bottom": "Unten",
+          "left": "Links",
+          "right": "Rechts",
+          "center": "Mitte"
+        }
+      }
+    },
+    "grid": {
+      "name": "Raster",
+      "params": {
+        "grid_size": "Zellengröße",
+        "thickness": "Linienstärke",
+        "alignment": "Ausrichtung"
+      },
+      "options": {
+        "alignment": {
+          "center": "Mitte",
+          "edge": "Kante"
+        }
+      }
+    },
+    "image": {
+      "name": "Benutzerdefiniertes Bild",
+      "params": {
+        "path": "Bildpfad",
+        "scale": "Skalierung",
+        "offset_x": "Horizontaler Versatz",
+        "offset_y": "Vertikaler Versatz",
+        "width": "Originalbreite (nur Anzeige)",
+        "height": "Originalhöhe (nur Anzeige)"
+      }
+    },
+    "large_cross": {
+      "name": "Großes Fadenkreuz",
+      "params": {
+        "thickness": "Dicke"
+      }
+    },
+    "path_showcase": {
+      "name": "Pfad",
+      "params": {
+        "d": "Pfaddaten (SVG path d, z. B. aus einem Design-Tool kopiert)",
+        "size_pct": "Größe",
+        "fill": "Füllung (aus = nur Kontur)",
+        "thickness": "Konturstärke"
+      }
+    },
+    "random_orb": {
+      "name": "Zufällige Kugel",
+      "params": {
+        "orb_count": "Kugeln pro Kante",
+        "offset": "Kantenabstand",
+        "jitter": "Jitter",
+        "radius_min": "Min. Radius",
+        "radius_max": "Max. Radius",
+        "center_deviation": "Mittenabweichung",
+        "mode": "Modus"
+      },
+      "options": {
+        "mode": {
+          "lock_on_start": "Beim Start sperren",
+          "reshuffle": "Jedes Mal neu mischen"
+        }
+      }
+    },
+    "ring": {
+      "name": "Mittiger Ring",
+      "params": {
+        "thickness": "Dicke",
+        "ring_radius_pct": "Radiusverhältnis",
+        "ring_style": "Linienstil"
+      },
+      "options": {
+        "ring_style": {
+          "solid": "Durchgehend",
+          "dashed": "Gestrichelt",
+          "double": "Doppelt"
+        }
+      }
+    },
+    "teardrop": {
+      "name": "Atmender Ring",
+      "params": {
+        "radius_pct": "Größe",
+        "ring_width": "Ringbreite",
+        "breath_speed": "Atemgeschwindigkeit",
+        "thickness": "Konturstärke"
+      },
+      "options": {
+        "breath_speed": {
+          "slow": "Langsam (8/Min)",
+          "normal": "Natürlich (14/Min)",
+          "fast": "Schnell (20/Min)"
+        }
+      }
+    },
+    "time": {
+      "name": "Zeitanzeige",
+      "params": {
+        "font_size": "Schriftgröße",
+        "x": "X-Position",
+        "y": "Y-Position",
+        "format": "Format (z. B. HH:mm:ss / yyyy-MM-dd HH:mm:ss)",
+        "bold": "Fett"
+      }
+    }
   }
 }

@@ -130,6 +130,17 @@ export function translate(locale: Locale, key: string): string {
   return localeMap[resolved][key] ?? localeMap[FALLBACK_LOCALE][key] ?? key;
 }
 
+/**
+ * 判断 key 在当前语言或回退语言（en）中是否存在译文（不依赖 React）。
+ *
+ * 用于"命中才覆盖、未命中保留原文"的场景（如内置物料文案映射），
+ * 避免依赖 `t()` 缺 key 返回 key 字符串的比对 hack。
+ */
+export function hasTranslation(locale: Locale, key: string): boolean {
+  const resolved = resolveLocale(locale);
+  return key in localeMap[resolved] || key in localeMap[FALLBACK_LOCALE];
+}
+
 interface I18nContextValue {
   /** 当前选择的 locale（可能是 `auto`）。 */
   locale: Locale;
@@ -137,6 +148,8 @@ interface I18nContextValue {
   resolvedLocale: Exclude<Locale, "auto">;
   setLocale: (locale: Locale) => void;
   t: (key: string) => string;
+  /** 判断 key 在当前语言或回退语言（en）中是否存在译文。 */
+  has: (key: string) => boolean;
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -221,6 +234,7 @@ export function I18nProvider({ children }: I18nProviderProps) {
     resolvedLocale,
     setLocale,
     t: (key: string) => translate(locale, key),
+    has: (key: string) => hasTranslation(locale, key),
   };
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

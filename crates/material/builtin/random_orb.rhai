@@ -25,7 +25,7 @@ fn schema() {
         #{key: "center_deviation", label: "中心偏离", widget: "slider", min: 0.1, max: 0.3, step: 0.01},
         #{
             key: "mode",
-            label: "模式（开发中）",
+            label: "模式",
             widget: "select",
             options: [
                 #{value: "lock_on_start", label: "锁定随机位置"},

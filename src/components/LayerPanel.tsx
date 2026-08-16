@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import type { Layer, MaterialInfo, MaterialSchemaEntry } from "@/types/config";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Trash2, Copy, ChevronUp, ChevronDown, Plus, Eye, EyeOff, Lock, Unlock } from "lucide-react";
 import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
+import { localizeMaterial } from "@/lib/material-i18n";
 import { dynamicInputEnabled } from "@/lib/feature";
 import { SliderField } from "@/components/fields/SliderField";
 import { NumberField } from "@/components/fields/NumberField";
@@ -53,9 +54,17 @@ export function LayerPanel({
   hasCrosshair,
   dynamicMaterialEnabled,
 }: LayerPanelProps) {
-  const { t } = useI18n();
+  const { t, has, resolvedLocale } = useI18n();
   const [materials, setMaterials] = useState<MaterialInfo[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
+
+  // 内置物料展示文案按当前界面语言覆盖（用户物料原样返回，见 material-i18n.ts）。
+  // t/has 行为仅随 resolvedLocale 变化，以其为依赖即可。
+  const localizedMaterials = useMemo(
+    () => materials.map((m) => localizeMaterial(m, { t, has })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [materials, resolvedLocale],
+  );
 
   // 加载物料列表（仅一次）。
   // 动态输入合取门控：编译期总闸 AND 运行时用户开关（design D2）。
@@ -174,7 +183,7 @@ export function LayerPanel({
               const isLastVisible = protectLastVisible && layer.visible && visibleCount <= 1;
             const materialId =
               layer.material.kind === "builtin" ? layer.material.id : layer.material.name;
-            const material = materials.find((m) => m.id === materialId);
+            const material = localizedMaterials.find((m) => m.id === materialId);
             return (
               <div
                 key={layer.id}
@@ -267,7 +276,7 @@ export function LayerPanel({
       {/* 添加图层对话框 */}
       {showAddDialog && (
         <AddLayerDialog
-          materials={materials}
+          materials={localizedMaterials}
           onAdd={handleAdd}
           onClose={() => setShowAddDialog(false)}
         />
@@ -499,7 +508,7 @@ function renderWidget(
         label: opt.label,
       }));
       // 任务 9.7：物料 schema 标记 coming_soon 的 select 控件禁用，
-      // 并在 label 后追加「（开发中）」提示（random_orb.mode 等）。
+      // 并在 label 后追加「开发中」后缀提示（random_orb.mode 等）。
       const comingSoon = entry.coming_soon === true;
       // 原始 schema option value 可能是数字（corner_dots.count）或字符串（mode）。
       // SelectField 只接受 string，但回传给 onChange 时需按原始类型还原，
@@ -507,7 +516,7 @@ function renderWidget(
       const originalOptions = entry.options ?? [];
       return (
         <SelectField
-          label={comingSoon ? `${entry.label}（开发中）` : entry.label}
+          label={comingSoon ? `${entry.label}${t("layers.comingSoonSuffix")}` : entry.label}
           value={String(value ?? "")}
           options={options}
           disabled={disabled || comingSoon}

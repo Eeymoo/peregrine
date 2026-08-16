@@ -305,6 +305,9 @@ fn create_config_window(
         Image::from_bytes(include_bytes!("../icons/icon.png")).expect("failed to load window icon");
     let gpu_enabled = read_gpu_setting(app);
     let devtools_enabled = read_developer_mode(app);
+    // 窗口标题创建时即本地化（change i18n-builtin-materials）：与托盘菜单同源，
+    // 避免前端挂载前显示硬编码标题。语言切换后的权威更新仍由前端 setTitle 负责。
+    let locale = current_locale(&app.state::<AppState>());
     let mut webview_builder =
         WebviewWindowBuilder::new(app, "config", WebviewUrl::App("index.html".into()));
     if !gpu_enabled {
@@ -314,13 +317,16 @@ fn create_config_window(
     // 该选项只在创建时生效，解锁后需重开窗口才生效（窗口关闭即销毁、重开即重建）。
     webview_builder = webview_builder.devtools(devtools_enabled);
     let window = webview_builder
-        .title("Peregrine 配置")
+        .title(translate(locale, "window.configTitle"))
         .inner_size(1080.0, 720.0)
         .min_inner_size(900.0, 600.0)
         .resizable(true)
         .decorations(true)
         .center()
         .skip_taskbar(false)
+        // 与 settings 窗口对齐：创建时不可见，由调用方 show() 统一控制，
+        // 消除本地化标题生效前的窗口闪烁。
+        .visible(false)
         .build()?;
     let _ = window.set_icon(win_icon);
     Ok(window)
@@ -334,6 +340,8 @@ fn create_settings_window(
         Image::from_bytes(include_bytes!("../icons/icon.png")).expect("failed to load window icon");
     let gpu_enabled = read_gpu_setting(app);
     let devtools_enabled = read_developer_mode(app);
+    // 窗口标题创建时即本地化，同 create_config_window。
+    let locale = current_locale(&app.state::<AppState>());
     let mut webview_builder =
         WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()));
     if !gpu_enabled {
@@ -342,7 +350,7 @@ fn create_settings_window(
     // 与配置窗口一致：DevTools 默认禁用，解锁或 debug 构建下启用。
     webview_builder = webview_builder.devtools(devtools_enabled);
     let window = webview_builder
-        .title("Peregrine 设置")
+        .title(translate(locale, "window.settingsTitle"))
         .inner_size(480.0, 540.0)
         .resizable(false)
         .decorations(true)
@@ -2461,6 +2469,23 @@ mod tests {
         ];
         for locale in SUPPORTED_LOCALES {
             for key in tray_keys {
+                let val = translate(locale, key);
+                assert_ne!(
+                    val, key,
+                    "locale `{}` 的 key `{}` 未命中翻译（返回了原始 key），检查 JSON 命名是否与后端调用一致",
+                    locale, key
+                );
+            }
+        }
+    }
+
+    /// 同上，枚举窗口标题 `window.*` key MUST 在所有 locale 中存在
+    /// （change i18n-builtin-materials：窗口标题创建时即本地化）。
+    #[test]
+    fn translate_window_keys_exist_in_all_locales() {
+        let window_keys = ["window.configTitle", "window.settingsTitle"];
+        for locale in SUPPORTED_LOCALES {
+            for key in window_keys {
                 let val = translate(locale, key);
                 assert_ne!(
                     val, key,

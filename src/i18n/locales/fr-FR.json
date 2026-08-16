@@ -37,7 +37,8 @@
     "offsetY": "Décalage Y",
     "scale": "Échelle",
     "rotation": "Rotation",
-    "lastVisibleLocked": "Conserver au moins un calque visible pendant l'exécution de l'overlay"
+    "lastVisibleLocked": "Conserver au moins un calque visible pendant l'exécution de l'overlay",
+    "comingSoonSuffix": " (en développement)"
   },
   "common": {
     "add": "Ajouter",
@@ -312,6 +313,10 @@
     "placeholder": "Veuillez sélectionner un fichier PNG",
     "rendering": "Rendu en cours…"
   },
+  "window": {
+    "configTitle": "Peregrine Configuration",
+    "settingsTitle": "Peregrine Paramètres"
+  },
   "tray": {
     "config": "Configuration",
     "settings": "Paramètres",
@@ -346,5 +351,188 @@
     "fpsSystem": "Suivre le système",
     "statusActive": "Pipeline dynamique activé : les matériaux dynamiques se rafraîchissent à la cadence configurée",
     "statusFrozen": "Pipeline dynamique désactivé : matériaux dynamiques figés ; couches statiques non affectées"
+  },
+  "materials": {
+    "border_frame": {
+      "name": "Cadre de bordure",
+      "params": {
+        "thickness": "Épaisseur",
+        "offset": "Distance du bord",
+        "frame_style": "Style",
+        "inset": "À l'intérieur de l'écran"
+      },
+      "options": {
+        "frame_style": {
+          "solid": "Plein",
+          "gap": "Trou"
+        }
+      }
+    },
+    "corner_dots": {
+      "name": "Points d'angle",
+      "params": {
+        "count": "Nombre de points",
+        "offset": "Distance du bord",
+        "radius": "Rayon"
+      },
+      "options": {
+        "count": {
+          "4": "4 points (coins)",
+          "6": "6 points (coins + milieu H/B)",
+          "8": "8 points (coins + milieux de bord)"
+        }
+      }
+    },
+    "cross": {
+      "name": "Réticule",
+      "params": {
+        "size": "Longueur des bras",
+        "thickness": "Épaisseur",
+        "gap": "Espace central"
+      }
+    },
+    "custom_orb": {
+      "name": "Orbe personnalisé",
+      "params": {
+        "radius": "Rayon",
+        "offset": "Distance du bord",
+        "orb_positions": "Bords activés",
+        "top_count": "Nombre en haut",
+        "bottom_count": "Nombre en bas",
+        "left_count": "Nombre à gauche",
+        "right_count": "Nombre à droite"
+      }
+    },
+    "edge_arrows": {
+      "name": "Flèches de bord",
+      "params": {
+        "size": "Taille des flèches",
+        "distance": "Distance du bord",
+        "width": "Largeur de queue (0 = défaut)",
+        "tail_per_edge": "Longueur de queue par bord",
+        "tail_top": "Longueur de queue haut",
+        "tail_bottom": "Longueur de queue bas",
+        "tail_left": "Longueur de queue gauche",
+        "tail_right": "Longueur de queue droite",
+        "positions_mask": "Bords activés"
+      }
+    },
+    "edge_rect": {
+      "name": "Rectangle de bord",
+      "params": {
+        "size": "Largeur",
+        "secondary_size": "Hauteur",
+        "anchor": "Position",
+        "margin": "Marge"
+      },
+      "options": {
+        "anchor": {
+          "top": "Haut",
+          "bottom": "Bas",
+          "left": "Gauche",
+          "right": "Droite",
+          "center": "Centre"
+        }
+      }
+    },
+    "grid": {
+      "name": "Grille",
+      "params": {
+        "grid_size": "Taille de cellule",
+        "thickness": "Épaisseur de ligne",
+        "alignment": "Alignement"
+      },
+      "options": {
+        "alignment": {
+          "center": "Centre",
+          "edge": "Bord"
+        }
+      }
+    },
+    "image": {
+      "name": "Image personnalisée",
+      "params": {
+        "path": "Chemin de l'image",
+        "scale": "Échelle",
+        "offset_x": "Décalage horizontal",
+        "offset_y": "Décalage vertical",
+        "width": "Largeur d'origine (affichage)",
+        "height": "Hauteur d'origine (affichage)"
+      }
+    },
+    "large_cross": {
+      "name": "Grand réticule",
+      "params": {
+        "thickness": "Épaisseur"
+      }
+    },
+    "path_showcase": {
+      "name": "Tracé",
+      "params": {
+        "d": "Données de tracé (SVG path d, p. ex. copié depuis un outil de design)",
+        "size_pct": "Taille",
+        "fill": "Remplissage (désactivé = contour seul)",
+        "thickness": "Épaisseur du contour"
+      }
+    },
+    "random_orb": {
+      "name": "Orbe aléatoire",
+      "params": {
+        "orb_count": "Orbes par bord",
+        "offset": "Distance du bord",
+        "jitter": "Gigue",
+        "radius_min": "Rayon min",
+        "radius_max": "Rayon max",
+        "center_deviation": "Déviation du centre",
+        "mode": "Mode"
+      },
+      "options": {
+        "mode": {
+          "lock_on_start": "Verrouiller au démarrage",
+          "reshuffle": "Re-mélanger à chaque fois"
+        }
+      }
+    },
+    "ring": {
+      "name": "Anneau central",
+      "params": {
+        "thickness": "Épaisseur",
+        "ring_radius_pct": "Ratio du rayon",
+        "ring_style": "Style de ligne"
+      },
+      "options": {
+        "ring_style": {
+          "solid": "Plein",
+          "dashed": "Tirets",
+          "double": "Double"
+        }
+      }
+    },
+    "teardrop": {
+      "name": "Anneau respirant",
+      "params": {
+        "radius_pct": "Taille",
+        "ring_width": "Largeur de l'anneau",
+        "breath_speed": "Vitesse de respiration",
+        "thickness": "Épaisseur du contour"
+      },
+      "options": {
+        "breath_speed": {
+          "slow": "Lent (8/min)",
+          "normal": "Naturel (14/min)",
+          "fast": "Rapide (20/min)"
+        }
+      }
+    },
+    "time": {
+      "name": "Affichage de l'heure",
+      "params": {
+        "font_size": "Taille de police",
+        "x": "Position X",
+        "y": "Position Y",
+        "format": "Format (p. ex. HH:mm:ss / yyyy-MM-dd HH:mm:ss)",
+        "bold": "Gras"
+      }
+    }
   }
 }

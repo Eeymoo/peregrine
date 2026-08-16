@@ -37,7 +37,8 @@
     "offsetY": "Offset Y",
     "scale": "Scale",
     "rotation": "Rotation",
-    "lastVisibleLocked": "Keep at least one visible layer while the overlay is running"
+    "lastVisibleLocked": "Keep at least one visible layer while the overlay is running",
+    "comingSoonSuffix": " (in development)"
   },
   "common": {
     "add": "Add",
@@ -312,6 +313,10 @@
     "placeholder": "Please select a PNG file",
     "rendering": "Rendering…"
   },
+  "window": {
+    "configTitle": "Peregrine Config",
+    "settingsTitle": "Peregrine Settings"
+  },
   "tray": {
     "config": "Config",
     "settings": "Settings",
@@ -346,5 +351,188 @@
     "fpsSystem": "Follow system",
     "statusActive": "Dynamic pipeline enabled: dynamic materials refresh at the configured rate",
     "statusFrozen": "Dynamic pipeline off: dynamic materials render frozen; static layers unaffected"
+  },
+  "materials": {
+    "border_frame": {
+      "name": "Border Frame",
+      "params": {
+        "thickness": "Thickness",
+        "offset": "Edge Distance",
+        "frame_style": "Style",
+        "inset": "Inside Screen"
+      },
+      "options": {
+        "frame_style": {
+          "solid": "Solid",
+          "gap": "Gap"
+        }
+      }
+    },
+    "corner_dots": {
+      "name": "Corner Dots",
+      "params": {
+        "count": "Dot Count",
+        "offset": "Edge Distance",
+        "radius": "Radius"
+      },
+      "options": {
+        "count": {
+          "4": "4 dots (corners)",
+          "6": "6 dots (corners + T/B mid)",
+          "8": "8 dots (corners + edge mids)"
+        }
+      }
+    },
+    "cross": {
+      "name": "Crosshair",
+      "params": {
+        "size": "Arm Length",
+        "thickness": "Thickness",
+        "gap": "Center Gap"
+      }
+    },
+    "custom_orb": {
+      "name": "Custom Orb",
+      "params": {
+        "radius": "Radius",
+        "offset": "Edge Distance",
+        "orb_positions": "Enabled Edges",
+        "top_count": "Top Count",
+        "bottom_count": "Bottom Count",
+        "left_count": "Left Count",
+        "right_count": "Right Count"
+      }
+    },
+    "edge_arrows": {
+      "name": "Edge Arrows",
+      "params": {
+        "size": "Arrow Size",
+        "distance": "Edge Distance",
+        "width": "Tail Width (0 = default)",
+        "tail_per_edge": "Per-edge Tail Length",
+        "tail_top": "Top Tail Length",
+        "tail_bottom": "Bottom Tail Length",
+        "tail_left": "Left Tail Length",
+        "tail_right": "Right Tail Length",
+        "positions_mask": "Enabled Edges"
+      }
+    },
+    "edge_rect": {
+      "name": "Edge Rectangle",
+      "params": {
+        "size": "Width",
+        "secondary_size": "Height",
+        "anchor": "Position",
+        "margin": "Margin"
+      },
+      "options": {
+        "anchor": {
+          "top": "Top",
+          "bottom": "Bottom",
+          "left": "Left",
+          "right": "Right",
+          "center": "Center"
+        }
+      }
+    },
+    "grid": {
+      "name": "Grid",
+      "params": {
+        "grid_size": "Cell Size",
+        "thickness": "Line Thickness",
+        "alignment": "Alignment"
+      },
+      "options": {
+        "alignment": {
+          "center": "Center",
+          "edge": "Edge"
+        }
+      }
+    },
+    "image": {
+      "name": "Custom Image",
+      "params": {
+        "path": "Image Path",
+        "scale": "Scale",
+        "offset_x": "Horizontal Offset",
+        "offset_y": "Vertical Offset",
+        "width": "Original Width (display only)",
+        "height": "Original Height (display only)"
+      }
+    },
+    "large_cross": {
+      "name": "Large Crosshair",
+      "params": {
+        "thickness": "Thickness"
+      }
+    },
+    "path_showcase": {
+      "name": "Path",
+      "params": {
+        "d": "Path Data (SVG path d, e.g. copied from a design tool)",
+        "size_pct": "Size",
+        "fill": "Fill (off = stroke only)",
+        "thickness": "Stroke Thickness"
+      }
+    },
+    "random_orb": {
+      "name": "Random Orb",
+      "params": {
+        "orb_count": "Orbs per Edge",
+        "offset": "Edge Distance",
+        "jitter": "Jitter",
+        "radius_min": "Min Radius",
+        "radius_max": "Max Radius",
+        "center_deviation": "Center Deviation",
+        "mode": "Mode"
+      },
+      "options": {
+        "mode": {
+          "lock_on_start": "Lock on Start",
+          "reshuffle": "Reshuffle Every Time"
+        }
+      }
+    },
+    "ring": {
+      "name": "Center Ring",
+      "params": {
+        "thickness": "Thickness",
+        "ring_radius_pct": "Radius Ratio",
+        "ring_style": "Line Style"
+      },
+      "options": {
+        "ring_style": {
+          "solid": "Solid",
+          "dashed": "Dashed",
+          "double": "Double"
+        }
+      }
+    },
+    "teardrop": {
+      "name": "Breathing Ring",
+      "params": {
+        "radius_pct": "Size",
+        "ring_width": "Ring Width",
+        "breath_speed": "Breathing Speed",
+        "thickness": "Stroke Thickness"
+      },
+      "options": {
+        "breath_speed": {
+          "slow": "Slow (8/min)",
+          "normal": "Natural (14/min)",
+          "fast": "Fast (20/min)"
+        }
+      }
+    },
+    "time": {
+      "name": "Time Display",
+      "params": {
+        "font_size": "Font Size",
+        "x": "X Position",
+        "y": "Y Position",
+        "format": "Format (e.g. HH:mm:ss / yyyy-MM-dd HH:mm:ss)",
+        "bold": "Bold"
+      }
+    }
   }
 }

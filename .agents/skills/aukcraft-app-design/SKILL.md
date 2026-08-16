@@ -44,7 +44,7 @@ python scripts/generate_theme.py --accent "#2563EB" --format tailwind
 python scripts/generate_theme.py --accent "#2563EB" --format json
 ```
 
-脚本内置两道门禁：**饱和度门禁**——过艳的颜色（HSV S > 0.90 且明度 ≥ 0.5 的霓虹区）直接拒绝生成，这是「不艳即舒适」的机器执行；**对比度检查**——自动推算（或被 `--accent-soft` 覆盖）暗色界面用的 accent 浅阶，对照 `base` 不足 4.5:1 时在 stderr 警告。生成产物示例见 `assets/examples/peregrine-shadcn.css`。
+脚本内置三道门禁：**饱和度门禁**——过艳的颜色（HSV S > 0.90 且明度 ≥ 0.5 的霓虹区）直接拒绝生成，这是「不艳即舒适」的机器执行；**对比度检查**——自动推算（或被 `--accent-soft` 覆盖）暗色界面用的 accent 浅阶，对照 `base` 不足 4.5:1 时在 stderr 警告；**槽位塌缩门禁**——hover 级表面与 card 明度差 <3% 时拒绝生成。生成产物示例见 `assets/examples/peregrine-shadcn.css`。
 
 ## 共享核心（两种情形都不可协商）
 
@@ -54,12 +54,15 @@ python scripts/generate_theme.py --accent "#2563EB" --format json
 |---|---|---|
 | `base` | `#0B0E11` | 窗口背景 |
 | `raised` | `#14181D` | 卡片、面板、弹层、侧栏 |
+| `hover` | `#2C2F34` | 第三级表面：悬停底色、滑杆轨道、tab pill、kbd（10% 白叠加在 raised 上） |
 | `hairline` | `rgba(255,255,255,0.08)` | 所有边框/分隔线，1px |
 | `ink` | `#EDEDED` | 主文字、控件标签 |
 | `muted` | `#8A9199` | 次要文字、占位符、禁用态 |
 | `ease-lock` | `cubic-bezier(0.16, 1, 0.3, 1)` | 所有过渡 |
 
 固定暗色主题；绝不使用纯 `#000` / `#FFF`。圆角一律 ≤ 4px（行内代码/kbd 可用 2px）。**app 自有界面上零阴影**——层次只靠明度差 + 1px 发丝线。（OS 自有的原生菜单、托盘、系统工具提示豁免。）
+
+**三级表面是硬约束**：`base < raised < hover` 两两明度差 ≥ 3%。把悬停槽塌缩到 `raised` 会让浮层上的 hover/focus 反馈彻底消失——"界面死了"是最典型的不高级感来源。映射到 shadcn 槽位时：`card/popover → raised`，`muted/secondary/accent → hover`（与 shadcn 暗色默认的三槽同值结构同构）。
 
 ### 产品 accent 与组织 accent
 

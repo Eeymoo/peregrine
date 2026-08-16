@@ -31,7 +31,18 @@
 python scripts/generate_theme.py --accent "<产品accent>" --format shadcn   # 或 css / tailwind
 ```
 
-注意脚本的对比度警告：暗色界面用 accent 的 400 阶，不足 4.5:1 时换更亮的阶。
+注意脚本的对比度警告：暗色界面用 accent 的 400 阶，不足 4.5:1 时换更亮的阶。脚本另带**槽位塌缩门禁**：hover 级表面与 card 明度差 <3% 时拒绝生成——三级表面（base < raised < hover）是硬约束，塌缩成两级会让悬停反馈全部死亡。
+
+### 2.5 槽位消费审计（不可跳过）
+
+token 重映射**之前**，先盘点每个语义槽的所有消费者，逐个决定处置——否则 token 级改动会从组件"后门"误伤。强制产出一张消费场景矩阵：
+
+1. grep 所有消费 `--primary` / `--accent` / `--muted` / `--secondary` 的组件与 class（shadcn 项目重点查 `components/ui/*`）
+2. 逐行标注性质：主操作填充 / 静态填充 / 选中标记 / 悬停底色 / 实时状态
+3. 按 accent 配给纪律决定每行的新值（参考 `peregrine-mapping.md` 的矩阵实例：slider/switch 改中性、checkbox/radio 未选描边改 `border-input`）
+4. 特别警惕的"后门"消费者：`slider` 的 Range/Thumb、`switch` 的 checked 态、`checkbox`/`radio` 的未选描边——它们都消费 `--primary`，只换 token 会把它们全部染色
+
+写不出这张矩阵就不要进入下一步。完整实例见 `references/peregrine-mapping.md` 的「accent 消费场景矩阵」。
 
 ### 3. 重映射变量（大部分视觉变化发生在这一步）
 
@@ -45,7 +56,7 @@ python scripts/generate_theme.py --accent "<产品accent>" --format shadcn   # �
 
 ### 5. 焦点 / 动效一轮
 
-- 焦点环改为 1px accent 描边、3px 偏移（替代组件库默认的粗 ring + offset）
+- 焦点环改为 1px accent 描边、2–3px 偏移（替代组件库默认的粗 ring + offset）；**≤20px 的小控件（checkbox/switch/radio/slider thumb）用 2px**——3px 偏移对小控件比例失调
 - 过渡时长缓动统一到 `ease-lock`
 - 补上 `prefers-reduced-motion` 降级：直接变色、禁用缩放
 
@@ -59,7 +70,7 @@ python scripts/generate_theme.py --accent "<产品accent>" --format shadcn   # �
 
 ### 8. 在真实窗口尺寸下验证
 
-不是最大化的浏览器，而是 app 实际运行的窗口尺寸（如 Peregrine 的 960×560）。过一遍下方检查清单。
+不是最大化的浏览器，而是 app 实际运行的窗口尺寸（如 Peregrine 的 960×560）。过一遍下方检查清单。**除静态检查外必须做动态三态验证**：在真实窗口里逐一触发 hover / 键盘焦点 / 选中态，确认每处都有可见反馈——静态 token 检查查不出"悬停死在浮层上"这类事故。
 
 ## 保留清单：识别"本来就对"的决策
 
@@ -77,6 +88,8 @@ python scripts/generate_theme.py --accent "<产品accent>" --format shadcn   # �
 
 - [ ] 布局、tab、流程、组件库未动——diff 只含 token/class 级改动
 - [ ] 改动集中在上游（主题入口 + 基础组件层），功能组件零改动
-- [ ] 「现状 → 目标」映射表中的每一项都已落地，无遗漏无计划外改动
+- [ ] 「现状 → 目标」映射表与「accent 消费场景矩阵」中的每一项都已落地，无遗漏无计划外改动
+- [ ] 三级表面成立：base < raised < hover 两两可辨，`--muted`/`--secondary`/`--accent` 未塌缩到 raised
+- [ ] 动态三态验证通过：hover / 焦点 / 选中在真实窗口逐一触发，反馈均可见
 - [ ] 已有的好决策（滚动条、密度、纯暗色、运行时 i18n、原生组件）被保留
 - [ ] 在 app 真实窗口尺寸下验证通过

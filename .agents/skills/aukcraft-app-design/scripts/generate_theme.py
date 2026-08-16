@@ -26,6 +26,12 @@ RAISED = "#14181D"
 INK = "#EDEDED"
 MUTED = "#8A9199"
 HAIRLINE_ALPHA = 0.08
+# 第三级表面：悬停 / 轨道 / pill。10% 白叠加在 raised 上，
+# 与 raised 保持 ≥3% 明度差——hover 反馈必须在浮层上可见。
+HOVER_ALPHA = 0.10
+# 槽位塌缩门禁：card 与 hover 系槽位（muted/secondary/accent）的明度差
+# 下限。低于此值说明表面层级不够，hover 会"死"在浮层上。
+MIN_SURFACE_L_GAP = 0.03
 
 # shadcn 暗色主题的破坏性色（aukcraft 规范不覆盖语义色，沿用组件库默认）
 DESTRUCTIVE_HSL = (0, 0.628, 0.506)
@@ -117,9 +123,22 @@ def contrast(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
 def emit_shadcn(accent: tuple[int, int, int], soft: tuple[int, int, int]) -> str:
     base, raised, ink, muted = (hex_to_rgb(c) for c in (BASE, RAISED, INK, MUTED))
     border_on_raised = blend_over_base(HAIRLINE_ALPHA, raised)
+    hover = blend_over_base(HOVER_ALPHA, raised)
+    # 槽位塌缩门禁：hover 系槽位与 card 同值 = 悬停反馈死亡，拒绝生成
+    _, card_l, _ = rgb_to_hls(raised)
+    _, hover_l, _ = rgb_to_hls(hover)
+    if hover_l - card_l < MIN_SURFACE_L_GAP:
+        sys.exit(
+            f"错误：hover 表面 {rgb_to_hex(hover)} 与 card {rgb_to_hex(raised)} "
+            f"明度差 {hover_l - card_l:.3f} < {MIN_SURFACE_L_GAP}——"
+            "槽位塌缩会导致悬停反馈不可见。请提高 HOVER_ALPHA。"
+        )
     d_h, d_s, d_l = DESTRUCTIVE_HSL
     return f"""/* aukcraft 桌面端暗色主题 — 由 generate_theme.py 生成
  * 中性色核心原样落地；accent 为产品色，暗色界面统一使用 400 浅阶。
+ * 三级表面：base（窗口底） < raised（浮层） < hover（悬停/轨道/pill）。
+ * muted/secondary/accent 槽同属 hover 级（与 shadcn 暗色默认同构），
+ * 保证浮层上的悬停反馈可见。accent 槽保持中性，不放品牌色。
  * 注意：border/input 是 8% 白发丝线叠加在 raised 上的不透明近似值，
  * 因为 shadcn 的 hsl(var(--border)) 语法不带 alpha 通道。
  * 固定暗色：直接使用 :root，不提供 .light。
@@ -134,12 +153,12 @@ def emit_shadcn(accent: tuple[int, int, int], soft: tuple[int, int, int]) -> str
     --popover-foreground: {hsl_triplet(ink)};
     --primary: {hsl_triplet(soft)};
     --primary-foreground: {hsl_triplet(base)};
-    --secondary: {hsl_triplet(raised)};
+    --secondary: {hsl_triplet(hover)};
     --secondary-foreground: {hsl_triplet(ink)};
-    --muted: {hsl_triplet(raised)};
+    --muted: {hsl_triplet(hover)};
     --muted-foreground: {hsl_triplet(muted)};
     /* shadcn 的 accent 槽位是悬停底色，保持中性，不放品牌色 */
-    --accent: {hsl_triplet(raised)};
+    --accent: {hsl_triplet(hover)};
     --accent-foreground: {hsl_triplet(ink)};
     --destructive: {d_h:.0f} {d_s * 100:.1f}% {d_l * 100:.1f}%;
     --destructive-foreground: {hsl_triplet(ink)};
@@ -151,6 +170,7 @@ def emit_shadcn(accent: tuple[int, int, int], soft: tuple[int, int, int]) -> str
     /* aukcraft 原始 token，组件外直接使用 */
     --color-base: {BASE};
     --color-raised: {RAISED};
+    --color-hover: {rgb_to_hex(hover)};
     --color-hairline: rgba(255, 255, 255, 0.08);
     --color-ink: {INK};
     --color-muted: {MUTED};
@@ -161,11 +181,17 @@ def emit_shadcn(accent: tuple[int, int, int], soft: tuple[int, int, int]) -> str
 }}"""
 
 
+def hover_surface() -> tuple[int, int, int]:
+    """第三级表面：悬停 / 轨道 / pill（10% 白叠加在 raised 上）。"""
+    return blend_over_base(HOVER_ALPHA, hex_to_rgb(RAISED))
+
+
 def emit_css(accent: tuple[int, int, int], soft: tuple[int, int, int]) -> str:
     return f"""/* aukcraft 桌面端暗色主题 — 由 generate_theme.py 生成（通用 CSS 变量） */
 :root {{
   --color-base: {BASE};
   --color-raised: {RAISED};
+  --color-hover: {rgb_to_hex(hover_surface())};
   --color-hairline: rgba(255, 255, 255, 0.08);
   --color-ink: {INK};
   --color-muted: {MUTED};
@@ -199,6 +225,7 @@ def emit_tailwind(accent: tuple[int, int, int], soft: tuple[int, int, int]) -> s
   colors: {{
     base: '{BASE}',
     raised: '{RAISED}',
+    hover: '{rgb_to_hex(hover_surface())}',
     ink: '{INK}',
     muted: '{MUTED}',
     hairline: 'rgba(255,255,255,0.08)',
@@ -227,6 +254,7 @@ def emit_json(accent: tuple[int, int, int], soft: tuple[int, int, int]) -> str:
     return json.dumps({
         "base": BASE,
         "raised": RAISED,
+        "hover": rgb_to_hex(hover_surface()),
         "hairline": "rgba(255,255,255,0.08)",
         "ink": INK,
         "muted": MUTED,

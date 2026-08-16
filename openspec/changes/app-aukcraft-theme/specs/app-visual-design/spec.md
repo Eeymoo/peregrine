@@ -20,20 +20,41 @@
 
 设置窗口 MUST 只声明一个产品 accent（品牌蓝 `#2563EB` 家族），暗色界面上 MUST 使用 400 阶 `#60A5FA` 以保证与窗口背景对比度 ≥ 4.5:1。accent MUST 只出现在：焦点指示、每窗口唯一主操作、链接、选中态标记、实时状态。accent MUST NOT 用于背景填充、徽标、装饰线、默认图标；shadcn 的 `--accent` 悬停底色槽位 MUST 保持中性。
 
+消费 `--primary` 的非按钮组件 MUST 按消费场景矩阵处置：滑杆（Slider Range/Thumb）与开关（Switch checked 态）等静态填充 MUST 使用中性色（`foreground` 梯度）；复选框/单选框的未选中描边 MUST 使用 `border-input` 而非 accent 描边，仅选中标记允许 accent。
+
 #### Scenario: 主按钮使用 accent 而非白色
 
 - **WHEN** 查看主操作按钮（`bg-primary`）
 - **THEN** `--primary` 为 accent 400 阶（`#60A5FA`），不是白色或近白色
 
+#### Scenario: 滑杆与开关保持中性
+
+- **WHEN** 查看设置窗口中的滑杆（尺寸/厚度/不透明度等）与开关（开启态）
+- **THEN** 滑杆填充与 Thumb 描边为中性亮灰（`foreground/60`），开关开启态为 ink 填充（`bg-foreground`），均不出现品牌蓝
+
 #### Scenario: 焦点环为 1px accent 描边
 
 - **WHEN** 键盘 Tab 聚焦任意可交互控件
-- **THEN** 焦点指示为 1px accent 描边 + 3px 偏移（`ring-1 ring-ring ring-offset-[3px]`），不是 shadcn 默认的粗光晕
+- **THEN** 焦点指示为 1px accent 描边 + 2–3px 偏移（`ring-1 ring-ring`；≤20px 小控件用 2px 偏移），不是 shadcn 默认的粗光晕
 
 #### Scenario: 悬停底色不放品牌色
 
 - **WHEN** 悬停在列表项 / 幽灵按钮 / 下拉项上
-- **THEN** 悬停底色为中性表面（`--accent` 与 `--muted` 同值的 raised 色），不出现品牌蓝填充
+- **THEN** 悬停底色为中性表面（`--accent` 与 `--muted` 同值的 hover 级色），不出现品牌蓝填充
+
+### Requirement: 三级表面层级
+
+主题 MUST 提供三级可辨表面：窗口底 `base`（`#0B0E11`）< 浮层 `raised`（`#14181D`）< 悬停级 `hover`（`#2C2F34`），两两明度差 ≥ 3%。shadcn 槽位映射 MUST 为：`card/popover → raised`，`muted/secondary/accent → hover 级`。MUST NOT 把悬停系槽位塌缩到 raised——浮层上的悬停反馈必须可见。
+
+#### Scenario: 浮层上的悬停反馈可见
+
+- **WHEN** 在 Card 内的列表项、幽灵按钮或下拉项上触发 hover / 键盘 focus
+- **THEN** 悬停底色与 Card 表面有可辨明度差，反馈清晰可见
+
+#### Scenario: 槽位未塌缩
+
+- **WHEN** 检查 `:root` 变量块中 `--card` 与 `--muted`/`--secondary`/`--accent` 的值
+- **THEN** 悬停系三槽与 `--card` 的明度差 ≥ 3%，未塌缩为同一颜色
 
 ### Requirement: 圆角与阴影纪律
 

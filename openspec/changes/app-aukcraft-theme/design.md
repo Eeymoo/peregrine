@@ -33,11 +33,13 @@ Peregrine 设置窗口为 Tauri Webview（React 18 + Tailwind 3 + shadcn/ui）�
 
 ### D3：shadcn 的 `--accent` 槽位保持中性
 
-shadcn 的 `accent` 是悬停底色（hover:bg-accent），若放品牌蓝会造成大面积 accent 填充，违反配给纪律。`--accent` 与 `--muted` 同值（raised 表面），品牌蓝只走 `--primary` 与 `--ring`。
+shadcn 的 `accent` 是悬停底色（hover:bg-accent），若放品牌蓝会造成大面积 accent 填充，违反配给纪律。品牌蓝只走 `--primary` 与 `--ring`。
 
-### D4：焦点环改为 1px accent 描边 + 3px 偏移
+**修订（D3 初版事故）**：D3 初版把 `--accent`/`--muted`/`--secondary` 全部拍成 raised（`#14181D`），导致 Card 上的 hover 底色与 Card 同色——悬停反馈全部死亡。修正为三级表面：`card/popover → raised`，`muted/secondary/accent → hover 级 #2C2F34`（10% 白叠加在 raised 上，明度差 9.2%），与 shadcn 暗色默认的三槽同值结构同构。
 
-`ring-2 ring-offset-2` 是 shadcn 默认粗环，与发丝线语言不一致。统一改为 `ring-1 ring-ring ring-offset-[3px] ring-offset-background`，更细、偏移更大，视觉上是"描边"而非"光晕"。
+### D4：焦点环改为 1px accent 描边 + 2–3px 偏移
+
+`ring-2 ring-offset-2` 是 shadcn 默认粗环，与发丝线语言不一致。统一改为 `ring-1 ring-ring ring-offset-background`：按钮/输入框等大控件偏移 3px，≤20px 小控件（checkbox/switch/radio/slider thumb）偏移 2px——3px 偏移对小控件比例失调。
 
 ### D5：零阴影后弹层层次靠 raised + 发丝线 + 遮罩
 
@@ -50,6 +52,20 @@ micro 标签（mono 全大写 0.15em 字距）是升级中唯一允许的新增�
 ### D7：保留清单不动
 
 自动隐藏滚动条（颜色已对 muted 梯度）、Tabs+Cards 密度、固定暗色、运行时 i18n、原生标题栏/托盘——这些本来就符合规范，零改动。
+
+### D8：accent 消费场景矩阵（新增，修复 D1 的次生事故）
+
+D1 把 `--primary` 换成品牌蓝后，`--primary` 的非按钮消费者被一并染色：41 根滑杆（Range + Thumb）、8 个开关（checked 态）、checkbox/radio 的未选中描边全部变蓝——违反配给纪律。按消费场景矩阵做组件级处置：
+
+| 消费者 | 处置 |
+|---|---|
+| `slider` Range/Thumb | 中性化：`bg-foreground/60` / `border-foreground/60` |
+| `switch` checked 态 | ink 填充：`data-[state=checked]:bg-foreground` |
+| `checkbox`/`radio` 未选描边 | `border-primary` → `border-input`；checked 态保留 accent（选中标记） |
+| `button` default 变体 | 保留 accent 蓝（各窗口默认按钮 ≤3 个，构成唯一视觉重心） |
+| HotkeysTab 录音态 `bg-primary/10` | 保留（实时状态允许 accent） |
+
+技能侧同步修复：`generate_theme.py` 加第三级表面与槽位塌缩门禁、`peregrine-mapping.md` 加消费场景矩阵并修订"白色主按钮"绝对判断、`upgrade.md` 插入槽位消费审计步骤（2.5）与动态三态验证清单、`SKILL.md` 中性色核心加 `hover` token。
 
 ## Risks / Trade-offs
 

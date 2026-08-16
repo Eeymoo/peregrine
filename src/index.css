@@ -4,7 +4,9 @@
 
 /* aukcraft 桌面端暗色主题（generate_theme.py 生成，accent = 品牌蓝 #2563EB）
  * 中性色核心原样落地：#0B0E11 / #14181D / 8% 白发丝线 / #EDEDED / #8A9199
- * 固定暗色：直接使用 :root，不提供 .light。border/input 为发丝线在 raised 上的不透明近似值
+ * 三级表面：base（窗口底） < raised（浮层） < hover（#2C2F34，悬停/轨道/pill）。
+ * muted/secondary/accent 槽同属 hover 级，保证浮层上的悬停反馈可见。
+ * 固定暗色：直接使用 :root。border/input 为发丝线在 raised 上的不透明近似值
  * （shadcn 的 hsl(var(--border)) 语法不带 alpha 通道）。
  */
 @layer base {
@@ -17,12 +19,12 @@
     --popover-foreground: 0 0% 92.9%;
     --primary: 213 93.9% 67.8%;
     --primary-foreground: 210 21.4% 5.5%;
-    --secondary: 213 18.4% 9.6%;
+    --secondary: 218 8.3% 18.8%;
     --secondary-foreground: 0 0% 92.9%;
-    --muted: 213 18.4% 9.6%;
+    --muted: 218 8.3% 18.8%;
     --muted-foreground: 212 6.8% 57.1%;
     /* shadcn 的 accent 槽位是悬停底色，保持中性，不放品牌色 */
-    --accent: 213 18.4% 9.6%;
+    --accent: 218 8.3% 18.8%;
     --accent-foreground: 0 0% 92.9%;
     --destructive: 0 62.8% 50.6%;
     --destructive-foreground: 0 0% 92.9%;
@@ -34,6 +36,7 @@
     /* aukcraft 原始 token，组件外直接使用 */
     --color-base: #0B0E11;
     --color-raised: #14181D;
+    --color-hover: #2C2F34;
     --color-hairline: rgba(255, 255, 255, 0.08);
     --color-ink: #EDEDED;
     --color-muted: #8A9199;

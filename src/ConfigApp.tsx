@@ -196,7 +196,7 @@ export default function ConfigApp() {
             <div className="absolute top-4 left-4 right-4 flex items-center justify-end z-10">
               <button
                 onClick={() => setLayersMode(true)}
-                className="text-xs px-3 py-1.5 bg-primary text-primary-foreground roundedhover:bg-primary/90"
+                className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90"
                 title={t("layers.switchToLayers")}
               >
                 {t("layers.switchToLayers")}

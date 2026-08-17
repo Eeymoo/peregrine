@@ -31,5 +31,5 @@
 - [x] 5.1 重跑 i18n-audit 流程：6 语 key 集合完全一致、`t()` 引用零缺失、无新增硬编码用户可见文案（含动态 key 人工核对）
 - [x] 5.2 `cargo test -p peregrine_material` + `cargo test`（后端新测试）通过，`cargo fmt --check` / `cargo clippy` 干净
 - [x] 5.3 `npm run build`（tsc + vite）通过
-- [ ] 5.4 Windows 实测：en/ja-JP 界面下物料选择器与参数面板全英文/日文；首启 ConfigApp 窗口正常显示且无标题闪烁；切换语言后物料文案随界面刷新
-- [ ] 5.5（可选增强）在 CI 或脚本中加"内置物料 params/options key 必须有对应 locale 条目"的防漂移校验
+- [ ] 5.4 【PR 合并前人工执行】Windows 实测：en/ja-JP 界面下物料选择器与参数面板全英文/日文；首启 ConfigApp 窗口正常显示且无标题闪烁；切换语言后物料文案随界面刷新
+- [ ] 5.5（可选增强，留作后续）在 CI 或脚本中加"内置物料 params/options key 必须有对应 locale 条目"的防漂移校验

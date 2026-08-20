@@ -8,6 +8,26 @@ name: Snapshot
 on:
   pull_request:
     branches: [main, master, dev]
+    # 仅当代码 / 依赖 / 构建配置变化时才触发快照构建（三架构 NSIS+zip 成本高）。
+    # 文档（docs/）、OpenSpec 工件（openspec/）、纯 markdown、与产物无关的
+    # workflow 改动不触发——避免如「改一行 CI 注释也要等 7 分钟快照」。
+    # 手动 workflow_dispatch 不受 paths 限制，随时可强制构建。
+    paths:
+      - 'crates/**'
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'assets/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'tailwind.config.ts'
+      - 'postcss.config.*'
+      - 'components.json'
+      - '.github/workflows/snapshot.yml'
   workflow_dispatch:
 
 permissions:

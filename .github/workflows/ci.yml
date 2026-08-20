@@ -1,7 +1,10 @@
 name: CI
 
-# 每次 push 到 main/master/dev 分支或提交 PR 时触发，
-# 验证 Windows 平台编译与测试通过。
+# 每次 push 到 main/master/dev 分支或提交 PR 时触发，验证 Windows 平台编译与测试通过。
+# 通过 changes job（dorny/paths-filter）按改动面分流：Rust 改动才跑
+# build/test-report/lint，前端改动才跑 frontend-report，locale 改动才跑
+# i18n-check，版本/changelog 改动才跑 docs-consistency——纯文档 /
+# OpenSpec 工件 PR 不再空转全量 CI。
 on:
   push:
     branches: [main, master, dev]
@@ -12,9 +15,53 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # 改动面探测：按 PR / push 的文件变更分类，供下游 job 的 if 分流。
+  # push 事件与最近一次 push 的 commit 比较，同样生效（main 上的纯文档
+  # 提交不会跑重型 job）。
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      i18n: ${{ steps.filter.outputs.i18n }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Path filter
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'src-tauri/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            frontend:
+              - 'src/**'
+              - 'index.html'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'vite.config.ts'
+              - 'tsconfig.json'
+              - 'tailwind.config.ts'
+              - 'postcss.config.*'
+              - 'components.json'
+            i18n:
+              - 'src/i18n/**'
+            docs:
+              - 'package.json'
+              - 'docs/src/content/docs/guide/changelog.md'
   # 跨平台编译检查（不打包，只确保能 build）。
   build:
     name: Build & Test (${{ matrix.target }})
+    needs: changes
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.frontend == 'true'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -52,6 +99,8 @@ jobs:
   # 完整测试套件（Windows runner）：生成 JUnit XML 测试报告
   test-report:
     name: Test Report (Windows)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -123,6 +172,8 @@ jobs:
   # 前端测试与构建报告
   frontend-report:
     name: Frontend Report
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -164,6 +215,8 @@ jobs:
   # 代码格式与 lint 检查（仅在 Linux 上跑，节省 CI 时间）。
   lint:
     name: Lint (fmt + clippy)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -201,9 +254,10 @@ jobs:
   # 详见 scripts/check-i18n.mjs。失败阻塞 merge（与人工 review 并行，纯增益）。
   i18n-check:
     name: i18n Check
+    needs: changes
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'pull_request' &&
+      needs.changes.outputs.i18n == 'true' &&
       !cancelled()
     steps:
       - name: Checkout
@@ -227,6 +281,8 @@ jobs:
   # release.yml 的 verify-docs 闸门（tag 推送时）才是最终强制。
   docs-consistency:
     name: Docs Consistency
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -257,7 +313,7 @@ jobs:
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs: [build, test-report, frontend-report, lint, i18n-check, docs-consistency]
+    needs: [changes, build, test-report, frontend-report, lint, i18n-check, docs-consistency]
     if: always()
     steps:
       - name: Check all jobs status

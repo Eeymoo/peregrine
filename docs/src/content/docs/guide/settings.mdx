@@ -3,18 +3,26 @@ title: "Settings Guide"
 description: Item-by-item walkthrough of every tab (General / Overlay / Material / Hotkeys / Update) in the Peregrine settings window.
 ---
 
+import Mermaid from '../../../components/Mermaid.astro';
+
 The settings window is opened from the tray menu ("Settings") or the config panel. It contains 7 tabs: **General / Overlay / Material / Hotkeys / Update / About / Dev** (the "Dev" tab appears only after developer mode is unlocked). This page covers the first five; for the full field definitions see the [Configuration Guide](./config.md).
 
-```text
-Settings window
-├── General   Language / GPU acceleration / Telemetry
-├── Overlay   Start behavior / Drag preview / Anti-aliasing / Renderer backend / Quick colors
-├── Material  Dynamic material switch / Animation FPS
-├── Hotkeys   Action ↔ key bindings
-├── Update    Update channel / Check for updates / Mirror
-├── About     (not covered here)
-└── Dev       Shown after developer-mode unlock (not covered here)
-```
+:::note[About the screenshots]
+The screenshots show the **main app's own fixed light UI**; they do not change with the docs site's light/dark theme.
+:::
+
+<Mermaid
+  chart={`graph TD
+    W["Settings window"] --> G["General<br/>Language / GPU acceleration / Telemetry"]
+    W --> O["Overlay<br/>Start behavior / Drag preview / Anti-aliasing / Renderer backend / Quick colors"]
+    W --> M["Material<br/>Dynamic material switch / Animation FPS"]
+    W --> H["Hotkeys<br/>Action ↔ key bindings"]
+    W --> U["Update<br/>Update channel / Check for updates / Mirror"]
+    W --> A["About (not covered here)"]
+    W --> D["Dev (shown after developer-mode unlock)"]
+    classDef muted fill:#f5f5f5,stroke:#bbb,color:#888
+    class A,D muted`}
+/>
 
 ## General
 
@@ -71,17 +79,12 @@ Layer management and per-layer parameters live in the config window's layer edit
 
 "Dynamic materials" are materials that change in real time based on runtime inputs (time, mouse position, key state, etc.), such as the `builtin.time` clock. Whether the dynamic pipeline is live is decided by **AND-ing two switches**:
 
-```text
-Compile-time switch MATERIAL_DYNAMIC_INPUT_ENABLED    Runtime user switch dynamic_enabled
-                          │                                          │
-                          └──────────────┐          ┌────────────────┘
-                                         ▼          ▼
-                                      ┌──────────┐
-                                      │   AND    │────► dynamic pipeline live
-                                      └──────────┘      (input polling / dynamic eval
-                                                         context / continuous redraw /
-                                                         dynamic materials in the picker)
-```
+<Mermaid
+  chart={`graph LR
+    A["Compile-time switch<br/>MATERIAL_DYNAMIC_INPUT_ENABLED"] --> AND{"AND"}
+    B["Runtime user switch<br/>dynamic_enabled"] --> AND
+    AND -->|"both true"| C["Dynamic pipeline live<br/>input polling / dynamic eval context /<br/>continuous redraw / dynamic materials in the picker"]`}
+/>
 
 - **Both on** (the default in official builds): dynamic materials redraw continuously at the FPS cadence.
 - **Runtime switch off**: a user-side soft-off — dynamic materials are evaluated with a static context (frozen at one frame), effective immediately without a restart; input polling and periodic wake-ups stop.

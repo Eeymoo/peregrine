@@ -7,14 +7,20 @@
  *         每 Tab 等待渲染稳定后截图。Tab 定位使用 Radix 生成的稳定 id 后缀
  *         （`-trigger-<value>` / `-content-<value>`），与界面语言无关。
  *       - label 'config' → ConfigApp：截多图层编辑态（LayersEditor + 真实图元预览）。
+ * 视口：与 src-tauri/src/lib.rs 中两个窗口的初始 inner_size 一致——
+ *       settings 480×540（不可缩放）、config 1080×720。
  *
- * 产物：docs/public/img/screenshots/ 下（1600×1000 视口截图）：
+ * 产物：docs/public/img/screenshots/ 下（视口截图，尺寸同上）：
  *       - settings-general.png  设置窗口·通用 Tab
  *       - settings-overlay.png  设置窗口·覆盖层 Tab
  *       - settings-material.png 设置窗口·物料 Tab
  *       - settings-hotkeys.png  设置窗口·快捷键 Tab
  *       - settings-layers.png   ConfigApp 多图层编辑器（兼容旧引用）
- *       注：主程序 UI 为固定深色主题（不跟随 prefers-color-scheme），故只产单套。
+ *
+ *       关于主题：截图对象是主程序 UI（React 设置面板），不是文档站。
+ *       主程序 Tailwind 配置为 darkMode: ["class"] 且从不给 <html> 挂 .dark 类，
+ *       也不读 prefers-color-scheme——渲染结果固定为浅色主题，与运行环境无关，
+ *       故无需按深浅主题分别产出，只截一套。
  *
  * 运行：node docs/scripts/capture-screenshots.mjs
  */
@@ -40,11 +46,14 @@ const TAB_SHOTS = [
 const browser = await chromium.launch();
 const results = [];
 
-/** 打开一个注入 mock-tauri 的新上下文并等待配置加载完成。 */
-async function openMockPage(windowLabel) {
+/**
+ * 打开一个注入 mock-tauri 的新上下文并等待配置加载完成。
+ * @param windowLabel 模拟的 Tauri 窗口 label（'settings' / 'config'）
+ * @param size 视口大小，与 lib.rs 中对应窗口的初始 inner_size 一致
+ */
+async function openMockPage(windowLabel, size) {
   const ctx = await browser.newContext({
-    viewport: { width: 1600, height: 1000 },
-    colorScheme: 'dark',
+    viewport: size,
     deviceScaleFactor: 1,
   });
   await ctx.addInitScript(buildMockInitScript({ windowLabel }));
@@ -58,9 +67,9 @@ async function openMockPage(windowLabel) {
   return { ctx, page, errors };
 }
 
-// —— SettingsApp：逐 Tab 截图 ——
+// —— SettingsApp：逐 Tab 截图（视口 = 真实设置窗口初始尺寸 480×540） ——
 {
-  const { ctx, page, errors } = await openMockPage('settings');
+  const { ctx, page, errors } = await openMockPage('settings', { width: 480, height: 540 });
   // 等待设置面板渲染完成（任一 Tab 面板激活即 fixtures 配置已加载）。
   await page.waitForSelector('[role="tab"]', { timeout: 15000 });
 
@@ -86,9 +95,9 @@ async function openMockPage(windowLabel) {
   await ctx.close();
 }
 
-// —— ConfigApp：多图层编辑器截图（既有产物，兼容旧引用） ——
+// —— ConfigApp：多图层编辑器截图（视口 = 真实配置窗口初始尺寸 1080×720） ——
 {
-  const { ctx, page, errors } = await openMockPage('config');
+  const { ctx, page, errors } = await openMockPage('config', { width: 1080, height: 720 });
   // 等待多图层编辑器渲染：图层名"中心准星"可见即 fixtures 加载完成。
   await page.waitForSelector('text=中心准星', { timeout: 15000 });
 
@@ -102,7 +111,9 @@ async function openMockPage(windowLabel) {
     if (!c || canvas.width === 0) return { ok: false, reason: 'no ctx' };
     const data = c.getImageData(0, 0, canvas.width, canvas.height).data;
     const colors = new Set();
-    for (let i = 0; i < data.length; i += 4013 * 4) {
+    // 自适应采样步长：抽取约 2000 个像素点，任意 canvas 尺寸下都稳定。
+    const stride = Math.max(4, Math.floor(data.length / 2000 / 4) * 4);
+    for (let i = 0; i < data.length; i += stride) {
       colors.add(`${data[i]},${data[i + 1]},${data[i + 2]}`);
     }
     return { ok: colors.size > 2, distinctColors: colors.size };

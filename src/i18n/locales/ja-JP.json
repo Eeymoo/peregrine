@@ -37,7 +37,8 @@
     "offsetY": "オフセット Y",
     "scale": "スケール",
     "rotation": "回転",
-    "lastVisibleLocked": "オーバーレイ実行中は少なくとも1つの表示レイヤーを維持してください"
+    "lastVisibleLocked": "オーバーレイ実行中は少なくとも1つの表示レイヤーを維持してください",
+    "comingSoonSuffix": "（開発中）"
   },
   "common": {
     "add": "追加",
@@ -312,6 +313,10 @@
     "placeholder": "PNG ファイルを選択してください",
     "rendering": "レンダリング中…"
   },
+  "window": {
+    "configTitle": "Peregrine 設定",
+    "settingsTitle": "Peregrine 設定"
+  },
   "tray": {
     "config": "設定",
     "settings": "環境設定",
@@ -346,5 +351,188 @@
     "fpsSystem": "システムに追従",
     "statusActive": "動的パイプライン有効：動的マテリアルは設定レートで更新されます",
     "statusFrozen": "動的パイプライン無効：動的マテリアルは静止描画、静的レイヤーには影響しません"
+  },
+  "materials": {
+    "border_frame": {
+      "name": "ボーダーフレーム",
+      "params": {
+        "thickness": "太さ",
+        "offset": "エッジからの距離",
+        "frame_style": "スタイル",
+        "inset": "画面内側"
+      },
+      "options": {
+        "frame_style": {
+          "solid": "実線",
+          "gap": "切れ目"
+        }
+      }
+    },
+    "corner_dots": {
+      "name": "コーナードット",
+      "params": {
+        "count": "ドット数",
+        "offset": "エッジからの距離",
+        "radius": "半径"
+      },
+      "options": {
+        "count": {
+          "4": "4 ドット（角）",
+          "6": "6 ドット（角 + 上下中央）",
+          "8": "8 ドット（角 + 辺中央）"
+        }
+      }
+    },
+    "cross": {
+      "name": "クロスヘア",
+      "params": {
+        "size": "アーム長",
+        "thickness": "太さ",
+        "gap": "中央の隙間"
+      }
+    },
+    "custom_orb": {
+      "name": "カスタムオーブ",
+      "params": {
+        "radius": "半径",
+        "offset": "エッジからの距離",
+        "orb_positions": "有効なエッジ",
+        "top_count": "上側の数",
+        "bottom_count": "下側の数",
+        "left_count": "左側の数",
+        "right_count": "右側の数"
+      }
+    },
+    "edge_arrows": {
+      "name": "エッジ矢印",
+      "params": {
+        "size": "矢印サイズ",
+        "distance": "エッジからの距離",
+        "width": "テール幅（0=デフォルト）",
+        "tail_per_edge": "エッジごとのテール長",
+        "tail_top": "上テール長",
+        "tail_bottom": "下テール長",
+        "tail_left": "左テール長",
+        "tail_right": "右テール長",
+        "positions_mask": "有効なエッジ"
+      }
+    },
+    "edge_rect": {
+      "name": "エッジ矩形",
+      "params": {
+        "size": "幅",
+        "secondary_size": "高さ",
+        "anchor": "位置",
+        "margin": "マージン"
+      },
+      "options": {
+        "anchor": {
+          "top": "上",
+          "bottom": "下",
+          "left": "左",
+          "right": "右",
+          "center": "中央"
+        }
+      }
+    },
+    "grid": {
+      "name": "グリッド",
+      "params": {
+        "grid_size": "セルサイズ",
+        "thickness": "線の太さ",
+        "alignment": "配置"
+      },
+      "options": {
+        "alignment": {
+          "center": "中央",
+          "edge": "エッジ"
+        }
+      }
+    },
+    "image": {
+      "name": "カスタム画像",
+      "params": {
+        "path": "画像パス",
+        "scale": "スケール",
+        "offset_x": "水平オフセット",
+        "offset_y": "垂直オフセット",
+        "width": "元の幅（表示用）",
+        "height": "元の高さ（表示用）"
+      }
+    },
+    "large_cross": {
+      "name": "大型クロスヘア",
+      "params": {
+        "thickness": "太さ"
+      }
+    },
+    "path_showcase": {
+      "name": "パス",
+      "params": {
+        "d": "パスデータ（SVG path d。デザインツールからコピー可）",
+        "size_pct": "サイズ",
+        "fill": "塗りつぶし（オフで線のみ）",
+        "thickness": "描画の太さ"
+      }
+    },
+    "random_orb": {
+      "name": "ランダムオーブ",
+      "params": {
+        "orb_count": "エッジごとの数",
+        "offset": "エッジからの距離",
+        "jitter": "ジッター",
+        "radius_min": "最小半径",
+        "radius_max": "最大半径",
+        "center_deviation": "中央からの偏差",
+        "mode": "モード"
+      },
+      "options": {
+        "mode": {
+          "lock_on_start": "開始時に固定",
+          "reshuffle": "毎回再シャッフル"
+        }
+      }
+    },
+    "ring": {
+      "name": "センターリング",
+      "params": {
+        "thickness": "太さ",
+        "ring_radius_pct": "半径の割合",
+        "ring_style": "線スタイル"
+      },
+      "options": {
+        "ring_style": {
+          "solid": "実線",
+          "dashed": "破線",
+          "double": "二重線"
+        }
+      }
+    },
+    "teardrop": {
+      "name": "呼吸リング",
+      "params": {
+        "radius_pct": "サイズ",
+        "ring_width": "リング幅",
+        "breath_speed": "呼吸速度",
+        "thickness": "描画の太さ"
+      },
+      "options": {
+        "breath_speed": {
+          "slow": "ゆっくり（8回/分）",
+          "normal": "自然（14回/分）",
+          "fast": "速い（20回/分）"
+        }
+      }
+    },
+    "time": {
+      "name": "時刻表示",
+      "params": {
+        "font_size": "フォントサイズ",
+        "x": "X 座標",
+        "y": "Y 座標",
+        "format": "表示形式（例：HH:mm:ss / yyyy-MM-dd HH:mm:ss）",
+        "bold": "太字"
+      }
+    }
   }
 }

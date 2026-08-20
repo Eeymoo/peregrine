@@ -17,6 +17,7 @@ import { useConfigAppState } from "@/hooks/useConfigAppState";
 import { useConfigSave } from "@/hooks/useConfigSave";
 import { useOverlayActions } from "@/hooks/useOverlayActions";
 import { useUpdate } from "@/hooks/useUpdate";
+import { useWindowTitle } from "@/hooks/useWindowTitle";
 import { updatePreferences, getCurrentWebviewWindow } from "@/lib/api";
 import { MATERIAL_RUNTIME_ENABLED } from "@/lib/feature";
 import {
@@ -51,6 +52,8 @@ const STYLES: CrosshairStyle[] = [
 
 export default function ConfigApp() {
   const { t } = useI18n();
+  // 窗口标题随语言切换实时更新（key 与后端创建窗口时一致，文案同源）。
+  useWindowTitle("window.configTitle");
   const {
     config,
     setConfig,

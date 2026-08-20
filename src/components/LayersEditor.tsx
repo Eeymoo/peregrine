@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ import { LayerStyleEditor } from "@/components/LayerEditors";
 import { ProfileManager } from "@/components/ProfileManager";
 import { logAction } from "@/lib/actionLog";
 import { useI18n } from "@/lib/i18n";
+import { localizeMaterial } from "@/lib/material-i18n";
 
 interface LayersEditorProps {
   /** 完整的应用配置对象，包含所有配置文件数据 */
@@ -74,9 +75,16 @@ export function LayersEditor({
   onActiveProfileChange,
   onProfilesChange,
 }: LayersEditorProps) {
-  const { t } = useI18n();
+  const { t, has, resolvedLocale } = useI18n();
   const [layers, setLayers] = useState<Layer[]>([]);
   const [materials, setMaterials] = useState<MaterialInfo[]>([]);
+
+  // 内置物料展示文案按当前界面语言覆盖（用户物料原样返回，见 material-i18n.ts）。
+  const localizedMaterials = useMemo(
+    () => materials.map((m) => localizeMaterial(m, { t, has })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [materials, resolvedLocale],
+  );
   const [selectedId, setSelectedIdRaw] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -165,7 +173,7 @@ export function LayersEditor({
 
   const selectedLayer = layers.find((l) => l.id === selectedId);
   const selectedMaterial = selectedLayer
-    ? materials.find((m) =>
+    ? localizedMaterials.find((m) =>
         m.id ===
         (selectedLayer.material.kind === "builtin"
           ? selectedLayer.material.id

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useI18n } from "@/lib/i18n";
 import { useConfig } from "@/hooks/useAppState";
 import { useAppVersion } from "@/hooks/useAppState";
 import { useInitMirror } from "@/hooks/useSettingsSync";
 import { useSettingsSync } from "@/hooks/useSettingsSync";
 import { useUpdate } from "@/hooks/useUpdate";
+import { useWindowTitle } from "@/hooks/useWindowTitle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { GeneralTab } from "@/components/settings/GeneralTab";
@@ -30,9 +30,8 @@ export default function SettingsApp() {
   // 「物料」Tab 仅在物料运行时编译期开关开启时可见（软关闭构建整体隐藏）。
   const materialTabVisible = MATERIAL_RUNTIME_ENABLED;
 
-  useEffect(() => {
-    getCurrentWebviewWindow().setTitle(`${t("app.title")} ${t("settings.title")}`).catch(() => {});
-  }, [t]);
+  // 窗口标题随语言切换实时更新（key 与后端创建窗口时一致，文案同源）。
+  useWindowTitle("window.settingsTitle");
 
   useEffect(() => {
     if (config) {

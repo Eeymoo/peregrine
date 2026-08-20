@@ -34,4 +34,4 @@ The config file is located at:
 
 - Windows: `%APPDATA%\Peregrine\config.json`
 
-You can edit this file directly; the app will automatically hot-reload after you save.
+You can edit this file directly; the app will automatically hot-reload after you save. For where each option lives in the settings window see the [Settings Guide](./settings); for field definitions see the [Configuration Guide](./config).

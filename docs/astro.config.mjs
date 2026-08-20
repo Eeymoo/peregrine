@@ -29,6 +29,7 @@ const sidebar = [
       { label: 'Getting Started', translations: { 'zh-CN': '快速开始' }, slug: 'guide/getting-started' },
       { label: 'Features', translations: { 'zh-CN': '功能特性' }, slug: 'guide/features' },
       { label: 'Configuration', translations: { 'zh-CN': '配置说明' }, slug: 'guide/config' },
+      { label: 'Settings', translations: { 'zh-CN': '设置详解' }, slug: 'guide/settings' },
       { label: 'Material Scripting', translations: { 'zh-CN': '物料脚本创作' }, slug: 'guide/material-scripting' },
       { label: 'Layers', translations: { 'zh-CN': '图层管理' }, slug: 'guide/layers' },
       { label: 'Motion Sickness Relief', translations: { 'zh-CN': '缓解晕 3D' }, slug: 'guide/motion-sickness' },

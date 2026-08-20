@@ -285,5 +285,6 @@ More example materials (static, time-dynamic, input-dynamic) live under [`crates
 ## See also
 
 - [Layers](./layers) — how materials are stacked, transformed, and styled at the layer level.
+- [Settings Guide](./settings) — runtime behavior of the dynamic-material switch and FPS.
 - [Configuration](./config) — the `Profile.layers` JSON shape.
 - [`REPORT_CODES.md`](./report-codes) — telemetry code registry (materials don't emit telemetry themselves, but related code paths do).

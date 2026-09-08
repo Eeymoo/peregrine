@@ -191,6 +191,11 @@ export async function listMaterials(): Promise<MaterialInfo[]> {
   return invoke<MaterialInfo[]>("list_materials");
 }
 
+/** 在系统文件管理器中打开用户物料目录（不存在时后端先创建）。 */
+export async function openMaterialsDir(): Promise<void> {
+  return invoke("open_materials_dir");
+}
+
 /** 在当前激活 Profile 末尾添加图层。 */
 export async function addLayer(materialId: string, name: string): Promise<Layer> {
   return invoke<Layer>("add_layer", { materialId, name });

@@ -75,6 +75,8 @@ import Mermaid from '../../../../components/Mermaid.astro';
 | 动态物料 | `settings.material.dynamic_enabled` | 开启 | 即时（热生效） |
 | 动画帧率 | `settings.material.fps` | 跟随系统 | 即时（热生效） |
 
+此外本页提供「**打开物料目录**」按钮：在系统文件管理器中打开用户自定义物料（`.rhai` 脚本）的存放文件夹（目录不存在时自动创建）。放入或修改脚本后自动热加载，无需重启。
+
 ### 动态物料两层与门
 
 「动态物料」指依赖运行时输入（时间、鼠标位置、按键状态等）实时变化的物料（如 `builtin.time` 时钟）。动态链路是否活跃由**两层开关取与（AND）**决定：

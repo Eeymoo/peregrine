@@ -416,13 +416,7 @@ pub fn run() {
     if let Err(e) = material_registry.load_builtin() {
         tracing::error!(error = %e, "failed to load builtin materials");
     }
-    let materials_dir = peregrine_config::ConfigStorage::default_path()
-        .ok()
-        .map(|p| {
-            p.parent()
-                .unwrap_or(std::path::Path::new("."))
-                .join("materials")
-        });
+    let materials_dir = materials_dir();
     if let Some(ref materials_dir) = materials_dir {
         let _ = material_registry.load_user(materials_dir);
     }
@@ -723,6 +717,7 @@ pub fn run() {
             // 四层架构新 commands
             build_shapes_ipc,
             list_materials,
+            open_materials_dir,
             add_layer,
             remove_layer,
             move_layer,
@@ -1692,6 +1687,46 @@ fn build_shapes_ipc(
 #[tauri::command]
 fn list_materials(state: State<AppState>) -> Vec<MaterialInfo> {
     state.material_registry.list()
+}
+
+/// 在系统文件管理器中打开用户物料目录（设置 → 物料页「打开物料目录」按钮）。
+///
+/// 目录不存在时先创建（与物料 watcher 的启动行为一致），再调用平台
+/// 文件管理器打开：Windows `explorer` / macOS `open` / Linux `xdg-open`。
+#[tauri::command]
+fn open_materials_dir() -> Result<(), String> {
+    let Some(dir) = materials_dir() else {
+        return Err("无法定位应用数据目录".to_string());
+    };
+    // 与 spawn_material_watcher 保持一致：目录不存在则先创建，便于用户直接投放 .rhai。
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| format!("创建物料目录失败: {e}"))?;
+    }
+    #[cfg(target_os = "windows")]
+    let program = "explorer";
+    #[cfg(target_os = "macos")]
+    let program = "open";
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let program = "xdg-open";
+    std::process::Command::new(program)
+        .arg(&dir)
+        .spawn()
+        .map_err(|e| format!("打开物料目录失败: {e}"))?;
+    Ok(())
+}
+
+/// 用户物料目录：配置文件同级目录下的 `materials/` 子目录。
+///
+/// 与 `run()` 启动加载、`spawn_material_watcher` 热重载使用同一解析逻辑，
+/// 保证「打开物料目录」按钮展示的正是程序实际扫描的目录。
+fn materials_dir() -> Option<std::path::PathBuf> {
+    peregrine_config::ConfigStorage::default_path()
+        .ok()
+        .map(|p| {
+            p.parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join("materials")
+        })
 }
 
 /// 图层操作 patch（部分更新）。

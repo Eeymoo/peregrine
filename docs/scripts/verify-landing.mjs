@@ -287,11 +287,12 @@ for (const theme of ['dark', 'light']) {
       JSON.stringify(r.dlButtons),
     );
     check(
-      `${t} 顶栏导航 3 链接（Docs/Download/GitHub）`,
-      r.headerNav.length === 3 &&
+      `${t} 顶栏导航 4 链接（Docs/Download/Playground/GitHub）`,
+      r.headerNav.length === 4 &&
         r.headerNav[0].endsWith('/guide/intro') &&
         r.headerNav[1].endsWith('/download') &&
-        r.headerNav[2] === 'https://github.com/eeymoo/peregrine',
+        r.headerNav[2].endsWith('/playground') &&
+        r.headerNav[3] === 'https://github.com/eeymoo/peregrine',
       JSON.stringify(r.headerNav),
     );
     check(`${t} 顶栏保留`, r.topbar === true);

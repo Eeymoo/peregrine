@@ -1,0 +1,20 @@
+---
+title: 物料编辑器
+description: 在浏览器中编写并校验 Peregrine 自定义物料（.rhai 脚本），下载后放入物料文件夹即可热加载。
+tableOfContents: false
+# 独立工具页不参与指南翻页序列（与 download 页同策略）。
+prev: false
+next: false
+---
+
+import RhaiPlayground from '../../../components/playground/RhaiPlayground.astro';
+
+在浏览器里编写 Peregrine **自定义物料**（`.rhai` 脚本）：选一个模板起步，改代码，看契约校验结果，下载文件放进物料文件夹——应用会自动热加载，无需重启。
+
+<RhaiPlayground locale="zh-cn" />
+
+## 说明
+
+- 本编辑器只做**静态契约校验**（必需函数、widget 与图元类型白名单、动态 API 一致性）。真实求值发生在应用加载文件时——几何字段错误会在 `peregrine.log` 中体现。
+- 这里不渲染预览；安装后在应用内预览（设置 → 图层）——预览与 overlay 共用同一求值管线（WYSIWYG）。
+- 完整 API 参考见[物料脚本创作](./guide/material-scripting/)。

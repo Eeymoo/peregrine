@@ -20,6 +20,7 @@ const sidebar = [
   },
   { label: 'Docs', translations: { 'zh-CN': '文档' }, slug: 'guide/intro' },
   { label: 'Download', translations: { 'zh-CN': '下载' }, slug: 'download' },
+  { label: 'Playground', translations: { 'zh-CN': '编辑器' }, slug: 'playground' },
   {
     label: 'Guide',
     translations: { 'zh-CN': '指南' },

@@ -1,0 +1,404 @@
+---
+/**
+ * Rhai 物料编辑器（/playground 页核心组件）
+ *
+ * 纯前端实现：CodeMirror 6 语法高亮（自定义 Rhai StreamLanguage）+
+ * 契约静态校验（必需函数 / widget 与图元白名单 / 动态声明一致性）+
+ * 模板库 + 一键下载 .rhai / 复制。不在浏览器内求值——真实求值由应用
+ * 热加载后完成（写入 materials/ 目录即自动生效，见右侧安装提示）。
+ *
+ * 主题：aukcraft 壳层语法（1px 发丝线、4px 圆角、零阴影、灰阶承面），
+ * CodeMirror 配色通过 var(--color-gray-*) / var(--color-accent-*) 引用
+ * @theme tokens，明暗随 <html data-theme> 自动切换。
+ *
+ * 用法（.mdx 页面）：
+ *   import RhaiPlayground from '../../../components/playground/RhaiPlayground.astro';
+ *   <RhaiPlayground locale="zh-cn" />
+ */
+interface Props {
+  /** 语言：'en' | 'zh-cn'（控制 UI 文案） */
+  locale: 'en' | 'zh-cn';
+}
+
+const { locale } = Astro.props;
+const zh = locale === 'zh-cn';
+
+const i18n = {
+  editorLabel: zh ? '物料编辑器' : 'Material Editor',
+  templates: zh ? '模板' : 'Templates',
+  tplCross: zh ? '简易十字' : 'Simple Cross',
+  tplBreath: zh ? '呼吸圆点' : 'Breathing Dot',
+  tplPath: zh ? 'SVG 路径' : 'SVG Path',
+  download: zh ? '下载 .rhai' : 'Download .rhai',
+  copy: zh ? '复制' : 'Copy',
+  copied: zh ? '已复制' : 'Copied',
+  filename: zh ? '文件名' : 'File name',
+  validation: zh ? '契约校验' : 'Contract checks',
+  install: zh ? '安装到 Peregrine' : 'Install to Peregrine',
+  installBody: zh
+    ? '下载后把 .rhai 文件放入应用数据目录的 materials/ 文件夹（设置 → 物料页有「打开物料目录」按钮），约 500ms 自动热加载，然后在 设置 → 图层 添加 user.<文件名>。'
+    : 'Drop the downloaded .rhai into the materials/ folder of the app data directory (Settings → Materials has an "Open materials folder" button). It hot-reloads in ~500ms; then add user.<filename> in Settings → Layers.',
+  docsLink: zh ? '完整脚本指南' : 'Full scripting guide',
+  reset: zh ? '重置' : 'Reset',
+};
+
+// 三份内置模板（与文档站脚本指南 / crates/material/examples 同源，精简版）。
+const templates: Record<string, { label: string; name: string; source: string }> = {
+  cross: {
+    label: i18n.tplCross,
+    name: 'my_cross',
+    source: `// Name: ${i18n.tplCross}
+fn defaults() {
+    #{ arm_length: 20.0, thickness: 3.0, gap: 4.0 }
+}
+fn schema() {
+    [
+        #{key: "arm_length", label: "${zh ? '臂长' : 'Arm'}", widget: "slider", min: 1.0, max: 200.0, step: 1.0},
+        #{key: "thickness", label: "${zh ? '粗细' : 'Thickness'}", widget: "slider", min: 0.5, max: 20.0, step: 0.5},
+        #{key: "gap", label: "${zh ? '间隙' : 'Gap'}", widget: "slider", min: 0.0, max: 40.0, step: 1.0},
+    ]
+}
+fn build(params, screen) {
+    let arm = params.arm_length;
+    let t = params.thickness;
+    let g = params.gap / 2.0;
+    let cx = (screen.min_x + screen.max_x) / 2.0;
+    let cy = (screen.min_y + screen.max_y) / 2.0;
+    [
+        #{type: "rect", x: cx - arm, y: cy - t / 2.0, w: arm - g, h: t},
+        #{type: "rect", x: cx + g, y: cy - t / 2.0, w: arm - g, h: t},
+        #{type: "rect", x: cx - t / 2.0, y: cy - arm, w: t, h: arm - g},
+        #{type: "rect", x: cx - t / 2.0, y: cy + g, w: t, h: arm - g},
+    ]
+}
+`,
+  },
+  breath: {
+    label: i18n.tplBreath,
+    name: 'breathing_dot',
+    source: `// Name: ${i18n.tplBreath}
+fn defaults() {
+    #{ radius: 12.0, breathe_pct: 8.0, period_ms: 4200.0 }
+}
+fn schema() {
+    [
+        #{key: "radius", label: "${zh ? '半径' : 'Radius'}", widget: "slider", min: 2.0, max: 80.0, step: 1.0},
+        #{key: "breathe_pct", label: "${zh ? '涨缩幅度 %' : 'Breathe %'}", widget: "slider", min: 1.0, max: 30.0, step: 1.0},
+        #{key: "period_ms", label: "${zh ? '周期 ms' : 'Period ms'}", widget: "number", min: 500.0, max: 20000.0, step: 100.0},
+    ]
+}
+fn is_dynamic() { true }
+fn refresh_interval_ms() { 50 }
+fn build(params, screen) {
+    let cx = (screen.min_x + screen.max_x) / 2.0;
+    let cy = (screen.min_y + screen.max_y) / 2.0;
+    let phase = (time_ms() % params.period_ms) / params.period_ms;
+    let scale = 1.0 + params.breathe_pct / 100.0 * sin(phase * 6.28318);
+    let r = params.radius * scale;
+    [ #{type: "circle", cx: cx, cy: cy, radius: r} ]
+}
+`,
+  },
+  path: {
+    label: i18n.tplPath,
+    name: 'svg_anchor',
+    source: `// Name: ${i18n.tplPath}
+fn defaults() {
+    #{ size: 40.0, d: "M 0 -10 Q 10 0 0 10 Q -10 0 0 -10 Z" }
+}
+fn schema() {
+    [
+        #{key: "size", label: "${zh ? '大小' : 'Size'}", widget: "slider", min: 8.0, max: 200.0, step: 1.0},
+        #{key: "d", label: "SVG path d", widget: "text"},
+    ]
+}
+fn build(params, screen) {
+    let cx = (screen.min_x + screen.max_x) / 2.0;
+    let cy = (screen.min_y + screen.max_y) / 2.0;
+    let segs = parse_svg_path(params.d);
+    if segs.len() == 0 {
+        segs = parse_svg_path("M 0 -10 Q 10 0 0 10 Q -10 0 0 -10 Z");
+    }
+    // 归一化到 [-0.5, 0.5] 再按 size 缩放、屏幕居中。
+    let bbox = path_bbox(segs);
+    let s = if bbox.2 > bbox.3 { bbox.2 } else { bbox.3 };
+    let scaled = [];
+    for seg in segs {
+        let m = #{};
+        m.cmd = seg.cmd;
+        if seg.cmd != "Z" {
+            m.x = cx + (seg.x - (bbox.0 + bbox.2) / 2.0) / s * params.size;
+            m.y = cy + (seg.y - (bbox.1 + bbox.3) / 2.0) / s * params.size;
+            if seg.cmd == "Q" {
+                m.x1 = cx + (seg.x1 - (bbox.0 + bbox.2) / 2.0) / s * params.size;
+                m.y1 = cy + (seg.y1 - (bbox.1 + bbox.3) / 2.0) / s * params.size;
+            }
+        }
+        scaled.push(m);
+    }
+    [ #{type: "path", segments: scaled, fill: true, thickness: 0.0} ]
+}
+`,
+  },
+};
+---
+
+<div
+  class="pg-root not-prose grid grid-cols-1 gap-px rounded border border-(--sl-color-hairline) bg-(--sl-color-hairline) md:grid-cols-[minmax(0,1.7fr)_minmax(260px,1fr)]"
+  data-locale={locale}
+>
+  <div class="bg-gray-50 p-4 sm:p-5 dark:bg-gray-950">
+    <div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <span class="font-mono text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+        {i18n.editorLabel}
+      </span>
+      <span class="pg-status font-mono text-xs text-gray-400 dark:text-gray-500"></span>
+      <span class="ml-auto flex items-center gap-2">
+        <label class="sr-only" for="pg-filename">{i18n.filename}</label>
+        <input
+          id="pg-filename"
+          class="pg-filename w-28 rounded-sm border border-(--sl-color-hairline) bg-transparent px-2 py-1 font-mono text-xs text-gray-700 dark:text-gray-300"
+          value={templates.cross.name}
+          spellcheck="false"
+        />
+        <span class="font-mono text-xs text-gray-400 dark:text-gray-500">.rhai</span>
+      </span>
+    </div>
+    <div class="pg-editor min-h-80 overflow-hidden rounded-sm border border-(--sl-color-hairline) bg-gray-100 dark:bg-gray-900"></div>
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      <span class="font-mono text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+        {i18n.templates}
+      </span>
+      {
+        Object.entries(templates).map(([key, tpl]) => (
+          <button
+            class="pg-tpl font-mono text-xs text-ink motion-safe:transition-colors hover:text-accent-600 dark:hover:text-accent-400"
+            data-tpl={key}
+            type="button"
+          >
+            {tpl.label}
+          </button>
+        ))
+      }
+      <button class="pg-reset ml-auto font-mono text-xs text-gray-500 hover:text-accent-600 dark:text-gray-400 dark:hover:text-accent-400" type="button">
+        {i18n.reset}
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-gray-50 flex flex-col gap-4 p-4 sm:p-5 dark:bg-gray-950">
+    <div>
+      <h3 class="mb-2 font-mono text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+        {i18n.validation}
+      </h3>
+      <ul class="pg-checks space-y-1.5 text-sm"></ul>
+    </div>
+    <div>
+      <h3 class="mb-2 font-mono text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+        {i18n.install}
+      </h3>
+      <p class="text-sm leading-relaxed text-gray-600 dark:text-gray-300">{i18n.installBody}</p>
+    </div>
+    <div class="mt-auto flex flex-wrap gap-2">
+      <button
+        class="pg-download flight font-mono text-xs uppercase tracking-widest text-accent"
+        type="button"
+      >
+        {i18n.download}
+      </button>
+      <button
+        class="pg-copy link-line font-mono text-xs uppercase tracking-widest"
+        type="button"
+      >
+        {i18n.copy}
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { EditorState } from '@codemirror/state';
+  import { EditorView } from '@codemirror/view';
+  import { StreamLanguage } from '@codemirror/language';
+  import { basicSetup } from 'codemirror';
+
+  type Lang = 'en' | 'zh-cn';
+  const root = document.querySelector<HTMLElement>('.pg-root');
+  if (root) {
+    const lang = (root.dataset.locale as Lang) ?? 'en';
+    const zh = lang === 'zh-cn';
+    const t = {
+      ok: zh ? '通过' : 'pass',
+      warn: '注意'  ,
+      err: '错误',
+      needFn: (f: string) => zh ? `缺少必需函数 fn ${f}()` : `missing required fn ${f}()`,
+      nameHint: zh ? '首行 // Name: 缺失（显示名将取 id 末段）' : 'no // Name: on line 1 (display name falls back to id suffix)',
+      dynApi: zh ? '调用了动态 API 但 is_dynamic() 未声明 true' : 'dynamic APIs called but is_dynamic() is not true',
+      staticDyn: zh ? '声明为静态，但调用了动态 API（求值一次后冻结）' : 'declared static but calls dynamic APIs (frozen after first eval)',
+      badWidget: (w: string) => zh ? `未知 widget "${w}"` : `unknown widget "${w}"`,
+      badType: (ty: string) => zh ? `未知图元 type "${ty}"` : `unknown element type "${ty}"`,
+      schemaKey: (k: string) => zh ? `schema key "${k}" 在 defaults 中无默认值` : `schema key "${k}" has no default in defaults()`,
+      refreshHint: zh ? '动态物料建议声明 refresh_interval_ms() 节流' : 'consider refresh_interval_ms() to throttle a dynamic material',
+      allPass: zh ? '契约检查全部通过' : 'all contract checks passed',
+    };
+
+    /* ---------- Rhai 语法高亮（StreamLanguage 子集：注释/字符串/数字/关键字/map 括号） ---------- */
+    const rhaiLang = StreamLanguage.define({
+      token(stream) {
+        if (stream.match('//')) { stream.skipToEnd(); return 'comment'; }
+        if (stream.match(/^#[[{]/)) return 'bracket';
+        if (stream.match(/"(?:[^"\\]|\\.)*"/)) return 'string';
+        if (stream.match(/\d+\.\d+|\d+/)) return 'number';
+        if (stream.match(/`/)) { stream.skipToEnd(); return 'comment'; }
+        if (stream.match(/#[a-zA-Z_][\w!]*/)) return 'meta';
+        if (stream.match(/[a-zA-Z_][\w!]*/)) {
+          const kw = ['fn','let','if','else','while','loop','for','in','return','true','false','const','is','switch','do','break','continue','throw','try','catch','import','export','as','global','private','new'];
+          const w = stream.current();
+          if (kw.includes(w)) return 'keyword';
+          if (stream.peek() === '(') return 'variableName';
+          return 'propertyName';
+        }
+        stream.next();
+        return null;
+      },
+    });
+
+    /* ---------- 主题：引用 @theme tokens，随明暗自动切换 ---------- */
+    const cmTheme = EditorView.theme({
+      '&': { height: '100%', fontSize: '13px', backgroundColor: 'transparent' },
+      '.cm-content': { fontFamily: 'var(--sl-font-mono)', caretColor: 'var(--sl-color-text-accent)' },
+      '.cm-gutters': { backgroundColor: 'transparent', color: 'var(--sl-color-gray-4)', border: 'none' },
+      '&.cm-focused': { outline: 'none' },
+      '.cm-activeLine': { backgroundColor: 'color-mix(in oklab, currentColor 5%, transparent)' },
+      '.cm-activeLineGutter': { backgroundColor: 'transparent' },
+      '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'color-mix(in oklab, var(--sl-color-text-accent) 25%, transparent) !important' },
+      '.cm-comment': { color: 'var(--sl-color-gray-4)' },
+      '.cm-string': { color: 'var(--sl-color-text-accent)' },
+      '.cm-number': { color: 'var(--sl-color-text-accent)' },
+      '.cm-keyword': { fontWeight: '600' },
+      '.cm-variableName': { color: 'var(--sl-color-text)' },
+      '.cm-bracket': { color: 'var(--sl-color-gray-3)' },
+    });
+
+    /* ---------- 校验 ---------- */
+    const WIDGETS = ['number','slider','color','select','toggle','image_path','text'];
+    const TYPES = ['rect','circle','circle_stroke','dashed_circle','triangle','polygon','line','text','image','path'];
+    const DYN_APIS = /(?<![.\w])(time_ms|now_ms|mouse_pos|mouse_velocity|mouse_acceleration|key_down|rand|rand_range|rand_int|parse_svg_path)\s*\(/g;
+
+    interface Check { level: 'ok' | 'warn' | 'err'; text: string }
+    function validate(src: string): Check[] {
+      const out: Check[] = [];
+      const has = (f: string) => new RegExp(`fn\\s+${f}\\s*\\(`).test(src);
+      for (const f of ['defaults', 'schema', 'build']) {
+        if (!has(f)) out.push({ level: 'err', text: t.needFn(f) });
+      }
+      if (!/^\/\/\s*Name:/.test(src.trimStart())) out.push({ level: 'warn', text: t.nameHint });
+
+      const dynDeclared = /fn\s+is_dynamic\s*\(\s*\)\s*\{\s*true/.test(src);
+      const dynCalled = [...src.matchAll(DYN_APIS)].length > 0;
+      if (dynCalled && !dynDeclared) out.push({ level: 'warn', text: t.dynApi });
+      if (dynCalled && has('is_dynamic') && !dynDeclared) out.push({ level: 'warn', text: t.staticDyn });
+      if (dynDeclared && !has('refresh_interval_ms')) out.push({ level: 'warn', text: t.refreshHint });
+
+      for (const m of src.matchAll(/widget:\s*"([\w]+)"/g)) {
+        if (!WIDGETS.includes(m[1])) out.push({ level: 'err', text: t.badWidget(m[1]) });
+      }
+      for (const m of src.matchAll(/type:\s*"([\w]+)"/g)) {
+        if (!TYPES.includes(m[1])) out.push({ level: 'err', text: t.badType(m[1]) });
+      }
+
+      // schema key ↔ defaults 默认值对齐（启发式：defaults() 体中的裸标识符键）。
+      const defaultsBody = src.match(/fn\s+defaults\s*\(\s*\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+      const defKeys = new Set([...defaultsBody.matchAll(/(?:^|[,{]\s*)([a-zA-Z_]\w*)\s*:/gm)].map((m) => m[1]));
+      const schemaBody = src.match(/fn\s+schema\s*\(\s*\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+      for (const m of schemaBody.matchAll(/key:\s*"([\w]+)"/g)) {
+        if (!defKeys.has(m[1])) out.push({ level: 'warn', text: t.schemaKey(m[1]) });
+      }
+      return out;
+    }
+
+    /* ---------- 模板 ---------- */
+    const templateSources: Record<string, { name: string; source: string }> = JSON.parse(
+      document.querySelector('script[type="application/json"][data-pg-templates]')!.textContent ?? '{}',
+    );
+
+    /* ---------- 装配 ---------- */
+    const initial = templateSources.cross;
+    let currentTemplateKey = 'cross';
+    const state = EditorState.create({
+      doc: initial.source,
+      extensions: [
+        basicSetup,
+        rhaiLang,
+        cmTheme,
+        EditorView.updateListener.of((u) => { if (u.docChanged) runChecks(); }),
+      ],
+    });
+    const host = root.querySelector<HTMLElement>('.pg-editor')!;
+    const view = new EditorView({ state, parent: host });
+
+    const checksEl = root.querySelector<HTMLElement>('.pg-checks')!;
+    const statusEl = root.querySelector<HTMLElement>('.pg-status')!;
+    const filenameEl = root.querySelector<HTMLInputElement>('.pg-filename')!;
+
+    const levelMark = {
+      ok: 'text-accent-600 dark:text-accent-400',
+      warn: 'text-gray-600 dark:text-gray-300',
+      err: 'text-red-600 dark:text-red-400',
+    };
+    const levelGlyph = { ok: '✓', warn: '!', err: '✕' };
+    function runChecks() {
+      const checks = validate(view.state.doc.toString());
+      const errs = checks.filter((c) => c.level === 'err').length;
+      checksEl.innerHTML = '';
+      if (checks.length === 0) {
+        checksEl.innerHTML = `<li class="text-sm ${levelMark.ok}"><span class="font-mono">${levelGlyph.ok}</span> ${t.allPass}</li>`;
+      } else {
+        for (const c of checks) {
+          const li = document.createElement('li');
+          li.className = `flex gap-2 text-sm ${levelMark[c.level]}`;
+          li.innerHTML = `<span class="font-mono shrink-0">${levelGlyph[c.level]}</span><span>${c.text}</span>`;
+          checksEl.appendChild(li);
+        }
+      }
+      statusEl.textContent = errs > 0 ? `${errs} ${t.err}` : t.allPass;
+    }
+    runChecks();
+
+    // 模板切换 / 重置。
+    root.querySelectorAll<HTMLButtonElement>('.pg-tpl').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tpl = templateSources[btn.dataset.tpl!];
+        if (!tpl) return;
+        currentTemplateKey = btn.dataset.tpl!;
+        filenameEl.value = tpl.name;
+        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: tpl.source } });
+      });
+    });
+    root.querySelector<HTMLButtonElement>('.pg-reset')!.addEventListener('click', () => {
+      const tpl = templateSources[currentTemplateKey];
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: tpl.source } });
+    });
+
+    // 下载 / 复制。
+    const currentText = () => view.state.doc.toString();
+    const safeName = () => (filenameEl.value.trim().replace(/[^\w-]/g, '_') || 'my_material');
+    root.querySelector<HTMLButtonElement>('.pg-download')!.addEventListener('click', () => {
+      const blob = new Blob([currentText()], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${safeName()}.rhai`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+    const copyBtn = root.querySelector<HTMLButtonElement>('.pg-copy')!;
+    copyBtn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(currentText());
+      const orig = copyBtn.textContent;
+      copyBtn.textContent = zh ? '已复制' : 'Copied';
+      setTimeout(() => { copyBtn.textContent = orig; }, 1500);
+    });
+  }
+</script>
+
+<script is:inline type="application/json" data-pg-templates set:html={JSON.stringify(templates)} />

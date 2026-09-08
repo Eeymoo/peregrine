@@ -33,20 +33,13 @@ npx skills add ./skills/material-creation
 
 ## 方式二：手动安装（任意 LLM 代理）
 
-skill 本质是一个含 `SKILL.md` 的文件夹，手动复制即可：
+一句话即可——把下面这句发给任意支持读写文件的 LLM 代理：
 
-1. 下载 / 复制 `skills/material-creation/` 整个目录；
-2. 放入你的代理的技能目录，常见位置：
+> 阅读 https://github.com/eeymoo/peregrine/blob/main/skills/material-creation/SKILL.md 的内容，将其作为一个名为 `material-creation` 的 skill 安装到你的技能目录（如有），并在后续对话中按它执行。
 
-| 代理 | 项目级目录 | 全局目录 |
-|---|---|---|
-| Claude Code | `.claude/skills/` | `~/.claude/skills/` |
-| OpenCode | `.opencode/skill/` | `~/.config/opencode/skill/` |
-| 通用（Agent Skills 规范） | `.agents/skills/` | `~/.agents/skills/` |
+已克隆本仓库的用户更简短：
 
-3. 重启会话或新开对话，代理即可在可用技能列表中发现它。
-
-也可以不放进技能目录，直接把 `SKILL.md` 内容粘到对话里，并附一句「按此 skill 执行」——对不支持技能机制的 LLM 同样有效。
+> 阅读 `skills/material-creation/SKILL.md` 并按此 skill 执行。
 
 ## 使用案例
 

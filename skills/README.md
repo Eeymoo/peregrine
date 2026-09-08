@@ -33,13 +33,13 @@ npx skills add ./skills/material-creation
 
 ## 方式二：手动安装（任意 LLM 代理）
 
-一句话即可——把下面这句发给任意支持读写文件的 LLM 代理：
+一句话即可——把下面这句发给任意 LLM 代理（它会自行运行命令并按生成的指令安装执行）：
 
-> 阅读 https://github.com/eeymoo/peregrine/blob/main/skills/material-creation/SKILL.md 的内容，将其作为一个名为 `material-creation` 的 skill 安装到你的技能目录（如有），并在后续对话中按它执行。
+> Run `npx skills use "https://github.com/eeymoo/peregrine" --skill "material-creation"` and follow the generated skill instructions now. Read its complete output, redirecting it to a temporary file first if necessary. Resolve relative paths from the supporting-files directory it provides.
 
 已克隆本仓库的用户更简短：
 
-> 阅读 `skills/material-creation/SKILL.md` 并按此 skill 执行。
+> Run `npx skills use "./skills" --skill "material-creation"` and follow the generated skill instructions now.
 
 ## 使用案例
 

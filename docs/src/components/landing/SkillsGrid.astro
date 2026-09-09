@@ -1,13 +1,13 @@
 ---
 /**
- * Skills 开发物料列表（对齐 aukcraft.org/skills 的物料页语法，D10）。
+ * 官方 Skills 物料列表（对齐 aukcraft.org/skills 的物料页语法，D10）。
  *
- * - 数据：构建期读取仓库 .agents/skills 下每个 skill 的 SKILL.md frontmatter（loadSkills）；
- * - 布局家族：hairline 行列表（行间 1px 发丝线分隔，编号 01…NN + 名称 + 描述 +
- *   源文件路径），与 FeatureGrid 的 gap-px 网格、正文 prose 均不重复；
- * - 文案：描述即 SKILL.md 原文（中文），双语页共用同一数据源，仅标签翻译。
+ * - 数据：构建期读取仓库 skills/<name>/SKILL.md frontmatter（loadSkills），
+ *   仅官方发布物料（skills.sh 生态布局）；
+ * - 布局家族：hairline 行列表（编号 + 名称 + 描述 + 安装命令 + 源文件路径）；
+ * - 安装命令与 skills/README.md 的「方式一」保持一字不差。
  */
-import { loadSkills, skillSourceUrl } from '../../lib/skills';
+import { loadSkills, skillInstallCmd, skillSourceUrl } from '../../lib/skills';
 
 interface Props {
   /** locale URL base（root=en 无前缀）。 */
@@ -16,11 +16,13 @@ interface Props {
   label: string;
   /** 计数后缀（如 "skills" / "个"）。 */
   unit: string;
+  /** 安装区块标签。 */
+  installLabel: string;
   /** 源文件链接文案。 */
   sourceLabel: string;
 }
 
-const { locale, label, unit, sourceLabel } = Astro.props;
+const { locale, label, unit, installLabel, sourceLabel } = Astro.props;
 const skills = loadSkills();
 const zh = locale === 'zh-cn';
 ---
@@ -37,7 +39,7 @@ const zh = locale === 'zh-cn';
   <ol class="m-0 list-none p-0">
     {
       skills.map((skill, i) => (
-        <li class="grid gap-x-6 gap-y-2 border-b border-(--sl-color-hairline) py-5 md:grid-cols-[10rem_minmax(0,1fr)]">
+        <li class="grid gap-x-6 gap-y-3 border-b border-(--sl-color-hairline) py-6 md:grid-cols-[10rem_minmax(0,1fr)]">
           <div class="flex items-baseline gap-3 md:block">
             <span class="font-mono text-xs text-gray-400 dark:text-gray-600">
               {String(i + 1).padStart(2, '0')}
@@ -55,8 +57,16 @@ const zh = locale === 'zh-cn';
             <p class="m-0 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
               {skill.description || (zh ? '（无描述）' : '(no description)')}
             </p>
+            <div class="mt-3">
+              <p class="m-0 font-mono text-[0.6875rem] uppercase tracking-[0.15em] text-gray-500 dark:text-gray-500">
+                {installLabel}
+              </p>
+              <code class="mt-1.5 block overflow-x-auto rounded border border-(--sl-color-hairline) bg-(--sl-color-bg-inline-code) px-3 py-2 font-mono text-xs text-gray-800 dark:text-gray-200">
+                {skillInstallCmd(skill.name)}
+              </code>
+            </div>
             <p class="m-0 mt-2 font-mono text-xs text-gray-500 dark:text-gray-500">
-              .agents/skills/{skill.name}/SKILL.md ·{' '}
+              skills/{skill.name}/SKILL.md ·{' '}
               <a class="link-line" href={skillSourceUrl(skill.name)} target="_blank" rel="noopener noreferrer">
                 {sourceLabel}
               </a>

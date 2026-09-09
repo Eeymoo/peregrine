@@ -51,6 +51,6 @@ Right-click the system tray icon and choose **Exit**, or end the process in Task
 
 ## Need Help?
 
-- Check the [Configuration Guide](./config) to learn about the config file format.
-- Check the [Settings Guide](./settings) to learn what every option in the settings window does.
+- Check the [Configuration Guide](/guide/config/) to learn about the config file format.
+- Check the [Settings Guide](/guide/settings/) to learn what every option in the settings window does.
 - Report issues on [GitHub Issues](https://github.com/eeymoo/peregrine/issues).

@@ -42,7 +42,7 @@ For rendering, the overlay uses **CPU pixel rasterization** (softbuffer) instead
 
 The settings window uses **Tauri** (Webview) to host the interface built with **React + Tailwind CSS + shadcn/ui**, providing a real-time preview — the anchor you see in the settings panel is exactly the same as what the overlay displays.
 
-To learn more about why motion sickness happens and other remedies besides visual anchors, see [Relieving Motion Sickness](./motion-sickness).
+To learn more about why motion sickness happens and other remedies besides visual anchors, see [Relieving Motion Sickness](/guide/motion-sickness/).
 
 ## Dependencies
 
@@ -75,4 +75,4 @@ Peregrine is released under the [MIT](https://opensource.org/licenses/MIT) licen
 
 ### Contributing
 
-Issues and Pull Requests are welcome. Please see the [contributing guide](./contributing) for contribution guidelines, and the [`Development & Build`](./development) page for how to build and test locally.
+Issues and Pull Requests are welcome. Please see the [contributing guide](/guide/contributing/) for contribution guidelines, and the [`Development & Build`](/guide/development/) page for how to build and test locally.

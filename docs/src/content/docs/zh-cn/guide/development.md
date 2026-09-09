@@ -87,7 +87,7 @@ locale JSON 放在 `src/i18n/locales/`；前端（`localeMap` 导入）与后端
 
 ## 遥测开发
 
-Peregrine 集成了匿名 GlitchTip（Sentry 协议）遥测：崩溃上报、启动统计、关键路径错误上报。用户向隐私说明见 [隐私与遥测](./privacy)；面向开发者的全部上报 Code 登记表见仓库根目录的 [`REPORT_CODES.md`](./report-codes)。
+Peregrine 集成了匿名 GlitchTip（Sentry 协议）遥测：崩溃上报、启动统计、关键路径错误上报。用户向隐私说明见 [隐私与遥测](/zh-cn/guide/privacy/)；面向开发者的全部上报 Code 登记表见仓库根目录的 [`REPORT_CODES.md`](/zh-cn/guide/report-codes/)。
 
 ### 模块定位
 

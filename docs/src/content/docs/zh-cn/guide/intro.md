@@ -42,7 +42,7 @@ Peregrine 的核心是「覆盖层」（Overlay）——一个特殊的窗口，
 
 配置窗口则使用 **Tauri**（Webview）承载 **React + Tailwind CSS + shadcn/ui** 构建的界面，提供实时预览——你在设置面板里看到的锚点，和覆盖层实际显示的完全一致。
 
-想了解为什么会眩晕、以及除视觉锚点外的其他缓解方法，请参阅 [缓解晕 3D](./motion-sickness)。
+想了解为什么会眩晕、以及除视觉锚点外的其他缓解方法，请参阅 [缓解晕 3D](/zh-cn/guide/motion-sickness/)。
 
 ## 依赖说明
 
@@ -75,4 +75,4 @@ Peregrine 使用 [MIT](https://opensource.org/licenses/MIT) 许可发布，完�
 
 ### 参与贡献
 
-欢迎提交 Issue 与 Pull Request。请参阅[贡献指南](./contributing)了解贡献规范，以及 [`开发构建`](./development) 页面了解如何本地构建与测试。
+欢迎提交 Issue 与 Pull Request。请参阅[贡献指南](/zh-cn/guide/contributing/)了解贡献规范，以及 [`开发构建`](/zh-cn/guide/development/) 页面了解如何本地构建与测试。

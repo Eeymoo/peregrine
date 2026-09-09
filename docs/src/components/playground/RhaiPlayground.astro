@@ -149,10 +149,10 @@ fn build(params, screen) {
 >
   <div class="bg-gray-50 p-4 sm:p-5 dark:bg-gray-950">
     <div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-      <span class="font-mono text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+      <span class="font-mono text-xs uppercase tracking-widest text-gray-600 dark:text-gray-400">
         {i18n.editorLabel}
       </span>
-      <span class="pg-status font-mono text-xs text-gray-400 dark:text-gray-500"></span>
+      <span class="pg-status font-mono text-xs text-gray-600 dark:text-gray-500"></span>
       <span class="ml-auto flex items-center gap-2">
         <label class="sr-only" for="pg-filename">{i18n.filename}</label>
         <input
@@ -161,18 +161,18 @@ fn build(params, screen) {
           value={templates.cross.name}
           spellcheck="false"
         />
-        <span class="font-mono text-xs text-gray-400 dark:text-gray-500">.rhai</span>
+        <span class="font-mono text-xs text-gray-600 dark:text-gray-500">.rhai</span>
       </span>
     </div>
     <div class="pg-editor min-h-80 overflow-hidden rounded-sm border border-(--sl-color-hairline) bg-gray-100 dark:bg-gray-900"></div>
     <div class="mt-3 flex flex-wrap items-center gap-2">
-      <span class="font-mono text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+      <span class="font-mono text-xs uppercase tracking-widest text-gray-600 dark:text-gray-400">
         {i18n.templates}
       </span>
       {
         Object.entries(templates).map(([key, tpl]) => (
           <button
-            class="pg-tpl font-mono text-xs text-ink motion-safe:transition-colors hover:text-accent-600 dark:hover:text-accent-400"
+            class="pg-tpl bg-transparent font-mono text-xs text-gray-700 motion-safe:transition-colors hover:text-accent-600 dark:text-gray-300 dark:hover:text-accent-400"
             data-tpl={key}
             type="button"
           >
@@ -180,7 +180,7 @@ fn build(params, screen) {
           </button>
         ))
       }
-      <button class="pg-reset ml-auto font-mono text-xs text-gray-500 hover:text-accent-600 dark:text-gray-400 dark:hover:text-accent-400" type="button">
+      <button class="pg-reset ml-auto bg-transparent font-mono text-xs text-gray-600 hover:text-accent-600 dark:text-gray-400 dark:hover:text-accent-400" type="button">
         {i18n.reset}
       </button>
     </div>
@@ -188,26 +188,26 @@ fn build(params, screen) {
 
   <div class="bg-gray-50 flex flex-col gap-4 p-4 sm:p-5 dark:bg-gray-950">
     <div>
-      <h3 class="mb-2 font-mono text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+      <h3 class="mb-2 font-mono text-xs uppercase tracking-widest text-gray-600 dark:text-gray-400">
         {i18n.validation}
       </h3>
       <ul class="pg-checks space-y-1.5 text-sm"></ul>
     </div>
     <div>
-      <h3 class="mb-2 font-mono text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+      <h3 class="mb-2 font-mono text-xs uppercase tracking-widest text-gray-600 dark:text-gray-400">
         {i18n.install}
       </h3>
       <p class="text-sm leading-relaxed text-gray-600 dark:text-gray-300">{i18n.installBody}</p>
     </div>
     <div class="mt-auto flex flex-wrap gap-2">
       <button
-        class="pg-download flight font-mono text-xs uppercase tracking-widest text-accent"
+        class="pg-download flight bg-transparent font-mono text-xs uppercase tracking-widest text-accent"
         type="button"
       >
         {i18n.download}
       </button>
       <button
-        class="pg-copy link-line font-mono text-xs uppercase tracking-widest"
+        class="pg-copy link-line bg-transparent font-mono text-xs uppercase tracking-widest"
         type="button"
       >
         {i18n.copy}
@@ -219,8 +219,9 @@ fn build(params, screen) {
 <script>
   import { EditorState } from '@codemirror/state';
   import { EditorView } from '@codemirror/view';
-  import { StreamLanguage } from '@codemirror/language';
+  import { HighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
   import { basicSetup } from 'codemirror';
+  import { tags as cmTags } from '@lezer/highlight';
 
   type Lang = 'en' | 'zh-cn';
   const root = document.querySelector<HTMLElement>('.pg-root');
@@ -264,8 +265,7 @@ fn build(params, screen) {
     });
 
     /* ---------- 主题：引用 @theme tokens，随明暗自动切换 ---------- */
-    const cmTheme = EditorView.theme({
-      '&': { height: '100%', fontSize: '13px', backgroundColor: 'transparent' },
+    const cmTheme = EditorView.theme({      '&': { height: '100%', fontSize: '13px', backgroundColor: 'transparent' },
       '.cm-content': { fontFamily: 'var(--sl-font-mono)', caretColor: 'var(--sl-color-text-accent)' },
       '.cm-gutters': { backgroundColor: 'transparent', color: 'var(--sl-color-gray-4)', border: 'none' },
       '&.cm-focused': { outline: 'none' },
@@ -279,6 +279,22 @@ fn build(params, screen) {
       '.cm-variableName': { color: 'var(--sl-color-text)' },
       '.cm-bracket': { color: 'var(--sl-color-gray-3)' },
     });
+
+    /* ---------- 语法高亮配色：覆盖 basicSetup 内置 defaultHighlightStyle ----------
+     * 该内置样式是硬编码的浅色调色板（紫关键字 / 暗红字符串 / 墨绿数字），
+     * 在暗色编辑器底上对比度仅 1.8–2.7:1 不可读。此处用同一批 --sl-color-* 语义
+     * 变量定义 HighlightStyle，后注册的样式优先生效，明暗随 <html data-theme> 翻转。 */
+    const cmHighlight = HighlightStyle.define([
+      { tag: cmTags.comment, color: 'var(--sl-color-gray-3)' },
+      { tag: cmTags.string, color: 'var(--sl-color-text-accent)' },
+      { tag: cmTags.number, color: 'var(--sl-color-text-accent)' },
+      { tag: cmTags.bool, color: 'var(--sl-color-text-accent)' },
+      { tag: cmTags.keyword, color: 'var(--sl-color-text-accent)', fontWeight: '600' },
+      { tag: cmTags.variableName, color: 'var(--sl-color-text)' },
+      { tag: cmTags.bracket, color: 'var(--sl-color-gray-3)' },
+      { tag: cmTags.operator, color: 'var(--sl-color-gray-2)' },
+      { tag: cmTags.punctuation, color: 'var(--sl-color-gray-3)' },
+    ]);
 
     /* ---------- 校验 ---------- */
     const WIDGETS = ['number','slider','color','select','toggle','image_path','text'];
@@ -329,6 +345,7 @@ fn build(params, screen) {
       doc: initial.source,
       extensions: [
         basicSetup,
+        syntaxHighlighting(cmHighlight),
         rhaiLang,
         cmTheme,
         EditorView.updateListener.of((u) => { if (u.docChanged) runChecks(); }),

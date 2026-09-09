@@ -1,0 +1,69 @@
+---
+/**
+ * Skills 开发物料列表（对齐 aukcraft.org/skills 的物料页语法，D10）。
+ *
+ * - 数据：构建期读取仓库 .agents/skills 下每个 skill 的 SKILL.md frontmatter（loadSkills）；
+ * - 布局家族：hairline 行列表（行间 1px 发丝线分隔，编号 01…NN + 名称 + 描述 +
+ *   源文件路径），与 FeatureGrid 的 gap-px 网格、正文 prose 均不重复；
+ * - 文案：描述即 SKILL.md 原文（中文），双语页共用同一数据源，仅标签翻译。
+ */
+import { loadSkills, skillSourceUrl } from '../../lib/skills';
+
+interface Props {
+  /** locale URL base（root=en 无前缀）。 */
+  locale?: string;
+  /** 区块标签（如 "Skills" / "技能物料"）。 */
+  label: string;
+  /** 计数后缀（如 "skills" / "个"）。 */
+  unit: string;
+  /** 源文件链接文案。 */
+  sourceLabel: string;
+}
+
+const { locale, label, unit, sourceLabel } = Astro.props;
+const skills = loadSkills();
+const zh = locale === 'zh-cn';
+---
+
+<section class="not-content" aria-label={label}>
+  <div class="flex items-baseline justify-between gap-4 border-b border-(--sl-color-hairline) pb-3">
+    <p class="micro m-0 font-mono text-xs uppercase tracking-[0.15em] text-gray-600 dark:text-gray-400">
+      {label}
+    </p>
+    <p class="m-0 font-mono text-xs text-gray-600 dark:text-gray-400">
+      {skills.length} {unit}
+    </p>
+  </div>
+  <ol class="m-0 list-none p-0">
+    {
+      skills.map((skill, i) => (
+        <li class="grid gap-x-6 gap-y-2 border-b border-(--sl-color-hairline) py-5 md:grid-cols-[10rem_minmax(0,1fr)]">
+          <div class="flex items-baseline gap-3 md:block">
+            <span class="font-mono text-xs text-gray-400 dark:text-gray-600">
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <a
+              class="link-line font-mono text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50"
+              href={skillSourceUrl(skill.name)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {skill.name}
+            </a>
+          </div>
+          <div>
+            <p class="m-0 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+              {skill.description || (zh ? '（无描述）' : '(no description)')}
+            </p>
+            <p class="m-0 mt-2 font-mono text-xs text-gray-500 dark:text-gray-500">
+              .agents/skills/{skill.name}/SKILL.md ·{' '}
+              <a class="link-line" href={skillSourceUrl(skill.name)} target="_blank" rel="noopener noreferrer">
+                {sourceLabel}
+              </a>
+            </p>
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+</section>

@@ -3,7 +3,9 @@
  * Starlight Header 覆写（本站点仅有的第二个组件覆写，第一个是 Hero）。
  *
  * aukcraft 平铺头栏（header-aukcraft-nav）：
- * - 容器：mx-auto max-w-5xl px-6 居中（与 aukcraft.org 顶栏同一节奏），
+ * - 容器：保持 Starlight 原生全宽内层（外层固定头栏自带 --sl-nav-pad-x 内边距，
+ *   下方保留的 Starlight 对齐网格会把品牌对齐到内容列左缘，与页面主体同宽；
+ *   不再叠加 aukcraft 的 max-w-5xl px-6 居中盒——那会使头栏与内容列错位）；
  *   品牌左置、功能区右置（justify-between）；
  * - 品牌标识：图标 + 文字（SiteTitle，logo 配置见 astro.config.mjs）；
  * - 核心导航右置：Docs / Download / Playground 平铺文本链接，统一 .link-line
@@ -50,6 +52,7 @@ const navLinks = [
 	{ label: locale ? '文档' : 'Docs', href: `${prefix}/guide/intro`, external: false },
 	{ label: locale ? '下载' : 'Download', href: `${prefix}/download`, external: false },
 	{ label: locale ? '编辑器' : 'Playground', href: `${prefix}/playground`, external: false },
+	{ label: locale ? '技能' : 'Skills', href: `${prefix}/skills`, external: false },
 	{
 		label: 'github.com/eeymoo/peregrine',
 		href: 'https://github.com/eeymoo/peregrine',
@@ -79,7 +82,7 @@ const moonIcon = lucideIcon('Moon');
 const themeLabel = locale ? '切换主题' : 'Toggle theme';
 ---
 
-<div class="header mx-auto! w-full max-w-5xl! px-6">
+<div class="header w-full">
 	<div class="title-wrapper sl-flex">
 		<SiteTitle />
 	</div>
@@ -118,13 +121,13 @@ const themeLabel = locale ? '切换主题' : 'Toggle theme';
 				isZh ? (
 					<a class="link-line" href={enHref}>EN</a>
 				) : (
-					<span class="text-gray-500 dark:text-gray-400" aria-current="true">EN</span>
+					<span class="text-gray-600 dark:text-gray-400" aria-current="true">EN</span>
 				)
 			}
 			<span class="text-gray-400 dark:text-gray-500" aria-hidden="true">/</span>
 			{
 				isZh ? (
-					<span class="text-gray-500 dark:text-gray-400" aria-current="true">中文</span>
+					<span class="text-gray-600 dark:text-gray-400" aria-current="true">中文</span>
 				) : (
 					<a class="link-line" href={zhHref}>中文</a>
 				)
@@ -199,6 +202,19 @@ const themeLabel = locale ? '切换主题' : 'Toggle theme';
 		/* 搜索图标按钮贴右侧功能区（中间 1fr 列仅作留白）。 */
 		.search-slot {
 			justify-content: flex-end;
+		}
+
+		/* 头栏与内容列同宽（宽度对齐修复）：无侧栏页面（首页 / download 等单栏页）
+		 * 下方内容列是 mx-auto + max-width: var(--sl-content-width) 的居中盒，
+		 * 头栏内层用同一变量居中限宽即可与正文左缘对齐（外层固定头栏自带
+		 * --sl-nav-pad-x 内边距，居中盒宽度不小于剩余空间时自动退化为全宽）。
+		 * 侧栏页（guide 等）不套用——内容列被 sidebar + toc 推移，头栏保持
+		 * Starlight 原生全宽形态。 */
+		@media (min-width: 50rem) {
+			:global(html:not([data-has-sidebar])) .header {
+				margin-inline: auto;
+				max-width: var(--sl-content-width);
+			}
 		}
 
 		@media (min-width: 50rem) {

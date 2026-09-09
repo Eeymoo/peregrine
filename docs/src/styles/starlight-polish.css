@@ -25,8 +25,13 @@
  * margin/max-width 节奏声明，见该节注释）。
  */
 
-/* 使本文件的 @apply 可解析 Tailwind 工具类（v4 独立 CSS 文件需显式 @reference 主题）。 */
+/* 使本文件的 @apply 可解析 Tailwind 工具类（v4 独立 CSS 文件需显式 @reference 主题）。
+ * 必须同时 reference 兼容包：dark: 变体的桥接定义（[data-theme=dark]）在
+ * @astrojs/starlight-tailwind/tailwind.css 的 @custom-variant 中——只 reference
+ * 'tailwindcss' 会让 dark: 退化为 prefers-color-scheme 媒体查询，导致
+ * 「OS 浅色偏好 + 手动切暗色」时 @apply 的 dark: 工具类不生效（文字隐形）。 */
 @reference 'tailwindcss';
+@reference '../../node_modules/@astrojs/starlight-tailwind/tailwind.css';
 
 /* -----------------------------------------------------------
  * 1. 正文排版节奏

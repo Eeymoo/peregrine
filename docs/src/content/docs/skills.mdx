@@ -1,0 +1,21 @@
+---
+title: Skills
+description: Reusable agent skills — engineering practice distilled from daily Peregrine development, ready to drop into any agent session.
+tableOfContents: false
+# 独立物料页不参与指南翻页序列（与 download / playground 页同策略）。
+prev: false
+next: false
+---
+
+import SkillsGrid from '../../components/landing/SkillsGrid.astro';
+
+A set of reusable agent skills — release workflow, bugfix discipline, spec-driven development, i18n audits and more — distilled from daily work on Peregrine, ready to drop into any AI coding session.
+
+Each skill lives in [`.agents/skills/<name>/SKILL.md`](https://github.com/Eeymoo/peregrine/tree/main/.agents/skills) in the repository. Agents loaded in this repo pick them up automatically; humans can read them as concise engineering checklists.
+
+<SkillsGrid
+  locale="en"
+  label="Skills"
+  unit="skills"
+  sourceLabel="View source"
+/>

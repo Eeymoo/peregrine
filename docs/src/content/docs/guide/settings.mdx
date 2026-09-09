@@ -75,6 +75,8 @@ Layer management and per-layer parameters live in the config window's layer edit
 | Dynamic materials | `settings.material.dynamic_enabled` | On | Instant (hot) |
 | Animation FPS | `settings.material.fps` | Follow system | Instant (hot) |
 
+This page also provides an "**Open materials folder**" button: it reveals the folder holding user-defined materials (`.rhai` scripts) in your system file manager (created automatically if missing). Dropping in or editing a script hot-reloads automatically — no restart needed.
+
 ### The two-layer AND gate
 
 "Dynamic materials" are materials that change in real time based on runtime inputs (time, mouse position, key state, etc.), such as the `builtin.time` clock. Whether the dynamic pipeline is live is decided by **AND-ing two switches**:

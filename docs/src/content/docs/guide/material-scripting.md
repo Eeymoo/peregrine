@@ -20,6 +20,8 @@ This guide walks through the **five-step authoring workflow** and documents the 
 
 Each material is one `.rhai` file exporting **three** required top-level functions and one optional flag function.
 
+Optionally, a `// Name: xxx` comment on the **first line** sets the display name shown in the material picker; if absent, the last id segment is used (`user.my_cross` → `my_cross`).
+
 ## The three required functions
 
 ### `fn defaults() -> Map`
@@ -176,6 +178,7 @@ These host functions are registered on the Rhai engine and let a material react 
 | `rand()` | `float` | Deterministic pseudo-random in `[0, 1)`; advances an internal counter per call. |
 | `rand_range(min, max)` | `float` | Random float in `[min, max)`. |
 | `rand_int(max)` | `int` | Random integer in `[0, max)`. |
+| `parse_svg_path(d)` | `Array` | Parse an SVG path `d` string into a segment array (absolute coords), same segment shape as the [path element](#path-element); supports `M/L/Q/C/Z` plus lowercase relative commands, `H/V` expansion, and implicit repetition; unsupported `A/S/T` returns an empty array so the script can fall back. |
 
 ### Determinism and caching
 
@@ -278,7 +281,12 @@ Materials are discovered from `<app_data_dir>/materials/`:
 | macOS | `~/Library/Application Support/Peregrine/materials/` |
 | Linux | `~/.config/Peregrine/materials/` |
 
-Drop a `.rhai` file there; the file name (without extension) becomes the material id suffix (`my_cross.rhai` → `user.my_cross`). The directory is scanned at startup and on manual reload; user materials override built-ins of the same name.
+Drop a `.rhai` file there; the file name (without extension) becomes the material id suffix (`my_cross.rhai` → `user.my_cross`). Usage rules:
+
+- **Auto-created**: the folder is created automatically at startup if missing — just drop files in.
+- **Fully automatic hot reload**: the folder is watched (≈500ms debounce); adding, editing, or deleting a `.rhai` file takes effect **without a restart** — both the material picker and the overlay pick up the new version. Invalid scripts are skipped with a warning in the log.
+- **Independent namespaces**: user materials use the `user.` id prefix, built-ins use `builtin.`; they are listed side by side and never override each other.
+- The **Settings → Materials** page also has an "Open materials folder" button that reveals the folder in your file manager.
 
 More example materials (static, time-dynamic, input-dynamic) live under [`crates/material/examples/`](https://github.com/eeymoo/peregrine/tree/main/crates/material/examples) — they double as smoke tests and are verified by `cargo test -p peregrine_material`.
 

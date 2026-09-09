@@ -345,6 +345,9 @@
     "fpsHint": "动态物料的最高刷新节拍；纯静态配置不受影响",
     "fpsSystem": "跟随系统",
     "statusActive": "动态链路已启用：动态物料将按帧率节拍持续刷新",
-    "statusFrozen": "动态链路已关闭：动态物料冻结渲染，静态图层不受影响"
+    "statusFrozen": "动态链路已关闭：动态物料冻结渲染，静态图层不受影响",
+    "openDir": "自定义物料",
+    "openDirHint": "用户物料（.rhai 脚本）存放在应用数据目录的 materials 文件夹；放入或修改后自动热加载，无需重启",
+    "openDirButton": "打开物料目录"
   }
 }

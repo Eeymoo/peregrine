@@ -41,7 +41,8 @@ impl MaterialRegistry {
     /// 扫描用户物料目录并加载 `.rhai` 文件。
     ///
     /// 文件名（不含扩展名）作为物料名称，id 形如 `user.<name>`。
-    /// 同名时用户物料覆盖内置物料。
+    /// 注意：用户物料与内置物料的 id 前缀不同（`user.` vs `builtin.`），
+    /// 在注册表中是不同条目、并列展示，**不存在同名覆盖**。
     ///
     /// 此方法可安全地在运行时多次调用（用于热重载）。
     pub fn load_user(&self, dir: &Path) -> MaterialResult<()> {

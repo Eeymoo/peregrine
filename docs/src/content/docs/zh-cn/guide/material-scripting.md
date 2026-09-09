@@ -20,6 +20,8 @@ title: "物料脚本创作"
 
 每个物料是一个 `.rhai` 文件，导出 **三个** 必需顶层函数与一个可选的标记函数。
 
+可选地，脚本**首行**注释 `// Name: xxx` 声明显示名（物料选择器中展示）；缺失时取 id 末段（`user.my_cross` → `my_cross`）。
+
 ## 三个必需函数
 
 ### `fn defaults() -> Map`
@@ -176,6 +178,7 @@ let radius = (screen.max_y - screen.min_y) * params.ring_radius_pct;
 | `rand()` | `float` | 确定性伪随机数 `[0, 1)`；内部计数器在每次调用时前进。 |
 | `rand_range(min, max)` | `float` | `[min, max)` 内的随机浮点。 |
 | `rand_int(max)` | `int` | `[0, max)` 内的随机整数。 |
+| `parse_svg_path(d)` | `Array` | 把 SVG path `d` 字符串解析为段数组（绝对坐标），段格式与 [路径图元](#路径图元) 一致；支持 `M/L/Q/C/Z` 及小写相对命令、`H/V` 展开、隐式重复；不支持的 `A/S/T` 返回空数组供脚本回退。 |
 
 ### 确定性与缓存
 
@@ -278,7 +281,12 @@ fn build(params, screen) {
 | macOS | `~/Library/Application Support/Peregrine/materials/` |
 | Linux | `~/.config/Peregrine/materials/` |
 
-把 `.rhai` 文件放入该目录，文件名（不含扩展名）即物料 id 后缀（`my_cross.rhai` → `user.my_cross`）。目录在启动时扫描，也会响应手动重载；同名用户物料覆盖内置物料。
+把 `.rhai` 文件放入该目录，文件名（不含扩展名）即物料 id 后缀（`my_cross.rhai` → `user.my_cross`）。使用规则：
+
+- **目录自动创建**：应用启动时若目录不存在会自动建立，直接投放文件即可。
+- **全自动热重载**：目录受文件监视器监视（约 500ms 去抖），新增、修改、删除 `.rhai` 文件后**无需重启**，物料选择器与 overlay 自动感知新版本；非法脚本会被跳过并在日志中记录警告。
+- **命名空间独立**：用户物料 id 前缀为 `user.`，内置物料为 `builtin.`，二者并列展示、互不覆盖。
+- 也可以在 **设置 → 物料** 页点击「打开物料目录」按钮直接定位到该文件夹。
 
 更多示例物料（静态 / 时间动态 / 输入动态）位于 [`crates/material/examples/`](https://github.com/eeymoo/peregrine/tree/main/crates/material/examples)，同时作为烟雾测试，由 `cargo test -p peregrine_material` 验证。
 

@@ -345,6 +345,9 @@
     "fpsHint": "Maximale Aktualisierungsrate dynamischer Materialien; rein statische Profile sind nicht betroffen",
     "fpsSystem": "System folgen",
     "statusActive": "Dynamische Pipeline aktiv: Dynamische Materialien aktualisieren sich mit der eingestellten Rate",
-    "statusFrozen": "Dynamische Pipeline aus: Dynamische Materialien eingefroren; statische Ebenen nicht betroffen"
+    "statusFrozen": "Dynamische Pipeline aus: Dynamische Materialien eingefroren; statische Ebenen nicht betroffen",
+    "openDir": "Eigene Materialien",
+    "openDirHint": "Benutzermaterialien (.rhai-Skripte) liegen im Ordner materials des App-Datenverzeichnisses; beim Ablegen oder Ändern wird automatisch neu geladen, ohne Neustart",
+    "openDirButton": "Materialordner öffnen"
   }
 }

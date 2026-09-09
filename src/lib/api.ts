@@ -191,6 +191,15 @@ export async function listMaterials(): Promise<MaterialInfo[]> {
   return invoke<MaterialInfo[]>("list_materials");
 }
 
+/**
+ * 手动重扫用户物料目录并返回最新列表（watcher 事件丢失时的兜底）。
+ *
+ * 后端重载后同步通知 overlay 重绘并广播 materials-changed 事件。
+ */
+export async function refreshMaterials(): Promise<MaterialInfo[]> {
+  return invoke<MaterialInfo[]>("refresh_materials");
+}
+
 /** 在系统文件管理器中打开用户物料目录（不存在时后端先创建）。 */
 export async function openMaterialsDir(): Promise<void> {
   return invoke("open_materials_dir");

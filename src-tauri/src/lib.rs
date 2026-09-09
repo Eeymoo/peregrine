@@ -717,6 +717,7 @@ pub fn run() {
             // 四层架构新 commands
             build_shapes_ipc,
             list_materials,
+            refresh_materials,
             open_materials_dir,
             add_layer,
             remove_layer,
@@ -1687,6 +1688,44 @@ fn build_shapes_ipc(
 #[tauri::command]
 fn list_materials(state: State<AppState>) -> Vec<MaterialInfo> {
     state.material_registry.list()
+}
+
+/// 手动重扫用户物料目录并返回最新物料列表。
+///
+/// 用途：物料目录 watcher 事件丢失（编辑器原子写 / 杀软拦截等）时的兜底——
+/// 前端在打开「添加图层」物料选择器前调用，保证新增或修改的 `.rhai`
+/// 无需重启即可见。重载成功后与 watcher 路径完全一致：
+/// 向 overlay 发 `RefreshMaterials` 替换 registry 并触发重绘，
+/// 同时广播 `peregrine:materials-changed` 刷新前端各物料列表。
+#[tauri::command]
+fn refresh_materials(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> Result<Vec<MaterialInfo>, String> {
+    use tauri::Emitter;
+
+    let Some(dir) = materials_dir() else {
+        // 目录定位失败不阻塞：返回当前列表（与启动加载的降级策略一致）。
+        return Ok(state.material_registry.list());
+    };
+    state
+        .material_registry
+        .load_user(&dir)
+        .map_err(|e| e.to_string())?;
+    tracing::info!(
+        count = state.material_registry.len(),
+        "manual material rescan ok"
+    );
+
+    // 与 watcher 重载路径相同的两路通知：overlay 换 registry + 前端广播。
+    let _ = state.overlay_cmd_tx.send(overlay::OverlayCommand::RefreshMaterials(
+        Arc::new(state.material_registry.clone()),
+    ));
+    if let Err(e) = app.emit("peregrine:materials-changed", ()) {
+        tracing::warn!(error = %e, "emit materials-changed failed");
+    }
+
+    Ok(state.material_registry.list())
 }
 
 /// 在系统文件管理器中打开用户物料目录（设置 → 物料页「打开物料目录」按钮）。

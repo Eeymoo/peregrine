@@ -69,9 +69,9 @@ Peregrine is released under the [MIT](https://opensource.org/licenses/MIT) licen
 
 **This means you can:**
 
-- ✅ Use, modify, and distribute it freely (including commercially)
-- ✅ Read and study the full source code
-- ✅ Submit Issues and Pull Requests to help improve it
+- Use, modify, and distribute it freely (including commercially)
+- Read and study the full source code
+- Submit Issues and Pull Requests to help improve it
 
 ### Contributing
 

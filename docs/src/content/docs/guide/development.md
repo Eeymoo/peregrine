@@ -145,7 +145,7 @@ Before adding a new report point:
 1. Pick a free code in the appropriate number range (see `REPORT_CODES.md` table of ranges).
 2. Add the constant to `report_code` (Rust) or `REPORT_CODES` (frontend) **and** a row to `REPORT_CODES.md` — both in the same PR.
 3. Only then write the `safe_try!` / `capture_message` / `captureFrontendError` call site.
-4. Mark the row's "接线状态" as ✅ 已接线 with the actual trigger point (function / file).
+4. Mark the row's "接线状态" as 已接线 with the actual trigger point (function / file).
 
 Hardcoded codes that bypass this registry are not allowed in PRs. Codes are stable once shipped — never renumber or reuse a code.
 

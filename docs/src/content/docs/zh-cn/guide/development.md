@@ -145,7 +145,7 @@ PEREGRINE_DISABLE_TELEMETRY=1 npx tauri build
 1. 在对应号段（详见 `REPORT_CODES.md` 号段表）选取一个未占用的 Code。
 2. **同一 PR 内** 把常量加入 `report_code`（Rust）或 `REPORT_CODES`（前端），并在 `REPORT_CODES.md` 增加一行。
 3. 然后才编写 `safe_try!` / `capture_message` / `captureFrontendError` 调用点。
-4. 把登记表中的「接线状态」更新为 ✅ 已接线，并填写实际触发点（函数 / 文件）。
+4. 把登记表中的「接线状态」更新为 已接线，并填写实际触发点（函数 / 文件）。
 
 PR 中不允许出现绕过登记表的硬编码 Code。Code 一旦发布即稳定，**不得** 改号或复用。
 

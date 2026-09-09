@@ -96,7 +96,7 @@ If the above methods are not enough, consider over-the-counter motion sickness m
 
 | Method | Principle | Requires Tool |
 |--------|-----------|---------------|
-| Visual anchor | Provides a stationary reference to reduce sensory conflict | ✅ Peregrine |
+| Visual anchor | Provides a stationary reference to reduce sensory conflict | Peregrine |
 | Increase FOV | Makes the picture closer to a natural perspective | In-game settings |
 | Increase frame rate | Reduces screen tearing and latency | In-game settings / hardware |
 | Sit farther away / keep lights on | Uses peripheral vision to provide a stable environmental reference | None |

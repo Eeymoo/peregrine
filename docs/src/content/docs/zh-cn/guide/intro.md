@@ -69,9 +69,9 @@ Peregrine 使用 [MIT](https://opensource.org/licenses/MIT) 许可发布，完�
 
 **这意味着你可以：**
 
-- ✅ 自由使用、修改、分发（包括商业用途）
-- ✅ 阅读和学习全部源码
-- ✅ 提交 Issue 和 Pull Request 参与改进
+- 自由使用、修改、分发（包括商业用途）
+- 阅读和学习全部源码
+- 提交 Issue 和 Pull Request 参与改进
 
 ### 参与贡献
 

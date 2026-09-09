@@ -1718,9 +1718,11 @@ fn refresh_materials(
     );
 
     // 与 watcher 重载路径相同的两路通知：overlay 换 registry + 前端广播。
-    let _ = state.overlay_cmd_tx.send(overlay::OverlayCommand::RefreshMaterials(
-        Arc::new(state.material_registry.clone()),
-    ));
+    let _ = state
+        .overlay_cmd_tx
+        .send(overlay::OverlayCommand::RefreshMaterials(Arc::new(
+            state.material_registry.clone(),
+        )));
     if let Err(e) = app.emit("peregrine:materials-changed", ()) {
         tracing::warn!(error = %e, "emit materials-changed failed");
     }

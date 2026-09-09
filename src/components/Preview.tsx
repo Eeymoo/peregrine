@@ -315,6 +315,51 @@ function drawElement(
       const name = element.path.split(/[\\/]/).pop() || element.path;
       ctx.fillText(`[${name}]`, element.x + element.w / 2, element.y + element.h / 2);
       break;
+    case "path":
+      drawPathElement(ctx, element, color, opacity);
+      break;
+  }
+}
+
+/** 绘制 path 图元：Path2D 构造同构路径，先 fill 后 stroke，覆盖色 × 图层 opacity 分色。 */
+function drawPathElement(
+  ctx: CanvasRenderingContext2D,
+  element: Extract<Element, { type: "path" }>,
+  color: [number, number, number, number],
+  opacity: number,
+) {
+  const path = new Path2D();
+  for (const seg of element.segments) {
+    switch (seg.cmd) {
+      case "m":
+        path.moveTo(seg.x, seg.y);
+        break;
+      case "l":
+        path.lineTo(seg.x, seg.y);
+        break;
+      case "q":
+        path.quadraticCurveTo(seg.x1, seg.y1, seg.x, seg.y);
+        break;
+      case "c":
+        path.bezierCurveTo(seg.x1, seg.y1, seg.x2, seg.y2, seg.x, seg.y);
+        break;
+      case "z":
+        path.closePath();
+        break;
+    }
+  }
+  // 先填充后描边（描边压填充接缝，与 SVG 端语义一致）；
+  // 覆盖色替换图层基色但保留图层 opacity 乘法（最终 alpha = 覆盖 alpha × opacity）。
+  if (element.fill) {
+    ctx.fillStyle = colorToCss(element.fill_color ?? color, opacity);
+    ctx.fill(path);
+  }
+  if (element.thickness > 0) {
+    ctx.strokeStyle = colorToCss(element.stroke_color ?? color, opacity);
+    ctx.lineWidth = element.thickness;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke(path);
   }
 }
 

@@ -1,0 +1,64 @@
+---
+/**
+ * Mermaid 图表组件（文档站客户端渲染）
+ *
+ * 用法（.mdx 页面）：
+ *   import Mermaid from '../../../components/Mermaid.astro';
+ *   <Mermaid chart={`graph TD; A --> B;`} />
+ *
+ * 主题跟随文档站明暗（读取 <html data-theme>），切换主题时自动重绘。
+ * 原始图表源码保存在 data-chart 属性中，重绘前恢复（mermaid 会把
+ * pre 内容替换为 SVG，且挂 data-processed 标记跳过重复处理）。
+ */
+interface Props {
+  /** Mermaid 图表源码（graph TD / graph LR / flowchart 等） */
+  chart: string;
+}
+
+const { chart } = Astro.props;
+---
+
+<pre class="mermaid" data-chart={chart}>{chart}</pre>
+
+<script>
+  import mermaid from 'mermaid';
+
+  /** 按当前文档站主题渲染页面上的全部 mermaid 图。 */
+  const render = () => {
+    const isDark = document.documentElement.dataset.theme === 'dark';
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: isDark ? 'dark' : 'neutral',
+      fontFamily: 'inherit',
+    });
+    for (const el of document.querySelectorAll<HTMLPreElement>('pre.mermaid')) {
+      el.textContent = el.dataset.chart ?? '';
+      el.removeAttribute('data-processed');
+    }
+    void mermaid.run({ querySelector: 'pre.mermaid' });
+  };
+
+  render();
+
+  // 明暗主题切换时重绘（Starlight ThemeProvider 写 <html data-theme>）。
+  new MutationObserver(render).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+</script>
+
+<style>
+  /* 抵消 Starlight 代码块样式：mermaid 图不是代码块。 */
+  pre.mermaid {
+    background: transparent;
+    border: none;
+    padding: 0;
+    text-align: center;
+    overflow-x: auto;
+  }
+
+  pre.mermaid svg {
+    max-width: 100%;
+    height: auto;
+  }
+</style>

@@ -19,6 +19,17 @@ pub struct DynamicContext {
     pub time_ms: u64,
     /// 鼠标当前位置（逻辑屏幕坐标）。
     pub mouse_pos: (f32, f32),
+    /// 鼠标当前速度（逻辑像素/秒）。
+    ///
+    /// 由平台轮询器（`poll_dynamic_context`）对位置做跨采样差分 +
+    /// EMA 平滑 + 死区归零提供；预览与非 Windows 平台恒为 `(0.0, 0.0)`
+    /// （预览无法感知真实鼠标动力学，依赖速度的物料呈现静止形态）。
+    pub mouse_velocity: (f32, f32),
+    /// 鼠标当前加速度（逻辑像素/秒²）。
+    ///
+    /// 来源与语义同 `mouse_velocity`；死区归零保证鼠标静止/匀速时
+    /// 精确为 0，动态物料的帧指纹回到稳定值（稳态跳帧）。
+    pub mouse_acceleration: (f32, f32),
     /// 当前按下的按键集合（小写字符串，如 `"shift"` / `"a"` / `"f1"`）。
     pub key_state: KeyState,
     /// 随机数种子，派生自 `(material_id, params_hash, frame_count)`。
@@ -34,6 +45,8 @@ impl Default for DynamicContext {
         Self {
             time_ms: 0,
             mouse_pos: (0.0, 0.0),
+            mouse_velocity: (0.0, 0.0),
+            mouse_acceleration: (0.0, 0.0),
             key_state: KeyState::default(),
             rng_seed: 1,
             version: 0,
@@ -45,16 +58,22 @@ impl DynamicContext {
     /// 创建一个用于静态物料求值的上下文（所有动态输入为默认值，version=0）。
     ///
     /// 静态物料不调用任何动态输入 host function，因此上下文内容无关紧要；
-    /// 动态物料在此上下文下求值则渲染为冻结快照（运行时软关闭的语义基础）。
+    /// 动态物料在此上下文下求值则渲染为冻结快照（运行时软关闭的语义基础），
+    /// 速度/加速度为默认值 0（如 teardrop 呈正圆静止形态）。
     pub fn static_context() -> Self {
         Self::default()
     }
 
     /// 创建一个用于预览的快照上下文（使用调用瞬间的真实时间，鼠标居中，无按键）。
+    ///
+    /// 速度/加速度恒为 0：预览无法感知真实鼠标动力学，
+    /// 依赖速度/加速度的物料在预览中呈现其静止形态（spec 已接受行为）。
     pub fn preview_snapshot(screen_w: f32, screen_h: f32) -> Self {
         Self {
             time_ms: current_time_ms(),
             mouse_pos: (screen_w / 2.0, screen_h / 2.0),
+            mouse_velocity: (0.0, 0.0),
+            mouse_acceleration: (0.0, 0.0),
             key_state: KeyState::default(),
             rng_seed: current_time_ms(),
             version: current_time_ms(),
@@ -163,5 +182,26 @@ mod tests {
         let ctx = DynamicContext::preview_snapshot(1920.0, 1080.0);
         assert!(ctx.version > 0 || ctx.time_ms > 0 || ctx.rng_seed > 0);
         assert_eq!(ctx.mouse_pos, (960.0, 540.0));
+    }
+
+    /// 默认 / 静态 / 预览上下文的速度与加速度均为 0
+    /// （预览无法感知真实鼠标动力学，依赖加速度的物料呈静止形态）。
+    #[test]
+    fn velocity_and_acceleration_default_to_zero() {
+        assert_eq!(DynamicContext::default().mouse_velocity, (0.0, 0.0));
+        assert_eq!(DynamicContext::default().mouse_acceleration, (0.0, 0.0));
+        assert_eq!(DynamicContext::static_context().mouse_velocity, (0.0, 0.0));
+        assert_eq!(
+            DynamicContext::static_context().mouse_acceleration,
+            (0.0, 0.0)
+        );
+        assert_eq!(
+            DynamicContext::preview_snapshot(1920.0, 1080.0).mouse_velocity,
+            (0.0, 0.0)
+        );
+        assert_eq!(
+            DynamicContext::preview_snapshot(1920.0, 1080.0).mouse_acceleration,
+            (0.0, 0.0)
+        );
     }
 }

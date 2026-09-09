@@ -6,7 +6,7 @@ A **material** is Peregrine's unit of visual style: a pure mapping from `(params
 
 This guide walks through the **five-step authoring workflow** and documents the full API surface. Every snippet here is extracted from working examples that ship under `crates/material/examples/` — drop any of them into your materials folder and it will load.
 
-> **Status note**: static materials render normally in current builds. Dynamic input (`time_ms()` / `mouse_pos()` / `key_down()` / `rand()`) is soft-disabled by default — the functions still resolve but return a frozen snapshot, so dynamic materials render as a single static frame. See the [Dynamic input API](#dynamic-input-api) section for details and how to re-enable.
+> **Status note**: both static and dynamic materials are live in current builds. Dynamic input (`time_ms()` / `mouse_pos()` / `mouse_velocity()` / `mouse_acceleration()` / `key_down()` / `rand()`) is enabled by default and gated by the runtime switch in Settings → Materials. See the [Dynamic input API](#dynamic-input-api) section.
 
 ## The five-step authoring workflow
 
@@ -19,6 +19,8 @@ This guide walks through the **five-step authoring workflow** and documents the 
 ```
 
 Each material is one `.rhai` file exporting **three** required top-level functions and one optional flag function.
+
+Optionally, a `// Name: xxx` comment on the **first line** sets the display name shown in the material picker; if absent, the last id segment is used (`user.my_cross` → `my_cross`).
 
 ## The three required functions
 
@@ -71,7 +73,7 @@ fn build(params, screen) {
 Declare `true` if the material reads any [dynamic input](#dynamic-input-api) (`time_ms`, `mouse_pos`, `key_down`, `rand`). Defaults to `false` when absent.
 
 - `false` (or missing) → the renderer caches the result **permanently** (same params → same output forever). Best for static anchors.
-- `true` → the renderer re-evaluates on dynamic-context changes. Hidden from the material picker while dynamic input is soft-disabled.
+- `true` → the renderer re-evaluates on dynamic-context changes. Hidden from the material picker while dynamic input is disabled in Settings → Materials.
 
 ## Parameter widget types
 
@@ -104,8 +106,51 @@ Each schema entry uses exactly one `widget`. The UI renders the matching control
 | `line` | `x1`, `y1`, `x2`, `y2`, `thickness` | line segment with thickness |
 | `text` | `x`, `y`, `content`, `font_size`, optional `font_weight` | text; `font_weight` is 100..=900 in multiples of 100, omit or `()` for default |
 | `image` | `path`, `x`, `y`, `w`, `h` | PNG file; renderer decodes separately |
+| `path` | `segments`, `fill`, `thickness`, optional `stroke_color`, `fill_color` | vector path; see [Path element](#path-element) below |
 
 Anything else returns `MaterialError::UnknownElementType` at evaluate time.
+
+## Path element
+
+The `path` element emits arbitrary vector geometry as a list of segments — the only element type that supports curves. It renders through the SVG backend.
+
+```rhai
+fn build(params, screen) {
+    let cx = (screen.min_x + screen.max_x) / 2.0;
+    let cy = (screen.min_y + screen.max_y) / 2.0;
+    let r = params.radius;
+    [
+        #{
+            type: "path",
+            segments: [
+                #{cmd: "M", x: cx, y: cy - r},
+                #{cmd: "Q", x1: cx + r, y1: cy - r, x: cx, y: cy + r},
+                #{cmd: "Z"},
+            ],
+            fill: true,
+            thickness: 0.0,
+        },
+    ]
+}
+```
+
+Segment commands (`cmd`, snake_case):
+
+| `cmd` | Fields | Meaning |
+|---|---|---|
+| `M` | `x`, `y` | move-to; starts a new subpath |
+| `L` | `x`, `y` | line-to |
+| `Q` | `x1`, `y1`, `x`, `y` | quadratic Bézier (control point + end point) |
+| `C` | `x1`, `y1`, `x2`, `y2`, `x`, `y` | cubic Bézier (two control points + end point) |
+| `Z` | _(none)_ | close subpath |
+
+Field semantics:
+
+- `fill: true` is required for the current converter (rings rely on even-odd/non-zero hole punching via reversed inner subpaths).
+- `thickness` sets the stroke width (0 = no stroke).
+- Omitting `stroke_color` / `fill_color` (each `[r, g, b, a]` in 0..=1) makes the element inherit the **layer color × layer opacity** — the recommended default so the color hotkey keeps working. Explicit colors override the layer color.
+
+Use `path` for smooth rings, petals, and any curved anchor shape. For pure rectangles/circles the dedicated elements are cheaper (CPU raster path, no SVG round-trip).
 
 ## The `screen` argument
 
@@ -127,19 +172,32 @@ These host functions are registered on the Rhai engine and let a material react 
 | `now_ms()` | `int` | Current Unix timestamp in ms (real clock). Use with `format_time`. |
 | `format_time(ms, fmt)` | `string` | Format a ms timestamp; supports `yyyy` `MM` `dd` `HH` `hh` `mm` `ss` `a` placeholders. |
 | `mouse_pos()` | `Map {x, y}` | Current mouse position in logical screen coords. |
+| `mouse_velocity()` | `Map {x, y}` | Mouse velocity in logical px/s. Platform-poll differentials + EMA smoothing + dead-zone zeroing (exactly 0 at rest — frame-stable). |
+| `mouse_acceleration()` | `Map {x, y}` | Mouse acceleration in logical px/s². Same pipeline; exactly 0 at rest or constant velocity. |
 | `key_down(code)` | `bool` | Whether the given key is currently pressed. Codes: `"shift"` `"ctrl"` `"a"`..`"z"` `"0"`..`"9"` `"f1"`..`"f12"` `"space"` etc. (case-insensitive) |
 | `rand()` | `float` | Deterministic pseudo-random in `[0, 1)`; advances an internal counter per call. |
 | `rand_range(min, max)` | `float` | Random float in `[min, max)`. |
 | `rand_int(max)` | `int` | Random integer in `[0, max)`. |
+| `parse_svg_path(d)` | `Array` | Parse an SVG path `d` string into a segment array (absolute coords), same segment shape as the [path element](#path-element); supports `M/L/Q/C/Z` plus lowercase relative commands, `H/V` expansion, and implicit repetition; unsupported `A/S/T` returns an empty array so the script can fall back. |
 
 ### Determinism and caching
 
 - **Static materials** (`is_dynamic() == false`) are evaluated **once** per parameter set and cached forever (the cache key ignores the dynamic context). Reading any dynamic input from a static material returns a frozen value — don't do it.
 - **Dynamic materials** are re-evaluated when the dynamic context's `version` changes (per-frame when dynamic input is enabled). The RNG is seeded from `(material_id, params_hash, frame_count)` so two materials of the same kind with the same params produce the same random sequence within a frame, while successive `rand()` calls within one evaluation return different values.
 
-### Current soft-disable
+### Refresh-interval throttling
 
-In shipped builds the dynamic-input path is disabled by default (`MATERIAL_DYNAMIC_INPUT_ENABLED = false` in `crates/peregrine/src/lib.rs` and `src/lib/feature.ts`). The host functions still resolve (so dynamic materials load and evaluate without errors), but the `DynamicContext` passed in is `static_context()` — `time_ms` returns 0, `mouse_pos` returns screen center, `key_down` returns false, and `version` stays 0 so the cache is permanent. Dynamic materials therefore render as a single static frame. To re-enable live updates, flip both `MATERIAL_DYNAMIC_INPUT_ENABLED` constants to `true`. See `AGENTS.md` (search the constant names) for the full gating.
+An optional fourth exported function keeps dynamic materials cheap:
+
+```rhai
+fn refresh_interval_ms() {
+    100  // minimum wake-up interval in ms
+}
+```
+
+The scheduler throttles wake-ups to `max(FPS tier, shortest declared interval across visible dynamic materials)` — the built-in clock declares 500 ms, cutting wake-ups from 60 Hz to 2 Hz; the anchor ring declares 100 ms. External events (config changes, window moves) still redraw immediately and are never throttled. Materials that omit the function default to the profile FPS tier.
+
+A second cost lever is **output quantization**: if two evaluations produce byte-identical elements, the frame fingerprint matches and rasterization is skipped entirely. The built-in anchor ring quantizes its breathing radius to 0.5 px so most wake-ups don't rasterize at all.
 
 ## Sandbox limits
 
@@ -223,12 +281,18 @@ Materials are discovered from `<app_data_dir>/materials/`:
 | macOS | `~/Library/Application Support/Peregrine/materials/` |
 | Linux | `~/.config/Peregrine/materials/` |
 
-Drop a `.rhai` file there; the file name (without extension) becomes the material id suffix (`my_cross.rhai` → `user.my_cross`). The directory is scanned at startup and on manual reload; user materials override built-ins of the same name.
+Drop a `.rhai` file there; the file name (without extension) becomes the material id suffix (`my_cross.rhai` → `user.my_cross`). Usage rules:
+
+- **Auto-created**: the folder is created automatically at startup if missing — just drop files in.
+- **Fully automatic hot reload**: the folder is watched (≈500ms debounce); adding, editing, or deleting a `.rhai` file takes effect **without a restart** — both the material picker and the overlay pick up the new version. Invalid scripts are skipped with a warning in the log.
+- **Independent namespaces**: user materials use the `user.` id prefix, built-ins use `builtin.`; they are listed side by side and never override each other.
+- The **Settings → Materials** page also has an "Open materials folder" button that reveals the folder in your file manager.
 
 More example materials (static, time-dynamic, input-dynamic) live under [`crates/material/examples/`](https://github.com/eeymoo/peregrine/tree/main/crates/material/examples) — they double as smoke tests and are verified by `cargo test -p peregrine_material`.
 
 ## See also
 
 - [Layers](./layers) — how materials are stacked, transformed, and styled at the layer level.
+- [Settings Guide](./settings) — runtime behavior of the dynamic-material switch and FPS.
 - [Configuration](./config) — the `Profile.layers` JSON shape.
 - [`REPORT_CODES.md`](./report-codes) — telemetry code registry (materials don't emit telemetry themselves, but related code paths do).

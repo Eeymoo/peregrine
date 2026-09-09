@@ -1,0 +1,20 @@
+---
+title: Playground
+description: Write and validate Peregrine custom material (.rhai) scripts in the browser, then download and drop them into your materials folder.
+tableOfContents: false
+# 独立工具页不参与指南翻页序列（与 download 页同策略）。
+prev: false
+next: false
+---
+
+import RhaiPlayground from '../../components/playground/RhaiPlayground.astro';
+
+A browser-side editor for Peregrine **custom materials** (`.rhai` scripts). Pick a template, tweak the code, watch the contract checks, then download the file and drop it into your materials folder — the app hot-reloads it automatically.
+
+<RhaiPlayground locale="en" />
+
+## Notes
+
+- The editor performs **static contract validation only** (required functions, widget & element-type whitelists, dynamic-API consistency). Real evaluation happens when Peregrine loads the file — invalid geometry fields surface in `peregrine.log`.
+- Previews are not rendered here; use the in-app preview (Settings → Layers) after installing — the preview and the overlay share the same evaluation pipeline (WYSIWYG).
+- See the [material scripting guide](./guide/material-scripting/) for the full API reference.

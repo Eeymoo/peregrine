@@ -105,5 +105,6 @@ Each layer's parameters come from the material's `schema()`, so the UI shows mat
 ## See also
 
 - [Material Scripting](./material-scripting) — authoring custom materials.
+- [Settings Guide](./settings) — settings-window options (renderer backend / anti-aliasing / dynamic materials, etc.).
 - [Configuration](./config) — full JSON schema including `Profile.layers`.
 - [Recommended Settings](./recommendations) — curated profiles that use multiple layers.

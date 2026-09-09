@@ -51,4 +51,9 @@ pub const BUILTIN_MATERIALS: &[(&str, &str)] = &[
     ("grid", include_str!("../builtin/grid.rhai")),
     ("image", include_str!("../builtin/image.rhai")),
     ("time", include_str!("../builtin/time.rhai")),
+    ("teardrop", include_str!("../builtin/teardrop.rhai")),
+    (
+        "path_showcase",
+        include_str!("../builtin/path_showcase.rhai"),
+    ),
 ];

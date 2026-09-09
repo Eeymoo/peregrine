@@ -1169,6 +1169,78 @@ pub enum Element {
         /// 显示高度。
         h: f32,
     },
+    /// 贝塞尔路径（M/L/Q/C/Z 段命令 + 描边/填充双色覆盖）。
+    ///
+    /// 首个引入元素级颜色覆盖的图元：`stroke_color` / `fill_color` 为 `None`
+    /// 时继承图层基色（乘图层 opacity）；显式覆盖 = 主动退出图层色。
+    /// 结构校验（首段 M、不可见组合拒绝等）由 Rhai 转换层负责
+    ///（Element 为求值输出，不持久化到配置文件）。
+    Path {
+        /// 段命令序列，非空且首段必须为 `M`。
+        segments: Vec<PathSegment>,
+        /// 是否填充（false = 纯描边）。
+        #[serde(default)]
+        fill: bool,
+        /// 描边宽度（逻辑像素），0 表示关闭描边。
+        thickness: f32,
+        /// 描边基色覆盖；`None` 继承图层基色。
+        #[serde(default)]
+        stroke_color: Option<[f32; 4]>,
+        /// 填充基色覆盖；`None` 继承图层基色。
+        #[serde(default)]
+        fill_color: Option<[f32; 4]>,
+    },
+}
+
+/// 路径段命令（绝对坐标）：M/L/Q/C/Z 五种。
+///
+/// 表达任意平面曲线的最小完备集；有意识不实现 SVG 的
+/// `A`/`H`/`V`/`S`/`T` 与相对坐标（脚本可自行累加/采样）。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "cmd", rename_all = "snake_case")]
+pub enum PathSegment {
+    /// 移动到指定点（开启子路径）。
+    M {
+        /// 目标 X 坐标。
+        x: f32,
+        /// 目标 Y 坐标。
+        y: f32,
+    },
+    /// 直线段到指定点。
+    L {
+        /// 目标 X 坐标。
+        x: f32,
+        /// 目标 Y 坐标。
+        y: f32,
+    },
+    /// 二次贝塞尔曲线段（单控制点）。
+    Q {
+        /// 控制点 X。
+        x1: f32,
+        /// 控制点 Y。
+        y1: f32,
+        /// 目标 X 坐标。
+        x: f32,
+        /// 目标 Y 坐标。
+        y: f32,
+    },
+    /// 三次贝塞尔曲线段（双控制点）。
+    C {
+        /// 控制点 1 X。
+        x1: f32,
+        /// 控制点 1 Y。
+        y1: f32,
+        /// 控制点 2 X。
+        x2: f32,
+        /// 控制点 2 Y。
+        y2: f32,
+        /// 目标 X 坐标。
+        x: f32,
+        /// 目标 Y 坐标。
+        y: f32,
+    },
+    /// 闭合当前子路径（回到最近一次 `M` 的位置）。
+    Z,
 }
 
 /// 物料引用：图层所用的物料来源。
@@ -2544,5 +2616,86 @@ mod tests {
 
         // 序列化时应当包含 developer_mode 字段（不是 skip_serializing）。
         assert!(json.contains("\"developer_mode\""));
+    }
+
+    // ===== Path 图元序列化测试 =====
+
+    /// Path 序列化往返：JSON 含 `"type": "path"` 与 `"cmd": "m"` 等 snake_case tag。
+    #[test]
+    fn element_path_serialization_roundtrip() {
+        let e = Element::Path {
+            segments: vec![
+                PathSegment::M { x: 10.0, y: 10.0 },
+                PathSegment::C {
+                    x1: 20.0,
+                    y1: 0.0,
+                    x2: 40.0,
+                    y2: 30.0,
+                    x: 50.0,
+                    y: 10.0,
+                },
+                PathSegment::Z,
+            ],
+            fill: true,
+            thickness: 2.0,
+            stroke_color: Some([1.0, 0.0, 0.0, 1.0]),
+            fill_color: None,
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"type\":\"path\""));
+        assert!(json.contains("\"cmd\":\"m\""));
+        assert!(json.contains("\"cmd\":\"c\""));
+        assert!(json.contains("\"cmd\":\"z\""));
+        let restored: Element = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, e);
+    }
+
+    /// 缺省字段向后兼容：不携带 fill / stroke_color / fill_color 的 path JSON
+    /// 反序列化为 `fill = false`、两个颜色 `None`。
+    #[test]
+    fn element_path_defaults_backward_compat() {
+        let json = r#"{"type":"path","segments":[{"cmd":"m","x":0.0,"y":0.0},{"cmd":"l","x":10.0,"y":0.0},{"cmd":"z"}],"thickness":2.0}"#;
+        let e: Element = serde_json::from_str(json).expect("old path format must parse");
+        match e {
+            Element::Path {
+                segments,
+                fill,
+                thickness,
+                stroke_color,
+                fill_color,
+            } => {
+                assert_eq!(segments.len(), 3);
+                assert!(!fill);
+                assert_eq!(thickness, 2.0);
+                assert_eq!(stroke_color, None);
+                assert_eq!(fill_color, None);
+            }
+            _ => panic!("expected Path"),
+        }
+    }
+
+    /// Q 段序列化往返（含控制点字段）。
+    #[test]
+    fn element_path_quadratic_segment_roundtrip() {
+        let e = Element::Path {
+            segments: vec![
+                PathSegment::M { x: 0.0, y: 0.0 },
+                PathSegment::Q {
+                    x1: 5.0,
+                    y1: 10.0,
+                    x: 10.0,
+                    y: 0.0,
+                },
+                PathSegment::Z,
+            ],
+            fill: false,
+            thickness: 1.5,
+            stroke_color: None,
+            fill_color: None,
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"cmd\":\"q\""));
+        let restored: Element = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, e);
     }
 }

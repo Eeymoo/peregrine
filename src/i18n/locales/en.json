@@ -345,6 +345,9 @@
     "fpsHint": "Refresh cap for dynamic materials; purely static profiles are unaffected",
     "fpsSystem": "Follow system",
     "statusActive": "Dynamic pipeline enabled: dynamic materials refresh at the configured rate",
-    "statusFrozen": "Dynamic pipeline off: dynamic materials render frozen; static layers unaffected"
+    "statusFrozen": "Dynamic pipeline off: dynamic materials render frozen; static layers unaffected",
+    "openDir": "Custom materials",
+    "openDirHint": "User materials (.rhai scripts) live in the materials folder of the app data directory; dropping in or editing a file hot-reloads automatically, no restart needed",
+    "openDirButton": "Open materials folder"
   }
 }

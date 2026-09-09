@@ -105,5 +105,6 @@ v0.2 之前，每个 Profile 只能有单一准心样式。图层让你把多种
 ## 相关文档
 
 - [物料脚本创作](./material-scripting) —— 编写自定义物料
+- [设置详解](./settings) —— 设置窗口各选项（渲染后端 / 抗锯齿 / 动态物料等）
 - [配置说明](./config) —— 完整 JSON schema（含 `Profile.layers`）
 - [推荐配置](./recommendations) —— 使用多图层的精选 Profile

@@ -365,6 +365,33 @@ fn build_elements_svg(
                 // SVG 嵌入图片引用（实际渲染由上层单独处理）。
                 let _ = (x, y, w, h, path);
             }
+            Shape::Path {
+                segments,
+                fill: do_fill,
+                thickness,
+                stroke_color,
+                fill_color,
+            } => {
+                // Path 图元：拼接 d 属性（坐标 × scale），覆盖色语义取值。
+                // 纯描边 fill="none"；纯填充 stroke="none"；round cap/join 统一。
+                let d = build_path_d(segments, scale);
+                let (fill_attr, stroke_attr, sw_attr) = make_path_paint(
+                    *do_fill,
+                    *thickness,
+                    stroke_color.as_ref(),
+                    fill_color.as_ref(),
+                    *color,
+                    *opacity,
+                    scale,
+                );
+                svg.push_str(&format!(
+                    r#"<path d="{d}"{f}{s}{sw} stroke-linecap="round" stroke-linejoin="round"/>"#,
+                    d = d,
+                    f = fill_attr,
+                    s = stroke_attr,
+                    sw = sw_attr,
+                ));
+            }
         }
     }
 
@@ -372,7 +399,102 @@ fn build_elements_svg(
     svg
 }
 
-/// 将 [`Shape`] 序列 + 准心配置转换为 SVG 字符串。
+/// 拼接 Path 段序列的 SVG `d` 属性（绝对坐标，全部乘 scale）。
+fn build_path_d(segments: &[peregrine_config::PathSegment], scale: f32) -> String {
+    use std::fmt::Write as _;
+    let mut d = String::new();
+    for seg in segments {
+        match *seg {
+            peregrine_config::PathSegment::M { x, y } => {
+                let _ = write!(d, "M {} {} ", x * scale, y * scale);
+            }
+            peregrine_config::PathSegment::L { x, y } => {
+                let _ = write!(d, "L {} {} ", x * scale, y * scale);
+            }
+            peregrine_config::PathSegment::Q { x1, y1, x, y } => {
+                let _ = write!(
+                    d,
+                    "Q {} {} {} {} ",
+                    x1 * scale,
+                    y1 * scale,
+                    x * scale,
+                    y * scale
+                );
+            }
+            peregrine_config::PathSegment::C {
+                x1,
+                y1,
+                x2,
+                y2,
+                x,
+                y,
+            } => {
+                let _ = write!(
+                    d,
+                    "C {} {} {} {} {} {} ",
+                    x1 * scale,
+                    y1 * scale,
+                    x2 * scale,
+                    y2 * scale,
+                    x * scale,
+                    y * scale
+                );
+            }
+            peregrine_config::PathSegment::Z => d.push_str("Z "),
+        }
+    }
+    d.trim_end().to_string()
+}
+
+/// 计算路径的 fill / stroke / stroke-width 属性串（元素级颜色覆盖语义）。
+///
+/// 最终颜色 = `(元素基色 ?? 图层基色) × 图层 opacity`——替换基色但保留
+/// 图层不透明度乘法（design D2）。纯描边 `fill="none"`、纯填充 `stroke="none"`。
+/// 覆盖与继承两个分支统一走 rgba(alpha × 图层 opacity)：继承图层色时
+/// 图层 opacity 同样生效（与其他图元的 `opacity` 属性语义一致，
+/// 与前端 `colorToCss` 的 `color[3] * opacity` 双端对齐）。
+fn make_path_paint(
+    fill: bool,
+    thickness: f32,
+    stroke_color: Option<&[f32; 4]>,
+    fill_color: Option<&[f32; 4]>,
+    layer_color: [f32; 4],
+    layer_opacity: f32,
+    scale: f32,
+) -> (String, String, String) {
+    let paint = |c: &[f32; 4]| -> String {
+        let a = (c[3] * layer_opacity).clamp(0.0, 1.0);
+        format!(
+            "rgba({},{},{},{})",
+            (c[0] * 255.0).round().clamp(0.0, 255.0) as u32,
+            (c[1] * 255.0).round().clamp(0.0, 255.0) as u32,
+            (c[2] * 255.0).round().clamp(0.0, 255.0) as u32,
+            a
+        )
+    };
+
+    let has_stroke = thickness > 0.0;
+    let fill_attr = if fill {
+        let color = fill_color.map(paint).unwrap_or_else(|| paint(&layer_color));
+        format!(r#" fill="{}""#, color)
+    } else {
+        r#" fill="none""#.to_string()
+    };
+    let stroke_attr = if has_stroke {
+        let color = stroke_color
+            .map(paint)
+            .unwrap_or_else(|| paint(&layer_color));
+        format!(r#" stroke="{}""#, color)
+    } else {
+        r#" stroke="none""#.to_string()
+    };
+    let sw_attr = if has_stroke {
+        format!(r#" stroke-width="{}""#, thickness * scale)
+    } else {
+        String::new()
+    };
+    (fill_attr, stroke_attr, sw_attr)
+}
 ///
 /// 所有坐标已经乘以 `scale`（物理像素），SVG viewBox 为物理像素尺寸。
 /// 颜色使用准心的 `color` + `opacity`。
@@ -549,9 +671,213 @@ fn build_svg(rect: &RectF, crosshair: &Crosshair, scale: f32) -> String {
                 // SVG 嵌入图片引用（实际渲染由上层单独处理）。
                 let _ = (x, y, w, h, path);
             }
+            // 旧格式 build_shapes 不会生成 Path（物料求值仅在新格式路径），
+            // 此 arm 仅满足穷尽性；若未来出现则按图层色渲染。
+            Shape::Path {
+                segments,
+                fill: do_fill,
+                thickness,
+                stroke_color,
+                fill_color,
+            } => {
+                let d = build_path_d(segments, scale);
+                let (fill_attr, stroke_attr, sw_attr) = make_path_paint(
+                    *do_fill,
+                    *thickness,
+                    stroke_color.as_ref(),
+                    fill_color.as_ref(),
+                    crosshair.color,
+                    opacity,
+                    scale,
+                );
+                svg.push_str(&format!(
+                    r#"<path d="{d}"{f}{s}{sw} stroke-linecap="round" stroke-linejoin="round"/>"#,
+                    d = d,
+                    f = fill_attr,
+                    s = stroke_attr,
+                    sw = sw_attr,
+                ));
+            }
         }
     }
 
     svg.push_str("</svg>");
     svg
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use peregrine_config::{Element, PathSegment};
+
+    fn test_rect() -> RectF {
+        RectF {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        }
+    }
+
+    fn sample_segments() -> Vec<PathSegment> {
+        vec![
+            PathSegment::M { x: 10.0, y: 10.0 },
+            PathSegment::Q {
+                x1: 20.0,
+                y1: 0.0,
+                x: 30.0,
+                y: 10.0,
+            },
+            PathSegment::Z,
+        ]
+    }
+
+    /// 纯描边：fill="none"、stroke 取图层色、stroke-width 为 thickness × scale。
+    /// 回归：继承图层色时 opacity 同样生效（alpha = 图层 alpha × opacity）。
+    #[test]
+    fn path_stroke_only_svg() {
+        let svg = build_elements_svg(
+            &test_rect(),
+            &[(
+                Element::Path {
+                    segments: sample_segments(),
+                    fill: false,
+                    thickness: 3.0,
+                    stroke_color: None,
+                    fill_color: None,
+                },
+                [0.2, 0.5, 1.0, 1.0],
+                0.8,
+            )],
+            2.0,
+        );
+        assert!(
+            svg.contains(r#"<path d="M 20 20 Q 40 0 60 20 Z""#),
+            "svg: {}",
+            svg
+        );
+        assert!(svg.contains(r#" fill="none""#), "svg: {}", svg);
+        // 图层色 rgb(51,128,255)，alpha 1.0 × opacity 0.8 = 0.8。
+        assert!(
+            svg.contains(r#" stroke="rgba(51,128,255,0.8)""#),
+            "svg: {}",
+            svg
+        );
+        assert!(svg.contains(r#" stroke-width="6""#), "svg: {}", svg);
+        assert!(svg.contains(r#" stroke-linecap="round""#), "svg: {}", svg);
+        assert!(svg.contains(r#" stroke-linejoin="round""#), "svg: {}", svg);
+    }
+
+    /// 双色覆盖：fill 与 stroke 分别取两个覆盖色 × 图层 opacity。
+    #[test]
+    fn path_dual_color_override_svg() {
+        let svg = build_elements_svg(
+            &test_rect(),
+            &[(
+                Element::Path {
+                    segments: sample_segments(),
+                    fill: true,
+                    thickness: 2.0,
+                    stroke_color: Some([1.0, 0.0, 0.0, 1.0]),
+                    fill_color: Some([0.0, 0.0, 1.0, 0.5]),
+                },
+                [1.0, 1.0, 1.0, 1.0],
+                0.5,
+            )],
+            1.0,
+        );
+        // 描边覆盖色红 × opacity 0.5 → rgba(255,0,0,0.5)。
+        assert!(
+            svg.contains(r#" stroke="rgba(255,0,0,0.5)""#),
+            "svg: {}",
+            svg
+        );
+        // 填充覆盖色蓝 alpha 0.5 × opacity 0.5 → rgba(0,0,255,0.25)。
+        assert!(
+            svg.contains(r#" fill="rgba(0,0,255,0.25)""#),
+            "svg: {}",
+            svg
+        );
+        assert!(svg.contains(r#" stroke-width="2""#), "svg: {}", svg);
+    }
+
+    /// 纯填充：stroke="none"、fill 取覆盖色（无覆盖时取图层色）。
+    #[test]
+    fn path_fill_only_svg() {
+        let svg = build_elements_svg(
+            &test_rect(),
+            &[(
+                Element::Path {
+                    segments: sample_segments(),
+                    fill: true,
+                    thickness: 0.0,
+                    stroke_color: None,
+                    fill_color: None,
+                },
+                [0.0, 1.0, 0.0, 1.0],
+                1.0,
+            )],
+            1.0,
+        );
+        assert!(svg.contains(r#" stroke="none""#), "svg: {}", svg);
+        // 图层色 alpha 1.0 × opacity 1.0 = 1.0（rgba 格式统一输出）。
+        assert!(svg.contains(r#" fill="rgba(0,255,0,1)""#), "svg: {}", svg);
+        // 纯填充不输出 stroke-width。
+        assert!(!svg.contains("stroke-width"), "svg: {}", svg);
+    }
+
+    /// 回归：继承图层色分支的 opacity 双乘法——图层色自身 alpha 与
+    /// 图层 opacity 同时 < 1 时，最终 alpha = 两者乘积（此前该分支
+    /// 直接复用无 alpha 的 rgb() 字符串，opacity 被完全丢弃）。
+    #[test]
+    fn path_inherited_color_multiplies_layer_opacity() {
+        let svg = build_elements_svg(
+            &test_rect(),
+            &[(
+                Element::Path {
+                    segments: sample_segments(),
+                    fill: true,
+                    thickness: 2.0,
+                    stroke_color: None,
+                    fill_color: None,
+                },
+                // 图层色 alpha 0.5，图层 opacity 0.4 → 0.2。
+                [1.0, 0.5, 0.25, 0.5],
+                0.4,
+            )],
+            1.0,
+        );
+        assert!(
+            svg.contains(r#" fill="rgba(255,128,64,0.2)""#),
+            "svg: {}",
+            svg
+        );
+        assert!(
+            svg.contains(r#" stroke="rgba(255,128,64,0.2)""#),
+            "svg: {}",
+            svg
+        );
+    }
+
+    /// d 属性拼接：C 段与 L 段的命令格式。
+    #[test]
+    fn path_d_attribute_commands() {
+        let d = build_path_d(
+            &[
+                PathSegment::M { x: 1.0, y: 2.0 },
+                PathSegment::L { x: 3.0, y: 4.0 },
+                PathSegment::C {
+                    x1: 5.0,
+                    y1: 6.0,
+                    x2: 7.0,
+                    y2: 8.0,
+                    x: 9.0,
+                    y: 10.0,
+                },
+                PathSegment::Z,
+            ],
+            1.0,
+        );
+        assert_eq!(d, "M 1 2 L 3 4 C 5 6 7 8 9 10 Z");
+    }
 }

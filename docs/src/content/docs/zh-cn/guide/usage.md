@@ -52,4 +52,5 @@ prev: false
 ## 遇到问题？
 
 - 查看 [配置说明](./config) 了解配置文件格式。
+- 查看 [设置详解](./settings) 了解设置窗口每个选项的作用。
 - 到 [GitHub Issues](https://github.com/eeymoo/peregrine/issues) 反馈问题。

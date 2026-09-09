@@ -17,8 +17,13 @@ import { fileURLToPath } from 'node:url';
 
 const fixturesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
-/** 读取 fixtures 并生成注入用的页面脚本源码字符串。 */
-export function buildMockInitScript() {
+/**
+ * 读取 fixtures 并生成注入用的页面脚本源码字符串。
+ * @param options.windowLabel 模拟的 Tauri 窗口 label：
+ *   - 'config'（默认）：渲染 ConfigApp（图层编辑器 + 实时预览，多图层演示所在）
+ *   - 'settings'：渲染 SettingsApp（通用/覆盖层/物料/快捷键标签页设置窗口）
+ */
+export function buildMockInitScript({ windowLabel = 'config' } = {}) {
   const config = fs.readFileSync(path.join(fixturesDir, 'app-config.json'), 'utf8');
   const shapes = fs.readFileSync(path.join(fixturesDir, 'shapes-1920x1080.json'), 'utf8');
   const materials = fs.readFileSync(path.join(fixturesDir, 'materials.json'), 'utf8');
@@ -227,10 +232,10 @@ export function buildMockInitScript() {
       return 'asset://localhost/' + filePath;
     },
     metadata: {
-      // label 取 'config'：ConfigApp 窗口承载图层编辑器与实时预览（多图层演示所在），
-      // SettingsApp 是通用/快捷键等标签页，不适合做官网截图主体。
-      currentWindow: { label: 'config' },
-      currentWebview: { windowLabel: 'config', label: 'config' },
+      // label 可由 buildMockInitScript({ windowLabel }) 指定：
+      // 'config' = ConfigApp（图层编辑器），'settings' = SettingsApp（标签页设置窗口）。
+      currentWindow: { label: '${windowLabel}' },
+      currentWebview: { windowLabel: '${windowLabel}', label: '${windowLabel}' },
     },
   };
 

@@ -35,6 +35,8 @@ const check = (label, cond, detail) => {
 for (const theme of ['dark', 'light']) {
   for (const [name, url] of [['en', PAGES.table[0]], ['zh', PAGES.table[1]]]) {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: theme });
+    // 站点缺省主题为 dark（不跟随系统）；用 localStorage 显式设定主题驱动验收。
+    await ctx.addInitScript((t) => localStorage.setItem('starlight-theme', t), theme);
     const page = await ctx.newPage();
     await page.goto('http://localhost:4399' + url, { waitUntil: 'networkidle' });
     const r = await page.evaluate(() => {
@@ -73,6 +75,8 @@ for (const theme of ['dark', 'light']) {
   // aside / 正文链接在 usage 页校验（config 页不含这两种元素）。
   for (const [name, url] of [['en', PAGES.aside[0]], ['zh', PAGES.aside[1]]]) {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: theme });
+    // 站点缺省主题为 dark（不跟随系统）；用 localStorage 显式设定主题驱动验收。
+    await ctx.addInitScript((t) => localStorage.setItem('starlight-theme', t), theme);
     const page = await ctx.newPage();
     await page.goto('http://localhost:4399' + url, { waitUntil: 'networkidle' });
     const r = await page.evaluate(() => {

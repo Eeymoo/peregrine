@@ -39,7 +39,25 @@ export type Element =
       thickness: number;
     }
   | { type: "text"; x: number; y: number; content: string; font_size: number; font_weight?: number | null }
-  | { type: "image"; path: string; x: number; y: number; w: number; h: number };
+  | { type: "image"; path: string; x: number; y: number; w: number; h: number }
+  | {
+      type: "path";
+      segments: PathSegment[];
+      fill: boolean;
+      thickness: number;
+      /** 描边基色覆盖；null/缺省 = 继承图层基色。 */
+      stroke_color?: [number, number, number, number] | null;
+      /** 填充基色覆盖；null/缺省 = 继承图层基色。 */
+      fill_color?: [number, number, number, number] | null;
+    };
+
+/** 路径段命令（与 Rust `PathSegment` 对应，serde tag = "cmd"，snake_case）。 */
+export type PathSegment =
+  | { cmd: "m"; x: number; y: number }
+  | { cmd: "l"; x: number; y: number }
+  | { cmd: "q"; x1: number; y1: number; x: number; y: number }
+  | { cmd: "c"; x1: number; y1: number; x2: number; y2: number; x: number; y: number }
+  | { cmd: "z" };
 
 /** 物料引用：图层所用的物料来源。 */
 export type MaterialRef =

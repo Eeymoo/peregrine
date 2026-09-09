@@ -345,6 +345,9 @@
     "fpsHint": "Cadence maximale des matériaux dynamiques ; les profils purement statiques ne sont pas affectés",
     "fpsSystem": "Suivre le système",
     "statusActive": "Pipeline dynamique activé : les matériaux dynamiques se rafraîchissent à la cadence configurée",
-    "statusFrozen": "Pipeline dynamique désactivé : matériaux dynamiques figés ; couches statiques non affectées"
+    "statusFrozen": "Pipeline dynamique désactivé : matériaux dynamiques figés ; couches statiques non affectées",
+    "openDir": "Matériaux personnalisés",
+    "openDirHint": "Les matériaux utilisateur (scripts .rhai) se trouvent dans le dossier materials du répertoire de données de l'application ; tout ajout ou modification est rechargé à chaud, sans redémarrage",
+    "openDirButton": "Ouvrir le dossier des matériaux"
   }
 }

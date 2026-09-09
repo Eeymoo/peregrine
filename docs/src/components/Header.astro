@@ -44,6 +44,7 @@ const prefix = locale ? `/${locale}` : '';
 const navLinks = [
 	{ label: locale ? '文档' : 'Docs', href: `${prefix}/guide/intro`, external: false },
 	{ label: locale ? '下载' : 'Download', href: `${prefix}/download`, external: false },
+	{ label: locale ? '编辑器' : 'Playground', href: `${prefix}/playground`, external: false },
 	{ label: 'GitHub', href: 'https://github.com/eeymoo/peregrine', external: true },
 ];
 // 当前页 active 态。路由判定最小化——pathname 去掉可选 .html 后缀与尾斜杠后前缀比较。

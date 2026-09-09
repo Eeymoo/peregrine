@@ -12,8 +12,13 @@ on:
 
 jobs:
   opencode:
+    # 仅显式召唤时运行：人类评论且以 /oc 或 /opencode 开头。
+    # 关键防环：opencode 自身以 Bot 身份回帖，user.type != 'Bot' 保证
+    # agent 永远不会被自己的评论再次触发（此前 #80 即因此自激励循环）。
     if: |
-      github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment'
+      (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
+      github.event.comment.user.type != 'Bot' &&
+      (startsWith(github.event.comment.body, '/oc') || startsWith(github.event.comment.body, '/opencode'))
     runs-on: ubuntu-latest
     permissions:
       id-token: write

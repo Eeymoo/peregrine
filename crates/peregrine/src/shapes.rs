@@ -9,7 +9,7 @@
 
 use peregrine_config::{
     Anchor, BorderFrameStyle, Crosshair, CrosshairStyle, Element, GridAlignment, Layer,
-    OrbPosition, Profile, Rect, RingStyle, Transform2D,
+    OrbPosition, PathSegment, Profile, Rect, RingStyle, Transform2D,
 };
 use peregrine_material::{DynamicContext, MaterialRegistry};
 
@@ -1058,6 +1058,126 @@ fn evaluate_layer(
         .map_err(|e| e.to_string())
 }
 
+// ===== Path 图元几何工具：自适应展平（de Casteljau） =====
+
+/// 展平容差（逻辑像素）：控制点偏离弦小于此值时停止细分。
+///
+/// 确定性阈值保证同一曲线每帧得到同一 bbox（动态物料变换轴心不抖动）。
+const FLATTEN_TOLERANCE: f32 = 0.5;
+/// 展平递归深度上限（2^16 段，防御性兜底，正常曲线 4~8 层即收敛）。
+const FLATTEN_MAX_DEPTH: u32 = 16;
+
+/// 点到线段（p0→p1）的距离；线段退化时返回点到点距离。
+fn point_line_dist(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
+    let dx = b.0 - a.0;
+    let dy = b.1 - a.1;
+    let len_sq = dx * dx + dy * dy;
+    if len_sq > 1e-12 {
+        ((p.0 - a.0) * dy - (p.1 - a.1) * dx).abs() / len_sq.sqrt()
+    } else {
+        let ex = p.0 - a.0;
+        let ey = p.1 - a.1;
+        (ex * ex + ey * ey).sqrt()
+    }
+}
+
+/// 中点。
+fn mid(a: (f32, f32), b: (f32, f32)) -> (f32, f32) {
+    ((a.0 + b.0) * 0.5, (a.1 + b.1) * 0.5)
+}
+
+/// 二次贝塞尔自适应展平（de Casteljau 细分）。
+///
+/// 平坦判据：控制点偏离弦 < 容差（比中点判据更能处理 S 形曲线）。
+fn flatten_quadratic(
+    p0: (f32, f32),
+    p1: (f32, f32),
+    p2: (f32, f32),
+    out: &mut Vec<(f32, f32)>,
+    depth: u32,
+) {
+    if point_line_dist(p1, p0, p2) < FLATTEN_TOLERANCE || depth >= FLATTEN_MAX_DEPTH {
+        out.push(p2);
+        return;
+    }
+    // de Casteljau t=0.5 细分。
+    let p01 = mid(p0, p1);
+    let p12 = mid(p1, p2);
+    let m = mid(p01, p12);
+    flatten_quadratic(p0, p01, m, out, depth + 1);
+    flatten_quadratic(m, p12, p2, out, depth + 1);
+}
+
+/// 三次贝塞尔自适应展平（de Casteljau 细分）。
+///
+/// 平坦判据：两个控制点均偏离弦 < 容差。
+fn flatten_cubic(
+    p0: (f32, f32),
+    p1: (f32, f32),
+    p2: (f32, f32),
+    p3: (f32, f32),
+    out: &mut Vec<(f32, f32)>,
+    depth: u32,
+) {
+    let d1 = point_line_dist(p1, p0, p3);
+    let d2 = point_line_dist(p2, p0, p3);
+    if (d1 < FLATTEN_TOLERANCE && d2 < FLATTEN_TOLERANCE) || depth >= FLATTEN_MAX_DEPTH {
+        out.push(p3);
+        return;
+    }
+    // de Casteljau t=0.5 细分。
+    let p01 = mid(p0, p1);
+    let p12 = mid(p1, p2);
+    let p23 = mid(p2, p3);
+    let p012 = mid(p01, p12);
+    let p123 = mid(p12, p23);
+    let m = mid(p012, p123);
+    flatten_cubic(p0, p01, p012, m, out, depth + 1);
+    flatten_cubic(m, p123, p23, p3, out, depth + 1);
+}
+
+/// 展平一条 Path 的全部曲线段，返回折点序列（含锚点）。
+///
+/// 供 `elements_center` 的包围盒计算：控制点壳会偏大（三次曲线最多 ~25%），
+/// 展平后对折点取 min/max 即为贴近真实曲线的包围盒。
+pub fn flatten_path_segments(segments: &[PathSegment]) -> Vec<(f32, f32)> {
+    let mut pts = Vec::new();
+    let mut cur = (0.0f32, 0.0f32);
+    let mut started = false;
+    for seg in segments {
+        match *seg {
+            PathSegment::M { x, y } | PathSegment::L { x, y } => {
+                cur = (x, y);
+                pts.push(cur);
+                started = true;
+            }
+            PathSegment::Q { x1, y1, x, y } => {
+                if started {
+                    flatten_quadratic(cur, (x1, y1), (x, y), &mut pts, 0);
+                    cur = (x, y);
+                }
+            }
+            PathSegment::C {
+                x1,
+                y1,
+                x2,
+                y2,
+                x,
+                y,
+            } => {
+                if started {
+                    flatten_cubic(cur, (x1, y1), (x2, y2), (x, y), &mut pts, 0);
+                    cur = (x, y);
+                }
+            }
+            PathSegment::Z => {
+                // 闭合段无坐标：不产生新折点。
+            }
+        }
+    }
+    pts
+}
+
 /// 计算一组元素的整体包围盒中心。
 fn elements_center(elements: &[Element]) -> (f32, f32) {
     if elements.is_empty() {
@@ -1217,6 +1337,35 @@ fn elements_center(elements: &[Element]) -> (f32, f32) {
                     &mut max_x,
                     &mut max_y,
                 );
+            }
+            Element::Path {
+                segments,
+                fill,
+                thickness,
+                ..
+            } => {
+                // 自适应展平（de Casteljau，偏离 < 0.5px）后对折点取 min/max，
+                // 控制点壳会偏大（三次曲线最多 ~25%）；确定性阈值保证
+                // 同一曲线每帧得到同一 bbox（动态物料变换轴心不抖动）。
+                let pad = if *fill { 0.0 } else { *thickness / 2.0 };
+                for (x, y) in flatten_path_segments(segments) {
+                    update(
+                        x - pad,
+                        y - pad,
+                        &mut min_x,
+                        &mut min_y,
+                        &mut max_x,
+                        &mut max_y,
+                    );
+                    update(
+                        x + pad,
+                        y + pad,
+                        &mut min_x,
+                        &mut min_y,
+                        &mut max_x,
+                        &mut max_y,
+                    );
+                }
             }
         }
     }
@@ -1407,6 +1556,68 @@ fn apply_transform(
             w: w * transform.scale,
             h: h * transform.scale,
         }],
+        // Path：仿射变换直接作用于全部段坐标（锚点 + 控制点）——
+        // 仿射 × 贝塞尔在数学上精确（控制点变换 = 曲线变换），
+        // 比矩形旋转拆三角形的近似更干净。Z 无坐标、颜色字段透传。
+        Element::Path {
+            segments,
+            fill,
+            thickness,
+            stroke_color,
+            fill_color,
+        } => {
+            let map_seg = |seg: PathSegment| -> PathSegment {
+                match seg {
+                    PathSegment::M { x, y } => {
+                        let (tx, ty) = transform_point(x, y);
+                        PathSegment::M { x: tx, y: ty }
+                    }
+                    PathSegment::L { x, y } => {
+                        let (tx, ty) = transform_point(x, y);
+                        PathSegment::L { x: tx, y: ty }
+                    }
+                    PathSegment::Q { x1, y1, x, y } => {
+                        let (tx1, ty1) = transform_point(x1, y1);
+                        let (tx, ty) = transform_point(x, y);
+                        PathSegment::Q {
+                            x1: tx1,
+                            y1: ty1,
+                            x: tx,
+                            y: ty,
+                        }
+                    }
+                    PathSegment::C {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        x,
+                        y,
+                    } => {
+                        let (tx1, ty1) = transform_point(x1, y1);
+                        let (tx2, ty2) = transform_point(x2, y2);
+                        let (tx, ty) = transform_point(x, y);
+                        PathSegment::C {
+                            x1: tx1,
+                            y1: ty1,
+                            x2: tx2,
+                            y2: ty2,
+                            x: tx,
+                            y: ty,
+                        }
+                    }
+                    PathSegment::Z => PathSegment::Z,
+                }
+            };
+            vec![Element::Path {
+                segments: segments.into_iter().map(map_seg).collect(),
+                fill,
+                // 描边宽度不随图层缩放（与现有图元行为一致）。
+                thickness,
+                stroke_color,
+                fill_color,
+            }]
+        }
     }
 }
 
@@ -1731,5 +1942,210 @@ mod layer_tests {
             locked: false,
         };
         assert!(layer_to_crosshair(&layer).is_none());
+    }
+
+    // ===== Path 图元：几何变换与包围盒测试 =====
+
+    /// 旋转闭合路径：全部坐标绕内容中心旋转 90°，段结构与颜色字段不变。
+    /// 使用直线段路径使轴心可精确手算（曲线展平会引入 <0.5px 的 bbox 容差）。
+    #[test]
+    fn apply_transform_rotates_closed_path() {
+        let element = Element::Path {
+            segments: vec![
+                PathSegment::M { x: 100.0, y: 100.0 },
+                PathSegment::L { x: 150.0, y: 100.0 },
+                PathSegment::L { x: 150.0, y: 150.0 },
+                PathSegment::Z,
+            ],
+            fill: true,
+            thickness: 2.0,
+            stroke_color: Some([1.0, 0.0, 0.0, 1.0]),
+            fill_color: Some([0.0, 0.0, 1.0, 0.5]),
+        };
+        let transform = Transform2D {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            scale: 1.0,
+            rotation_deg: 90.0,
+        };
+        let screen = Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        };
+        // 直线段路径：包围盒 [100,150]²，中心精确为 (125,125)。
+        let center = elements_center(std::slice::from_ref(&element));
+        assert!((center.0 - 125.0).abs() < 1e-4 && (center.1 - 125.0).abs() < 1e-4);
+
+        let result = apply_transform(element, &transform, center, &screen);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            Element::Path {
+                segments,
+                fill,
+                thickness,
+                stroke_color,
+                fill_color,
+            } => {
+                assert_eq!(segments.len(), 4);
+                // 旋转 90°（屏幕坐标 y 向下）：M(100,100) 绕 (125,125)：
+                // dx=-25, dy=-25 → rx=-dy=25, ry=dx=-25 → (150,100)。
+                assert!(matches!(
+                    segments[0],
+                    PathSegment::M { x, y } if (x - 150.0).abs() < 1e-3 && (y - 100.0).abs() < 1e-3
+                ));
+                // 段语义结构不变：L / L / Z。
+                assert!(matches!(segments[1], PathSegment::L { .. }));
+                assert!(matches!(segments[2], PathSegment::L { .. }));
+                assert!(matches!(segments[3], PathSegment::Z));
+                // 颜色与填充字段透传不变。
+                assert!(*fill);
+                assert_eq!(*thickness, 2.0);
+                assert_eq!(*stroke_color, Some([1.0, 0.0, 0.0, 1.0]));
+                assert_eq!(*fill_color, Some([0.0, 0.0, 1.0, 0.5]));
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+    }
+
+    /// 缩放：段坐标放大 2 倍，thickness 保持不变；曲线段控制点同步变换。
+    #[test]
+    fn apply_transform_scales_path_coords_not_thickness() {
+        // 混合直线与曲线段：Q 控制点也应参与缩放。
+        let element = Element::Path {
+            segments: vec![
+                PathSegment::M { x: 100.0, y: 100.0 },
+                PathSegment::L { x: 150.0, y: 100.0 },
+                PathSegment::Q {
+                    x1: 150.0,
+                    y1: 150.0,
+                    x: 150.0,
+                    y: 150.0,
+                },
+                PathSegment::Z,
+            ],
+            fill: false,
+            thickness: 2.0,
+            stroke_color: None,
+            fill_color: None,
+        };
+        let transform = Transform2D {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            scale: 2.0,
+            rotation_deg: 0.0,
+        };
+        let screen = Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 1920.0,
+            max_y: 1080.0,
+        };
+        // 包围盒 [100,150]²，中心 (125,125)。
+        let center = elements_center(std::slice::from_ref(&element));
+        let result = apply_transform(element, &transform, center, &screen);
+        match &result[0] {
+            Element::Path {
+                segments,
+                thickness,
+                ..
+            } => {
+                // M(100,100) 绕 (125,125) 缩放 2 倍 → (75,75)。
+                assert!(matches!(
+                    segments[0],
+                    PathSegment::M { x, y } if (x - 75.0).abs() < 1e-3 && (y - 75.0).abs() < 1e-3
+                ));
+                // Q 控制点 (150,150) → 2×(150-125)+125 = (175,175)。
+                assert!(matches!(
+                    segments[2],
+                    PathSegment::Q { x1, y1, .. }
+                        if (x1 - 175.0).abs() < 1e-3 && (y1 - 175.0).abs() < 1e-3
+                ));
+                // 描边宽度不随图层缩放。
+                assert_eq!(*thickness, 2.0);
+            }
+            other => panic!("expected Path, got {:?}", other),
+        }
+    }
+
+    /// 展平包围盒：S 形三次曲线的极值被正确捕获；同曲线两次计算结果一致。
+    #[test]
+    fn path_flattened_bbox_deterministic_and_tight() {
+        // S 形三次贝塞尔：y 真实极值 min≈71.13 / max≈128.87（解析解），
+        // 控制点壳 y ∈ [0, 200]。中点判据会漏掉 S 形拐点，控制点判据不会。
+        let segments = vec![
+            PathSegment::M { x: 0.0, y: 100.0 },
+            PathSegment::C {
+                x1: 100.0,
+                y1: 0.0,
+                x2: 200.0,
+                y2: 200.0,
+                x: 300.0,
+                y: 100.0,
+            },
+        ];
+        let pts1 = flatten_path_segments(&segments);
+        let pts2 = flatten_path_segments(&segments);
+        // 确定性：同曲线两次计算结果一致。
+        assert_eq!(pts1, pts2);
+
+        let max_y = pts1.iter().map(|p| p.1).fold(f32::MIN, f32::max);
+        let min_y = pts1.iter().map(|p| p.1).fold(f32::MAX, f32::min);
+        // 展平包围盒 ≤ 控制点壳（y 控制点壳达 200）。
+        assert!(
+            max_y <= 200.0,
+            "flattened bbox must not exceed control hull"
+        );
+        // S 形曲线两个方向的鼓包都必须被捕获。
+        assert!(
+            min_y < 100.0,
+            "curve should dip below endpoints, got {}",
+            min_y
+        );
+        assert!(
+            max_y > 100.0,
+            "curve should bulge above endpoints, got {}",
+            max_y
+        );
+        // 与真实极值距离 < 0.5 逻辑像素（容差）。
+        assert!(
+            (min_y - 71.13).abs() < FLATTEN_TOLERANCE,
+            "flattened min_y {} should be within {} of true extremum 71.13",
+            min_y,
+            FLATTEN_TOLERANCE
+        );
+        assert!(
+            (max_y - 128.87).abs() < FLATTEN_TOLERANCE,
+            "flattened max_y {} should be within {} of true extremum 128.87",
+            max_y,
+            FLATTEN_TOLERANCE
+        );
+    }
+
+    /// elements_center 的 Path 分支：直线段路径的中心为几何中心；
+    /// 描边 pad 对中心对称（不偏移），thickness 变化不影响中心值。
+    #[test]
+    fn path_center_accounts_for_thickness_pad() {
+        let mk = |thickness: f32| Element::Path {
+            segments: vec![
+                PathSegment::M { x: 0.0, y: 0.0 },
+                PathSegment::L { x: 100.0, y: 0.0 },
+                PathSegment::L { x: 100.0, y: 100.0 },
+                PathSegment::Z,
+            ],
+            fill: false,
+            thickness,
+            stroke_color: None,
+            fill_color: None,
+        };
+        // 方形路径几何中心 (50, 50)。
+        let center_no_stroke = elements_center(&[mk(0.0)]);
+        assert!((center_no_stroke.0 - 50.0).abs() < 1e-4);
+        assert!((center_no_stroke.1 - 50.0).abs() < 1e-4);
+        // 描边外扩 thickness/2 对 min/max 对称，中心不变。
+        let center_stroke = elements_center(&[mk(10.0)]);
+        assert!((center_stroke.0 - 50.0).abs() < 1e-4);
+        assert!((center_stroke.1 - 50.0).abs() < 1e-4);
     }
 }

@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Layer, MaterialInfo, MaterialSchemaEntry } from "@/types/config";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   addLayer,
   duplicateLayer,
   listMaterials,
   moveLayer,
+  refreshMaterials,
   removeLayer,
   updateLayer,
 } from "@/lib/api";
@@ -57,25 +59,53 @@ export function LayerPanel({
   const [materials, setMaterials] = useState<MaterialInfo[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
 
-  // 加载物料列表（仅一次）。
+  // 物料列表过滤规则（动态门控合取 + custom_image 暂隐藏，见下）。
+  const filterMaterials = (list: MaterialInfo[]) =>
+    (dynamicInputEnabled(dynamicMaterialEnabled)
+      ? list
+      : list.filter((m) => !m.is_dynamic)
+    ).filter((m) => m.id !== "builtin.custom_image");
+
+  // 加载物料列表（挂载时 + dynamicMaterialEnabled 变化时）。
   // 动态输入合取门控：编译期总闸 AND 运行时用户开关（design D2）。
-  // 任一关闭时过滤 is_dynamic 物料（配置保留，渲染冻结）；
-  // 运行时开关变化会以 dynamicMaterialEnabled 为依赖重拉列表，热生效。
+  // 任一关闭时过滤 is_dynamic 物料（配置保留，渲染冻结）。
   // custom_image 暂隐藏：图片渲染链路当前不可用（不渲染图片），待后续修复后恢复。
   useEffect(() => {
     listMaterials()
-      .then((list) =>
-        setMaterials(
-          (dynamicInputEnabled(dynamicMaterialEnabled)
-            ? list
-            : list.filter((m) => !m.is_dynamic)
-          ).filter((m) => m.id !== "builtin.custom_image"),
-        ),
-      )
+      .then((list) => setMaterials(filterMaterials(list)))
       .catch(() => {
         // listMaterials 失败由 invoke 包装 toast 提示；这里不阻塞 UI。
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- filterMaterials 闭包依赖 dynamicMaterialEnabled，由本 effect 依赖数组承载
   }, [dynamicMaterialEnabled]);
+
+  // 监听物料热重载广播：watcher 重载完成时同步刷新选择器列表
+  // （与 LayersEditor 的同名监听互补，本组件的选择器此前不感知该事件）。
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen("peregrine:materials-changed", () => {
+      logAction("materials-changed event (layer-panel)");
+      listMaterials()
+        .then((list) => setMaterials(filterMaterials(list)))
+        .catch(() => {});
+    }).then((un) => {
+      unlisten = un;
+    });
+    return () => unlisten?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 同上，依赖由挂载语义承载
+  }, [dynamicMaterialEnabled]);
+
+  // 打开「添加图层」选择器前主动重扫用户物料目录：watcher 事件可能丢失
+  // （编辑器原子写 / 杀软拦截等），重扫保证新增或修改的 .rhai 无需重启即可见。
+  // refreshMaterials 后端会重载 registry + 通知 overlay，前端拿返回值直接更新列表。
+  const openAddDialog = () => {
+    refreshMaterials()
+      .then((list) => setMaterials(filterMaterials(list)))
+      .catch(() => {
+        // 重扫失败降级为现有列表；对话框照常打开。
+      });
+    setShowAddDialog(true);
+  };
 
   const handleAdd = (materialId: string, name: string) => {
     logAction("add-layer", { materialId, name });
@@ -147,7 +177,7 @@ export function LayerPanel({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setShowAddDialog(true)}
+          onClick={openAddDialog}
           title={t("layers.add")}
         >
           <Plus className="w-4 h-4" />

@@ -2,7 +2,8 @@ import { useI18n } from "@/lib/i18n";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { updatePreferences } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { updatePreferences, openMaterialsDir } from "@/lib/api";
 import { MATERIAL_RUNTIME_ENABLED, dynamicInputEnabled } from "@/lib/feature";
 import type { AppConfig } from "@/types/config";
 
@@ -106,6 +107,19 @@ export function MaterialTab({ config, setConfig }: MaterialTabProps) {
           ? t("material.statusActive")
           : t("material.statusFrozen")}
       </p>
+
+      {/* 自定义物料：打开用户物料目录（.rhai 投放点，热重载自动生效） */}
+      <div className="space-y-2">
+        <div className="space-y-0.5">
+          <Label className="text-sm font-medium">{t("material.openDir")}</Label>
+          <p className="text-xs text-muted-foreground">
+            {t("material.openDirHint")}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => void openMaterialsDir()}>
+          {t("material.openDirButton")}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -14,7 +14,8 @@ pub fn poll_dynamic_context(screen_w: f32, screen_h: f32) -> peregrine_material:
     windows::poll_dynamic_context(screen_w, screen_h)
 }
 
-/// 非 Windows 平台：返回默认上下文（鼠标居中，无按键，预览时间）。
+/// 非 Windows 平台：返回默认上下文（鼠标居中，无按键，预览时间，
+/// 速度/加速度为 0——与 `mouse_pos` 平台降级先例一致的占位实现）。
 #[cfg(not(windows))]
 pub fn poll_dynamic_context(screen_w: f32, screen_h: f32) -> peregrine_material::DynamicContext {
     peregrine_material::DynamicContext::preview_snapshot(screen_w, screen_h)

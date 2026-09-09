@@ -3,7 +3,8 @@
  * 落地页页脚（aukcraft 壳层，docs-aukcraft-shell）
  *
  * 参照 .agents/skills/aukcraft-site-design 的 Footer 资产改写：
- * - 词标 Peregrine + lucide Bird 图标（不引入 aukcraft PuffinMark 吉祥物）；
+ * - 词标 Peregrine + 站点 logo 图标（/logo.svg，与头栏 SiteTitle 同一标识，
+ *   不再用 lucide Bird、也不引入 aukcraft PuffinMark 吉祥物）；
  * - 站点导航（文档 / 下载 / GitHub ↗）用 .link-line 行内链接基元；
  * - 「开源」列：MIT 许可证 / 议题 / Releases 外链；
  * - 底行 hairline 分隔 + mono 微字版权行；
@@ -12,7 +13,6 @@
  *
  * 仅由双语 index.mdx 挂载（guide / download 页不挂，与 DotField 同范围）。
  */
-import { lucideIcon } from '../../lib/icons';
 import { localeBase } from '../../lib/locale';
 
 interface Props {
@@ -42,15 +42,14 @@ const ossNav = [
   { label: zh ? '议题' : 'Issues', href: 'https://github.com/eeymoo/peregrine/issues' },
   { label: 'Releases', href: 'https://github.com/eeymoo/peregrine/releases' },
 ];
-
-const birdIcon = lucideIcon('Bird');
 ---
 
 <footer class="lp-footer not-content mt-24 border-t border-(--sl-color-hairline)" data-pagefind-ignore>
   <div class="grid gap-12 py-16 md:grid-cols-3">
     <div>
       <p class="m-0 flex items-center gap-2 font-mono text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-50">
-        <span class="inline-flex text-accent-600 dark:text-accent-400 [&_svg]:size-5" aria-hidden="true" set:html={birdIcon} />
+        {/* 站点 logo 图标（与头栏 SiteTitle 同一标识），尺寸对齐原 Bird 图标的 size-5。 */}
+        <img src="/logo.svg" alt="" aria-hidden="true" width="20" height="20" class="size-5" />
         Peregrine
       </p>
       <nav class="mt-6" aria-label="Site">

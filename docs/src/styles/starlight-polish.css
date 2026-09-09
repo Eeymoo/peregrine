@@ -233,6 +233,19 @@ site-search {
  * raised #14181D / 浅色端 #FFFFFF，见 global.css 语义映射）。若升级后 Select.astro
  * 引入圆角或阴影，需在此处补 ≤4px + 零阴影覆写。 */
 
+/* 品牌字标（SiteTitle.astro）：对齐 aukcraft.org 顶栏签名——mono text-sm +
+ * tracking-tight + ink 色（非品牌蓝）+ 常规字重，logo 收敛到 1.5rem（h-6）。
+ * 目标：@astrojs/starlight 0.41；内部 class：.header 内的 .site-title（SiteTitle.astro
+ * 内联声明 font-size: var(--sl-text-h4) / font-weight: 600 / text-accent / img 高度
+ * = --sl-nav-height - 2 * --sl-nav-pad-y，均在本文件未分层规则下被覆盖）。 */
+.header .site-title {
+  @apply font-mono text-sm tracking-tight font-normal text-gray-900 dark:text-gray-50;
+}
+
+.header .site-title img {
+  @apply h-6 w-auto;
+}
+
 /* -----------------------------------------------------------
  * 11. 落地页区块节奏（首页 MDX 中的 .lp-section / .lp-heading）
  *

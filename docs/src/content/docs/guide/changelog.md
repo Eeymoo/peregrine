@@ -73,7 +73,7 @@ Stable release. The dynamic material pipeline is restored end-to-end: the built-
 
 - **Steady-state CPU / memory of dynamic overlays**: evaluation runs once per frame instead of twice, identical frames are skipped via an output fingerprint (no clear/rasterize/present), the usvg font database is no longer rebuilt every frame, the tiny-skia pixmap is reused, and fonts load via targeted mmap of specific files (Segoe UI by default; Microsoft YaHei only when non-ASCII text appears — full font-directory scan only as a last-resort fallback). A running clock overlay now sits well under 1% CPU with flat memory. @Eeymoo
 - **RandomOrb pacing** now follows the configured FPS tier instead of the fixed 60FPS tick. @Eeymoo
-- The "⚡ dynamic material (follows input)" hint row was removed from the layer parameter panel (it carried no actionable information); the picker's "Dynamic" badge stays. @Eeymoo
+- The "dynamic material (follows input)" hint row was removed from the layer parameter panel (it carried no actionable information); the picker's "Dynamic" badge stays. @Eeymoo
 
 ---
 
@@ -124,7 +124,7 @@ Multi-layer editing pipeline hardening release. Addresses nine issues surfaced b
 
 ### Fixed
 
-- **Config loss root cause (#34 🔴 critical)**: removed full `saveConfig` overwrites on the multi-layer path; all profile field changes now go through the patch API. @Eeymoo
+- **Config loss root cause (#34 critical)**: removed full `saveConfig` overwrites on the multi-layer path; all profile field changes now go through the patch API. @Eeymoo
 - **IPC error protocol (#27)**: error return type `Result<T, String>` → `Result<T, IpcError>` with structured `{code, message}`. @Eeymoo
 - **Unified error feedback (#31)**: all layer operations now have try/catch + toast; no more silent error swallowing. @Eeymoo
 - **Global dialog layering (#28)**: `AutoSwitchDialog` / `UpdateDialog` / `UpdateProgress` moved to the outermost layer of `ConfigApp`. @Eeymoo

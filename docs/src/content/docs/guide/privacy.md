@@ -32,13 +32,13 @@ Crash reports additionally include the Rust / JS stacktrace and the panic messag
 
 We **do not** collect any of the following:
 
-- ❌ IP addresses — events are scrubbed of `user`, `server_name`, and `request` fields before leaving the device (sentry `before_send` hook).
-- ❌ Usernames — Windows path components such as `C:\Users\<name>`, `/Users/<name>`, `/home/<name>` are replaced with `C:\Users\{user}` / `/Users/{user}` / `/home/{user}` in messages, stacktraces, and `abs_path` frames.
-- ❌ Machine name / hostname / device IDs (no `server_name`, no SMB/NetBIOS name).
-- ❌ Configuration contents — never the crosshair style, layer params, profile names, target window titles, or hotkey bindings.
-- ❌ Game titles or window titles (the `target_window` field is a user-setting and is **not** transmitted).
-- ❌ Screenshots, clipboard, file contents.
-- ❌ Browsing history, input events, mouse coordinates (dynamic-input APIs exist for material scripts but are currently soft-disabled and never sent off-device).
+- IP addresses — events are scrubbed of `user`, `server_name`, and `request` fields before leaving the device (sentry `before_send` hook).
+- Usernames — Windows path components such as `C:\Users\<name>`, `/Users/<name>`, `/home/<name>` are replaced with `C:\Users\{user}` / `/Users/{user}` / `/home/{user}` in messages, stacktraces, and `abs_path` frames.
+- Machine name / hostname / device IDs (no `server_name`, no SMB/NetBIOS name).
+- Configuration contents — never the crosshair style, layer params, profile names, target window titles, or hotkey bindings.
+- Game titles or window titles (the `target_window` field is a user-setting and is **not** transmitted).
+- Screenshots, clipboard, file contents.
+- Browsing history, input events, mouse coordinates (dynamic-input APIs exist for material scripts but are currently soft-disabled and never sent off-device).
 
 ## Data sanitization
 

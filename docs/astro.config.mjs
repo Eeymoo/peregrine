@@ -49,12 +49,13 @@ const sidebar = [
 export default defineConfig({
   site: 'https://peregrine.aukcraft.org',
   base: '/',
-  // 与 VitePress cleanUrls: false 一致：产出 .html 文件，内部链接指向干净 URL。
-  // 注意：内容集合会剥离 index slug，zh-cn/index.mdx 产出的仍是 zh-cn.html 而非 zh-cn/index.html，
-  // 故 /zh-cn/（带斜杠）需由 Cloudflare 重定向规则兜底（见 design.md Open Questions / Risks）。
-  trailingSlash: 'never',
+  // 目录式构建：每页产出 <slug>/index.html，/path/ 直接命中；
+  // /path（不带斜杠）由 GitHub Pages 自动 301 到 /path/。
+  // 修复：此前 format: 'file' 导致所有带尾斜杠的 URL（如 /zh-cn/guide/material-scripting/）
+  // 在线上 404，且原计划的 Cloudflare 重定向兜底规则并未生效。
+  trailingSlash: 'always',
   build: {
-    format: 'file',
+    format: 'directory',
   },
   integrations: [
     starlight({

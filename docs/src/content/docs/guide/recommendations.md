@@ -4,7 +4,7 @@ title: "Recommended Configurations"
 
 This page first introduces common knowledge about 3D motion sickness, then provides Peregrine reference configurations for different types of games. For a complete explanation of the principles and general mitigation methods, please read [Relieving 3D Motion Sickness](./motion-sickness) first.
 
-> ⚠️ **Disclaimer**: All recommended configurations below are **reference opinions only**, not authoritative prescriptions. Everyone's sensitivity to sensory conflict is different, and the best configuration varies from person to person. Use the recommended values as a starting point and fine-tune based on how you feel.
+> **Disclaimer**: All recommended configurations below are **reference opinions only**, not authoritative prescriptions. Everyone's sensitivity to sensory conflict is different, and the best configuration varies from person to person. Use the recommended values as a starting point and fine-tune based on how you feel.
 
 ## Common Knowledge About 3D Motion Sickness
 

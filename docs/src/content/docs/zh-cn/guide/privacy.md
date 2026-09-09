@@ -32,13 +32,13 @@ Peregrine 内置 **匿名、可选** 的遥测功能，用于诊断崩溃、确�
 
 下列数据 **绝不** 上报：
 
-- ❌ **IP 地址** —— 事件离机前删除 `user` / `server_name` / `request` 字段（sentry `before_send` 钩子）。
-- ❌ **用户名** —— Windows 路径如 `C:\Users\<name>`、macOS `/Users/<name>`、Linux `/home/<name>` 中的用户名会被替换为 `C:\Users\{user}` / `/Users/{user}` / `/home/{user}`（覆盖消息、堆栈、`abs_path`）。
-- ❌ **机器名 / 主机名 / 设备 ID**（无 `server_name`、无 SMB/NetBIOS 名）。
-- ❌ **配置内容** —— 不上报准心样式、图层参数、Profile 名、目标窗口标题、热键绑定。
-- ❌ **游戏标题 / 窗口标题**（`target_window` 是用户设置，**不** 上送）。
-- ❌ **截图、剪贴板、文件内容**。
-- ❌ **浏览历史、输入事件、鼠标坐标**（物料脚本有动态输入 API，但目前处于软关闭状态，且绝不外发）。
+- **IP 地址** —— 事件离机前删除 `user` / `server_name` / `request` 字段（sentry `before_send` 钩子）。
+- **用户名** —— Windows 路径如 `C:\Users\<name>`、macOS `/Users/<name>`、Linux `/home/<name>` 中的用户名会被替换为 `C:\Users\{user}` / `/Users/{user}` / `/home/{user}`（覆盖消息、堆栈、`abs_path`）。
+- **机器名 / 主机名 / 设备 ID**（无 `server_name`、无 SMB/NetBIOS 名）。
+- **配置内容** —— 不上报准心样式、图层参数、Profile 名、目标窗口标题、热键绑定。
+- **游戏标题 / 窗口标题**（`target_window` 是用户设置，**不** 上送）。
+- **截图、剪贴板、文件内容**。
+- **浏览历史、输入事件、鼠标坐标**（物料脚本有动态输入 API，但目前处于软关闭状态，且绝不外发）。
 
 ## 脱敏规则
 

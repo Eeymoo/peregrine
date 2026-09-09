@@ -1,0 +1,8 @@
+schema: spec-driven
+created: 2026-08-15
+status: in-progress
+note: >-
+  由 aukcraft 组织侧会话发起（institutionalize-verification 对应执行）。
+  环境限制：gh CLI 无认证凭据，/opsx:apply 的跟踪 issue 与 PR 步骤无法由
+  agent 完成——branch 已按规范先行，issue/pr 字段由维护者创建后补录。
+branch: feature/enforce-test-gates

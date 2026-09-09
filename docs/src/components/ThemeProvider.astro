@@ -1,0 +1,43 @@
+---
+/**
+ * Starlight `ThemeProvider` 覆写：默认主题改为 dark（黑色）。
+ *
+ * 与上游 @astrojs/starlight 0.41 的 components/ThemeProvider.astro 同构，改动两处：
+ * 1. 无 localStorage 记录时不跟随 prefers-color-scheme，缺省 dark；
+ * 2. 删除 `#theme-icons` 模板与 Icon 依赖——原生 ThemeSelect 仅存在于默认 Header，
+ *    本站 Header 已覆写为自带 sun/moon 切换，页面上不存在 starlight-theme-select，
+ *    updatePickers 的图标替换分支保持空转（原有 null 守卫已兼容）。
+ * 用户通过顶栏切换（写 localStorage `starlight-theme`）后仍尊重其显式选择。
+ *
+ * 维护注意：升级 Starlight 时，请 diff 上游 ThemeProvider.astro 并重新同步
+ * （上游在该文件标注 "intentionally inlined to avoid FOUC"，勿改为非内联脚本）。
+ */
+---
+
+{/* This is intentionally inlined to avoid FOUC. */}
+<script is:inline>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		// 唯一行为改动：缺省主题为 dark（原上游实现为跟随 prefers-color-scheme）。
+		const theme = storedTheme || 'dark';
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script>

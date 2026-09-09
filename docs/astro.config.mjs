@@ -80,10 +80,13 @@ export default defineConfig({
       sidebar,
       customCss: ['./src/styles/global.css', './src/styles/starlight-polish.css'],
       // 仅覆写 Hero（首页落地页化）与 Header（顶部导航链接，仅插入导航区、其余结构不动）。
-      // 不增加其他覆写，降低升级脆弱性；Header 覆写理由与维护注意见 AGENTS.md。
+      // 仅覆写 Hero（首页落地页化）、Header（顶部导航链接，仅插入导航区、其余结构不动）
+      // 与 ThemeProvider（缺省主题改为 dark，尊重用户显式切换）。
+      // 不增加其他覆写，降低升级脆弱性；各覆写理由与维护注意见 AGENTS.md。
       components: {
         Hero: './src/components/landing/LandingHero.astro',
         Header: './src/components/Header.astro',
+        ThemeProvider: './src/components/ThemeProvider.astro',
       },
       // 「在 GitHub 上编辑此页面」链接（Starlight 自动拼接 src/content/docs 相对路径并适配双语子目录）。
       editLink: {

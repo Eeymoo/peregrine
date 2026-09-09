@@ -89,7 +89,7 @@ Each schema entry uses exactly one `widget`. The UI renders the matching control
 | `image_path` | _(none)_ | string (filesystem path) | file picker (PNG) |
 | `text` | _(none)_ | string | free-form text input |
 
-> The `color` widget stores an RGBA array. Most layer-level styling (color / opacity) is applied at the [layer](./layers) level and overrides whatever the material emits; material-level colors are mostly relevant for multi-color materials.
+> The `color` widget stores an RGBA array. Most layer-level styling (color / opacity) is applied at the [layer](/guide/layers/) level and overrides whatever the material emits; material-level colors are mostly relevant for multi-color materials.
 
 ## Element types
 
@@ -292,7 +292,7 @@ More example materials (static, time-dynamic, input-dynamic) live under [`crates
 
 ## See also
 
-- [Layers](./layers) — how materials are stacked, transformed, and styled at the layer level.
-- [Settings Guide](./settings) — runtime behavior of the dynamic-material switch and FPS.
-- [Configuration](./config) — the `Profile.layers` JSON shape.
-- [`REPORT_CODES.md`](./report-codes) — telemetry code registry (materials don't emit telemetry themselves, but related code paths do).
+- [Layers](/guide/layers/) — how materials are stacked, transformed, and styled at the layer level.
+- [Settings Guide](/guide/settings/) — runtime behavior of the dynamic-material switch and FPS.
+- [Configuration](/guide/config/) — the `Profile.layers` JSON shape.
+- [`REPORT_CODES.md`](/guide/report-codes/) — telemetry code registry (materials don't emit telemetry themselves, but related code paths do).

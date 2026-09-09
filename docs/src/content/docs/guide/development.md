@@ -87,7 +87,7 @@ Locale JSONs live in `src/i18n/locales/`; both frontend (`localeMap` import) and
 
 ## Telemetry Development
 
-Peregrine integrates anonymous GlitchTip (Sentry-protocol) telemetry: crash reports, startup stats, and key-path error reporting. The user-facing privacy explanation is in [Privacy & Telemetry](./privacy); the developer-facing registry of every report code is in [`REPORT_CODES.md`](./report-codes) at the repo root.
+Peregrine integrates anonymous GlitchTip (Sentry-protocol) telemetry: crash reports, startup stats, and key-path error reporting. The user-facing privacy explanation is in [Privacy & Telemetry](/guide/privacy/); the developer-facing registry of every report code is in [`REPORT_CODES.md`](/guide/report-codes/) at the repo root.
 
 ### Module layout
 

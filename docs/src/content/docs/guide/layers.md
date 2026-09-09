@@ -4,7 +4,7 @@ title: "Layers"
 
 A **layer** is one material invocation plus its own parameters, transform, and style. A profile's visual anchor is the composition of all its layers stacked on top of each other. Layers are what you actually edit in the settings UI; materials are the reusable recipes they invoke.
 
-This page covers the user-facing concepts. For authoring materials themselves, see [Material Scripting](./material-scripting); for the raw JSON shape, see [Configuration](./config).
+This page covers the user-facing concepts. For authoring materials themselves, see [Material Scripting](/guide/material-scripting/); for the raw JSON shape, see [Configuration](/guide/config/).
 
 ## Why layers?
 
@@ -56,7 +56,7 @@ Transforms are handy for nudging a material to an off-center anchor, mirroring, 
 
 ## Layers and Profiles
 
-Each [`Profile`](./config) carries an ordered `layers` array. The active profile's layers are what the overlay renders. Switching profiles swaps the entire layer set.
+Each [`Profile`](/guide/config/) carries an ordered `layers` array. The active profile's layers are what the overlay renders. Switching profiles swaps the entire layer set.
 
 The settings UI supports two modes:
 
@@ -100,11 +100,11 @@ A typical workflow for a multi-layer anchor:
 5. Reorder by dragging so the most important layer is on top.
 6. Hide or lock anything you want to keep but not accidentally edit.
 
-Each layer's parameters come from the material's `schema()`, so the UI shows material-specific controls (slider for arm length, dropdown for anchor, etc.). See [Material Scripting](./material-scripting) for what each material exposes.
+Each layer's parameters come from the material's `schema()`, so the UI shows material-specific controls (slider for arm length, dropdown for anchor, etc.). See [Material Scripting](/guide/material-scripting/) for what each material exposes.
 
 ## See also
 
-- [Material Scripting](./material-scripting) — authoring custom materials.
-- [Settings Guide](./settings) — settings-window options (renderer backend / anti-aliasing / dynamic materials, etc.).
-- [Configuration](./config) — full JSON schema including `Profile.layers`.
-- [Recommended Settings](./recommendations) — curated profiles that use multiple layers.
+- [Material Scripting](/guide/material-scripting/) — authoring custom materials.
+- [Settings Guide](/guide/settings/) — settings-window options (renderer backend / anti-aliasing / dynamic materials, etc.).
+- [Configuration](/guide/config/) — full JSON schema including `Profile.layers`.
+- [Recommended Settings](/guide/recommendations/) — curated profiles that use multiple layers.

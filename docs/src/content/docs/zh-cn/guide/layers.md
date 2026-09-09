@@ -4,7 +4,7 @@ title: "图层管理"
 
 **图层**（Layer）是一次物料调用加上自己的参数、变换与样式。一个 Profile 的视觉锚点是其全部图层按顺序堆叠的合成结果。你在设置 UI 里实际编辑的就是图层；物料是图层调用的可复用配方。
 
-本文档面向使用者讲解图层概念。要编写物料本身，请看 [物料脚本创作](./material-scripting)；原始 JSON 结构见 [配置说明](./config)。
+本文档面向使用者讲解图层概念。要编写物料本身，请看 [物料脚本创作](/zh-cn/guide/material-scripting/)；原始 JSON 结构见 [配置说明](/zh-cn/guide/config/)。
 
 ## 为什么需要图层？
 
@@ -56,7 +56,7 @@ v0.2 之前，每个 Profile 只能有单一准心样式。图层让你把多种
 
 ## 图层与 Profile
 
-每个 [`Profile`](./config) 持有有序的 `layers` 数组。当前激活 Profile 的图层就是 overlay 渲染的内容。切换 Profile 即整体替换图层集合。
+每个 [`Profile`](/zh-cn/guide/config/) 持有有序的 `layers` 数组。当前激活 Profile 的图层就是 overlay 渲染的内容。切换 Profile 即整体替换图层集合。
 
 设置 UI 支持两种模式：
 
@@ -100,11 +100,11 @@ v0.2 之前，每个 Profile 只能有单一准心样式。图层让你把多种
 5. 拖动重排，把最重要的图层放最上面。
 6. 隐藏或锁定想保留但不想误改的图层。
 
-每个图层的参数来自物料的 `schema()`，所以 UI 会显示物料专属控件（臂长滑块、位置下拉框等）。每种物料暴露哪些参数，见 [物料脚本创作](./material-scripting)。
+每个图层的参数来自物料的 `schema()`，所以 UI 会显示物料专属控件（臂长滑块、位置下拉框等）。每种物料暴露哪些参数，见 [物料脚本创作](/zh-cn/guide/material-scripting/)。
 
 ## 相关文档
 
-- [物料脚本创作](./material-scripting) —— 编写自定义物料
-- [设置详解](./settings) —— 设置窗口各选项（渲染后端 / 抗锯齿 / 动态物料等）
-- [配置说明](./config) —— 完整 JSON schema（含 `Profile.layers`）
-- [推荐配置](./recommendations) —— 使用多图层的精选 Profile
+- [物料脚本创作](/zh-cn/guide/material-scripting/) —— 编写自定义物料
+- [设置详解](/zh-cn/guide/settings/) —— 设置窗口各选项（渲染后端 / 抗锯齿 / 动态物料等）
+- [配置说明](/zh-cn/guide/config/) —— 完整 JSON schema（含 `Profile.layers`）
+- [推荐配置](/zh-cn/guide/recommendations/) —— 使用多图层的精选 Profile

@@ -5,7 +5,7 @@ description: Item-by-item walkthrough of every tab (General / Overlay / Material
 
 import Mermaid from '../../../components/Mermaid.astro';
 
-The settings window is opened from the tray menu ("Settings") or the config panel. It contains 7 tabs: **General / Overlay / Material / Hotkeys / Update / About / Dev** (the "Dev" tab appears only after developer mode is unlocked). This page covers the first five; for the full field definitions see the [Configuration Guide](./config.md).
+The settings window is opened from the tray menu ("Settings") or the config panel. It contains 7 tabs: **General / Overlay / Material / Hotkeys / Update / About / Dev** (the "Dev" tab appears only after developer mode is unlocked). This page covers the first five; for the full field definitions see the [Configuration Guide](/guide/config/).
 
 :::note[About the screenshots]
 The screenshots show the **main app's own fixed light UI**; they do not change with the docs site's light/dark theme.
@@ -36,7 +36,7 @@ The screenshots show the **main app's own fixed light UI**; they do not change w
 
 - **Language**: `auto` follows the system language; you can also pin it to Simplified Chinese, English, etc. Switching away from Simplified Chinese automatically disables the mainland-China mirror.
 - **GPU acceleration**: Controls WebView2 hardware acceleration for the settings window. Off by default, which drops the GPU process memory from ~80 MB to ~15 MB; enable it if the UI feels sluggish. After switching, the app asks whether to restart immediately.
-- **Telemetry**: Consent switch for anonymous crash reports + launch statistics (see [Privacy & Telemetry](./privacy.md)). Changes take effect after a restart; choosing "restart later" shows a pending-restart badge. The whole item is hidden when the build has no DSN injected (e.g. self-compiled).
+- **Telemetry**: Consent switch for anonymous crash reports + launch statistics (see [Privacy & Telemetry](/guide/privacy/)). Changes take effect after a restart; choosing "restart later" shows a pending-restart badge. The whole item is hidden when the build has no DSN injected (e.g. self-compiled).
 
 ## Overlay
 
@@ -64,7 +64,7 @@ The screenshots show the **main app's own fixed light UI**; they do not change w
 
 - **Quick colors**: 5 customizable color presets. Click a swatch to open a color picker; in the config window, clicking a swatch switches the crosshair color instantly — hotkeys can cycle or select them directly (see [Hotkeys](#hotkeys)). A reset button restores the defaults (white/green/blue/red/orange).
 
-Layer management and per-layer parameters live in the config window's layer editor — see [Layers](./layers.md).
+Layer management and per-layer parameters live in the config window's layer editor — see [Layers](/guide/layers/).
 
 ## Material
 
@@ -101,7 +101,7 @@ This page also provides an "**Open materials folder**" button: it reveals the fo
 
 FPS is an **upper-bound animation cadence (cap)**, not a forced frame rate: only profiles containing dynamic materials redraw periodically at the cadence; **purely static profiles stay event-driven and are unaffected**. FPS changes are hot-applied without a restart.
 
-For writing Rhai material scripts see [Material Scripting](./material-scripting.md).
+For writing Rhai material scripts see [Material Scripting](/guide/material-scripting/).
 
 ## Hotkeys
 
@@ -126,4 +126,4 @@ The "Update" tab offers a manual "Check for updates" button and two preferences:
 - **Update channel** (`settings.update_channel`): `Stable` (releases only) or `Prerelease` (early pre-release builds).
 - **Mirror acceleration** (`settings.cn_mirror`): Routes GitHub Release downloads through a gh-proxy mirror to improve speeds in mainland China; the mirror URL (`settings.mirror_url`) can be picked from presets or customized, defaulting to `https://v4.gh-proxy.org`.
 
-In-app auto-update is available for the NSIS installer only; portable users should download new versions manually. See [Usage · Update](./usage.md).
+In-app auto-update is available for the NSIS installer only; portable users should download new versions manually. See [Usage · Update](/guide/usage/).

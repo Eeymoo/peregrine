@@ -73,7 +73,7 @@ title: "配置说明"
 }
 ```
 
-各字段的详细说明见下文表格；图层与物料的进阶用法参见[图层](./layers.md)与[物料脚本](./material-scripting.md)，各设置项在设置窗口中的位置参见[设置详解](./settings.md)。
+各字段的详细说明见下文表格；图层与物料的进阶用法参见[图层](/zh-cn/guide/layers/)与[物料脚本](/zh-cn/guide/material-scripting/)，各设置项在设置窗口中的位置参见[设置详解](/zh-cn/guide/settings/)。
 
 ## 字段说明
 
@@ -111,7 +111,7 @@ title: "配置说明"
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `dynamic_enabled` | boolean | `true` | 动态物料总开关（运行时层）。与编译期总闸构成与门，详见[设置详解 · 物料](./settings.md#物料)。关闭后热生效、无需重启 |
+| `dynamic_enabled` | boolean | `true` | 动态物料总开关（运行时层）。与编译期总闸构成与门，详见[设置详解 · 物料](/zh-cn/guide/settings/#物料)。关闭后热生效、无需重启 |
 | `fps` | integer? | 缺省 | 动画帧率档位（上限节拍）：缺省 = 跟随主屏刷新率（回退 60）；固定值仅接受 `30` / `60` / `120`。纯静态 profile 不受影响 |
 
 ### Profile
@@ -181,7 +181,7 @@ title: "配置说明"
 旧格式（`crosshair` 单字段）配置文件**加载时即自动迁移**为 `layers`（单个等价图层）；下次保存配置时 `crosshair` 字段即消失、只保留 `layers`。**无需手工转换**。
 :::
 
-迁移映射（旧 `Crosshair` 字段 → 新图层 `params`）详见[图层](./layers.md)。以下字段表仅供查阅旧文件或历史备份使用。
+迁移映射（旧 `Crosshair` 字段 → 新图层 `params`）详见[图层](/zh-cn/guide/layers/)。以下字段表仅供查阅旧文件或历史备份使用。
 
 ### Crosshair（旧）
 

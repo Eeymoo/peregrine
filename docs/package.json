@@ -8,14 +8,19 @@
     "build": "astro build",
     "preview": "astro preview",
     "screenshots": "node scripts/capture-screenshots.mjs",
+    "smoke:playground": "node scripts/smoke-playground.mjs",
     "verify": "node scripts/verify-landing.mjs && node scripts/verify-polish.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.7",
     "@astrojs/starlight-tailwind": "^5.0.0",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.4",
+    "@codemirror/view": "^6.43.11",
     "@fontsource-variable/newsreader": "^5.2.5",
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.2.1",
+    "codemirror": "^6.0.2",
     "mermaid": "^11.17.0",
     "starlight-llms-txt": "^0.11.0",
     "tailwindcss": "^4.3.3"

@@ -1,0 +1,21 @@
+---
+title: 技能物料
+description: 可复用的 agent skills——从 Peregrine 日常开发中提炼的工程经验，随取随用。
+tableOfContents: false
+# 独立物料页不参与指南翻页序列（与 download / playground 页同策略）。
+prev: false
+next: false
+---
+
+import SkillsGrid from '../../../components/landing/SkillsGrid.astro';
+
+一套可复用的 agent skills——发布流程、bug 修复纪律、规格驱动开发、i18n 审查等，从 Peregrine 的日常开发中提炼而来，可直接装入任意 AI 编码会话。
+
+每个 skill 位于仓库的 [`.agents/skills/<name>/SKILL.md`](https://github.com/Eeymoo/peregrine/tree/main/.agents/skills)。在本仓库中加载的 agent 会自动识别它们；人类读者也可以把它们当作精炼的工程检查清单。
+
+<SkillsGrid
+  locale="zh-cn"
+  label="技能物料"
+  unit="个"
+  sourceLabel="查看源文件"
+/>

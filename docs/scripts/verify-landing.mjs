@@ -290,12 +290,13 @@ for (const theme of ['dark', 'light']) {
       JSON.stringify(r.dlButtons),
     );
     check(
-      `${t} 顶栏导航 4 链接（Docs/Download/Playground/GitHub）`,
-      r.headerNav.length === 4 &&
+      `${t} 顶栏导航 5 链接（Docs/Download/Playground/Skills/GitHub）`,
+      r.headerNav.length === 5 &&
         r.headerNav[0].endsWith('/guide/intro') &&
         r.headerNav[1].endsWith('/download') &&
         r.headerNav[2].endsWith('/playground') &&
-        r.headerNav[3] === 'https://github.com/eeymoo/peregrine',
+        r.headerNav[3].endsWith('/skills') &&
+        r.headerNav[4] === 'https://github.com/eeymoo/peregrine',
       JSON.stringify(r.headerNav),
     );
     check(`${t} 顶栏保留`, r.topbar === true);
@@ -340,8 +341,10 @@ for (const theme of ['dark', 'light']) {
     // Header 导航区计算样式（aukcraft 平铺头栏 + .link-line 统一基元）
     const hnLinkColor = theme === 'dark' ? 'oklch(0.882 0.059 254.128)' : 'oklch(0.546 0.245 262.881)';
     check(
-      `${t} 头栏容器 max-w-5xl 居中`,
-      r.headerBox?.maxWidth === '1024px' && parseFloat(r.headerBox?.marginLeft) > 0,
+      // 宽度对齐修复：头栏内层与内容列同宽居中（--sl-content-width = 1080px），
+      // 不再是旧的 max-w-5xl(1024px) 居中盒。
+      `${t} 头栏容器与内容列同宽居中`,
+      r.headerBox?.maxWidth === '1080px' && parseFloat(r.headerBox?.marginLeft) > 0,
       JSON.stringify(r.headerBox),
     );
     check(

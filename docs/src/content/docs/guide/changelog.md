@@ -6,6 +6,30 @@ This page records every Peregrine release. Stable releases are listed first; pre
 
 ---
 
+## [v0.2.8] — 2026-09-09
+
+Stable release. Focused on **discovering and using custom materials**: a one-click "open materials folder" entry, an official skill that lets AI coding agents author materials, and a hot-reload fallback fix so newly added `.rhai` files are visible without a restart.
+
+### Added
+
+- **"Open materials folder" button** (Settings → Materials): reveals the user materials directory (`%APPDATA%/Peregrine/materials/`, auto-created if missing) in the system file manager, with six-locale copy and settings-guide docs. @Eeymoo
+- **Official `material-creation` skill** (repo `skills/` directory, skills.sh ecosystem layout): a complete authoring manual for AI coding agents (contract functions, full element/widget tables, dynamic API, anchor design principles) plus five battle-tested recipes and a starter template; `skills/README.md` ships `npx skills add/use` install guides and a one-liner manual install. After installing, telling any agent "make me a XX crosshair" produces a ready-to-load `.rhai`. @Eeymoo
+- **Settings guide page** (docs site, bilingual): per-tab explanations (incl. the dynamic-material AND-gate diagram and FPS cadence semantics), a refurbished configuration page for the settings + layers format, and real per-tab screenshots. @Eeymoo
+
+### Fixed
+
+- **New user materials visible without restart**: previously the material picker never refreshed after dropping in a `.rhai` — a restart was required. The "add layer" picker now proactively rescans the materials directory before opening (backend `refresh_materials` command, notification path identical to the file watcher), and the picker now also listens for the `materials-changed` hot-reload event — reliable even when watcher events are lost (editor atomic saves / antivirus interference). @Eeymoo
+
+### Changed
+
+- **Material scripting docs corrections** (bilingual): hot-reload wording now matches the actual fully-automatic file-watcher behavior; removed the false "user materials override same-name built-ins" claim (`user.` / `builtin.` namespaces are independent — verified in code); documented the `// Name:` display-name convention and the `parse_svg_path(d)` API. @Eeymoo
+
+### Build
+
+- CI: the opencode cloud agent now only answers explicit human `/oc` invocations (blocks self-reply loops); CI and Snapshot triggers are split by changed areas (docs-only changes no longer run full builds). @Eeymoo
+
+---
+
 ## [v0.2.7] — 2026-08-16
 
 Preview release. Introduces the **Path element** — arbitrary vector geometry (Bézier curves) for materials — plus two new built-in anchor materials built on it, a new SVG-path parsing API for custom shapes, and a batch of rendering fixes and performance work driven by on-device feedback.
